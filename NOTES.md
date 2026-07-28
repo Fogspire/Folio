@@ -42,6 +42,34 @@ does end-frame and buffer-swap atomically (screenshot capture has to happen betw
 The fork records its upstream commit in a header comment and stays minimally diverged so
 diffs remain readable across an RmlUi bump.
 
+## Which advanced rendering features Folio implements
+
+**All of them.** The Unreal render interface implements the complete RmlUi 6.x optional
+feature set, not a subset. Decided deliberately: a feature that is absent does not fail
+loudly, it parses and draws nothing, so a missing one is discovered months later as "why is
+this panel flat" rather than as an error. Retrofitting one also means revisiting every
+document authored against its absence.
+
+| Render interface feature | What stops working without it |
+|---|---|
+| `EnableClipMask` / `RenderToClipMask` | `border-radius` and `overflow: hidden` on anything transformed. Clips to the wrong rectangle |
+| Render layers (`PushLayer` / `PopLayer` / `CompositeLayers`) | `opacity` on a subtree, `filter`, `backdrop-filter`, `mask-image` |
+| `SaveLayerAsTexture` | `backdrop-filter`, and any effect reading what is already drawn |
+| `CompileFilter` / `RenderFilter` | `filter` and `backdrop-filter` entirely: blur, drop-shadow, brightness, contrast, grayscale, invert, opacity, saturate, sepia, hue-rotate |
+| `CompileShader` / `RenderShader` | Every gradient decorator, and any custom decorator |
+| `SetTransform` | `transform`, so every animation that is not opacity or colour |
+
+`box-shadow` needs no interface feature of its own but is drawn through the layer and clip
+mask paths, so it comes with them.
+
+**The custom shader decorator is in scope for Phase 3, not later.** Additive and screen
+blending are not reachable from RCSS and do not require forking RmlUi: a decorator compiles a
+named shader through `CompileShader(name, dictionary)`, and `RenderShader()` draws it with
+whatever blend state we choose. `Rml::DecoratorShader` is the reference implementation. This
+is the hook that makes HUD work possible at all - hit flashes, damage vignettes, charge and
+cooldown sweeps, scanlines, dissolves, holographic panels, anything additive. Adding it after
+the component library exists means reworking every screen that assumed it was unavailable.
+
 ## Rendering
 
 - **Colors and textures are premultiplied alpha** in RmlUi 6.x (they were straight alpha in

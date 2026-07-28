@@ -3,6 +3,11 @@
 #include "Diagnostics.h"
 #include "MissingAssets.h"
 
+#include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/FileInterface.h>
+
+#include <lodepng.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -11,6 +16,55 @@ namespace uipreview {
 namespace {
 
 constexpr int kPlaceholderSize = 128;
+
+bool HasExtension(const std::string& source, const std::string& extension)
+{
+	if (source.size() < extension.size())
+		return false;
+
+	return std::equal(extension.rbegin(), extension.rend(), source.rbegin(),
+		[](char a, char b) { return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); });
+}
+
+/**
+ * RmlUi's own texture loader reads uncompressed TGA and nothing else, so every real atlas
+ * would fail to load. Reads through the file interface rather than the filesystem, which is
+ * what makes root-relative paths and the /folio/ mount work.
+ */
+bool LoadPng(const std::string& source, std::vector<unsigned char>& out_pixels, Rml::Vector2i& out_size)
+{
+	Rml::FileInterface* files = Rml::GetFileInterface();
+	Rml::FileHandle file = files->Open(source);
+	if (!file)
+		return false;
+
+	files->Seek(file, 0, SEEK_END);
+	const size_t length = files->Tell(file);
+	files->Seek(file, 0, SEEK_SET);
+
+	std::vector<unsigned char> encoded(length);
+	const size_t read = files->Read(encoded.data(), length, file);
+	files->Close(file);
+	if (read != length)
+		return false;
+
+	unsigned width = 0;
+	unsigned height = 0;
+	if (lodepng::decode(out_pixels, width, height, encoded) != 0)
+		return false;
+
+	// RmlUi 6.x expects premultiplied alpha; lodepng decodes straight alpha.
+	for (size_t i = 0; i + 3 < out_pixels.size(); i += 4)
+	{
+		const unsigned alpha = out_pixels[i + 3];
+		out_pixels[i + 0] = (unsigned char)((out_pixels[i + 0] * alpha + 127) / 255);
+		out_pixels[i + 1] = (unsigned char)((out_pixels[i + 1] * alpha + 127) / 255);
+		out_pixels[i + 2] = (unsigned char)((out_pixels[i + 2] * alpha + 127) / 255);
+	}
+
+	out_size = {int(width), int(height)};
+	return true;
+}
 
 std::string Basename(const std::string& path)
 {
@@ -43,8 +97,21 @@ PreviewRenderInterface::PreviewRenderInterface(Diagnostics& in_diagnostics, Miss
 
 Rml::TextureHandle PreviewRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions, const Rml::String& source)
 {
-	if (const Rml::TextureHandle handle = RenderInterface_GL3::LoadTexture(texture_dimensions, source))
+	if (HasExtension(source, ".png"))
+	{
+		std::vector<unsigned char> pixels;
+		Rml::Vector2i size;
+		if (LoadPng(source, pixels, size))
+		{
+			texture_dimensions = size;
+			return RenderInterface_GL3::GenerateTexture(
+				Rml::Span<const Rml::byte>(pixels.data(), pixels.size()), size);
+		}
+	}
+	else if (const Rml::TextureHandle handle = RenderInterface_GL3::LoadTexture(texture_dimensions, source))
+	{
 		return handle;
+	}
 
 	const bool is_file = LooksLikeFileReference(source);
 	const std::string name = is_file ? diagnostics.Relative(source) : Basename(source);

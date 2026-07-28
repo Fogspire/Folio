@@ -592,6 +592,7 @@ Rml::TextureHandle FFolioRenderInterface::GetTransparentTexture()
 Rml::TextureHandle FFolioRenderInterface::SaveLayerAsTexture()
 {
 	UTextureRenderTarget2D* Detached = Layers.DetachCurrent();
+
 	if (!Detached)
 	{
 		// No layer to read back. Transparent rather than zero: zero also means "no texture"

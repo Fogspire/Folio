@@ -114,12 +114,27 @@ The layer path does execute - verified by instrumenting it:
     layer draw 18 tris          <- the shadow itself
     SaveLayerAsTexture -> target
 
-So geometry reaches the render target and a real texture comes back. That leaves the colour
-round trip through the render target: the target is `RTF_RGBA8` with
-`bForceLinearGamma = false`, so it is sRGB and `FCanvas` encodes on write, and Slate then
-samples it and blends with `PreMultipliedAlpha`. Somewhere in that round trip a value of 31
-becomes 79. Reading back the target's pixels directly and comparing against what went in
-would settle it in one step, and is the thing to do next rather than another guess.
+So geometry reaches the render target and a real texture comes back. Reading the target's pixels back settled it, and it is not the colour round trip at all:
+
+    layer centre pixel = 20,20,26 a=255 (srgb=1)
+
+`20,20,26` is `#14141a`, the document body's background, fully opaque. The layer should hold
+the panel's `#1f1f28` where the panel covers and nothing where it does not. So the layer is
+capturing the **wrong content**, and every colour fix above was aimed at the wrong half of
+the pipeline - which is exactly why none of them moved the number.
+
+Two things to check next, in this order:
+
+1. **What is being drawn into the layer.** `RenderGeometry` currently redirects *every* draw
+   to the layer while one is open. If RmlUi renders anything outside the shadowed element
+   between push and pop - the body background among it - that lands in the texture too.
+2. **Where it lands.** `GeometryBoxShadow` renders with `info.element_offset_in_texture`,
+   which positions the element inside the texture rather than in the document. The layer
+   draw subtracts `LayerOrigin`, which is derived from the scissor region and was observed
+   to be `0,0`; if RmlUi's offset is already texture-relative then subtracting anything is
+   wrong, and if it is not, `0,0` is wrong.
+
+Dumping a layer to a PNG rather than sampling one pixel would answer both at once.
 
 **Before the layer work, an element with `box-shadow` rendered no background at all**, which
 was worse than the shadow merely being absent. `GeometryBoxShadow` draws the element's background *into* a

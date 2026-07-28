@@ -97,10 +97,29 @@ Two candidates, neither confirmed:
   lands lighter than either. Making `CompositeLayers` blend down without disturbing the stack
   (it was popping and re-pushing, which clears) did not change it either.
 
-Both fixes were correct in themselves and neither moved the number, so the error is somewhere
-a third thing: most likely the premultiplied convention. `FCanvas` blends straight alpha,
-while everything arriving from RmlUi is premultiplied, so the source is being multiplied by
-alpha a second time during the layer draw. That is the next thing to test.
+- **Premultiplied blending.** `FCanvas` was using `SE_BLEND_AlphaBlend`, which multiplies by
+  alpha again; `SE_BLEND_AlphaComposite` is the premultiplied mode. Changed, and the number
+  did not move either - which in hindsight is expected, because the first draw goes onto a
+  cleared transparent target where both blends reduce to the same thing.
+
+All three were genuine bugs and all three are fixed. None of them changed the measurement,
+which is itself the useful result: `(79,79,90)` is stable across every blend and gamma change
+made to the canvas path, so the error is not in how the layer is *drawn*.
+
+The layer path does execute - verified by instrumenting it:
+
+    PushLayer 785x272 origin 0,0 depth 0
+    layer draw 58 tris          <- the element background and border
+    PushLayer 785x272 origin 0,0 depth 1
+    layer draw 18 tris          <- the shadow itself
+    SaveLayerAsTexture -> target
+
+So geometry reaches the render target and a real texture comes back. That leaves the colour
+round trip through the render target: the target is `RTF_RGBA8` with
+`bForceLinearGamma = false`, so it is sRGB and `FCanvas` encodes on write, and Slate then
+samples it and blends with `PreMultipliedAlpha`. Somewhere in that round trip a value of 31
+becomes 79. Reading back the target's pixels directly and comparing against what went in
+would settle it in one step, and is the thing to do next rather than another guess.
 
 **Before the layer work, an element with `box-shadow` rendered no background at all**, which
 was worse than the shadow merely being absent. `GeometryBoxShadow` draws the element's background *into* a

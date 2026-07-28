@@ -208,9 +208,10 @@ void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const
 
 	FCanvasTriangleItem Item(Triangles, Texture->GetResource());
 
-	// RmlUi hands over premultiplied colours and premultiplied texture data, so the blend has
-	// to be one-minus-source-alpha against an untouched source.
-	Item.BlendMode = SE_BLEND_AlphaBlend;
+	// AlphaComposite, not AlphaBlend. Everything from RmlUi is already multiplied by its own
+	// alpha, and AlphaBlend multiplies again, which lightens a surface every time it passes
+	// through a layer.
+	Item.BlendMode = SE_BLEND_AlphaComposite;
 	Target->DrawItem(Item);
 }
 
@@ -237,7 +238,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend)
 
 	FCanvasTileItem Item(FVector2D::ZeroVector, Source->GetResource(),
 		FVector2D(Source->SizeX, Source->SizeY), FLinearColor::White);
-	Item.BlendMode = bBlend ? SE_BLEND_AlphaBlend : SE_BLEND_Opaque;
+	Item.BlendMode = bBlend ? SE_BLEND_AlphaComposite : SE_BLEND_Opaque;
 	Composite.DrawItem(Item);
 	Composite.Flush_GameThread();
 }

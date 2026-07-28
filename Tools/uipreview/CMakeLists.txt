@@ -5,10 +5,12 @@ add_executable(uipreview
 	src/Diagnostics.cpp
 	src/ElementPath.cpp
 	src/FileInterface.cpp
+	src/FileWatcher.cpp
 	src/InputScript.cpp
 	src/Localization.cpp
 	src/MissingAssets.cpp
 	src/Options.cpp
+	src/Reload.cpp
 	src/RenderInterface.cpp
 	src/Screenshot.cpp
 	src/SystemInterface.cpp

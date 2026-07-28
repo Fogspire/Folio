@@ -56,6 +56,8 @@ private:
 	void WriteAssetsWanted();
 	std::string DiscoverDataModelName() const;
 	void MountDataModel();
+	void HandleFileChanges(const std::vector<std::string>& changed);
+	void RebuildDocument();
 
 	int RunInteractive();
 	int RunOneShot();

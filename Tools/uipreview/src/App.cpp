@@ -4,9 +4,11 @@
 #include "Diagnostics.h"
 #include "ElementPath.h"
 #include "FileInterface.h"
+#include "FileWatcher.h"
 #include "InputScript.h"
 #include "Localization.h"
 #include "MissingAssets.h"
+#include "Reload.h"
 #include "RenderInterface.h"
 #include "Screenshot.h"
 #include "SystemInterface.h"
@@ -19,6 +21,7 @@
 #include <filesystem>
 #include <fstream>
 #include <regex>
+#include <set>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -444,8 +447,127 @@ int App::RunOneShot()
 	return 0;
 }
 
+void App::HandleFileChanges(const std::vector<std::string>& changed)
+{
+	// The set of files RmlUi actually opened is the dependency list: the document, every
+	// imported stylesheet, every font and texture. Deriving it this way means no @import
+	// parser to keep in step with RmlUi's own resolution rules.
+	const std::set<std::string>& dependencies = file_interface->Opened();
+
+	bool rebuild_document = false;
+	bool reload_styles = false;
+	bool reload_data = false;
+	bool reload_textures = false;
+
+	std::string data_absolute;
+	if (!options.data_path.empty())
+	{
+		std::error_code ec;
+		data_absolute = ToForwardSlashes(fs::weakly_canonical(options.data_path, ec).string());
+		std::transform(data_absolute.begin(), data_absolute.end(), data_absolute.begin(),
+			[](unsigned char c) { return (char)std::tolower(c); });
+	}
+
+	for (const std::string& path : changed)
+	{
+		if (!data_absolute.empty() && path == data_absolute)
+		{
+			reload_data = true;
+			continue;
+		}
+
+		if (dependencies.find(path) == dependencies.end())
+			continue;
+
+		const size_t dot = path.find_last_of('.');
+		const std::string extension = dot == std::string::npos ? std::string() : path.substr(dot);
+
+		if (extension == ".rml")
+			rebuild_document = true;
+		else if (extension == ".rcss")
+			reload_styles = true;
+		else if (extension == ".json")
+			reload_data = true;
+		else
+			reload_textures = true;
+	}
+
+	if (!rebuild_document && !reload_styles && !reload_data && !reload_textures)
+		return;
+
+	diagnostics.Reset();
+
+	if (rebuild_document)
+	{
+		RebuildDocument();
+	}
+	else if (reload_styles)
+	{
+		ReloadStyleSheets(context);
+		std::printf("reloaded stylesheets\n");
+	}
+	else if (reload_textures)
+	{
+		render_interface->ClearPlaceholders();
+		Rml::ReleaseTextures();
+		Rml::ReleaseCompiledGeometry();
+		std::printf("reloaded textures\n");
+	}
+
+	if (reload_data && !rebuild_document)
+	{
+		data_model.Reload();
+		if (localizer.IsPseudo())
+			data_model.TransformStrings([this](const std::string& text) { return localizer.Pseudoize(text); });
+		std::printf("reloaded data model\n");
+	}
+
+	diagnostics.PrintSummary(diagnostics.Relative(document_path));
+}
+
+void App::RebuildDocument()
+{
+	const DocumentState state = CaptureDocumentState(context, document);
+
+	document->Close();
+	// Close is deferred: without this the old document is still alive during the reload.
+	context->Update();
+
+	Rml::Factory::ClearStyleSheetCache();
+	Rml::Factory::ClearTemplateCache();
+	render_interface->ClearPlaceholders();
+	Rml::ReleaseTextures();
+	Rml::ReleaseCompiledGeometry();
+
+	file_interface->ClearOpened();
+	document = context->LoadDocument(document_path);
+	if (!document)
+	{
+		diagnostics.Report(Severity::Error, "E-DOC-LOAD", "could not reload the document");
+		return;
+	}
+
+	document->Show();
+	// Layout has to exist before focus and scroll can be put back.
+	context->Update();
+	localizer.ApplyToDocument(document, options.strict);
+	context->Update();
+	RestoreDocumentState(document, state, diagnostics);
+	context->Update();
+
+	CollectSpritesFromDiagnostics();
+	std::printf("reloaded document\n");
+}
+
 int App::RunInteractive()
 {
+	FileWatcher watcher;
+	if (options.watch && !watcher.Start(root))
+	{
+		diagnostics.Report(Severity::Warning, "W-WATCH",
+			"could not watch " + diagnostics.Relative(root) + "; hot reload is off");
+	}
+
 	while (Backend::ProcessEvents(context, [](Rml::Context*, Rml::Input::KeyIdentifier key, int, float, bool priority) {
 		if (priority && key == Rml::Input::KI_F8)
 		{
@@ -455,6 +577,13 @@ int App::RunInteractive()
 		return true;
 	}))
 	{
+		if (options.watch)
+		{
+			const std::vector<std::string> changed = watcher.Drain();
+			if (!changed.empty())
+				HandleFileChanges(changed);
+		}
+
 		// Interactive mode follows wall time rather than the fixed capture step.
 		system_interface->SetTime(Backend::GetTime());
 		context->Update();

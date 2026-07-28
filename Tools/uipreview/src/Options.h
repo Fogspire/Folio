@@ -33,6 +33,14 @@ struct Options {
 	std::string screenshot;
 	std::string json_report;
 
+	/** Field resolution per em, and the field's width in texels. A field resolves best near 1:1,
+	    so this trades small-text clarity against magnification headroom. */
+	int msdf_px_em = 48;
+	int msdf_px_range = 12;
+	/** Multiplies the antialiasing spread. Above 1 narrows the edge ramp, which reads crisper at
+	    small sizes at the cost of some aliasing. */
+	float msdf_sharpen = 1.0f;
+
 	/** Frames pumped before a capture and between injected keys, so layout and entry
 	    animations settle. */
 	int frames = 30;

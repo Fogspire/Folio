@@ -168,7 +168,11 @@ bool App::Initialise()
 	// RmlUi is built with RMLUI_FONT_ENGINE=none, so this is not an upgrade over the built-in
 	// engine, it is the only one. Rml::Initialise fails outright if it is missing rather than
 	// quietly rendering no text.
-	font_engine = std::make_unique<Folio::FFolioFontEngine>(*render_interface);
+	Folio::FMsdfAtlasParams msdf_params;
+	msdf_params.PxPerEm = options.msdf_px_em;
+	msdf_params.PxRange = options.msdf_px_range;
+	render_interface->SetMsdfSharpen(options.msdf_sharpen);
+	font_engine = std::make_unique<Folio::FFolioFontEngine>(*render_interface, msdf_params);
 	Rml::SetFontEngineInterface(font_engine.get());
 
 	if (!Rml::Initialise())

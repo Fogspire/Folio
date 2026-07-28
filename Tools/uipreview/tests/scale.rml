@@ -1,0 +1,95 @@
+<rml>
+<head>
+	<title>scale</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			The whole case for distance fields, in one document.
+
+			Text is generated once per face at a fixed field resolution and reused at every size,
+			so the two halves below read the same atlas. The top magnifies one field up to eight
+			times; the bottom asks for the sizes directly. With a raster atlas the top row would
+			be visibly soft by 2x and unusable by 8x.
+		*/
+		body
+		{
+			font-family: Roboto;
+			font-size: 16dp;
+			color: #e8e8f0;
+			background-color: #16161c;
+			padding: 32dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		h1
+		{
+			font-size: 28dp;
+			font-weight: bold;
+			color: #f0c674;
+			margin-bottom: 4dp;
+		}
+
+		.note
+		{
+			color: #8a8a9a;
+			margin-bottom: 24dp;
+		}
+
+		.row
+		{
+			display: block;
+			height: 96dp;
+			margin-bottom: 8dp;
+		}
+
+		/* transform-origin keeps the magnified text anchored to the left edge of its row. */
+		.mag
+		{
+			display: inline-block;
+			font-size: 12dp;
+			transform-origin: left top;
+		}
+
+		.x1 { transform: scale(1); }
+		.x2 { transform: scale(2); }
+		.x4 { transform: scale(4); }
+		.x8 { transform: scale(8); }
+
+		.label
+		{
+			display: inline-block;
+			width: 64dp;
+			color: #6a6a7a;
+			font-size: 13dp;
+		}
+
+		.sweep { display: block; margin-bottom: 2dp; }
+		.s10 { font-size: 10dp; }
+		.s13 { font-size: 13dp; }
+		.s16 { font-size: 16dp; }
+		.s24 { font-size: 24dp; }
+		.s40 { font-size: 40dp; }
+		.s72 { font-size: 72dp; }
+	</style>
+</head>
+<body>
+	<h1>Scale</h1>
+	<p class="note">One 12dp field, magnified. Corners should stay sharp at 8x.</p>
+
+	<div class="row"><span class="label">1x</span><span class="mag x1">Kaboom RAWZ 48</span></div>
+	<div class="row"><span class="label">2x</span><span class="mag x2">Kaboom RAWZ 48</span></div>
+	<div class="row"><span class="label">4x</span><span class="mag x4">Kaboom RAWZ 48</span></div>
+	<div class="row" style="height: 160dp;"><span class="label">8x</span><span class="mag x8">Kaboom RAWZ 48</span></div>
+
+	<p class="note">The same atlas asked for these sizes directly.</p>
+
+	<div class="sweep s10">10dp Kaboom RAWZ 48</div>
+	<div class="sweep s13">13dp Kaboom RAWZ 48</div>
+	<div class="sweep s16">16dp Kaboom RAWZ 48</div>
+	<div class="sweep s24">24dp Kaboom RAWZ 48</div>
+	<div class="sweep s40">40dp Kaboom RAWZ 48</div>
+	<div class="sweep s72">72dp Kaboom RAWZ 48</div>
+</body>
+</rml>

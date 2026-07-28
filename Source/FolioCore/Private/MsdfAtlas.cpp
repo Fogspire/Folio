@@ -188,15 +188,22 @@ namespace Folio
 		Sink.UploadAtlasRegion(Page.Handle, FMsdfRect{ X, Y, Bitmap.Width, Bitmap.Height },
 			Bitmap.Rgba.data(), Bitmap.Width * 4);
 
-		OutBox.PlaneLeft = Bitmap.PlaneLeft;
-		OutBox.PlaneBottom = Bitmap.PlaneBottom;
-		OutBox.PlaneRight = Bitmap.PlaneRight;
-		OutBox.PlaneTop = Bitmap.PlaneTop;
+		// Both rects are inset by half a texel. A quad that reaches the outermost texel centre
+		// samples exactly on the boundary, where bilinear filtering mixes in the gutter beside it
+		// and pulls the field towards "far outside", eroding the glyph's edge. Trimming half a
+		// texel keeps every sample inside the field, and the plane bounds shrink to match so the
+		// glyph still lands where its metrics say it should.
+		const float HalfTexelEm = 0.5f / float(Params.PxPerEm);
 
-		OutBox.AtlasLeft = float(X);
-		OutBox.AtlasTop = float(Y);
-		OutBox.AtlasRight = float(X + Bitmap.Width);
-		OutBox.AtlasBottom = float(Y + Bitmap.Height);
+		OutBox.PlaneLeft = Bitmap.PlaneLeft + HalfTexelEm;
+		OutBox.PlaneBottom = Bitmap.PlaneBottom + HalfTexelEm;
+		OutBox.PlaneRight = Bitmap.PlaneRight - HalfTexelEm;
+		OutBox.PlaneTop = Bitmap.PlaneTop - HalfTexelEm;
+
+		OutBox.AtlasLeft = float(X) + 0.5f;
+		OutBox.AtlasTop = float(Y) + 0.5f;
+		OutBox.AtlasRight = float(X + Bitmap.Width) - 0.5f;
+		OutBox.AtlasBottom = float(Y + Bitmap.Height) - 0.5f;
 
 		OutBox.Page = static_cast<std::uint16_t>(PageIndex);
 		return true;

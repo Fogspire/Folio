@@ -234,7 +234,7 @@ void PreviewRenderInterface::RenderGeometry(Rml::CompiledGeometryHandle geometry
 		shadow->second.msdf.Upload(shadow->second.vertices, shadow->second.indices);
 
 	msdf_program.Bind(GetTransform(), translation, binding->second.texture, binding->second.unit_range,
-		binding->second.effect);
+		binding->second.effect, msdf_sharpen);
 
 	glBindVertexArray(shadow->second.msdf.vao);
 	glDrawElements(GL_TRIANGLES, shadow->second.msdf.index_count, GL_UNSIGNED_INT, nullptr);

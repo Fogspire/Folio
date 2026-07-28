@@ -28,7 +28,7 @@ public:
 	bool IsValid() const { return program != 0; }
 
 	void Bind(const Rml::Matrix4f& transform, Rml::Vector2f translation, unsigned int texture,
-		Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect);
+		Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect, float sharpen);
 
 	unsigned int program = 0;
 
@@ -41,6 +41,7 @@ private:
 	int uniform_mode = -1;
 	int uniform_offset = -1;
 	int uniform_softness = -1;
+	int uniform_sharpen = -1;
 };
 
 /** GL buffers for one compiled geometry drawn as a field. */

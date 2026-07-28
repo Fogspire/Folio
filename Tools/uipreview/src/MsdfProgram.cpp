@@ -38,6 +38,7 @@ uniform float _threshold;
 uniform float _mode;
 uniform float _offset;
 uniform float _softness;
+uniform float _sharpen;
 
 in vec2 fragTexCoord;
 in vec4 fragColor;
@@ -53,7 +54,7 @@ void main() {
 	float MedianDistance = FolioMsdfMedian(Sample.rgb);
 	float TrueDistance = Sample.a;
 
-	float Spread = max(dot(_unitRange, 1.0 / fwidth(fragTexCoord)), 1.0);
+	float Spread = max(0.5 * dot(_unitRange, 1.0 / fwidth(fragTexCoord)) * _sharpen, 1.0);
 
 	float Coverage;
 	if (_mode < 0.5) {
@@ -146,12 +147,13 @@ bool MsdfProgram::Initialise(std::string& error)
 	uniform_mode = glGetUniformLocation(program, "_mode");
 	uniform_offset = glGetUniformLocation(program, "_offset");
 	uniform_softness = glGetUniformLocation(program, "_softness");
+	uniform_sharpen = glGetUniformLocation(program, "_sharpen");
 
 	return true;
 }
 
 void MsdfProgram::Bind(const Rml::Matrix4f& transform, Rml::Vector2f translation, unsigned int texture,
-	Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect)
+	Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect, float sharpen)
 {
 	glUseProgram(program);
 
@@ -162,6 +164,7 @@ void MsdfProgram::Bind(const Rml::Matrix4f& transform, Rml::Vector2f translation
 	glUniform1f(uniform_mode, float((int)effect.Effect));
 	glUniform1f(uniform_offset, effect.OffsetEm);
 	glUniform1f(uniform_softness, effect.SoftnessEm);
+	glUniform1f(uniform_sharpen, sharpen);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture);

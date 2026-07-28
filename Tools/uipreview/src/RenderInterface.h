@@ -45,6 +45,7 @@ public:
 	void ClearPlaceholders();
 
 	int MsdfDrawCount() const { return msdf_draw_count; }
+	void SetMsdfSharpen(float value) { msdf_sharpen = value; }
 
 private:
 	/** A field's texture plus how it should be resolved. Aliases share a page and differ only in
@@ -78,6 +79,7 @@ private:
 	MsdfProgram msdf_program;
 	bool msdf_program_ready = false;
 	int msdf_draw_count = 0;
+	float msdf_sharpen = 1.0f;
 };
 
 } // namespace uipreview

@@ -385,7 +385,7 @@ namespace Folio
 				const Rml::Vector2f TopLeftUv(Box->AtlasLeft / Texels, Box->AtlasTop / Texels);
 				const Rml::Vector2f BottomRightUv(Box->AtlasRight / Texels, Box->AtlasBottom / Texels);
 
-				Rml::MeshUtilities::GenerateQuad(Mesh, Origin.Round(), Dimensions, Colour, TopLeftUv, BottomRightUv);
+Rml::MeshUtilities::GenerateQuad(Mesh, Origin.Round(), Dimensions, Colour, TopLeftUv, BottomRightUv);
 			}
 
 			Width += int(Box->AdvanceEm * Scale);

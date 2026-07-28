@@ -21,13 +21,22 @@ float FolioMsdfMedian(float3 Field)
 }
 
 float4 FolioMsdfShade(Texture2D Atlas, SamplerState AtlasSampler, float2 UV, float2 UnitRange,
-	float Threshold, float Mode, float Offset, float Softness, float4 Colour)
+	float Threshold, float Mode, float Offset, float Softness, float Sharpen, float4 Colour)
 {
 	float4 Sample = Atlas.Sample(AtlasSampler, UV);
 	float MedianDistance = FolioMsdfMedian(Sample.rgb);
 	float TrueDistance = Sample.a;
 
-	float Spread = max(dot(UnitRange, 1.0f / fwidth(UV)), 1.0f);
+	// The half is not optional. dot() sums the two axes, so without it the spread is twice what
+	// the geometry justifies, the coverage ramp lands at about half a pixel, and edges alias
+	// instead of antialiasing. It reads as "pixelated" at every size, and worst where text is
+	// largest and the stair steps are biggest.
+	//
+	// Slate applies the same factor, but on the CPU when it packs its shader parameters
+	// (ElementBatcher.cpp, "Half of horizontal, vertical spread in texture coordinate units").
+	// It lives here instead, so whatever calls this must pass UnitRange unhalved or the ramp
+	// doubles and text goes blurry.
+	float Spread = max(0.5f * dot(UnitRange, 1.0f / fwidth(UV)) * Sharpen, 1.0f);
 
 	float Coverage;
 	if (Mode < 0.5f)

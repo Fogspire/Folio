@@ -145,6 +145,24 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 				return ParseResult::Error;
 			}
 		}
+		else if (arg == "--msdf-px-em")
+		{
+			if (!TakeValue(argc, argv, i, "--msdf-px-em", value, error))
+				return ParseResult::Error;
+			o.msdf_px_em = std::atoi(value.c_str());
+		}
+		else if (arg == "--msdf-px-range")
+		{
+			if (!TakeValue(argc, argv, i, "--msdf-px-range", value, error))
+				return ParseResult::Error;
+			o.msdf_px_range = std::atoi(value.c_str());
+		}
+		else if (arg == "--msdf-sharpen")
+		{
+			if (!TakeValue(argc, argv, i, "--msdf-sharpen", value, error))
+				return ParseResult::Error;
+			o.msdf_sharpen = (float)std::atof(value.c_str());
+		}
 		else if (arg == "--frames")
 		{
 			if (!TakeValue(argc, argv, i, "--frames", value, error))

@@ -69,6 +69,19 @@ a document without a base stylesheet renders as one run of overlapping text.
 `Samples/assets/rml.rcss` in the RmlUi tree is sample content, not part of the library. A base
 stylesheet establishing block display is mandatory, not a convenience.
 
+**An unstyled scrollbar eats the entire content width.** Scrollbar elements have no default
+size either, and `width: auto` on a `scrollbarvertical` resolves to the container's full
+content width. So a container styled `overflow: auto` lays out correctly right up until its
+content actually overflows, at which point the scrollbar appears, takes all the width, and
+every child collapses to its own padding and border. Text inside a child with
+`overflow: hidden` disappears entirely. Measured: rows in an 852px list dropped to 32px the
+moment a fourth row pushed them past the container height, and back to 842px once
+`scrollbarvertical { width: 10dp }` existed. It reads as a flex bug and has nothing to do
+with flex - a `display: block` container fails identically.
+
+`folio.rcss` therefore sets scrollbar geometry as well as block display. Geometry only; the
+look belongs to the game.
+
 **A document is sized shrink-to-fit, and `display: block` does not change that.** The document
 element is laid out against the context as if it were floating, so its width collapses to the
 widest line of content. Observed directly: an 800px context rendering a document whose box
@@ -100,6 +113,15 @@ what `--strict` exists for.
 `SystemInterface::LogMessage` returning `false` **interrupts RmlUi execution**. Only ever do
 that for `LT_ASSERT`.
 
+## Texture formats
+
+**RmlUi's own texture loader reads uncompressed TGA and nothing else.** Not PNG. Every real
+atlas therefore failed to load with `Only 24/32bit uncompressed TGAs are supported`, which
+reads as a corrupt-file error rather than an unsupported-format one. `uipreview`'s render
+interface decodes `.png` itself through lodepng, which it already links for screenshots, and
+premultiplies on the way in because 6.x expects premultiplied texture data and lodepng
+decodes straight alpha. Phase 3 needs the same thing from Unreal's texture path.
+
 ## Missing sprites
 
 Most decorators resolve a value as a sprite name first and **silently** fall back to treating
@@ -125,6 +147,13 @@ was a file or spritesheet `src` reference.
 |---|---|
 | `image`, `tiled-horizontal`, `tiled-vertical`, `tiled-box` | Silent. Falls through to `LoadTexture`, caught by the placeholder. |
 | `ninepatch` | Sprite-only. Never reaches `LoadTexture`, logs `Could not find sprite named '<name>' in ninepatch decorator.` plus `Decorator 'ninepatch' ... could not be instanced, declared at <file>:<line>`, and renders nothing at all. |
+| `<img sprite="...">` | Not a decorator, and sprite-only in the same way. Logs `Could not find sprite '<name>' specified in img element <path>` and draws a white box at the element's size. |
+
+The `img` wording differs from the ninepatch one (`sprite '<name>'` against
+`sprite named '<name>'`), so both prefixes have to be matched when scraping the log. Neither
+route reaches the render interface, so neither has a drawn size to report; for `img` the size
+is recovered from the element's laid-out box after the document settles, which is why an
+`img` entry in `ASSETS_WANTED.md` has a real size and a ninepatch entry is `0x0`.
 
 So missing sprites have to be collected from two sources: the `LoadTexture` fallback, and the
 ninepatch warning parsed out of `LogMessage`. The ninepatch route is the one that supplies a

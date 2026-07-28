@@ -122,6 +122,11 @@ Exit codes: `0` ok, `1` document errors, `2` usage, `3` init failure, `4` runtim
 Because nearly every RCSS problem is a warning rather than an error in RmlUi, a validity check
 that only looks at errors will pass a thoroughly broken stylesheet. Use `--strict` in CI.
 
+**Localization lint.** `--strict` also reports text that carries no `data-loc` key and so cannot
+be translated, but only when a culture is loaded, so pair it with `--culture pseudo`. Text
+produced by a data binding is exempt, as is anything marked `data-noloc` for strings that are
+not language: numerals, timers, player names.
+
 ## Art that does not exist yet
 
 Markup may reference **sprite names only**, never image paths. A name that no loaded
@@ -132,3 +137,6 @@ batches against that file rather than per screen.
 
 `ASSETS_WANTED.md` is rewritten in place between its markers, so rerunning with no changes
 leaves the file byte identical. Notes written below the markers are preserved.
+
+Textures may be **PNG or uncompressed TGA**. RmlUi itself only reads TGA; `uipreview` decodes
+PNG through lodepng and premultiplies it, since 6.x expects premultiplied texture data.

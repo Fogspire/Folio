@@ -1,0 +1,49 @@
+// Resolves a multi-channel distance field to coverage.
+//
+// This file is the source of truth for the maths. The preview tool carries a GLSL translation in
+// Tools/uipreview/src/MsdfProgram.cpp between its BEGIN/END markers, and scripts/check_shader_parity.ps1
+// fails the build if the two drift apart. Two renderers that disagree about text would be a
+// miserable thing to debug from screenshots.
+//
+// RGB hold the three-channel field, whose median reconstructs sharp corners. Alpha holds a true
+// signed distance, which is smooth enough to dilate and blur for font effects but rounds corners,
+// so the fill path never uses it.
+//
+// The spread term is Unreal's own, from SlateElementPixelShader.usf: it converts the field's
+// units into screen pixels using the UV derivative, which is what keeps text sharp under any
+// transform scale without anything having to tell the shader what scale that is.
+
+#pragma once
+
+float FolioMsdfMedian(float3 Field)
+{
+	return max(min(Field.r, Field.g), min(max(Field.r, Field.g), Field.b));
+}
+
+float4 FolioMsdfShade(Texture2D Atlas, SamplerState AtlasSampler, float2 UV, float2 UnitRange,
+	float Threshold, float Mode, float Offset, float Softness, float4 Colour)
+{
+	float4 Sample = Atlas.Sample(AtlasSampler, UV);
+	float MedianDistance = FolioMsdfMedian(Sample.rgb);
+	float TrueDistance = Sample.a;
+
+	float Spread = max(dot(UnitRange, 1.0f / fwidth(UV)), 1.0f);
+
+	float Coverage;
+	if (Mode < 0.5f)
+	{
+		Coverage = saturate((MedianDistance - Threshold) * Spread + 0.5f);
+	}
+	else if (Mode < 1.5f)
+	{
+		Coverage = saturate((TrueDistance - (Threshold - Offset)) * Spread + 0.5f);
+	}
+	else
+	{
+		Coverage = smoothstep(Threshold - Offset - Softness, Threshold - Offset + Softness, TrueDistance);
+	}
+
+	// Colour arrives premultiplied and leaves premultiplied, which is what RmlUi's blend state
+	// expects. Scaling a premultiplied colour by coverage is the correct fade.
+	return Colour * Coverage;
+}

@@ -2,6 +2,7 @@
 
 #include "DataModel.h"
 #include "Diagnostics.h"
+
 #include "ElementPath.h"
 #include "FileInterface.h"
 #include "FileWatcher.h"
@@ -14,6 +15,9 @@
 #include "Screenshot.h"
 #include "SystemInterface.h"
 #include "backend/UipreviewBackendGLFW.h"
+
+#include "FolioCore/FolioCoreVersion.h"
+#include "FolioCore/FolioFontEngine.h"
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Debugger.h>
@@ -160,6 +164,12 @@ bool App::Initialise()
 	Rml::SetFileInterface(file_interface.get());
 	Rml::SetSystemInterface(Backend::GetSystemInterface());
 	Rml::SetRenderInterface(Backend::GetRenderInterface());
+
+	// RmlUi is built with RMLUI_FONT_ENGINE=none, so this is not an upgrade over the built-in
+	// engine, it is the only one. Rml::Initialise fails outright if it is missing rather than
+	// quietly rendering no text.
+	font_engine = std::make_unique<Folio::FFolioFontEngine>(*render_interface);
+	Rml::SetFontEngineInterface(font_engine.get());
 
 	if (!Rml::Initialise())
 	{
@@ -444,7 +454,17 @@ void App::PumpFrames(int count)
 
 int App::Run()
 {
-	return options.IsOneShot() ? RunOneShot() : RunInteractive();
+	const int result = options.IsOneShot() ? RunOneShot() : RunInteractive();
+
+	// After the run, so the counts reflect what the document actually asked for rather than what
+	// was registered.
+	if (options.font_report && font_engine)
+	{
+		std::printf("%s\n  %s\n  msdf-draws=%d\n", Folio::GetCoreVersionString().c_str(),
+			font_engine->GetReport().c_str(), render_interface->MsdfDrawCount());
+	}
+
+	return result;
 }
 
 bool App::CaptureTo(const std::string& path)

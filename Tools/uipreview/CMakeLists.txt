@@ -10,6 +10,7 @@ add_executable(uipreview
 	src/JsonReport.cpp
 	src/Localization.cpp
 	src/MissingAssets.cpp
+	src/MsdfProgram.cpp
 	src/Options.cpp
 	src/Paths.cpp
 	src/Reload.cpp

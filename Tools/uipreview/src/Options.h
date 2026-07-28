@@ -45,6 +45,9 @@ struct Options {
 	bool verbose = false;
 	bool write_assets_wanted = true;
 	bool dump_tree = false;
+	/** Report the text engine. Alone it prints what the binary was built against; with a
+	    document it also reports the faces and the atlases they cost. */
+	bool font_report = false;
 
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree; }

@@ -78,7 +78,7 @@ set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 
 folio_set_rmlui_options()
 folio_set_msdfgen_options()
-set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "RmlUi font engine (freetype or none)")
+set(RMLUI_FONT_ENGINE "none" CACHE STRING "RmlUi font engine (freetype or none)")
 
 # RmlUi resolves its font engine through find_package(Freetype), but treats it as a soft
 # dependency and only checks whether the Freetype::Freetype target exists. FreeType's own

@@ -3,6 +3,8 @@
 #include "Diagnostics.h"
 #include "MissingAssets.h"
 
+#include "RmlUi_Include_GL3.h"
+
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/FileInterface.h>
 
@@ -147,6 +149,20 @@ Rml::TextureHandle PreviewRenderInterface::LoadTexture(Rml::Vector2i& texture_di
 	return handle;
 }
 
+void PreviewRenderInterface::ReleaseTexture(Rml::TextureHandle texture)
+{
+	// The base class would pass the handle straight to glDeleteTextures. A field page's handle is
+	// an index into msdf_bindings, not a GL name, so that deletes whatever texture happens to
+	// share the number - which reads as random geometry losing its texture much later.
+	if (msdf_bindings.find(texture) != msdf_bindings.end())
+	{
+		ReleaseAtlasHandle(Folio::FMsdfHandle(texture));
+		return;
+	}
+
+	RenderInterface_GL3::ReleaseTexture(texture);
+}
+
 Rml::CompiledGeometryHandle PreviewRenderInterface::CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
 	Rml::Span<const int> indices)
 {
@@ -156,6 +172,8 @@ Rml::CompiledGeometryHandle PreviewRenderInterface::CompileGeometry(Rml::Span<co
 	// geometry's bounds can, including whatever stretching the decorator applied.
 	if (handle && !vertices.empty())
 	{
+		ShadowGeometry& shadow = shadow_geometry[handle];
+
 		Rml::Vector2f minimum = vertices[0].position;
 		Rml::Vector2f maximum = vertices[0].position;
 		for (const Rml::Vertex& vertex : vertices)
@@ -165,7 +183,12 @@ Rml::CompiledGeometryHandle PreviewRenderInterface::CompileGeometry(Rml::Span<co
 			maximum.x = std::max(maximum.x, vertex.position.x);
 			maximum.y = std::max(maximum.y, vertex.position.y);
 		}
-		geometry_size[handle] = maximum - minimum;
+		shadow.size = maximum - minimum;
+
+		// Whether this is a field is not known until it is drawn, and by then the vertices are
+		// gone, so they are kept here. GL buffers are only built if a draw actually needs them.
+		shadow.vertices.assign(vertices.begin(), vertices.end());
+		shadow.indices.assign(indices.begin(), indices.end());
 	}
 
 	return handle;
@@ -176,19 +199,141 @@ void PreviewRenderInterface::RenderGeometry(Rml::CompiledGeometryHandle geometry
 {
 	if (const auto name = placeholder_names.find(texture); name != placeholder_names.end())
 	{
-		if (const auto size = geometry_size.find(geometry); size != geometry_size.end())
+		if (const auto shadow = shadow_geometry.find(geometry); shadow != shadow_geometry.end())
 		{
-			missing_assets.RecordSize(name->second, (int)std::lround(size->second.x), (int)std::lround(size->second.y));
+			missing_assets.RecordSize(name->second, (int)std::lround(shadow->second.size.x),
+				(int)std::lround(shadow->second.size.y));
 		}
 	}
 
-	RenderInterface_GL3::RenderGeometry(geometry, translation, texture);
+	const auto binding = msdf_bindings.find(texture);
+	const auto shadow = shadow_geometry.find(geometry);
+
+	if (binding == msdf_bindings.end() || shadow == shadow_geometry.end())
+	{
+		RenderInterface_GL3::RenderGeometry(geometry, translation, texture);
+		return;
+	}
+
+	if (!msdf_program_ready)
+	{
+		msdf_program_ready = true;
+		std::string error;
+		if (!msdf_program.Initialise(error))
+			diagnostics.Report(Severity::Error, "E-MSDF-SHADER",
+				"the distance field shader would not build: " + error);
+	}
+
+	if (!msdf_program.IsValid())
+	{
+		RenderInterface_GL3::RenderGeometry(geometry, translation, texture);
+		return;
+	}
+
+	if (shadow->second.msdf.vao == 0)
+		shadow->second.msdf.Upload(shadow->second.vertices, shadow->second.indices);
+
+	msdf_program.Bind(GetTransform(), translation, binding->second.texture, binding->second.unit_range,
+		binding->second.effect);
+
+	glBindVertexArray(shadow->second.msdf.vao);
+	glDrawElements(GL_TRIANGLES, shadow->second.msdf.index_count, GL_UNSIGNED_INT, nullptr);
+	glBindVertexArray(0);
+	++msdf_draw_count;
+
+	// The base class caches which program is bound, so it has to be told the binding is stale or
+	// its next draw uploads its uniforms into ours.
+	ResetProgram();
 }
 
 void PreviewRenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
 {
-	geometry_size.erase(geometry);
+	if (const auto shadow = shadow_geometry.find(geometry); shadow != shadow_geometry.end())
+	{
+		shadow->second.msdf.Release();
+		shadow_geometry.erase(shadow);
+	}
+
 	RenderInterface_GL3::ReleaseGeometry(geometry);
+}
+
+Folio::FMsdfHandle PreviewRenderInterface::CreateAtlasPage(Folio::FMsdfPoint size,
+	const Folio::FMsdfAtlasParams& params)
+{
+	if (size.X <= 0 || size.Y <= 0)
+		return Folio::InvalidMsdfHandle;
+
+	GLuint texture = 0;
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	// Explicitly not sRGB: these channels are distances, not colour. Bilinear because the whole
+	// method depends on interpolating between distances, and clamped because a field has no
+	// meaningful value past its own edge.
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size.X, size.Y, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// Well clear of the base class's handles, which are raw GL texture names.
+	const Rml::TextureHandle handle = next_msdf_handle++;
+	MsdfBinding& binding = msdf_bindings[handle];
+	binding.texture = texture;
+	binding.unit_range = Rml::Vector2f(float(params.PxRange) / float(size.X),
+		float(params.PxRange) / float(size.Y));
+
+	return Folio::FMsdfHandle(handle);
+}
+
+void PreviewRenderInterface::UploadAtlasRegion(Folio::FMsdfHandle page, Folio::FMsdfRect region,
+	const unsigned char* rgba, int stride)
+{
+	const auto binding = msdf_bindings.find(Rml::TextureHandle(page));
+	if (binding == msdf_bindings.end() || rgba == nullptr)
+		return;
+
+	glBindTexture(GL_TEXTURE_2D, binding->second.texture);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, stride / 4);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, region.X, region.Y, region.Width, region.Height,
+		GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+Folio::FMsdfHandle PreviewRenderInterface::CreateEffectAlias(Folio::FMsdfHandle page,
+	const Folio::FMsdfEffectParams& effect)
+{
+	const auto source = msdf_bindings.find(Rml::TextureHandle(page));
+	if (source == msdf_bindings.end())
+		return Folio::InvalidMsdfHandle;
+
+	const Rml::TextureHandle handle = next_msdf_handle++;
+	MsdfBinding alias = source->second;
+	alias.effect = effect;
+	msdf_bindings[handle] = alias;
+
+	return Folio::FMsdfHandle(handle);
+}
+
+void PreviewRenderInterface::ReleaseAtlasHandle(Folio::FMsdfHandle handle)
+{
+	const auto binding = msdf_bindings.find(Rml::TextureHandle(handle));
+	if (binding == msdf_bindings.end())
+		return;
+
+	// Aliases share the page's texture, so it is only freed once nothing else names it.
+	const unsigned int texture = binding->second.texture;
+	msdf_bindings.erase(binding);
+
+	for (const auto& remaining : msdf_bindings)
+	{
+		if (remaining.second.texture == texture)
+			return;
+	}
+
+	glDeleteTextures(1, &texture);
 }
 
 void PreviewRenderInterface::ClearPlaceholders()

@@ -86,7 +86,8 @@ void PrintUsage(std::FILE* stream)
 		"  --no-assets-wanted    Do not update ASSETS_WANTED.md\n"
 		"  --no-watch            Do not watch for file changes\n"
 		"  -v, --verbose         Show informational messages\n"
-		"  --font-report         Print the text engine and its dependencies, then exit\n"
+		"  --font-report         Report the text engine. Without a document, prints what this\n"
+		"                        binary was built against and exits\n"
 		"  -h, --help            This text\n"
 		"\n"
 		"Exit codes: 0 ok, 1 document errors, 2 usage, 3 init failure, 4 runtime failure,\n"
@@ -106,7 +107,10 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			return ParseResult::HelpRequested;
 
 		if (arg == "--font-report")
-			return ParseResult::FontReportRequested;
+		{
+			o.font_report = true;
+			continue;
+		}
 
 		if (arg == "-v" || arg == "--verbose")
 			o.verbose = true;
@@ -230,8 +234,13 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		}
 	}
 
+	// Without a document there is nothing to render, but the text engine can still say what it
+	// was built against, which answers "is this binary using the field pipeline at all".
 	if (o.document.empty())
 	{
+		if (o.font_report)
+			return ParseResult::FontReportRequested;
+
 		error = "no document given";
 		return ParseResult::Error;
 	}

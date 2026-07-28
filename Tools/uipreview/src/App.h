@@ -15,6 +15,10 @@ class Context;
 class ElementDocument;
 } // namespace Rml
 
+namespace Folio {
+class FFolioFontEngine;
+} // namespace Folio
+
 namespace uipreview {
 
 class Diagnostics;
@@ -82,6 +86,8 @@ private:
 	std::string document_path;
 
 	std::unique_ptr<RootedFileInterface> file_interface;
+	/** Outlives Rml::Shutdown, which still reads through it while releasing font resources. */
+	std::unique_ptr<Folio::FFolioFontEngine> font_engine;
 	/** Owned by the backend, which constructs them once the GL context exists. */
 	PreviewSystemInterface* system_interface = nullptr;
 	PreviewRenderInterface* render_interface = nullptr;

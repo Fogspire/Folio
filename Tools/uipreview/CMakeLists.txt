@@ -4,6 +4,7 @@ add_executable(uipreview
 	src/Diagnostics.cpp
 	src/FileInterface.cpp
 	src/Options.cpp
+	src/Screenshot.cpp
 	src/SystemInterface.cpp
 
 	# Forked from RmlUi's Backends/RmlUi_Backend_GLFW_GL3.cpp. See the header for why.

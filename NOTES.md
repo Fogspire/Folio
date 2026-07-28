@@ -54,6 +54,23 @@ diffs remain readable across an RmlUi bump.
 - `SetScissorRegion` uses window coordinates with a **top-left origin** and is unaffected by
   `SetTransform`.
 
+## There is no user-agent stylesheet, and documents shrink to fit
+
+Two layout defaults that make a first document look broken in ways that are nothing to do
+with the markup being wrong.
+
+**Every element defaults to `display: inline`.** RmlUi ships no equivalent of a browser's
+user-agent stylesheet, so `div`, `p` and `h1` are inline until something says otherwise, and
+a document without a base stylesheet renders as one run of overlapping text.
+`Samples/assets/rml.rcss` in the RmlUi tree is sample content, not part of the library. A base
+stylesheet establishing block display is mandatory, not a convenience.
+
+**A document is sized shrink-to-fit, and `display: block` does not change that.** The document
+element is laid out against the context as if it were floating, so its width collapses to the
+widest line of content. Observed directly: an 800px context rendering a document whose box
+measured 681px, exactly the width of the longest text plus padding. Set `width: 100%` (and
+`height: 100%` if a full-viewport background is wanted) on the document element explicitly.
+
 ## Document lifecycle
 
 - **`ElementDocument::Close()` is deferred.** The document is not destroyed until the next

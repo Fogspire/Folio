@@ -2,6 +2,7 @@
 
 #include "Diagnostics.h"
 #include "FileInterface.h"
+#include "Screenshot.h"
 #include "SystemInterface.h"
 #include "backend/UipreviewBackendGLFW.h"
 
@@ -249,9 +250,42 @@ int App::Run()
 	return options.IsOneShot() ? RunOneShot() : RunInteractive();
 }
 
+bool App::CaptureTo(const std::string& path)
+{
+	int width = 0, height = 0;
+	Backend::GetFramebufferSize(width, height);
+
+	std::vector<unsigned char> rgba;
+	std::string error;
+	if (!CaptureBackBuffer(width, height, rgba, error))
+	{
+		diagnostics.Report(Severity::Error, "E-CAPTURE", error);
+		return false;
+	}
+	if (!WritePng(path, rgba, width, height, error))
+	{
+		diagnostics.Report(Severity::Error, "E-PNG-WRITE", "could not write " + path + ": " + error);
+		return false;
+	}
+
+	screenshots.push_back(path);
+	return true;
+}
+
 int App::RunOneShot()
 {
+	if (options.debug && !options.screenshot.empty())
+	{
+		diagnostics.Report(Severity::Warning, "W-DEBUG-SCREENSHOT",
+			"--debug puts the debugger's own chrome in the captured image");
+	}
+
 	PumpFrames(options.frames);
+
+	// Capture sits between the renderer resolving its layers and the swap discarding them.
+	if (!options.screenshot.empty() && !CaptureTo(options.screenshot))
+		return 4;
+
 	Backend::SwapBuffers();
 	return 0;
 }

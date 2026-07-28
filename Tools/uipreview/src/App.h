@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace Rml {
 class Context;
@@ -35,6 +36,10 @@ public:
 	Rml::Context* GetContext() const { return context; }
 	Rml::ElementDocument* GetDocument() const { return document; }
 
+	/** Reads the resolved framebuffer and writes it as a PNG. */
+	bool CaptureTo(const std::string& path);
+	const std::vector<std::string>& Screenshots() const { return screenshots; }
+
 private:
 	bool ResolveRoot();
 	bool LoadFonts();
@@ -56,6 +61,7 @@ private:
 
 	Rml::Context* context = nullptr;
 	Rml::ElementDocument* document = nullptr;
+	std::vector<std::string> screenshots;
 
 	bool rml_initialised = false;
 	bool backend_initialised = false;

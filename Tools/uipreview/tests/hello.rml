@@ -1,6 +1,7 @@
 <rml>
 <head>
 	<title>hello</title>
+	<link type="text/rcss" href="base.rcss"/>
 	<style>
 		body
 		{
@@ -9,6 +10,9 @@
 			color: #e8e8f0;
 			background-color: #1b1b22;
 			padding: 32dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
 		}
 
 		h1

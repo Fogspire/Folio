@@ -81,17 +81,66 @@ that for `LT_ASSERT`.
 
 ## Missing sprites
 
-RmlUi's decorators resolve a value as a sprite name first and **silently** fall back to
-treating it as a filename. Nothing is logged at the decorator layer; the only signal is
+Most decorators resolve a value as a sprite name first and **silently** fall back to treating
+it as a filename. Nothing is logged at the decorator layer; the only signal is
 `TextureDatabase`'s `"Could not load texture"` warning when `RenderInterface::LoadTexture`
 returns 0.
 
-So `LoadTexture` never returns 0: on failure it returns a generated magenta checkerboard. That
-suppresses RmlUi's own message (we own the wording), and the `source` string it was called with
-is exactly the unresolved sprite name. This is what makes markup work before art exists.
-
+So `LoadTexture` never returns 0: on failure it returns a generated magenta checkerboard.
+Verified that this **does** suppress RmlUi's own message, so the wording is ours.
 `LoadTexture` runs **before layout**, so it cannot know what size the sprite will be drawn at.
 The rendered size is captured instead from the compiled geometry's bounding box at draw time.
+
+**The name arriving at `LoadTexture` is already joined against the document directory.** An
+undeclared sprite `icon_sword` referenced from `/ui/examples/hud.rml` arrives as
+`/ui/examples/icon_sword`, not as the bare name. So "contains a path separator, therefore it
+was a file reference" is wrong, because every unresolved sprite looks like that. Classify on
+the **file extension** instead: no extension means it was a sprite name, an extension means it
+was a file or spritesheet `src` reference.
+
+**Not every decorator reaches `LoadTexture`.** Confirmed by experiment:
+
+| Decorator | Undeclared sprite behaviour |
+|---|---|
+| `image`, `tiled-horizontal`, `tiled-vertical`, `tiled-box` | Silent. Falls through to `LoadTexture`, caught by the placeholder. |
+| `ninepatch` | Sprite-only. Never reaches `LoadTexture`, logs `Could not find sprite named '<name>' in ninepatch decorator.` plus `Decorator 'ninepatch' ... could not be instanced, declared at <file>:<line>`, and renders nothing at all. |
+
+So missing sprites have to be collected from two sources: the `LoadTexture` fallback, and the
+ninepatch warning parsed out of `LogMessage`. The ninepatch route is the one that supplies a
+file and line number.
+
+## Data models built from JSON
+
+`Rml::VariableDefinition` does support a fully dynamic model with no compile-time structs, and
+`data-for` over an array of objects works. `BindCustomDataVariable` takes a `DataVariable`
+directly, so `RegisterCustomDataVariableDefinition` is not needed as long as the definition
+objects are kept alive by the caller.
+
+**Every bound address needs a pointer that stays valid, not just the root.** RmlUi re-walks an
+address from its *bound* variable on each update, so binding top-level keys as pointers into
+one root JSON object and then reassigning that root wholesale leaves each bound pointer
+dangling: nlohmann frees the sub-objects on assignment. The symptom is the whole model going
+blank after a reload, with `struct has no member '<name>'` warnings for nested paths.
+
+Each top-level key therefore gets its own heap slot (`map<string, unique_ptr<ordered_json>>`)
+and a reload assigns through the slot. Everything below a bound slot is re-resolved per
+update, so nested objects and arrays may change shape freely, including arrays changing
+length.
+
+A consequence: **keys that appear only after the model is constructed cannot be bound**, since
+the constructor is gone. A reload that introduces a new top-level key needs a document rebuild.
+
+`VariableDefinition::ReflectMemberNames()` takes no node pointer, so member names cannot be
+reflected per node. The debugger's data-model viewer will not list JSON object members.
+
+## Screenshots from a hidden window
+
+`glReadPixels` against a window created with `GLFW_VISIBLE=false` was verified to produce a
+capture **byte-identical** to the same scene in a visible window (0 of 1,228,800 bytes
+differing). No FBO indirection is needed.
+
+Capture has to happen after `RenderInterface_GL3::EndFrame` and before `glfwSwapBuffers`:
+`EndFrame` is what resolves the renderer's layer framebuffers into the default framebuffer.
 
 ## Git LFS is not set up
 

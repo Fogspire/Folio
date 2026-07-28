@@ -1,0 +1,204 @@
+#include "MsdfAtlas.h"
+
+namespace Folio
+{
+	namespace
+	{
+		/// Empty texels between packed fields. Bilinear sampling reaches half a texel past the
+		/// quad edge, and a glyph's field is meaningful right up to its own edge, so without a
+		/// gutter one glyph's distances bleed into its neighbour's outline.
+		constexpr int GutterTexels = 1;
+	}
+
+	FMsdfAtlas::FMsdfAtlas(IMsdfTextureSink& InSink, const FMsdfAtlasParams& InParams, int InPageSize)
+		: Sink(InSink)
+		, Params(InParams)
+		, PageSize(InPageSize)
+	{
+	}
+
+	FMsdfAtlas::~FMsdfAtlas()
+	{
+		for (const FPage& Page : Pages)
+		{
+			if (Page.Handle != InvalidMsdfHandle)
+			{
+				Sink.ReleaseAtlasHandle(Page.Handle);
+			}
+		}
+	}
+
+	FMsdfHandle FMsdfAtlas::GetPageHandle(int Page) const
+	{
+		if (Page < 0 || Page >= int(Pages.size()))
+		{
+			return InvalidMsdfHandle;
+		}
+		return Pages[std::size_t(Page)].Handle;
+	}
+
+	bool FMsdfAtlas::AddPage()
+	{
+		const FMsdfHandle Handle = Sink.CreateAtlasPage(FMsdfPoint{ PageSize, PageSize }, Params);
+		if (Handle == InvalidMsdfHandle)
+		{
+			return false;
+		}
+
+		FPage Page;
+		Page.Handle = Handle;
+		Page.Skyline.push_back(FSkylineNode{ 0, 0, PageSize });
+		Pages.push_back(std::move(Page));
+		return true;
+	}
+
+	bool FMsdfAtlas::FindPlacement(const FPage& Page, int Width, int Height, int& OutX, int& OutY,
+		int& OutNodeIndex) const
+	{
+		int BestY = PageSize + 1;
+		int BestX = 0;
+		int BestNode = -1;
+
+		for (std::size_t Index = 0; Index < Page.Skyline.size(); ++Index)
+		{
+			const int X = Page.Skyline[Index].X;
+			if (X + Width > PageSize)
+			{
+				break;
+			}
+
+			// The rectangle rests on the highest run it spans, so walk forward until its width is
+			// covered and take the maximum.
+			int Y = Page.Skyline[Index].Y;
+			int Remaining = Width;
+			for (std::size_t Span = Index; Span < Page.Skyline.size() && Remaining > 0; ++Span)
+			{
+				if (Page.Skyline[Span].Y > Y)
+				{
+					Y = Page.Skyline[Span].Y;
+				}
+				Remaining -= Page.Skyline[Span].Width;
+			}
+
+			if (Remaining > 0 || Y + Height > PageSize)
+			{
+				continue;
+			}
+
+			if (Y < BestY || (Y == BestY && X < BestX))
+			{
+				BestY = Y;
+				BestX = X;
+				BestNode = int(Index);
+			}
+		}
+
+		if (BestNode < 0)
+		{
+			return false;
+		}
+
+		OutX = BestX;
+		OutY = BestY;
+		OutNodeIndex = BestNode;
+		return true;
+	}
+
+	void FMsdfAtlas::Occupy(FPage& Page, int NodeIndex, int X, int Y, int Width, int Height)
+	{
+		const FSkylineNode Raised{ X, Y + Height, Width };
+		Page.Skyline.insert(Page.Skyline.begin() + NodeIndex, Raised);
+
+		// Trim or drop whatever the new run covers.
+		for (std::size_t Index = std::size_t(NodeIndex) + 1; Index < Page.Skyline.size();)
+		{
+			FSkylineNode& Node = Page.Skyline[Index];
+			const int Overlap = (Raised.X + Raised.Width) - Node.X;
+			if (Overlap <= 0)
+			{
+				break;
+			}
+
+			if (Overlap >= Node.Width)
+			{
+				Page.Skyline.erase(Page.Skyline.begin() + std::ptrdiff_t(Index));
+				continue;
+			}
+
+			Node.X += Overlap;
+			Node.Width -= Overlap;
+			break;
+		}
+
+		// Merge runs that ended up at the same height, or the list grows without bound.
+		for (std::size_t Index = 1; Index < Page.Skyline.size();)
+		{
+			if (Page.Skyline[Index - 1].Y == Page.Skyline[Index].Y)
+			{
+				Page.Skyline[Index - 1].Width += Page.Skyline[Index].Width;
+				Page.Skyline.erase(Page.Skyline.begin() + std::ptrdiff_t(Index));
+				continue;
+			}
+			++Index;
+		}
+	}
+
+	bool FMsdfAtlas::Add(const FMsdfGlyphBitmap& Bitmap, float AdvanceEm, FGlyphBox& OutBox)
+	{
+		OutBox = FGlyphBox();
+		OutBox.AdvanceEm = AdvanceEm;
+
+		if (Bitmap.bEmpty || Bitmap.Width <= 0 || Bitmap.Height <= 0)
+		{
+			OutBox.bEmpty = true;
+			return true;
+		}
+
+		const int NeededWidth = Bitmap.Width + GutterTexels;
+		const int NeededHeight = Bitmap.Height + GutterTexels;
+		if (NeededWidth > PageSize || NeededHeight > PageSize)
+		{
+			return false;
+		}
+
+		int X = 0, Y = 0, NodeIndex = 0;
+		int PageIndex = -1;
+
+		for (std::size_t Index = 0; Index < Pages.size(); ++Index)
+		{
+			if (FindPlacement(Pages[Index], NeededWidth, NeededHeight, X, Y, NodeIndex))
+			{
+				PageIndex = int(Index);
+				break;
+			}
+		}
+
+		if (PageIndex < 0)
+		{
+			if (!AddPage() || !FindPlacement(Pages.back(), NeededWidth, NeededHeight, X, Y, NodeIndex))
+			{
+				return false;
+			}
+			PageIndex = int(Pages.size()) - 1;
+		}
+
+		FPage& Page = Pages[std::size_t(PageIndex)];
+		Occupy(Page, NodeIndex, X, Y, NeededWidth, NeededHeight);
+
+		Sink.UploadAtlasRegion(Page.Handle, FMsdfRect{ X, Y, Bitmap.Width, Bitmap.Height },
+			Bitmap.Rgba.data(), Bitmap.Width * 4);
+
+		OutBox.PlaneLeft = Bitmap.PlaneLeft;
+		OutBox.PlaneBottom = Bitmap.PlaneBottom;
+		OutBox.PlaneRight = Bitmap.PlaneRight;
+		OutBox.PlaneTop = Bitmap.PlaneTop;
+
+		OutBox.AtlasLeft = float(X);
+		OutBox.AtlasTop = float(Y);
+		OutBox.AtlasRight = float(X + Bitmap.Width);
+		OutBox.AtlasBottom = float(Y + Bitmap.Height);
+
+		OutBox.Page = static_cast<std::uint16_t>(PageIndex);
+		return true;
+	}
+}

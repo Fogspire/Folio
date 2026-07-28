@@ -113,3 +113,4 @@ target_link_libraries(folio_core PUBLIC RmlUi::Core Freetype::Freetype msdfgen::
 target_compile_features(folio_core PUBLIC cxx_std_20)
 
 add_subdirectory(Tools/uipreview)
+add_subdirectory(Tools/msdfbake)

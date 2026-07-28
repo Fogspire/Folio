@@ -2,7 +2,9 @@ add_executable(uipreview
 	src/main.cpp
 	src/App.cpp
 	src/Diagnostics.cpp
+	src/ElementPath.cpp
 	src/FileInterface.cpp
+	src/InputScript.cpp
 	src/MissingAssets.cpp
 	src/Options.cpp
 	src/RenderInterface.cpp

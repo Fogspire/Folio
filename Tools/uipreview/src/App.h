@@ -1,5 +1,6 @@
 #pragma once
 
+#include "InputScript.h"
 #include "MissingAssets.h"
 #include "Options.h"
 
@@ -34,6 +35,8 @@ public:
 	 */
 	void RenderFrame();
 	void PumpFrames(int count);
+	/** Frames pumped after each scripted input, so focus animations settle. */
+	int FramesPerStep() const { return options.frames; }
 
 	Rml::Context* GetContext() const { return context; }
 	Rml::ElementDocument* GetDocument() const { return document; }
@@ -70,6 +73,7 @@ private:
 	Rml::Context* context = nullptr;
 	Rml::ElementDocument* document = nullptr;
 	std::vector<std::string> screenshots;
+	std::vector<FocusReport> focus_reports;
 
 	bool rml_initialised = false;
 	bool backend_initialised = false;

@@ -1,7 +1,9 @@
 #include "App.h"
 
 #include "Diagnostics.h"
+#include "ElementPath.h"
 #include "FileInterface.h"
+#include "InputScript.h"
 #include "MissingAssets.h"
 #include "RenderInterface.h"
 #include "Screenshot.h"
@@ -327,6 +329,43 @@ int App::RunOneShot()
 	}
 
 	PumpFrames(options.frames);
+
+	if (!options.keys.empty())
+	{
+		std::vector<InputStep> steps;
+		std::string error;
+		if (!ParseInputScript(options.keys, steps, error))
+		{
+			diagnostics.Report(Severity::Error, "E-KEYS", error);
+			return 2;
+		}
+
+		if (!options.shot_each.empty())
+		{
+			std::error_code ec;
+			fs::create_directories(options.shot_each, ec);
+		}
+
+		focus_reports = RunInputScript(*this, steps, options.shot_each, diagnostics);
+
+		// Program output goes to stdout; diagnostics own stderr.
+		std::string sequence;
+		for (const FocusReport& report : focus_reports)
+		{
+			std::printf("step=%d key=%s focus=%s", report.step, report.token.c_str(), report.description.c_str());
+			if (!report.screenshot.empty())
+				std::printf(" shot=%s", report.screenshot.c_str());
+			std::printf("\n");
+
+			if (report.step > 0)
+			{
+				if (!sequence.empty())
+					sequence += ",";
+				sequence += report.focus.empty() ? "none" : report.focus;
+			}
+		}
+		std::printf("focus-sequence: %s\n", sequence.c_str());
+	}
 
 	// Capture sits between the renderer resolving its layers and the swap discarding them.
 	if (!options.screenshot.empty() && !CaptureTo(options.screenshot))

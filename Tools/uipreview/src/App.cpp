@@ -1,5 +1,6 @@
 #include "App.h"
 
+#include "DataModel.h"
 #include "Diagnostics.h"
 #include "ElementPath.h"
 #include "FileInterface.h"
@@ -15,6 +16,8 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
+#include <regex>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -178,7 +181,61 @@ bool App::Initialise()
 		Rml::Debugger::SetVisible(options.debug);
 	}
 
+	MountDataModel();
+
 	return LoadDocumentFromDisk();
+}
+
+std::string App::DiscoverDataModelName() const
+{
+	if (!options.data_model.empty())
+		return options.data_model;
+
+	// The model has to exist on the context before the document is loaded, so the DOM cannot
+	// be consulted. Scanning the raw markup for the attribute avoids pulling in an XML parser
+	// for a single value.
+	std::ifstream file(fs::path(root) / fs::path(document_path).relative_path());
+	if (!file)
+		return {};
+
+	const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	static const std::regex pattern(R"RX(data-model\s*=\s*"([^"]+)")RX");
+	std::smatch match;
+	if (std::regex_search(text, match, pattern))
+		return match[1].str();
+
+	return {};
+}
+
+void App::MountDataModel()
+{
+	const std::string model_name = DiscoverDataModelName();
+
+	if (model_name.empty())
+	{
+		if (!options.data_path.empty())
+		{
+			diagnostics.Report(Severity::Warning, "W-DATA-NOMODEL",
+				"--data was given but the document declares no data-model attribute");
+		}
+		return;
+	}
+
+	if (options.data_path.empty())
+	{
+		// Mounting an empty model keeps bindings resolvable, so the document reports one
+		// missing data file rather than a warning per bound element.
+		diagnostics.Report(Severity::Warning, "W-DATA-NODATA",
+			"the document declares data-model=\"" + model_name + "\" but no --data file was given");
+		data_model.MountEmpty(context, model_name);
+	}
+	else
+	{
+		data_model.Mount(context, model_name, options.data_path);
+	}
+
+	data_model.SetPreviewInfo(options.culture.empty() ? "source" : options.culture, options.width, options.height,
+		options.dp_ratio);
 }
 
 bool App::LoadFonts()

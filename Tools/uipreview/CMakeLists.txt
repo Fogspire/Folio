@@ -1,6 +1,7 @@
 add_executable(uipreview
 	src/main.cpp
 	src/App.cpp
+	src/DataModel.cpp
 	src/Diagnostics.cpp
 	src/ElementPath.cpp
 	src/FileInterface.cpp

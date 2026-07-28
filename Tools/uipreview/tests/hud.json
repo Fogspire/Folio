@@ -1,0 +1,11 @@
+{
+  "title": "Ninja HUD",
+  "score": 4200,
+  "alive": true,
+  "player": { "name": "Kaede", "health": { "current": 72, "max": 100 } },
+  "items": [
+    { "name": "Shuriken", "count": 3 },
+    { "name": "Kunai", "count": 7 },
+    { "name": "Smoke Bomb", "count": 1 }
+  ]
+}

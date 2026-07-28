@@ -1,0 +1,22 @@
+<rml>
+<head>
+	<title>hud</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<style>
+		body { font-family: Roboto; font-size: 20dp; color: #e8e8f0; background-color: #1b1b22;
+		       padding: 24dp; width: 100%; height: 100%; box-sizing: border-box; }
+		h1 { font-size: 32dp; color: #f0c674; margin-bottom: 12dp; }
+		li { margin-left: 16dp; }
+		.dim { color: #8a8a99; }
+	</style>
+</head>
+<body data-model="hud">
+	<h1>{{ title }}</h1>
+	<p>{{ player.name }} - {{ player.health.current }} / {{ player.health.max }}</p>
+	<p>Score {{ score }}</p>
+	<ul>
+		<li data-for="item : items">{{ item.name }} x{{ item.count }}</li>
+	</ul>
+	<p class="dim">{{ preview.width }}x{{ preview.height }} culture={{ preview.culture }}</p>
+</body>
+</rml>

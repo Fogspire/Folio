@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DataModel.h"
 #include "InputScript.h"
 #include "MissingAssets.h"
 #include "Options.h"
@@ -52,6 +53,8 @@ private:
 	/** Picks up sprite failures that never reach the render interface. */
 	void CollectSpritesFromDiagnostics();
 	void WriteAssetsWanted();
+	std::string DiscoverDataModelName() const;
+	void MountDataModel();
 
 	int RunInteractive();
 	int RunOneShot();
@@ -69,6 +72,7 @@ private:
 	PreviewRenderInterface* render_interface = nullptr;
 
 	MissingAssets missing_assets;
+	JsonDataModel data_model {diagnostics};
 
 	Rml::Context* context = nullptr;
 	Rml::ElementDocument* document = nullptr;

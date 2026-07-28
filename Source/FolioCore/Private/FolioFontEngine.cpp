@@ -3,6 +3,7 @@
 #include "FolioFontFace.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/FileInterface.h>
@@ -53,6 +54,16 @@ namespace Folio
 		{
 			const int Value = int(Weight);
 			return Value == 0 ? 400 : Value;
+		}
+
+		/// Advances have to land on whole pixels, because layout, caret positions and hit testing
+		/// are all integer. Truncating loses up to a pixel per glyph and always in the same
+		/// direction, so the error compounds along a run and characters end up overlapping - most
+		/// visibly at small sizes, where a pixel is a large share of an advance. Rounding keeps
+		/// the error centred on zero.
+		int RoundToPixels(float Value)
+		{
+			return int(Value + (Value < 0.0f ? -0.5f : 0.5f));
 		}
 	}
 
@@ -309,10 +320,10 @@ namespace Folio
 
 			if (bKerning && PriorGlyph != 0)
 			{
-				Width += int(Face.GetKerningEm(PriorGlyph, GlyphIndex) * Scale);
+				Width += RoundToPixels(Face.GetKerningEm(PriorGlyph, GlyphIndex) * Scale);
 			}
 
-			Width += int(Box->AdvanceEm * Scale);
+			Width += RoundToPixels(Box->AdvanceEm * Scale);
 			Width += int(TextShapingContext.letter_spacing);
 			PriorGlyph = GlyphIndex;
 		}
@@ -354,7 +365,7 @@ namespace Folio
 
 			if (bKerning && PriorGlyph != 0)
 			{
-				Width += int(Face.GetKerningEm(PriorGlyph, GlyphIndex) * Scale);
+				Width += RoundToPixels(Face.GetKerningEm(PriorGlyph, GlyphIndex) * Scale);
 			}
 
 			if (!Box->bEmpty)
@@ -373,10 +384,18 @@ namespace Folio
 
 				Rml::Mesh& Mesh = MeshList[std::size_t(MeshForPage[Box->Page])].mesh;
 
+				// Snap the pen, not the glyph. Rounding a composed origin quantises each glyph's
+				// own bearing along with the pen, so characters meant to share a baseline land on
+				// slightly different ones. It is invisible at text sizes and unmistakable once a
+				// transform magnifies it.
+				//
 				// Plane bounds are y-up from the baseline; RmlUi's y runs down the screen.
+				const float PenX = std::round(Position.x + float(Width));
+				const float BaselineY = std::round(Position.y);
+
 				const Rml::Vector2f Origin(
-					Position.x + float(Width) + Box->PlaneLeft * Scale,
-					Position.y - Box->PlaneTop * Scale);
+					PenX + Box->PlaneLeft * Scale,
+					BaselineY - Box->PlaneTop * Scale);
 				const Rml::Vector2f Dimensions(
 					(Box->PlaneRight - Box->PlaneLeft) * Scale,
 					(Box->PlaneTop - Box->PlaneBottom) * Scale);
@@ -385,10 +404,10 @@ namespace Folio
 				const Rml::Vector2f TopLeftUv(Box->AtlasLeft / Texels, Box->AtlasTop / Texels);
 				const Rml::Vector2f BottomRightUv(Box->AtlasRight / Texels, Box->AtlasBottom / Texels);
 
-Rml::MeshUtilities::GenerateQuad(Mesh, Origin.Round(), Dimensions, Colour, TopLeftUv, BottomRightUv);
+Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, BottomRightUv);
 			}
 
-			Width += int(Box->AdvanceEm * Scale);
+			Width += RoundToPixels(Box->AdvanceEm * Scale);
 			Width += int(TextShapingContext.letter_spacing);
 			PriorGlyph = GlyphIndex;
 		}

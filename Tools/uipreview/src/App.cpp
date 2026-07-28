@@ -221,6 +221,22 @@ std::string App::DiscoverDataModelName() const
 	return {};
 }
 
+std::string App::FindConventionalDataFile(const std::string& model_name) const
+{
+	// A bound document with no data renders its bindings as literal {{ }}, which reads as
+	// broken markup rather than as a missing argument. Mock data named after the model is
+	// picked up without being asked for, so the common case just works; --data still wins.
+	const fs::path candidate = fs::path(root) / "ui" / "mock" / (model_name + ".json");
+
+	std::error_code ec;
+	if (!fs::is_regular_file(candidate, ec))
+		return {};
+
+	const std::string path = ToForwardSlashes(candidate.string());
+	diagnostics.Report(Severity::Info, "I-DATA-MOCK", "using " + diagnostics.Relative(path));
+	return path;
+}
+
 void App::MountDataModel()
 {
 	const std::string model_name = DiscoverDataModelName();
@@ -235,17 +251,20 @@ void App::MountDataModel()
 		return;
 	}
 
-	if (options.data_path.empty())
+	data_path = options.data_path.empty() ? FindConventionalDataFile(model_name) : options.data_path;
+
+	if (data_path.empty())
 	{
 		// Mounting an empty model keeps bindings resolvable, so the document reports one
 		// missing data file rather than a warning per bound element.
 		diagnostics.Report(Severity::Warning, "W-DATA-NODATA",
-			"the document declares data-model=\"" + model_name + "\" but no --data file was given");
+			"the document declares data-model=\"" + model_name + "\" but no --data file was given "
+			"and none was found at ui/mock/" + model_name + ".json");
 		data_model.MountEmpty(context, model_name);
 	}
 	else
 	{
-		data_model.Mount(context, model_name, options.data_path);
+		data_model.Mount(context, model_name, data_path);
 	}
 
 	data_model.SetPreviewInfo(options.culture.empty() ? "source" : options.culture, options.width, options.height,
@@ -567,10 +586,10 @@ void App::HandleFileChanges(const std::vector<std::string>& changed)
 	bool reload_textures = false;
 
 	std::string data_absolute;
-	if (!options.data_path.empty())
+	if (!data_path.empty())
 	{
 		std::error_code ec;
-		data_absolute = ToForwardSlashes(fs::weakly_canonical(options.data_path, ec).string());
+		data_absolute = ToForwardSlashes(fs::weakly_canonical(data_path, ec).string());
 		std::transform(data_absolute.begin(), data_absolute.end(), data_absolute.begin(),
 			[](unsigned char c) { return (char)std::tolower(c); });
 	}

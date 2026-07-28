@@ -64,6 +64,7 @@ private:
 	void RecordImageElementSizes();
 	void WriteAssetsWanted();
 	std::string DiscoverDataModelName() const;
+	std::string FindConventionalDataFile(const std::string& model_name) const;
 	void MountDataModel();
 	void HandleFileChanges(const std::vector<std::string>& changed);
 	void RebuildDocument();
@@ -75,6 +76,8 @@ private:
 	Diagnostics& diagnostics;
 
 	std::string root;
+	/** The data file actually mounted: --data if given, else the conventional mock. */
+	std::string data_path;
 	/** Document path relative to the root, with a leading slash, as RmlUi sees it. */
 	std::string document_path;
 

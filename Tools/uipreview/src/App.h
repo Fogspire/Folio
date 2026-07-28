@@ -47,6 +47,14 @@ public:
 	bool CaptureTo(const std::string& path);
 	const std::vector<std::string>& Screenshots() const { return screenshots; }
 
+	const std::string& Root() const { return root; }
+	const MissingAssets& Missing() const { return missing_assets; }
+	const std::vector<FocusReport>& FocusReports() const { return focus_reports; }
+	std::vector<std::string> OpenedFiles() const;
+
+	/** Prints the element tree with the attributes that drive focus and navigation. */
+	void DumpTree() const;
+
 private:
 	bool ResolveRoot();
 	bool LoadFonts();

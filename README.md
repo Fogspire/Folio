@@ -32,6 +32,21 @@ Output lands at `bin\win64\uipreview.exe`.
 
 The first build clones five dependencies and takes several minutes. Later builds reuse them.
 
+### Backend and dependency choices
+
+**Backend: GLFW + OpenGL 3.3**, which is what upstream documents first. `RmlUi_Renderer_GL3`
+is the only shipped renderer implementing the full 6.x feature set (render layers, filters,
+clip masks, shaders); GL2 and the SDL renderer silently drop box-shadow, filters and gradients.
+GLFW additionally allows a hidden window, which is how screenshots are captured without a
+visible one.
+
+**Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests.
+vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, and its
+RmlUi port tracks whatever its baseline pins rather than the exact release we want. FetchContent
+pins each dependency to a commit hash in this file with no global installation. The tradeoff is
+that patching a dependency is awkward; if RmlUi ever needs a local patch, that one dependency
+should become a submodule at that point.
+
 ### Dependencies
 
 Fetched by CMake at configure time, each pinned to an exact commit. No package manager, no
@@ -52,22 +67,52 @@ specific ones that bite.
 
 ## Using `uipreview`
 
-```powershell
-# open a document with hot reload and the RmlUi debugger
-.\bin\win64\uipreview.exe ui\examples\hello.rml --debug
+The tool is game agnostic: it renders whatever content root it is pointed at. Folio itself
+ships no markup and no typeface, so a font has to be supplied.
 
-# render one frame headless to a PNG
-.\bin\win64\uipreview.exe ui\examples\hello.rml --screenshot out.png --size 1280x800
+```powershell
+$roboto = "..\..\..\UnrealEngine-Ninja\Engine\Content\Slate\Fonts\Roboto-Regular.ttf"
+
+# open a document with hot reload and the RmlUi debugger. F8 toggles the debugger
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --debug
+
+# render one frame to a PNG without showing a window
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --screenshot out.png --size 1280x800
 
 # drive navigation and capture each step, to verify focus order
-.\bin\win64\uipreview.exe ui\examples\menu.rml --keys "down,down,confirm" --shot-each shots\
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --keys "down,down,confirm" --shot-each shots\
 
-# check a document for length overflow before translations exist
-.\bin\win64\uipreview.exe ui\examples\menu.rml --culture pseudo --screenshot pseudo.png
+# check a screen for length overflow before any translations exist
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --culture pseudo --screenshot pseudo.png
+
+# validate for CI, failing on warnings too, and emit a machine readable report
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --screenshot nul --strict --json-report report.json
 ```
 
-`uipreview --help` lists every flag. Diagnostics go to stderr in
-`path:line:col: severity: [CODE] message` form; program output goes to stdout.
+`uipreview --help` lists every flag.
+
+**Hot reload granularity.** An `.rcss` edit reloads stylesheets only, so the DOM, focus, scroll
+position and data model are untouched. Only an `.rml` edit rebuilds the document, capturing and
+restoring focus and scroll offsets around it. Editing the `--data` JSON re-reads the model on
+its own.
+
+**Output.** Program output goes to stdout; diagnostics go to stderr as
+`path:line:col: severity: [CODE] message`, which matches what editors and `grep` expect. Paths
+are relative to the content root, so output is identical across machines.
 
 Exit codes: `0` ok, `1` document errors, `2` usage, `3` init failure, `4` runtime failure,
 `5` warnings present under `--strict`.
+
+Because nearly every RCSS problem is a warning rather than an error in RmlUi, a validity check
+that only looks at errors will pass a thoroughly broken stylesheet. Use `--strict` in CI.
+
+## Art that does not exist yet
+
+Markup may reference **sprite names only**, never image paths. A name that no loaded
+`@spritesheet` declares renders as a magenta checkerboard with the name stamped on it, warns,
+and is recorded in `ASSETS_WANTED.md` next to the size it was actually drawn at. Screens can
+therefore be built, navigated and animated before any art exists, and art gets produced in
+batches against that file rather than per screen.
+
+`ASSETS_WANTED.md` is rewritten in place between its markers, so rerunning with no changes
+leaves the file byte identical. Notes written below the markers are preserved.

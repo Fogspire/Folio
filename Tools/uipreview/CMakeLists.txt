@@ -7,6 +7,7 @@ add_executable(uipreview
 	src/FileInterface.cpp
 	src/FileWatcher.cpp
 	src/InputScript.cpp
+	src/JsonReport.cpp
 	src/Localization.cpp
 	src/MissingAssets.cpp
 	src/Options.cpp

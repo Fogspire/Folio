@@ -1,5 +1,6 @@
 #include "App.h"
 #include "Diagnostics.h"
+#include "JsonReport.h"
 #include "Options.h"
 
 #include <cstdio>
@@ -37,8 +38,22 @@ int main(int argc, char** argv)
 		}
 
 		const int run_result = app.Run();
-		if (run_result != 0)
-			return run_result;
+
+		diagnostics.PrintSummary(options.document);
+		const int exit_code = run_result != 0 ? run_result : diagnostics.ComputeExitCode(options.strict);
+
+		if (!options.json_report.empty())
+		{
+			std::string report_error;
+			if (!WriteJsonReport(options.json_report, options, app, diagnostics, exit_code, report_error))
+			{
+				std::fprintf(stderr, "uipreview:0:0: error: [E-REPORT] %s: %s\n", options.json_report.c_str(),
+					report_error.c_str());
+				return 4;
+			}
+		}
+
+		return exit_code;
 	}
 	catch (const std::exception& e)
 	{
@@ -46,6 +61,5 @@ int main(int argc, char** argv)
 		return 4;
 	}
 
-	diagnostics.PrintSummary(options.document);
 	return diagnostics.ComputeExitCode(options.strict);
 }

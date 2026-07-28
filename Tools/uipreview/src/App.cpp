@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <regex>
 #include <set>
 #include <vector>
@@ -391,6 +392,50 @@ bool App::CaptureTo(const std::string& path)
 	return true;
 }
 
+std::vector<std::string> App::OpenedFiles() const
+{
+	const std::set<std::string>& opened = file_interface->Opened();
+	return std::vector<std::string>(opened.begin(), opened.end());
+}
+
+void App::DumpTree() const
+{
+	// The text companion to --keys: it shows the navigation graph without needing images.
+	const std::function<void(Rml::Element*, int)> walk = [&](Rml::Element* element, int depth) {
+		if (!element)
+			return;
+
+		std::string line((size_t)depth * 2, ' ');
+		line += element->GetTagName();
+		if (const Rml::String& id = element->GetId(); !id.empty())
+			line += "#" + id;
+		if (const Rml::String classes = element->GetClassNames(); !classes.empty())
+			line += "." + classes;
+
+		for (const char* attribute : {"tab-index", "autofocus", "data-loc"})
+		{
+			if (element->HasAttribute(attribute))
+				line += std::string(" ") + attribute + "=" + element->GetAttribute<Rml::String>(attribute, "");
+		}
+		for (const char* property : {"nav-up", "nav-down", "nav-left", "nav-right"})
+		{
+			const Rml::Property* value = element->GetProperty(property);
+			// Only the elements that participate in navigation are interesting here.
+			if (value && value->ToString() != "none")
+				line += std::string(" ") + property + ":" + value->ToString();
+		}
+		if (element->IsPseudoClassSet("focus"))
+			line += " [focus]";
+
+		std::printf("%s\n", line.c_str());
+
+		for (int i = 0; i < element->GetNumChildren(); ++i)
+			walk(element->GetChild(i), depth + 1);
+	};
+
+	walk(document, 0);
+}
+
 int App::RunOneShot()
 {
 	if (options.debug && !options.screenshot.empty())
@@ -443,6 +488,10 @@ int App::RunOneShot()
 		return 4;
 
 	Backend::SwapBuffers();
+
+	if (options.dump_tree)
+		DumpTree();
+
 	WriteAssetsWanted();
 	return 0;
 }

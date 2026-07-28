@@ -61,6 +61,7 @@ private:
 	bool LoadDocumentFromDisk();
 	/** Picks up sprite failures that never reach the render interface. */
 	void CollectSpritesFromDiagnostics();
+	void RecordImageElementSizes();
 	void WriteAssetsWanted();
 	std::string DiscoverDataModelName() const;
 	void MountDataModel();

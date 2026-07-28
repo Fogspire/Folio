@@ -337,23 +337,59 @@ bool App::LoadDocumentFromDisk()
 
 void App::CollectSpritesFromDiagnostics()
 {
-	// A ninepatch decorator only accepts sprites, so an undeclared name is rejected during
-	// instancing and never reaches the render interface. Its warning is the only trace, and
-	// it is also the only route that carries a file and line.
-	static const std::string prefix = "Could not find sprite named '";
+	// Two routes resolve sprite names without ever reaching the render interface, so the
+	// placeholder texture never sees them and their warning is the only trace:
+	//
+	//   ninepatch decorator   "Could not find sprite named '<name>' in ninepatch decorator."
+	//   img element           "Could not find sprite '<name>' specified in img element ..."
+	//
+	// The ninepatch route is the only one that also carries a file and line.
+	static const std::string prefixes[] = {
+		"Could not find sprite named '",
+		"Could not find sprite '",
+	};
 
 	for (const Record& record : diagnostics.Records())
 	{
-		const size_t begin = record.message.find(prefix);
-		if (begin == std::string::npos)
+		for (const std::string& prefix : prefixes)
+		{
+			const size_t begin = record.message.find(prefix);
+			if (begin == std::string::npos)
+				continue;
+
+			const size_t name_begin = begin + prefix.size();
+			const size_t name_end = record.message.find('\'', name_begin);
+			if (name_end == std::string::npos)
+				continue;
+
+			missing_assets.RecordSprite(record.message.substr(name_begin, name_end - name_begin));
+			break;
+		}
+	}
+
+	RecordImageElementSizes();
+}
+
+void App::RecordImageElementSizes()
+{
+	// Neither sprite-only route reaches LoadTexture, so the size the placeholder would have
+	// been drawn at was never measured and the entry lands in ASSETS_WANTED.md as 0x0 - which
+	// is the one column an artist actually needs. An img element still has a laid-out box, so
+	// recover the size from the element itself. A ninepatch has no element to ask.
+	if (!document)
+		return;
+
+	Rml::ElementList images;
+	document->QuerySelectorAll(images, "img");
+
+	for (Rml::Element* image : images)
+	{
+		const Rml::String name = image->GetAttribute<Rml::String>("sprite", "");
+		if (name.empty() || missing_assets.Sprites().count(name) == 0)
 			continue;
 
-		const size_t name_begin = begin + prefix.size();
-		const size_t name_end = record.message.find('\'', name_begin);
-		if (name_end == std::string::npos)
-			continue;
-
-		missing_assets.RecordSprite(record.message.substr(name_begin, name_end - name_begin));
+		const Rml::Vector2f size = image->GetBox().GetSize(Rml::BoxArea::Content);
+		missing_assets.RecordSize(name, int(size.x + 0.5f), int(size.y + 0.5f));
 	}
 }
 

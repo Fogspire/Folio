@@ -45,11 +45,23 @@ if (-not (Test-Path $VsWhere)) {
     Fail "vswhere.exe not found at '$VsWhere'. Install Visual Studio 2022 with the C++ desktop workload."
 }
 
-$VsPath = & $VsWhere -latest -products * `
-    -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-    -property installationPath
-if (-not $VsPath) {
+# Pick the install that actually carries the requested toolset rather than simply the newest
+# one: this machine also has a VS BuildTools install that ships neither 14.38 nor CMake.
+$Installs = @(& $VsWhere -products * `
+        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+        -property installationPath)
+if (-not $Installs) {
     Fail 'No Visual Studio installation with the C++ desktop workload was found.'
+}
+
+$VsPath = $Installs | Where-Object { Test-Path (Join-Path $_ "VC\Tools\MSVC\$Toolset") } | Select-Object -First 1
+if (-not $VsPath) {
+    Write-Host "build.ps1: no Visual Studio install provides MSVC toolset $Toolset." -ForegroundColor Red
+    foreach ($install in $Installs) {
+        $available = Get-ChildItem (Join-Path $install 'VC\Tools\MSVC') -Name -ErrorAction SilentlyContinue
+        Write-Host "  $install -> $($available -join ', ')"
+    }
+    Fail 'Install the required toolset, or select an available one with -Toolset.'
 }
 
 $CMakeExe = Join-Path $VsPath 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
@@ -66,7 +78,12 @@ foreach ($tool in @($CMakeExe, $NinjaExe, $VsDevCmd)) {
 
 # Ninja invokes cl.exe directly, so INCLUDE, LIB and LIBPATH must be present in this process.
 Write-Host "Importing MSVC environment (toolset $Toolset)..." -ForegroundColor DarkGray
-$envLines = & cmd.exe /c "`"$VsDevCmd`" -arch=amd64 -host_arch=amd64 -vcvars_ver=$Toolset -no_logo && set"
+
+# Some of VsDevCmd's helper scripts invoke vswhere without a path.
+$env:PATH = "$(Split-Path -Parent $VsWhere);$env:PATH"
+
+# /s stops cmd from mangling the quoting around a path containing spaces.
+$envLines = & $env:COMSPEC /s /c "`"$VsDevCmd`" -arch=amd64 -host_arch=amd64 -vcvars_ver=$Toolset -no_logo && set"
 if ($LASTEXITCODE -ne 0) {
     Fail "VsDevCmd.bat failed. Is MSVC toolset $Toolset installed? Override with -Toolset."
 }

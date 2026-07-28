@@ -1,0 +1,37 @@
+{
+	"version": 3,
+	"cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+	"configurePresets": [
+		{
+			"name": "win64-base",
+			"hidden": true,
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/build/win64-${presetName}",
+			"architecture": { "value": "x64", "strategy": "external" },
+			"toolset": { "value": "host=x64,version=14.38.33130", "strategy": "external" }
+		},
+		{
+			"name": "Debug",
+			"inherits": "win64-base",
+			"binaryDir": "${sourceDir}/build/win64-Debug",
+			"cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+		},
+		{
+			"name": "RelWithDebInfo",
+			"inherits": "win64-base",
+			"binaryDir": "${sourceDir}/build/win64-RelWithDebInfo",
+			"cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+		},
+		{
+			"name": "Release",
+			"inherits": "win64-base",
+			"binaryDir": "${sourceDir}/build/win64-Release",
+			"cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+		}
+	],
+	"buildPresets": [
+		{ "name": "Debug", "configurePreset": "Debug" },
+		{ "name": "RelWithDebInfo", "configurePreset": "RelWithDebInfo" },
+		{ "name": "Release", "configurePreset": "Release" }
+	]
+}

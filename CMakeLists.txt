@@ -55,9 +55,6 @@ set(GLFW_INSTALL        OFF CACHE BOOL "" FORCE)
 
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 
-# RmlUi resolves its font engine through find_package(Freetype), but treats it as a soft
-# dependency and only checks whether the Freetype::Freetype target exists. Adding FreeType
-# first therefore satisfies it without any find-module involvement.
 set(RMLUI_SAMPLES            OFF CACHE BOOL "" FORCE)
 set(RMLUI_LUA_BINDINGS       OFF CACHE BOOL "" FORCE)
 set(RMLUI_SVG_PLUGIN         OFF CACHE BOOL "" FORCE)
@@ -68,7 +65,16 @@ set(RMLUI_INSTALL_TARGETS_DIR "" CACHE STRING "" FORCE)
 # supply a UE-backed font engine, to avoid colliding with UE's own copy of FreeType.
 set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "RmlUi font engine (freetype or none)")
 
-FetchContent_MakeAvailable(freetype glfw RmlUi nlohmann_json lodepng)
+# RmlUi resolves its font engine through find_package(Freetype), but treats it as a soft
+# dependency and only checks whether the Freetype::Freetype target exists. FreeType's own
+# build declares that name as an EXPORT_NAME, which only applies to installed packages, so
+# the alias has to be made here before RmlUi is configured.
+FetchContent_MakeAvailable(freetype)
+if(NOT TARGET Freetype::Freetype)
+	add_library(Freetype::Freetype ALIAS freetype)
+endif()
+
+FetchContent_MakeAvailable(glfw RmlUi nlohmann_json lodepng)
 
 add_library(lodepng STATIC "${lodepng_SOURCE_DIR}/lodepng.cpp")
 target_include_directories(lodepng PUBLIC "${lodepng_SOURCE_DIR}")

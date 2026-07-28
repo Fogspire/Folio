@@ -3,7 +3,9 @@ add_executable(uipreview
 	src/App.cpp
 	src/Diagnostics.cpp
 	src/FileInterface.cpp
+	src/MissingAssets.cpp
 	src/Options.cpp
+	src/RenderInterface.cpp
 	src/Screenshot.cpp
 	src/SystemInterface.cpp
 
@@ -22,6 +24,7 @@ target_include_directories(uipreview PRIVATE
 target_compile_definitions(uipreview PRIVATE
 	RMLUI_PLATFORM_GLFW
 	RMLUI_RENDERER_GL3
+	_CRT_SECURE_NO_WARNINGS
 	NOMINMAX
 	WIN32_LEAN_AND_MEAN
 )

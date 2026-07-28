@@ -2,6 +2,8 @@
 
 #include "Diagnostics.h"
 #include "FileInterface.h"
+#include "MissingAssets.h"
+#include "RenderInterface.h"
 #include "Screenshot.h"
 #include "SystemInterface.h"
 #include "backend/UipreviewBackendGLFW.h"
@@ -95,6 +97,7 @@ bool App::ResolveRoot()
 
 	diagnostics.SetRoot(root);
 	diagnostics.SetCurrentDocument(document_path);
+	missing_assets.SetDocument(diagnostics.Relative(document_path));
 	return true;
 }
 
@@ -112,9 +115,14 @@ bool App::Initialise()
 	backend_options.resizable = backend_options.visible;
 
 	// The backend owns both interfaces, since they can only be built once the GL context
-	// exists. The factory hands back the raw pointer so this object can still reach it.
+	// exists. The factories hand back raw pointers so this object can still reach them.
 	const bool backend_ok = Backend::Initialize(
-		backend_options, nullptr,
+		backend_options,
+		[this]() {
+			auto owned = Rml::MakeUnique<PreviewRenderInterface>(diagnostics, missing_assets);
+			render_interface = owned.get();
+			return Rml::UniquePtr<RenderInterface_GL3>(std::move(owned));
+		},
 		[this]() {
 			auto owned = Rml::MakeUnique<PreviewSystemInterface>(diagnostics);
 			system_interface = owned.get();
@@ -160,9 +168,13 @@ bool App::Initialise()
 	if (!LoadFonts())
 		return false;
 
-	Rml::Debugger::Initialise(context);
-	if (options.debug)
-		Rml::Debugger::SetVisible(true);
+	// Initialising the debugger adds its beacon element to the context, which shows up as a
+	// warning marker in captured images. Keep it out of an unattended capture entirely.
+	if (options.debug || !options.IsOneShot())
+	{
+		Rml::Debugger::Initialise(context);
+		Rml::Debugger::SetVisible(options.debug);
+	}
 
 	return LoadDocumentFromDisk();
 }
@@ -223,7 +235,41 @@ bool App::LoadDocumentFromDisk()
 	}
 	document->Show();
 	context->Update();
+	CollectSpritesFromDiagnostics();
 	return true;
+}
+
+void App::CollectSpritesFromDiagnostics()
+{
+	// A ninepatch decorator only accepts sprites, so an undeclared name is rejected during
+	// instancing and never reaches the render interface. Its warning is the only trace, and
+	// it is also the only route that carries a file and line.
+	static const std::string prefix = "Could not find sprite named '";
+
+	for (const Record& record : diagnostics.Records())
+	{
+		const size_t begin = record.message.find(prefix);
+		if (begin == std::string::npos)
+			continue;
+
+		const size_t name_begin = begin + prefix.size();
+		const size_t name_end = record.message.find('\'', name_begin);
+		if (name_end == std::string::npos)
+			continue;
+
+		missing_assets.RecordSprite(record.message.substr(name_begin, name_end - name_begin));
+	}
+}
+
+void App::WriteAssetsWanted()
+{
+	if (!options.write_assets_wanted || missing_assets.Empty())
+		return;
+
+	const std::string path = (fs::path(root) / "ASSETS_WANTED.md").string();
+	std::string error;
+	if (!missing_assets.WriteMarkdown(path, error))
+		diagnostics.Report(Severity::Warning, "W-ASSETS-WRITE", "could not update ASSETS_WANTED.md: " + error);
 }
 
 void App::RenderFrame()
@@ -287,6 +333,7 @@ int App::RunOneShot()
 		return 4;
 
 	Backend::SwapBuffers();
+	WriteAssetsWanted();
 	return 0;
 }
 
@@ -309,6 +356,7 @@ int App::RunInteractive()
 		Backend::EndFrame();
 		Backend::SwapBuffers();
 	}
+	WriteAssetsWanted();
 	return 0;
 }
 

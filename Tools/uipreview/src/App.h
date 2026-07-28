@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MissingAssets.h"
 #include "Options.h"
 
 #include <memory>
@@ -14,6 +15,7 @@ class ElementDocument;
 namespace uipreview {
 
 class Diagnostics;
+class PreviewRenderInterface;
 class PreviewSystemInterface;
 class RootedFileInterface;
 
@@ -44,6 +46,9 @@ private:
 	bool ResolveRoot();
 	bool LoadFonts();
 	bool LoadDocumentFromDisk();
+	/** Picks up sprite failures that never reach the render interface. */
+	void CollectSpritesFromDiagnostics();
+	void WriteAssetsWanted();
 
 	int RunInteractive();
 	int RunOneShot();
@@ -56,8 +61,11 @@ private:
 	std::string document_path;
 
 	std::unique_ptr<RootedFileInterface> file_interface;
-	/** Owned by the backend, which constructs it once the GL context exists. */
+	/** Owned by the backend, which constructs them once the GL context exists. */
 	PreviewSystemInterface* system_interface = nullptr;
+	PreviewRenderInterface* render_interface = nullptr;
+
+	MissingAssets missing_assets;
 
 	Rml::Context* context = nullptr;
 	Rml::ElementDocument* document = nullptr;

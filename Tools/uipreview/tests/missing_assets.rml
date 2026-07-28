@@ -1,10 +1,11 @@
 <rml>
 <head>
-	<title>spike</title>
+	<title>missing assets</title>
+	<link type="text/rcss" href="base.rcss"/>
 	<style>
 		@spritesheet declared_sheet
 		{
-			src: /ui/examples/nonexistent_sheet.png;
+			src: nonexistent_sheet.png;
 			resolution: 1x;
 			declared_but_sheet_missing: 0px 0px 32px 32px;
 		}
@@ -57,12 +58,12 @@
 		{
 			width: 200dp;
 			height: 100dp;
-			decorator: image(/ui/examples/no_such_file.png);
+			decorator: image(no_such_file.png);
 		}
 	</style>
 </head>
 <body>
-	<p>spike</p>
+	<p>Decorators referencing art that does not exist.</p>
 	<div class="image_missing"/>
 	<div class="tiled_missing"/>
 	<div class="ninepatch_missing"/>

@@ -40,7 +40,56 @@ colgroup { display: table-column-group; }
 thead, tbody, tfoot { display: table-row-group; }
 
 /* Interactive elements are inline-block so they size to content but still take a box. */
-button, input, select, textarea { display: inline-block; }
+button, input, select, textarea, progress, progressbar, handle { display: inline-block; }
+
+/*
+ * RmlUi's own tabset elements are as undeclared as everything else. The tabset shows and
+ * hides panels by writing display onto them directly and removing it again, so the value a
+ * panel returns to when it becomes active is whatever the stylesheet says - which is inline
+ * unless it is stated here.
+ */
+tabset, tabs, panels, panel { display: block; }
+tab { display: inline-block; }
 
 /* RmlUi has no :disabled pseudo-class, so disabled state is carried by a class. */
 .is-disabled { color: #7f7f7f; }
+
+/*
+ * Scrollbars have no default size, and an auto width on one resolves to the full content
+ * width of the container it belongs to. So the first time an overflow: auto container
+ * actually overflows, its scrollbar takes the entire width and every child collapses to its
+ * own padding and border. It looks like a flex bug and it is not one.
+ *
+ * Geometry only. Colours, decorators and the bar's look belong to the game.
+ */
+scrollbarvertical
+{
+	width: 10dp;
+}
+
+scrollbarvertical sliderbar
+{
+	width: 10dp;
+	min-height: 32dp;
+}
+
+scrollbarhorizontal
+{
+	height: 10dp;
+}
+
+scrollbarhorizontal sliderbar
+{
+	height: 10dp;
+	min-width: 32dp;
+}
+
+/* The stepper arrows are a mouse-only affordance and are off unless a game asks for them. */
+scrollbarvertical sliderarrowdec,
+scrollbarvertical sliderarrowinc,
+scrollbarhorizontal sliderarrowdec,
+scrollbarhorizontal sliderarrowinc
+{
+	width: 0dp;
+	height: 0dp;
+}

@@ -1,0 +1,43 @@
+// Coloured, textured triangles for the layer path.
+//
+// This is what RmlUi geometry is drawn with once it leaves Slate. It exists because stencil
+// state is needed for clip masks, and FCanvas does not expose it - an outer box-shadow has to
+// be masked out of its own element's interior, which is an inverse clip and cannot be done
+// with a clipping quad.
+//
+// Everything is premultiplied alpha, matching RmlUi 6.x.
+
+#include "/Engine/Public/Platform.ush"
+
+Texture2D UITexture;
+SamplerState UISampler;
+
+// Maps layer pixels to clip space: xy scale, zw offset.
+float4 ClipTransform;
+
+void MainVS(
+	in float2 InPosition : ATTRIBUTE0,
+	in float2 InUV : ATTRIBUTE1,
+	in float4 InColor : ATTRIBUTE2,
+	out float2 OutUV : TEXCOORD0,
+	out float4 OutColor : TEXCOORD1,
+	out float4 OutPosition : SV_POSITION)
+{
+	OutPosition = float4(InPosition * ClipTransform.xy + ClipTransform.zw, 0.0f, 1.0f);
+	OutUV = InUV;
+	OutColor = InColor;
+}
+
+float4 MainPS(
+	in float2 UV : TEXCOORD0,
+	in float4 Color : TEXCOORD1) : SV_Target0
+{
+	return UITexture.Sample(UISampler, UV) * Color;
+}
+
+// Colour writes are disabled for a mask pass, so the stencil is the only output that matters.
+void MaskPS(
+	in float2 UV : TEXCOORD0,
+	in float4 Color : TEXCOORD1)
+{
+}

@@ -1,12 +1,39 @@
 #include "FolioLayerStack.h"
 
-#include "CanvasItem.h"
-#include "CanvasTypes.h"
-#include "Engine/Canvas.h"
+#include "CommonRenderResources.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "FolioBlurShader.h"
 #include "FolioModule.h"
-#include "Rendering/RenderingCommon.h"
+#include "PipelineStateCache.h"
+#include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
+#include "RenderingThread.h"
 #include "TextureResource.h"
+
+namespace
+{
+	/** The value written into the stencil where a mask covers. */
+	constexpr uint32 MaskStencilRef = 1;
+
+	FLinearColor ToLinear(const FColor& Color)
+	{
+		// The layer target is sRGB, so the shader's output is encoded on write. Passing the
+		// byte values through as though they were linear encodes them a second time, which
+		// turns a #1f1f28 panel into (98,98,110) - exactly LinearToSRGB(31/255) * 255.
+		// Decoding first makes the round trip land back on the original value.
+		//
+		// Alpha is not a colour and must not be decoded, which is why this is written out
+		// rather than using FLinearColor's FColor constructor.
+		// The real sRGB curve, not a pow(2.2) approximation: the curve has a linear toe, and
+		// approximating it lands a #1f1f28 panel on (22,22,34) instead of (31,31,40). UI
+		// colours are dark, which is precisely where the two disagree most.
+		FLinearColor Linear = FLinearColor::FromSRGBColor(Color);
+
+		// Alpha is coverage, not a colour, and must not be decoded.
+		Linear.A = Color.A / 255.0f;
+		return Linear;
+	}
+}
 
 FFolioLayerStack::FFolioLayerStack() = default;
 
@@ -17,15 +44,12 @@ FFolioLayerStack::~FFolioLayerStack()
 
 void FFolioLayerStack::Reset()
 {
-	EndCanvas();
 	Stack.Empty();
 	Pool.Empty();
 }
 
-UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size, const bool bClear)
+UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size)
 {
-	// TMultiMap has no RemoveAndCopyValue: take one of the values for this size and drop it
-	// from the pool by hand.
 	TArray<TStrongObjectPtr<UTextureRenderTarget2D>> Available;
 	Pool.MultiFind(Size, Available);
 
@@ -33,14 +57,8 @@ UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size, const bo
 	{
 		TStrongObjectPtr<UTextureRenderTarget2D> Found = Available[0];
 		Pool.RemoveSingle(Size, Found);
+		Found->UpdateResourceImmediate(true);
 
-		if (bClear)
-		{
-			// A pooled target still holds the last layer that used it. Recreating the
-			// resource clears it to ClearColor without needing a world to hand to
-			// UKismetRenderingLibrary.
-			Found->UpdateResourceImmediate(true);
-		}
 		Stack.Add({ Found, Size });
 		return Found.Get();
 	}
@@ -48,8 +66,8 @@ UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size, const bo
 	UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>();
 	Target->RenderTargetFormat = RTF_RGBA8;
 
-	// Everything downstream is premultiplied, so the clear colour has to be premultiplied
-	// transparent rather than opaque black, or every layer arrives with a black fringe.
+	// Premultiplied transparent, not opaque black: a layer that starts black fringes every
+	// edge it later composites over.
 	Target->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	Target->bAutoGenerateMips = false;
 	Target->bForceLinearGamma = false;
@@ -70,15 +88,7 @@ void FFolioLayerStack::Release(UTextureRenderTarget2D* Target)
 
 bool FFolioLayerStack::Push(const FIntPoint Size)
 {
-	if (Size.X <= 0 || Size.Y <= 0)
-	{
-		return false;
-	}
-
-	// A canvas is bound to one target, so it has to close before the layer changes.
-	EndCanvas();
-
-	return Acquire(Size, true) != nullptr;
+	return Size.X > 0 && Size.Y > 0 && Acquire(Size) != nullptr;
 }
 
 void FFolioLayerStack::Pop()
@@ -88,20 +98,103 @@ void FFolioLayerStack::Pop()
 		return;
 	}
 
-	EndCanvas();
-
-	const FLayer Layer = Stack.Pop();
+	FLayer Layer = Stack.Pop();
+	Resolve(Layer);
 	Release(Layer.Target.Get());
 }
 
-UTextureRenderTarget2D* FFolioLayerStack::GetCurrent() const
+void FFolioLayerStack::Convert(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+	const FVector2f Offset, FDraw& OutDraw)
 {
-	return Stack.IsEmpty() ? nullptr : Stack.Last().Target.Get();
+	OutDraw.Vertices.Reserve(Vertices.Num());
+	for (const FSlateVertex& Vertex : Vertices)
+	{
+		FFolioUIVertex& Out = OutDraw.Vertices.AddDefaulted_GetRef();
+		Out.Position = FVector2f(Vertex.Position) + Offset;
+		Out.UV = FVector2f(Vertex.TexCoords[0], Vertex.TexCoords[1]);
+		Out.Color = ToLinear(Vertex.Color);
+	}
+
+	OutDraw.Indices.Reserve(Indices.Num());
+	for (const SlateIndex Index : Indices)
+	{
+		OutDraw.Indices.Add(static_cast<uint32>(Index));
+	}
 }
 
-UTextureRenderTarget2D* FFolioLayerStack::GetBelow() const
+void FFolioLayerStack::Record(FDraw&& Draw)
 {
-	return Stack.Num() >= 2 ? Stack[Stack.Num() - 2].Target.Get() : nullptr;
+	if (!Stack.IsEmpty())
+	{
+		Stack.Last().Draws.Add(MoveTemp(Draw));
+	}
+}
+
+void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+	UTexture* Texture, const FVector2f Offset)
+{
+	if (Stack.IsEmpty() || Indices.Num() < 3 || !Texture)
+	{
+		return;
+	}
+
+	const FLayer& Layer = Stack.Last();
+
+	FDraw Draw;
+	Draw.Kind = FDraw::EKind::Geometry;
+	Draw.Texture.Reset(Texture);
+	Draw.bMasked = Layer.bClipMaskEnabled;
+	Draw.bMaskInverted = Layer.bClipMaskInverted;
+	Convert(Vertices, Indices, Offset, Draw);
+
+	Record(MoveTemp(Draw));
+}
+
+void FFolioLayerStack::SetClipMask(const Rml::ClipMaskOperation Operation, const TArray<FSlateVertex>& Vertices,
+	const TArray<SlateIndex>& Indices, const FVector2f Offset)
+{
+	if (Stack.IsEmpty() || Indices.Num() < 3)
+	{
+		return;
+	}
+
+	FLayer& Layer = Stack.Last();
+
+	FDraw Draw;
+	switch (Operation)
+	{
+	case Rml::ClipMaskOperation::Set:
+		Draw.Kind = FDraw::EKind::MaskSet;
+		Layer.bClipMaskInverted = false;
+		break;
+
+	case Rml::ClipMaskOperation::SetInverse:
+		// The whole reason this path draws with RHI. An outer box-shadow masks its own
+		// element out of itself, and only a stencil can express the complement of a shape.
+		Draw.Kind = FDraw::EKind::MaskSetInverse;
+		Layer.bClipMaskInverted = true;
+		break;
+
+	case Rml::ClipMaskOperation::Intersect:
+		Draw.Kind = FDraw::EKind::MaskIntersect;
+		break;
+	}
+
+	Layer.bClipMaskEnabled = true;
+	Convert(Vertices, Indices, Offset, Draw);
+	Record(MoveTemp(Draw));
+}
+
+void FFolioLayerStack::EnableClipMask(const bool bEnable)
+{
+	if (!Stack.IsEmpty())
+	{
+		Stack.Last().bClipMaskEnabled = bEnable;
+		if (!bEnable)
+		{
+			Stack.Last().bClipMaskInverted = false;
+		}
+	}
 }
 
 UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent()
@@ -111,17 +204,18 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent()
 		return nullptr;
 	}
 
-	EndCanvas();
-
 	FLayer& Layer = Stack.Last();
+	Resolve(Layer);
+
 	UTextureRenderTarget2D* Detached = Layer.Target.Get();
 
-	// The caller owns the detached target from here, so the layer needs a fresh one to keep
-	// drawing into. Not cleared: RmlUi saves a layer and then carries on with it intact.
+	// The caller owns the detached target now, so the layer needs a fresh one to keep drawing
+	// into. Deliberately not from the pool: RmlUi keeps the saved one indefinitely.
 	UTextureRenderTarget2D* Replacement = NewObject<UTextureRenderTarget2D>();
 	Replacement->RenderTargetFormat = RTF_RGBA8;
 	Replacement->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	Replacement->bAutoGenerateMips = false;
+	Replacement->bForceLinearGamma = false;
 	Replacement->InitAutoFormat(Layer.Size.X, Layer.Size.Y);
 	Replacement->UpdateResourceImmediate(true);
 
@@ -129,116 +223,184 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent()
 	return Detached;
 }
 
-FCanvas* FFolioLayerStack::BeginCanvas()
+void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma)
 {
-	UTextureRenderTarget2D* Target = GetCurrent();
-	if (!Target)
+	if (Stack.Num() < 2)
 	{
-		return nullptr;
+		return;
 	}
 
-	if (Canvas && CanvasTarget == Target)
+	FLayer& Source = Stack.Last();
+	Resolve(Source);
+
+	if (BlurSigma > 0.0f)
 	{
-		return Canvas;
+		Folio::BlurRenderTarget(Source.Target.Get(), BlurSigma);
 	}
 
-	EndCanvas();
+	// Compositing is a full-target quad drawn into the layer below, recorded like any other
+	// draw so it stays ordered with the geometry around it.
+	FLayer& Destination = Stack[Stack.Num() - 2];
 
-	FTextureRenderTargetResource* Resource = Target->GameThread_GetRenderTargetResource();
+	FDraw Draw;
+	Draw.Kind = FDraw::EKind::Geometry;
+	Draw.Texture.Reset(Source.Target.Get());
+	Draw.bMasked = false;
+
+	const FVector2f Size(Source.Size.X, Source.Size.Y);
+	const FLinearColor White(1.0f, 1.0f, 1.0f, 1.0f);
+
+	Draw.Vertices.Add({ FVector2f(0.0f, 0.0f),     FVector2f(0.0f, 0.0f), White });
+	Draw.Vertices.Add({ FVector2f(Size.X, 0.0f),   FVector2f(1.0f, 0.0f), White });
+	Draw.Vertices.Add({ FVector2f(Size.X, Size.Y), FVector2f(1.0f, 1.0f), White });
+	Draw.Vertices.Add({ FVector2f(0.0f, Size.Y),   FVector2f(0.0f, 1.0f), White });
+	Draw.Indices = { 0, 1, 2, 0, 2, 3 };
+
+	Destination.Draws.Add(MoveTemp(Draw));
+}
+
+void FFolioLayerStack::Resolve(FLayer& Layer)
+{
+	if (Layer.Draws.IsEmpty() || !Layer.Target.IsValid())
+	{
+		Layer.Draws.Reset();
+		return;
+	}
+
+	FTextureRenderTargetResource* Resource = Layer.Target->GameThread_GetRenderTargetResource();
 	if (!Resource)
 	{
-		return nullptr;
-	}
-
-	Canvas = new FCanvas(Resource, nullptr, FGameTime(), GMaxRHIFeatureLevel);
-	CanvasTarget = Target;
-	return Canvas;
-}
-
-void FFolioLayerStack::EndCanvas()
-{
-	if (!Canvas)
-	{
+		Layer.Draws.Reset();
 		return;
 	}
 
-	// Flushing is what actually enqueues the draws, and it has to happen before anything
-	// reads the target.
-	Canvas->Flush_GameThread();
-	delete Canvas;
-	Canvas = nullptr;
-	CanvasTarget = nullptr;
-}
+	TArray<FDraw> Draws = MoveTemp(Layer.Draws);
+	Layer.Draws.Reset();
 
-void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-	UTexture* Texture, const FVector2f Offset)
-{
-	FCanvas* Target = BeginCanvas();
-	if (!Target || Indices.Num() < 3 || !Texture || !Texture->GetResource())
-	{
-		return;
-	}
+	const FIntPoint Size = Layer.Size;
 
-	TArray<FCanvasUVTri> Triangles;
-	Triangles.Reserve(Indices.Num() / 3);
+	ENQUEUE_RENDER_COMMAND(FolioResolveLayer)(
+		[Resource, Size, Draws = MoveTemp(Draws)](FRHICommandListImmediate& RHICmdList) mutable
+		{
+			FRDGBuilder GraphBuilder(RHICmdList);
 
-	for (int32 Index = 0; Index + 2 < Indices.Num(); Index += 3)
-	{
-		const FSlateVertex& A = Vertices[Indices[Index + 0]];
-		const FSlateVertex& B = Vertices[Indices[Index + 1]];
-		const FSlateVertex& C = Vertices[Indices[Index + 2]];
+			FRDGTextureRef Colour = RegisterExternalTexture(GraphBuilder,
+				Resource->GetRenderTargetTexture(), TEXT("FolioLayerColour"));
 
-		FCanvasUVTri& Tri = Triangles.AddDefaulted_GetRef();
-		Tri.V0_Pos = FVector2D(A.Position.X + Offset.X, A.Position.Y + Offset.Y);
-		Tri.V1_Pos = FVector2D(B.Position.X + Offset.X, B.Position.Y + Offset.Y);
-		Tri.V2_Pos = FVector2D(C.Position.X + Offset.X, C.Position.Y + Offset.Y);
+			// The stencil only has to live as long as this layer's replay, which is exactly
+			// why the draws are recorded and resolved together rather than one at a time.
+			const FRDGTextureDesc StencilDesc = FRDGTextureDesc::Create2D(Size, PF_DepthStencil,
+				FClearValueBinding::DepthZero, TexCreate_DepthStencilTargetable);
+			FRDGTextureRef Stencil = GraphBuilder.CreateTexture(StencilDesc, TEXT("FolioLayerStencil"));
 
-		Tri.V0_UV = FVector2D(A.TexCoords[0], A.TexCoords[1]);
-		Tri.V1_UV = FVector2D(B.TexCoords[0], B.TexCoords[1]);
-		Tri.V2_UV = FVector2D(C.TexCoords[0], C.TexCoords[1]);
+			FFolioUIParameters* Parameters = GraphBuilder.AllocParameters<FFolioUIParameters>();
+			Parameters->UISampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+			Parameters->UITexture = GWhiteTexture->TextureRHI;
 
-		// The target is sRGB, so the canvas re-encodes on write. Passing the byte values
-		// through as linear would encode them a second time, which is what turns a dark
-		// panel into light grey. FLinearColor's FColor constructor decodes first, so the
-		// round trip lands back on the original value.
-		Tri.V0_Color = FLinearColor(A.Color);
-		Tri.V1_Color = FLinearColor(B.Color);
-		Tri.V2_Color = FLinearColor(C.Color);
-	}
+			// Layer pixels to clip space. Y is flipped: RmlUi's origin is top left.
+			Parameters->ClipTransform = FVector4f(2.0f / Size.X, -2.0f / Size.Y, -1.0f, 1.0f);
+			Parameters->RenderTargets[0] = FRenderTargetBinding(Colour, ERenderTargetLoadAction::ELoad);
+			Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(Stencil,
+				ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,
+				FExclusiveDepthStencil::DepthNop_StencilWrite);
 
-	FCanvasTriangleItem Item(Triangles, Texture->GetResource());
+			GraphBuilder.AddPass(RDG_EVENT_NAME("FolioLayer"), Parameters, ERDGPassFlags::Raster,
+				[Parameters, Size, Draws = MoveTemp(Draws)](FRHICommandList& RHICmdList)
+				{
+					const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+					TShaderMapRef<FFolioUIVS> VertexShader(ShaderMap);
+					TShaderMapRef<FFolioUIPS> PixelShader(ShaderMap);
+					TShaderMapRef<FFolioUIMaskPS> MaskShader(ShaderMap);
 
-	// AlphaComposite, not AlphaBlend. Everything from RmlUi is already multiplied by its own
-	// alpha, and AlphaBlend multiplies again, which lightens a surface every time it passes
-	// through a layer.
-	Item.BlendMode = SE_BLEND_AlphaComposite;
-	Target->DrawItem(Item);
-}
+					RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
 
-void FFolioLayerStack::CompositeDown(const bool bBlend)
-{
-	UTextureRenderTarget2D* Source = GetCurrent();
-	UTextureRenderTarget2D* Destination = GetBelow();
-	if (!Source || !Destination || !Source->GetResource())
-	{
-		return;
-	}
+					for (const FDraw& Draw : Draws)
+					{
+						const bool bMaskPass = Draw.Kind != FDraw::EKind::Geometry;
 
-	// The canvas is open on the source, and it has to be flushed before the source can be
-	// read as a texture.
-	EndCanvas();
+						FGraphicsPipelineStateInitializer State;
+						RHICmdList.ApplyCachedRenderTargets(State);
+						State.PrimitiveType = PT_TriangleList;
+						State.BoundShaderState.VertexDeclarationRHI = GFolioUIVertexDeclaration.VertexDeclarationRHI;
+						State.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+						State.BoundShaderState.PixelShaderRHI = bMaskPass
+							? static_cast<FRHIPixelShader*>(MaskShader.GetPixelShader())
+							: static_cast<FRHIPixelShader*>(PixelShader.GetPixelShader());
+						State.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
 
-	FTextureRenderTargetResource* Resource = Destination->GameThread_GetRenderTargetResource();
-	if (!Resource)
-	{
-		return;
-	}
+						if (bMaskPass)
+						{
+							// Colour writes off: a mask contributes stencil and nothing else.
+							State.BlendState = TStaticBlendState<CW_NONE>::GetRHI();
+							State.DepthStencilState = TStaticDepthStencilState<false, CF_Always,
+								true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI();
+						}
+						else
+						{
+							// Premultiplied source over destination.
+							State.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One,
+								BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
 
-	FCanvas Composite(Resource, nullptr, FGameTime(), GMaxRHIFeatureLevel);
+							if (Draw.bMasked)
+							{
+								// Equal keeps the shape; NotEqual keeps its complement, which
+								// is what an outer box-shadow needs.
+								State.DepthStencilState = Draw.bMaskInverted
+									? TStaticDepthStencilState<false, CF_Always, true, CF_NotEqual,
+										SO_Keep, SO_Keep, SO_Keep>::GetRHI()
+									: TStaticDepthStencilState<false, CF_Always, true, CF_Equal,
+										SO_Keep, SO_Keep, SO_Keep>::GetRHI();
+							}
+							else
+							{
+								State.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+							}
+						}
 
-	FCanvasTileItem Item(FVector2D::ZeroVector, Source->GetResource(),
-		FVector2D(Source->SizeX, Source->SizeY), FLinearColor::White);
-	Item.BlendMode = bBlend ? SE_BLEND_AlphaComposite : SE_BLEND_Opaque;
-	Composite.DrawItem(Item);
-	Composite.Flush_GameThread();
+						SetGraphicsPipelineState(RHICmdList, State, MaskStencilRef);
+						RHICmdList.SetStencilRef(MaskStencilRef);
+
+						FFolioUIParameters PassParameters = *Parameters;
+						if (Draw.Texture.IsValid() && Draw.Texture->GetResource())
+						{
+							if (FRHITexture* Bound = Draw.Texture->GetResource()->GetTexture2DRHI())
+							{
+								PassParameters.UITexture = Bound;
+							}
+						}
+
+						SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters);
+						if (!bMaskPass)
+						{
+							SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters);
+						}
+
+						// Volatile buffers: a layer's geometry is rebuilt whenever it is drawn,
+						// so there is nothing worth keeping between frames.
+						const uint32 VertexBytes = Draw.Vertices.Num() * sizeof(FFolioUIVertex);
+						FBufferRHIRef VertexBuffer = RHICmdList.CreateBuffer(
+							FRHIBufferCreateDesc::CreateVertex(TEXT("FolioLayerVertices"), VertexBytes)
+								.AddUsage(EBufferUsageFlags::Volatile)
+								.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+						void* VertexData = RHICmdList.LockBuffer(VertexBuffer, 0, VertexBytes, RLM_WriteOnly);
+						FMemory::Memcpy(VertexData, Draw.Vertices.GetData(), VertexBytes);
+						RHICmdList.UnlockBuffer(VertexBuffer);
+
+						const uint32 IndexBytes = Draw.Indices.Num() * sizeof(uint32);
+						FBufferRHIRef IndexBuffer = RHICmdList.CreateBuffer(
+							FRHIBufferCreateDesc::CreateIndex(TEXT("FolioLayerIndices"), IndexBytes, sizeof(uint32))
+								.AddUsage(EBufferUsageFlags::Volatile)
+								.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+						void* IndexData = RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes, RLM_WriteOnly);
+						FMemory::Memcpy(IndexData, Draw.Indices.GetData(), IndexBytes);
+						RHICmdList.UnlockBuffer(IndexBuffer);
+
+						RHICmdList.SetStreamSource(0, VertexBuffer, 0);
+						RHICmdList.DrawIndexedPrimitive(IndexBuffer, 0, 0, Draw.Vertices.Num(), 0,
+							Draw.Indices.Num() / 3, 1);
+					}
+				});
+
+			GraphBuilder.Execute();
+		});
 }

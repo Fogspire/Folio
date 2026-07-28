@@ -473,6 +473,12 @@ void FFolioRenderInterface::SetTransform(const Rml::Matrix4f* Transform)
 
 void FFolioRenderInterface::EnableClipMask(const bool bEnable)
 {
+	if (!Layers.IsEmpty())
+	{
+		Layers.EnableClipMask(bEnable);
+		return;
+	}
+
 	if (!bEnable)
 	{
 		ClipMaskRect.Reset();
@@ -488,7 +494,15 @@ void FFolioRenderInterface::RenderToClipMask(const Rml::ClipMaskOperation Operat
 		return;
 	}
 
-	// Slate clips with a quad, not a stencil, so the mask becomes the bounds of the geometry
+	// Inside a layer the mask is a real stencil, so the shape is exact and SetInverse works.
+	if (!Layers.IsEmpty())
+	{
+		Layers.SetClipMask(Operation, (*Found)->Vertices, (*Found)->Indices,
+			FVector2f(Translation.x - LayerOrigin.X, Translation.y - LayerOrigin.Y));
+		return;
+	}
+
+	// Outside one, Slate clips with a quad, so the mask becomes the bounds of the geometry
 	// that drew it. Exact for a rectangle; a rounded rectangle clips to its square corners.
 	FVector2f Minimum((*Found)->Vertices[0].Position);
 	FVector2f Maximum = Minimum;
@@ -550,25 +564,18 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, const Rml::BlendMode BlendMode,
 	const Rml::Span<const Rml::CompiledFilterHandle> AppliedFilters)
 {
-	UTextureRenderTarget2D* Source = Layers.GetCurrent();
-	if (!Source)
-	{
-		return;
-	}
-
-	// Filters apply to the layer before it is composited, which is the order that makes a
-	// blurred shadow a blurred shadow rather than a blurred everything.
+	// Filters apply to the layer after it resolves and before it composites, which is the
+	// order that makes a blurred shadow a blurred shadow rather than a blurred everything.
+	float Sigma = 0.0f;
 	for (const Rml::CompiledFilterHandle Handle : AppliedFilters)
 	{
-		if (const FFilter* Filter = Filters.Find(Handle); Filter && Filter->Sigma > 0.0f)
+		if (const FFilter* Filter = Filters.Find(Handle))
 		{
-			Folio::BlurRenderTarget(Source, Filter->Sigma);
+			Sigma = FMath::Max(Sigma, Filter->Sigma);
 		}
 	}
 
-	// The destination is the layer below, and Blend is the only mode RmlUi asks for here that
-	// a canvas tile can express directly.
-	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend);
+	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma);
 }
 
 void FFolioRenderInterface::PopLayer()

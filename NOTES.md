@@ -78,77 +78,31 @@ mask paths, so it comes with them.
 | Other filters, `backdrop-filter`, `mask-image` | Accepted and ignored. The layer machinery is there; only the shaders are missing |
 | `box-shadow` | **Composites, but the colour is wrong.** Still banned in the conventions |
 
-### Where box-shadow stands
+### box-shadow, and why the layer path draws with RHI rather than FCanvas
 
-The layer path works end to end: a shadowed element pushes a layer, renders into a render
-target, blurs it, composites and reads it back, and the element appears. What is wrong is the
-colour. Measured on a `#1f1f28` panel: an unshadowed one samples `(31,31,40)`, correct; a
-shadowed one samples `(79,79,90)`, far too light, and the shadow itself is not visible against
-the background at all.
+It works. Getting there turned on one thing: **an outer box-shadow must not paint inside the
+element it belongs to**, and RmlUi says so with `ClipMaskOperation::SetInverse` - "everywhere
+except this shape". A clipping rectangle cannot express a complement, and `FCanvas` exposes no
+stencil state, so the layer path draws with RHI: recorded on the game thread as RmlUi issues
+the calls, replayed on the render thread in one pass per layer. Recording is what lets the
+stencil live for a whole layer, which a per-draw transient graph cannot do.
 
-Two candidates, neither confirmed:
+The symptom before that was a panel measuring `(20,20,26)` where `#1f1f28` was expected, and
+the arithmetic named the cause exactly: `31 x (1 - 89/255) = 20.2`, i.e. the surface darkened
+by precisely the shadow's own alpha, because the shadow was painting over its own interior.
 
-- **Gamma.** The layer target is `RTF_RGBA8` with `bForceLinearGamma = false`, so it is sRGB,
-  and `FCanvas` encodes on write. Feeding it the byte values as linear encodes them twice;
-  decoding first with `FLinearColor(FColor)` should round-trip, and did not change the
-  measurement, which suggests the encode is not where the error is.
-- **Double composition.** `GeometryBoxShadow` renders the background inside the layer *and*
-  the element then draws the saved texture, so a surface drawn twice through an alpha blend
-  lands lighter than either. Making `CompositeLayers` blend down without disturbing the stack
-  (it was popping and re-pushing, which clears) did not change it either.
+Three colour fixes were made before that and none of them moved the number - gamma, a
+`CompositeLayers` that popped and re-pushed (which clears the layer it is about to composite),
+and straight-alpha blending against premultiplied data. All three were real bugs. None was
+*the* bug. **A fix that changes nothing is evidence, and after the first one the right move
+was to measure rather than guess again.** Reading the layer's pixels back took one build and
+settled it.
 
-- **Premultiplied blending.** `FCanvas` was using `SE_BLEND_AlphaBlend`, which multiplies by
-  alpha again; `SE_BLEND_AlphaComposite` is the premultiplied mode. Changed, and the number
-  did not move either - which in hindsight is expected, because the first draw goes onto a
-  cleared transparent target where both blends reduce to the same thing.
-
-All three were genuine bugs and all three are fixed. None of them changed the measurement,
-which is itself the useful result: `(79,79,90)` is stable across every blend and gamma change
-made to the canvas path, so the error is not in how the layer is *drawn*.
-
-The layer path does execute - verified by instrumenting it:
-
-    PushLayer 785x272 origin 0,0 depth 0
-    layer draw 58 tris          <- the element background and border
-    PushLayer 785x272 origin 0,0 depth 1
-    layer draw 18 tris          <- the shadow itself
-    SaveLayerAsTexture -> target
-
-So geometry reaches the render target and a real texture comes back. Reading the target's pixels back settled it, and it is not the colour round trip at all:
-
-    layer centre pixel = 20,20,26 a=255 (srgb=1)
-
-`20,20,26` is `#14141a`, the document body's background, fully opaque. The layer should hold
-the panel's `#1f1f28` where the panel covers and nothing where it does not. So the layer is
-capturing the **wrong content**, and every colour fix above was aimed at the wrong half of
-the pipeline - which is exactly why none of them moved the number.
-
-Two things to check next, in this order:
-
-1. **What is being drawn into the layer.** `RenderGeometry` currently redirects *every* draw
-   to the layer while one is open. If RmlUi renders anything outside the shadowed element
-   between push and pop - the body background among it - that lands in the texture too.
-2. **Where it lands.** `GeometryBoxShadow` renders with `info.element_offset_in_texture`,
-   which positions the element inside the texture rather than in the document. The layer
-   draw subtracts `LayerOrigin`, which is derived from the scissor region and was observed
-   to be `0,0`; if RmlUi's offset is already texture-relative then subtracting anything is
-   wrong, and if it is not, `0,0` is wrong.
-
-Dumping a layer to a PNG rather than sampling one pixel would answer both at once.
-
-**Before the layer work, an element with `box-shadow` rendered no background at all**, which
-was worse than the shadow merely being absent. `GeometryBoxShadow` draws the element's background *into* a
-layer to build the shadow texture, then draws the element from that texture alone. With no
-real layer, `SaveLayerAsTexture` has nothing to return. Returning 0 is actively harmful,
-because zero also means "no texture" on the geometry path, so the element paints as a solid
-white rectangle over itself; returning a transparent 1x1 makes it vanish instead. Neither is
-right, so `box-shadow` is out of `ui/lib/` and on the banned list in `UI_CONVENTIONS.md`
-until layers exist.
-
-Layers need a render target, which means an RHI-backed custom Slate element
-(`ICustomSlateElement`) rather than `MakeCustomVerts`. That is not a departure from the
-architecture decision: it still composites inside Slate's own batch order and still needs no
-fullscreen target. It is the next piece of Phase 3.
+Gamma still had to be right once the draw path was ours: the target is sRGB and the shader's
+output is encoded on write, so vertex colours are decoded going in. `pow(2.2)` is not close
+enough - it lands `#1f1f28` on `(22,22,34)` because the real sRGB curve has a linear toe and
+UI colours are dark, which is exactly where the two disagree. `FLinearColor::FromSRGBColor`
+gives `(28,28,38)`. The remaining 3/255 is the 8-bit round trip through the target.
 
 **The custom shader decorator is in scope for Phase 3, not later.** Additive and screen
 blending are not reachable from RCSS and do not require forking RmlUi: a decorator compiles a

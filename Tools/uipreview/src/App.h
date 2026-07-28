@@ -96,6 +96,15 @@ private:
 	JsonDataModel data_model {diagnostics};
 	Localizer localizer {diagnostics};
 
+	/** Ratio Unreal would use for a viewport this size, unless --dp-ratio pinned one. */
+	float ComputeDpRatio(int width, int height) const;
+	/** Resizes the context and rescales it to match, which is what makes a resized window behave
+	    like a resized game window. */
+	void ApplyViewportSize(int width, int height);
+
+	int viewport_width = 0;
+	int viewport_height = 0;
+
 	Rml::Context* context = nullptr;
 	Rml::ElementDocument* document = nullptr;
 	std::vector<std::string> screenshots;

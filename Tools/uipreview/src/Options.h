@@ -23,6 +23,13 @@ struct Options {
 	int width = 1920;
 	int height = 1080;
 	float dp_ratio = 1.0f;
+	/** True once --dp-ratio is given, which pins the ratio instead of deriving it from the
+	    viewport. */
+	bool dp_ratio_fixed = false;
+	/** Shortest viewport side that means a ratio of 1. Unreal scales its UI the same way, off
+	    the shorter dimension against a 1080 reference, so a window here behaves like a resized
+	    game window rather than a fixed-size canvas. */
+	int dp_reference = 1080;
 
 	std::string data_path;
 	std::string data_model;

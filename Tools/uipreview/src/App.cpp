@@ -188,7 +188,7 @@ bool App::Initialise()
 		diagnostics.Report(Severity::Error, "E-INIT-CONTEXT", "could not create the RmlUi context");
 		return false;
 	}
-	context->SetDensityIndependentPixelRatio(options.dp_ratio);
+	ApplyViewportSize(framebuffer_width, framebuffer_height);
 
 	if (!LoadFonts())
 		return false;
@@ -454,6 +454,34 @@ void App::PumpFrames(int count)
 		if (i + 1 < count)
 			Backend::SwapBuffers();
 	}
+}
+
+float App::ComputeDpRatio(int width, int height) const
+{
+	if (options.dp_ratio_fixed || options.dp_reference <= 0)
+	{
+		return options.dp_ratio;
+	}
+
+	// Unreal's default UI scaling rule keys off the shorter viewport dimension, so a window that
+	// gets wider does not grow the HUD but one that gets taller does. Matching it means a
+	// document previewed at some window size looks like the game does at that resolution.
+	const int shortest = std::min(width, height);
+	return float(shortest) / float(options.dp_reference);
+}
+
+void App::ApplyViewportSize(int width, int height)
+{
+	if (!context || width <= 0 || height <= 0)
+	{
+		return;
+	}
+
+	context->SetDimensions(Rml::Vector2i(width, height));
+	context->SetDensityIndependentPixelRatio(ComputeDpRatio(width, height));
+
+	viewport_width = width;
+	viewport_height = height;
 }
 
 int App::Run()
@@ -732,6 +760,15 @@ int App::RunInteractive()
 			const std::vector<std::string> changed = watcher.Drain();
 			if (!changed.empty())
 				HandleFileChanges(changed);
+		}
+
+		// The backend resizes its viewport on a framebuffer callback but deliberately leaves the
+		// context alone, so the reflow and the rescale happen here.
+		int current_width = 0, current_height = 0;
+		Backend::GetFramebufferSize(current_width, current_height);
+		if (current_width != viewport_width || current_height != viewport_height)
+		{
+			ApplyViewportSize(current_width, current_height);
 		}
 
 		// Interactive mode follows wall time rather than the fixed capture step.

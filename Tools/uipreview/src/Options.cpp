@@ -52,7 +52,9 @@ void PrintUsage(std::FILE* stream)
 		"\n"
 		"Display\n"
 		"  --size <WxH>          Viewport in framebuffer pixels (default 1920x1080)\n"
-		"  --dp-ratio <F>        Density independent pixel ratio (default 1.0)\n"
+		"  --dp-ratio <F>        Pin the density independent pixel ratio. Without it the ratio\n"
+		"                        follows the viewport, as Unreal scales a resized game window\n"
+		"  --dp-reference <N>    Shortest side that means a ratio of 1 (default 1080)\n"
 		"  --root <DIR>          Directory paths resolve against (default: derived)\n"
 		"  --font <FILE>         Register a font face. Repeatable. No typeface is bundled;\n"
 		"                        when omitted, fonts under <root>/ui/fonts are used, then\n"
@@ -142,6 +144,18 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			if (o.dp_ratio <= 0.0f)
 			{
 				error = "--dp-ratio expects a positive number, got '" + value + "'";
+				return ParseResult::Error;
+			}
+			o.dp_ratio_fixed = true;
+		}
+		else if (arg == "--dp-reference")
+		{
+			if (!TakeValue(argc, argv, i, "--dp-reference", value, error))
+				return ParseResult::Error;
+			o.dp_reference = std::atoi(value.c_str());
+			if (o.dp_reference <= 0)
+			{
+				error = "--dp-reference expects a positive number, got '" + value + "'";
 				return ParseResult::Error;
 			}
 		}

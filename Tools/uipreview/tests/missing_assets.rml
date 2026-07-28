@@ -1,0 +1,72 @@
+<rml>
+<head>
+	<title>spike</title>
+	<style>
+		@spritesheet declared_sheet
+		{
+			src: /ui/examples/nonexistent_sheet.png;
+			resolution: 1x;
+			declared_but_sheet_missing: 0px 0px 32px 32px;
+		}
+
+		body
+		{
+			font-family: Roboto;
+			font-size: 20dp;
+			color: #ffffff;
+			background-color: #202028;
+			padding: 20dp;
+		}
+
+		div { margin-bottom: 16dp; }
+
+		/* image decorator, undeclared sprite name: falls through to LoadTexture. */
+		.image_missing
+		{
+			width: 200dp;
+			height: 100dp;
+			decorator: image(icon_sword);
+		}
+
+		/* tiled-box with an undeclared sprite name. */
+		.tiled_missing
+		{
+			width: 200dp;
+			height: 100dp;
+			decorator: tiled-horizontal(panel_left, panel_centre, panel_right);
+		}
+
+		/* ninepatch is sprite-only, so an undeclared name never reaches LoadTexture. */
+		.ninepatch_missing
+		{
+			width: 200dp;
+			height: 100dp;
+			decorator: ninepatch(frame_outer, frame_inner);
+		}
+
+		/* A declared sprite whose spritesheet image does not exist. */
+		.sheet_missing
+		{
+			width: 200dp;
+			height: 100dp;
+			decorator: image(declared_but_sheet_missing);
+		}
+
+		/* An explicit file path that does not exist. */
+		.path_missing
+		{
+			width: 200dp;
+			height: 100dp;
+			decorator: image(/ui/examples/no_such_file.png);
+		}
+	</style>
+</head>
+<body>
+	<p>spike</p>
+	<div class="image_missing"/>
+	<div class="tiled_missing"/>
+	<div class="ninepatch_missing"/>
+	<div class="sheet_missing"/>
+	<div class="path_missing"/>
+</body>
+</rml>

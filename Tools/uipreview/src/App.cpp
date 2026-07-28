@@ -1,0 +1,281 @@
+#include "App.h"
+
+#include "Diagnostics.h"
+#include "FileInterface.h"
+#include "SystemInterface.h"
+#include "backend/UipreviewBackendGLFW.h"
+
+#include <RmlUi/Core.h>
+#include <RmlUi/Debugger.h>
+
+#include <algorithm>
+#include <filesystem>
+#include <vector>
+
+namespace fs = std::filesystem;
+
+namespace uipreview {
+
+namespace {
+
+std::string ToForwardSlashes(std::string path)
+{
+	std::replace(path.begin(), path.end(), '\\', '/');
+	return path;
+}
+
+bool IsFontFile(const fs::path& path)
+{
+	std::string ext = path.extension().string();
+	std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+	return ext == ".ttf" || ext == ".otf";
+}
+
+} // namespace
+
+App::App(const Options& in_options, Diagnostics& in_diagnostics) : options(in_options), diagnostics(in_diagnostics) {}
+
+App::~App()
+{
+	if (rml_initialised)
+		Rml::Shutdown();
+	if (backend_initialised)
+		Backend::Shutdown();
+}
+
+bool App::ResolveRoot()
+{
+	std::error_code ec;
+	const fs::path document_absolute = fs::weakly_canonical(fs::path(options.document), ec);
+	if (ec || !fs::exists(document_absolute))
+	{
+		diagnostics.Report(Severity::Error, "E-DOC-NOTFOUND", "document not found: " + options.document);
+		return false;
+	}
+
+	if (!options.root.empty())
+	{
+		root = ToForwardSlashes(fs::weakly_canonical(fs::path(options.root), ec).string());
+	}
+	else
+	{
+		// Walk up looking for a marker, so that root-absolute RCSS imports resolve the same
+		// way the Unreal file interface will in Phase 3.
+		root.clear();
+		for (fs::path dir = document_absolute.parent_path(); !dir.empty(); dir = dir.parent_path())
+		{
+			if (fs::exists(dir / ".folio-root") || fs::is_directory(dir / "ui"))
+			{
+				root = ToForwardSlashes(dir.string());
+				break;
+			}
+			if (!dir.has_relative_path())
+				break;
+		}
+		if (root.empty())
+			root = ToForwardSlashes(document_absolute.parent_path().string());
+	}
+
+	while (!root.empty() && root.back() == '/')
+		root.pop_back();
+
+	// Express the document relative to the root, which is the form RmlUi will see.
+	const std::string absolute = ToForwardSlashes(document_absolute.string());
+	std::string relative = absolute;
+	if (absolute.size() > root.size() &&
+		std::equal(root.begin(), root.end(), absolute.begin(),
+			[](char a, char b) { return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); }))
+	{
+		relative = absolute.substr(root.size());
+	}
+	if (relative.empty() || relative.front() != '/')
+		relative = "/" + relative;
+	document_path = relative;
+
+	diagnostics.SetRoot(root);
+	diagnostics.SetCurrentDocument(document_path);
+	return true;
+}
+
+bool App::Initialise()
+{
+	if (!ResolveRoot())
+		return false;
+
+	Backend::Options backend_options;
+	backend_options.window_title = "uipreview";
+	backend_options.width = options.width;
+	backend_options.height = options.height;
+	backend_options.visible = options.screenshot.empty() && options.keys.empty() && !options.dump_tree;
+	backend_options.vsync = backend_options.visible;
+	backend_options.resizable = backend_options.visible;
+
+	// The backend owns both interfaces, since they can only be built once the GL context
+	// exists. The factory hands back the raw pointer so this object can still reach it.
+	const bool backend_ok = Backend::Initialize(
+		backend_options, nullptr,
+		[this]() {
+			auto owned = Rml::MakeUnique<PreviewSystemInterface>(diagnostics);
+			system_interface = owned.get();
+			return Rml::UniquePtr<SystemInterface_GLFW>(std::move(owned));
+		});
+
+	if (!backend_ok)
+	{
+		diagnostics.Report(Severity::Error, "E-INIT-BACKEND", "could not create a window or OpenGL 3.3 context");
+		return false;
+	}
+	backend_initialised = true;
+
+	int framebuffer_width = 0, framebuffer_height = 0;
+	Backend::GetFramebufferSize(framebuffer_width, framebuffer_height);
+	if (framebuffer_width != options.width || framebuffer_height != options.height)
+	{
+		diagnostics.Report(Severity::Warning, "W-VIEWPORT-SCALED",
+			"framebuffer is " + std::to_string(framebuffer_width) + "x" + std::to_string(framebuffer_height) +
+				" but " + std::to_string(options.width) + "x" + std::to_string(options.height) + " was requested");
+	}
+
+	file_interface = std::make_unique<RootedFileInterface>(root);
+	Rml::SetFileInterface(file_interface.get());
+	Rml::SetSystemInterface(Backend::GetSystemInterface());
+	Rml::SetRenderInterface(Backend::GetRenderInterface());
+
+	if (!Rml::Initialise())
+	{
+		diagnostics.Report(Severity::Error, "E-INIT-RMLUI", "Rml::Initialise failed");
+		return false;
+	}
+	rml_initialised = true;
+
+	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));
+	if (!context)
+	{
+		diagnostics.Report(Severity::Error, "E-INIT-CONTEXT", "could not create the RmlUi context");
+		return false;
+	}
+	context->SetDensityIndependentPixelRatio(options.dp_ratio);
+
+	if (!LoadFonts())
+		return false;
+
+	Rml::Debugger::Initialise(context);
+	if (options.debug)
+		Rml::Debugger::SetVisible(true);
+
+	return LoadDocumentFromDisk();
+}
+
+bool App::LoadFonts()
+{
+	int loaded = 0;
+
+	// Explicit faces win. Folio bundles no typeface, so this is the supported way to choose
+	// one; the directory scan below is only a convenience for a laid-out content root.
+	for (const std::string& font : options.fonts)
+	{
+		if (Rml::LoadFontFace(font))
+			++loaded;
+		else
+			diagnostics.Report(Severity::Error, "E-FONT-LOAD", "could not load font face: " + font);
+	}
+
+	const fs::path fonts_dir = fs::path(root) / "ui" / "fonts";
+	if (loaded == 0)
+	{
+		std::vector<fs::path> found;
+		std::error_code ec;
+		if (fs::is_directory(fonts_dir, ec))
+		{
+			for (const fs::directory_entry& entry : fs::directory_iterator(fonts_dir, ec))
+			{
+				if (entry.is_regular_file() && IsFontFile(entry.path()))
+					found.push_back(entry.path());
+			}
+		}
+		std::sort(found.begin(), found.end());
+
+		for (const fs::path& font : found)
+		{
+			if (Rml::LoadFontFace("/ui/fonts/" + ToForwardSlashes(font.filename().string())))
+				++loaded;
+		}
+	}
+
+	if (loaded == 0)
+	{
+		diagnostics.Report(Severity::Error, "E-FONT-NONE",
+			"no font faces registered; pass --font <file>, or place fonts under " +
+				diagnostics.Relative(ToForwardSlashes(fonts_dir.string())));
+		return false;
+	}
+	return true;
+}
+
+bool App::LoadDocumentFromDisk()
+{
+	document = context->LoadDocument(document_path);
+	if (!document)
+	{
+		diagnostics.Report(Severity::Error, "E-DOC-LOAD", "could not load the document");
+		return false;
+	}
+	document->Show();
+	context->Update();
+	return true;
+}
+
+void App::RenderFrame()
+{
+	system_interface->AdvanceTime(options.dt_ms / 1000.0);
+	context->Update();
+	Backend::BeginFrame();
+	context->Render();
+	Backend::EndFrame();
+}
+
+void App::PumpFrames(int count)
+{
+	for (int i = 0; i < count; ++i)
+	{
+		RenderFrame();
+		if (i + 1 < count)
+			Backend::SwapBuffers();
+	}
+}
+
+int App::Run()
+{
+	return options.IsOneShot() ? RunOneShot() : RunInteractive();
+}
+
+int App::RunOneShot()
+{
+	PumpFrames(options.frames);
+	Backend::SwapBuffers();
+	return 0;
+}
+
+int App::RunInteractive()
+{
+	while (Backend::ProcessEvents(context, [](Rml::Context*, Rml::Input::KeyIdentifier key, int, float, bool priority) {
+		if (priority && key == Rml::Input::KI_F8)
+		{
+			Rml::Debugger::SetVisible(!Rml::Debugger::IsVisible());
+			return false;
+		}
+		return true;
+	}))
+	{
+		// Interactive mode follows wall time rather than the fixed capture step.
+		system_interface->SetTime(Backend::GetTime());
+		context->Update();
+		Backend::BeginFrame();
+		context->Render();
+		Backend::EndFrame();
+		Backend::SwapBuffers();
+	}
+	return 0;
+}
+
+} // namespace uipreview

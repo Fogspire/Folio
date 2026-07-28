@@ -1,5 +1,16 @@
 add_executable(uipreview
 	src/main.cpp
+	src/App.cpp
+	src/Diagnostics.cpp
+	src/FileInterface.cpp
+	src/Options.cpp
+	src/SystemInterface.cpp
+
+	# Forked from RmlUi's Backends/RmlUi_Backend_GLFW_GL3.cpp. See the header for why.
+	src/backend/UipreviewBackendGLFW.cpp
+
+	"${rmlui_SOURCE_DIR}/Backends/RmlUi_Platform_GLFW.cpp"
+	"${rmlui_SOURCE_DIR}/Backends/RmlUi_Renderer_GL3.cpp"
 )
 
 target_include_directories(uipreview PRIVATE

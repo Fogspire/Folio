@@ -1,0 +1,18 @@
+<rml>
+<head>
+	<title>spike data</title>
+	<style>
+		body { font-family: Roboto; font-size: 18dp; color: #fff; background-color: #202028; }
+	</style>
+</head>
+<body data-model="hud">
+	<p id="title">{{ title }}</p>
+	<p id="score">score={{ score }}</p>
+	<p id="alive">alive={{ alive }}</p>
+	<p id="deep">deep={{ nested.deep.value }}</p>
+	<div id="items">
+		<p data-for="item : items">{{ item.name }} x{{ item.count }}</p>
+	</div>
+	<p id="count">n={{ items | size }}</p>
+</body>
+</rml>

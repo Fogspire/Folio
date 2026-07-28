@@ -1,0 +1,240 @@
+#include "Options.h"
+
+#include <cstdlib>
+#include <cstring>
+
+namespace uipreview {
+
+namespace {
+
+bool ParseSize(const std::string& value, int& out_width, int& out_height)
+{
+	const size_t x = value.find_first_of("xX");
+	if (x == std::string::npos)
+		return false;
+
+	char* end = nullptr;
+	const long width = std::strtol(value.c_str(), &end, 10);
+	if (end != value.c_str() + x)
+		return false;
+	const long height = std::strtol(value.c_str() + x + 1, &end, 10);
+	if (*end != '\0')
+		return false;
+
+	if (width <= 0 || height <= 0 || width > 16384 || height > 16384)
+		return false;
+
+	out_width = (int)width;
+	out_height = (int)height;
+	return true;
+}
+
+/** Reads the value belonging to a flag, reporting a clear error when it is missing. */
+bool TakeValue(int argc, char** argv, int& i, const char* flag, std::string& out, std::string& error)
+{
+	if (i + 1 >= argc)
+	{
+		error = std::string(flag) + " expects a value";
+		return false;
+	}
+	out = argv[++i];
+	return true;
+}
+
+} // namespace
+
+void PrintUsage(std::FILE* stream)
+{
+	std::fputs(
+		"uipreview - render and verify RmlUi documents\n"
+		"\n"
+		"Usage: uipreview <document.rml> [options]\n"
+		"\n"
+		"Display\n"
+		"  --size <WxH>          Viewport in framebuffer pixels (default 1920x1080)\n"
+		"  --dp-ratio <F>        Density independent pixel ratio (default 1.0)\n"
+		"  --root <DIR>          Directory paths resolve against (default: derived)\n"
+		"  --font <FILE>         Register a font face. Repeatable. No typeface is bundled;\n"
+		"                        when omitted, any font under <root>/ui/fonts is used\n"
+		"  --debug               Open the RmlUi debugger. F8 toggles it while running\n"
+		"\n"
+		"Capture\n"
+		"  --screenshot <FILE>   Render to a PNG and exit\n"
+		"  --shot-each <DIR>     With --keys, write a PNG after each input\n"
+		"  --frames <N>          Frames pumped before a capture (default 30)\n"
+		"  --dt <MS>             Simulated milliseconds per frame (default 16.67, 0 freezes)\n"
+		"\n"
+		"Content\n"
+		"  --data <FILE>         Mount a JSON file as the document's data model\n"
+		"  --data-model <NAME>   Override the data model name\n"
+		"  --culture <CODE>      Load ui/loc/<CODE>.json, or 'pseudo' for pseudo-localization\n"
+		"\n"
+		"Navigation\n"
+		"  --keys <LIST>         Inject a comma separated input sequence, then report focus.\n"
+		"                        up down left right confirm back tab shift+tab space\n"
+		"                        pageup pagedown home end a-z 0-9 wait[:N]\n"
+		"                        click:<selector> text:<string>\n"
+		"                        Letters win over gamepad face button names: use confirm/back\n"
+		"  --dump-tree           Print the element tree with focus and nav attributes\n"
+		"\n"
+		"Reporting\n"
+		"  --strict              Warnings fail the run, and enable the markup lint checks\n"
+		"  --json-report <FILE>  Write a machine readable report\n"
+		"  --no-assets-wanted    Do not update ASSETS_WANTED.md\n"
+		"  --no-watch            Do not watch for file changes\n"
+		"  -v, --verbose         Show informational messages\n"
+		"  -h, --help            This text\n"
+		"\n"
+		"Exit codes: 0 ok, 1 document errors, 2 usage, 3 init failure, 4 runtime failure,\n"
+		"            5 warnings present under --strict\n",
+		stream);
+}
+
+ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& error)
+{
+	std::string value;
+
+	for (int i = 1; i < argc; ++i)
+	{
+		const std::string arg = argv[i];
+
+		if (arg == "-h" || arg == "--help")
+			return ParseResult::HelpRequested;
+
+		if (arg == "-v" || arg == "--verbose")
+			o.verbose = true;
+		else if (arg == "--debug")
+			o.debug = true;
+		else if (arg == "--strict")
+			o.strict = true;
+		else if (arg == "--no-watch")
+			o.watch = false;
+		else if (arg == "--no-assets-wanted")
+			o.write_assets_wanted = false;
+		else if (arg == "--dump-tree")
+			o.dump_tree = true;
+		else if (arg == "--size")
+		{
+			if (!TakeValue(argc, argv, i, "--size", value, error))
+				return ParseResult::Error;
+			if (!ParseSize(value, o.width, o.height))
+			{
+				error = "--size expects WxH with both between 1 and 16384, got '" + value + "'";
+				return ParseResult::Error;
+			}
+		}
+		else if (arg == "--dp-ratio")
+		{
+			if (!TakeValue(argc, argv, i, "--dp-ratio", value, error))
+				return ParseResult::Error;
+			o.dp_ratio = (float)std::atof(value.c_str());
+			if (o.dp_ratio <= 0.0f)
+			{
+				error = "--dp-ratio expects a positive number, got '" + value + "'";
+				return ParseResult::Error;
+			}
+		}
+		else if (arg == "--frames")
+		{
+			if (!TakeValue(argc, argv, i, "--frames", value, error))
+				return ParseResult::Error;
+			o.frames = std::atoi(value.c_str());
+			if (o.frames < 1)
+			{
+				error = "--frames expects a positive integer, got '" + value + "'";
+				return ParseResult::Error;
+			}
+		}
+		else if (arg == "--dt")
+		{
+			if (!TakeValue(argc, argv, i, "--dt", value, error))
+				return ParseResult::Error;
+			o.dt_ms = std::atof(value.c_str());
+			if (o.dt_ms < 0.0)
+			{
+				error = "--dt expects a non-negative number, got '" + value + "'";
+				return ParseResult::Error;
+			}
+		}
+		else if (arg == "--root")
+		{
+			if (!TakeValue(argc, argv, i, "--root", o.root, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--font")
+		{
+			if (!TakeValue(argc, argv, i, "--font", value, error))
+				return ParseResult::Error;
+			o.fonts.push_back(value);
+		}
+		else if (arg == "--data")
+		{
+			if (!TakeValue(argc, argv, i, "--data", o.data_path, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--data-model")
+		{
+			if (!TakeValue(argc, argv, i, "--data-model", o.data_model, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--culture")
+		{
+			if (!TakeValue(argc, argv, i, "--culture", o.culture, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--keys")
+		{
+			if (!TakeValue(argc, argv, i, "--keys", o.keys, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--shot-each")
+		{
+			if (!TakeValue(argc, argv, i, "--shot-each", o.shot_each, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--screenshot")
+		{
+			if (!TakeValue(argc, argv, i, "--screenshot", o.screenshot, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--json-report")
+		{
+			if (!TakeValue(argc, argv, i, "--json-report", o.json_report, error))
+				return ParseResult::Error;
+		}
+		else if (!arg.empty() && arg[0] == '-')
+		{
+			error = "unknown option '" + arg + "'";
+			return ParseResult::Error;
+		}
+		else if (o.document.empty())
+		{
+			o.document = arg;
+		}
+		else
+		{
+			error = "unexpected argument '" + arg + "'";
+			return ParseResult::Error;
+		}
+	}
+
+	if (o.document.empty())
+	{
+		error = "no document given";
+		return ParseResult::Error;
+	}
+
+	if (!o.shot_each.empty() && o.keys.empty())
+	{
+		error = "--shot-each requires --keys";
+		return ParseResult::Error;
+	}
+
+	// Watching a document the process is about to stop rendering serves no purpose.
+	if (o.IsOneShot())
+		o.watch = false;
+
+	return ParseResult::Ok;
+}
+
+} // namespace uipreview

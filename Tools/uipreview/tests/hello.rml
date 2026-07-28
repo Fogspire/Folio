@@ -1,0 +1,59 @@
+<rml>
+<head>
+	<title>hello</title>
+	<style>
+		body
+		{
+			font-family: Roboto;
+			font-size: 24dp;
+			color: #e8e8f0;
+			background-color: #1b1b22;
+			padding: 32dp;
+		}
+
+		h1
+		{
+			font-size: 40dp;
+			font-weight: bold;
+			color: #f0c674;
+			margin-bottom: 16dp;
+		}
+
+		.panel
+		{
+			background-color: #26262f;
+			border-radius: 8dp;
+			padding: 24dp;
+			margin-bottom: 16dp;
+		}
+
+		button
+		{
+			display: inline-block;
+			padding: 12dp 24dp;
+			margin-right: 12dp;
+			background-color: #33333f;
+			border-radius: 6dp;
+			nav: auto;
+			tab-index: auto;
+		}
+
+		button:focus-visible
+		{
+			background-color: #f0c674;
+			color: #1b1b22;
+		}
+	</style>
+</head>
+<body>
+	<h1>uipreview</h1>
+	<div class="panel">
+		<p>A document rendered without Unreal being involved.</p>
+	</div>
+	<div>
+		<button id="start" autofocus>Start</button>
+		<button id="options">Options</button>
+		<button id="quit">Quit</button>
+	</div>
+</body>
+</rml>

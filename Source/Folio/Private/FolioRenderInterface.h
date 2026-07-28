@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FolioGradient.h"
 #include "FolioRmlUi.h"
 
 #include "Rendering/DrawElements.h"
@@ -61,6 +62,47 @@ public:
 	virtual void SetScissorRegion(Rml::Rectanglei Region) override;
 	virtual void SetTransform(const Rml::Matrix4f* Transform) override;
 
+	//
+	// Clip masks.
+	//
+	// Slate clips with a quad rather than a stencil, so a mask is reduced to the bounds of
+	// the geometry that defined it. That is exact for the rectangles this is used for, and an
+	// over-estimate for a rounded one: a border-radius corner clips square. Recorded in
+	// NOTES.md rather than hidden, because it is visible on a rotated rounded element.
+	//
+	virtual void EnableClipMask(bool bEnable) override;
+	virtual void RenderToClipMask(Rml::ClipMaskOperation Operation, Rml::CompiledGeometryHandle Geometry,
+		Rml::Vector2f Translation) override;
+
+	//
+	// Layers.
+	//
+	// Slate has no offscreen target reachable from MakeCustomVerts, so a layer is not a real
+	// framebuffer: pushing one keeps drawing into the same element list, and compositing is a
+	// no-op. Everything that only needs draw ordering is therefore correct, and everything
+	// that needs to read the layer back - box-shadow, filter, backdrop-filter, mask-image -
+	// is not. SaveLayerAsTexture returns a fully transparent texture so those degrade to
+	// nothing rather than to a solid rectangle.
+	//
+	virtual Rml::LayerHandle PushLayer() override;
+	virtual void CompositeLayers(Rml::LayerHandle Source, Rml::LayerHandle Destination, Rml::BlendMode BlendMode,
+		Rml::Span<const Rml::CompiledFilterHandle> Filters) override;
+	virtual void PopLayer() override;
+	virtual Rml::TextureHandle SaveLayerAsTexture() override;
+
+	virtual Rml::CompiledFilterHandle CompileFilter(const Rml::String& Name,
+		const Rml::Dictionary& Parameters) override;
+	virtual void ReleaseFilter(Rml::CompiledFilterHandle Filter) override;
+
+	//
+	// Shaders: the gradient decorators, and nothing else so far.
+	//
+	virtual Rml::CompiledShaderHandle CompileShader(const Rml::String& Name,
+		const Rml::Dictionary& Parameters) override;
+	virtual void RenderShader(Rml::CompiledShaderHandle Shader, Rml::CompiledGeometryHandle Geometry,
+		Rml::Vector2f Translation, Rml::TextureHandle Texture) override;
+	virtual void ReleaseShader(Rml::CompiledShaderHandle Shader) override;
+
 private:
 	struct FCompiledGeometry
 	{
@@ -84,8 +126,31 @@ private:
 
 	void ApplyClipping();
 
+	/** Draws compiled geometry with an explicit resource, optionally renormalising UVs. */
+	void DrawGeometry(const FCompiledGeometry& Compiled, Rml::Vector2f Translation,
+		const FSlateResourceHandle& Resource, const FVector2f UvScale);
+
+	/** The texture for a gradient at this size, generated on first use and cached. */
+	const FSlateResourceHandle* GetGradientResource(Rml::CompiledShaderHandle Shader, FVector2f BoxSize);
+
+	Rml::TextureHandle GetTransparentTexture();
+
+	struct FShader
+	{
+		Folio::FGradient Gradient;
+		/** One baked texture per box size the gradient is asked for. */
+		TMap<FIntPoint, Rml::TextureHandle> Baked;
+	};
+
 	TMap<Rml::CompiledGeometryHandle, TUniquePtr<FCompiledGeometry>> Geometries;
 	TMap<Rml::TextureHandle, TUniquePtr<FTexture>> Textures;
+	TMap<Rml::CompiledShaderHandle, TUniquePtr<FShader>> Shaders;
+
+	/** Scissor state saved and restored around a clip mask, which shares the clip stack. */
+	TOptional<FSlateRect> ClipMaskRect;
+
+	int32 LayerDepth = 0;
+	Rml::TextureHandle TransparentTexture = 0;
 
 	/** Reused every draw call so a frame of UI does not allocate per element. */
 	TArray<FSlateVertex> ScratchVertices;

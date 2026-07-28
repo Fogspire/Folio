@@ -2,6 +2,7 @@
 
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
+#include "FolioInput.h"
 #include "FolioRmlUi.h"
 
 void SFolioCanvas::Construct(const FArguments& InArgs)
@@ -46,6 +47,16 @@ void SFolioCanvas::DestroyContext()
 {
 	if (!Context)
 	{
+		return;
+	}
+
+	// A widget can outlive the module. Once Rml::Shutdown has run, every context is already
+	// destroyed and its name is no longer in RmlUi's map, so looking one up walks freed
+	// memory - which surfaces as a crash inside robin_hood's hash table on editor close.
+	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
+	{
+		Context = nullptr;
+		Document = nullptr;
 		return;
 	}
 
@@ -146,4 +157,136 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 	Renderer->EndFrame();
 
 	return FMath::Max(LayerId, Renderer->GetMaxLayerId());
+}
+
+//
+// Input
+//
+
+FVector2f SFolioCanvas::ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const
+{
+	// The context is sized in whole pixels from the widget's local size, so local space is
+	// already context space. Slate's layout scale is carried separately as the dp ratio.
+	return FVector2f(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
+}
+
+FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (!Context)
+	{
+		return FReply::Unhandled();
+	}
+
+	const FVector2f Local = ToContextSpace(MyGeometry, MouseEvent);
+	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y),
+		Folio::ToRmlModifiers(MouseEvent.GetModifierKeys()));
+
+	return FReply::Unhandled();
+}
+
+FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	const int32 Button = Folio::ToRmlMouseButton(MouseEvent.GetEffectingButton());
+	if (!Context || Button < 0)
+	{
+		return FReply::Unhandled();
+	}
+
+	// RmlUi resolves a click against the element under the cursor, and it only knows where
+	// that is from the last move. A click without a preceding move over the widget - which is
+	// what a synthetic or teleported cursor produces - would otherwise hit whatever was last
+	// hovered.
+	const FVector2f Local = ToContextSpace(MyGeometry, MouseEvent);
+	const int32 Modifiers = Folio::ToRmlModifiers(MouseEvent.GetModifierKeys());
+	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y), Modifiers);
+	Context->ProcessMouseButtonDown(Button, Modifiers);
+
+	// Capturing keeps the release paired with the press even if the cursor leaves, and taking
+	// keyboard focus is what lets a text field receive characters.
+	return FReply::Handled().CaptureMouse(SharedThis(this)).SetUserFocus(SharedThis(this), EFocusCause::Mouse);
+}
+
+FReply SFolioCanvas::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	const int32 Button = Folio::ToRmlMouseButton(MouseEvent.GetEffectingButton());
+	if (!Context || Button < 0)
+	{
+		return FReply::Unhandled();
+	}
+
+	const FVector2f Local = ToContextSpace(MyGeometry, MouseEvent);
+	const int32 Modifiers = Folio::ToRmlModifiers(MouseEvent.GetModifierKeys());
+	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y), Modifiers);
+	Context->ProcessMouseButtonUp(Button, Modifiers);
+
+	return FReply::Handled().ReleaseMouseCapture();
+}
+
+FReply SFolioCanvas::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (!Context)
+	{
+		return FReply::Unhandled();
+	}
+
+	// RmlUi scrolls by lines with positive meaning down, which is the opposite sign to Slate.
+	const bool bHandled = !Context->ProcessMouseWheel(-MouseEvent.GetWheelDelta(),
+		Folio::ToRmlModifiers(MouseEvent.GetModifierKeys()));
+
+	return bHandled ? FReply::Handled() : FReply::Unhandled();
+}
+
+void SFolioCanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
+{
+	if (Context)
+	{
+		// Without this the last hovered element keeps :hover indefinitely.
+		Context->ProcessMouseLeave();
+	}
+
+	SLeafWidget::OnMouseLeave(MouseEvent);
+}
+
+FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
+{
+	const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
+	if (!Context || Key == Rml::Input::KI_UNKNOWN)
+	{
+		return FReply::Unhandled();
+	}
+
+	// RmlUi returns false when it consumed the key, which is the opposite convention to Slate.
+	const bool bConsumed = !Context->ProcessKeyDown(Key, Folio::ToRmlModifiers(KeyEvent.GetModifierKeys()));
+	return bConsumed ? FReply::Handled() : FReply::Unhandled();
+}
+
+FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
+{
+	const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
+	if (!Context || Key == Rml::Input::KI_UNKNOWN)
+	{
+		return FReply::Unhandled();
+	}
+
+	Context->ProcessKeyUp(Key, Folio::ToRmlModifiers(KeyEvent.GetModifierKeys()));
+	return FReply::Handled();
+}
+
+FReply SFolioCanvas::OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& CharacterEvent)
+{
+	if (!Context)
+	{
+		return FReply::Unhandled();
+	}
+
+	const TCHAR Character = CharacterEvent.GetCharacter();
+	if (Character < TEXT(' '))
+	{
+		// Control characters arrive as key events instead; passing them here would insert
+		// them into text fields literally.
+		return FReply::Unhandled();
+	}
+
+	Context->ProcessTextInput(static_cast<Rml::Character>(Character));
+	return FReply::Handled();
 }

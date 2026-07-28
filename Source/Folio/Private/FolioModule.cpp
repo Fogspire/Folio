@@ -45,6 +45,10 @@ void FFolioModule::StartupModule()
 
 void FFolioModule::ShutdownModule()
 {
+	// Anything holding a context drops it while RmlUi is still alive to be told about it.
+	PreShutdownDelegate.Broadcast();
+	PreShutdownDelegate.Clear();
+
 	if (bRmlInitialised)
 	{
 		Rml::Shutdown();

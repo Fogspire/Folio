@@ -73,6 +73,8 @@ void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, c
 	bScissorEnabled = false;
 	bClipPushed = false;
 	bHasTransform = false;
+	ClipMaskRect.Reset();
+	LayerDepth = 0;
 	RmlTransform = FSlateRenderTransform();
 }
 
@@ -142,7 +144,23 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		return;
 	}
 
+	const FTexture* Bound = FindTexture(Texture);
+	const FSlateResourceHandle& Resource = Bound ? Bound->Handle : GetWhiteHandle();
+
 	ApplyClipping();
+	DrawGeometry(Compiled, Translation, Resource, FVector2f(1.0f, 1.0f));
+}
+
+void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, const Rml::Vector2f Translation,
+	const FSlateResourceHandle& Resource, const FVector2f UvScale)
+{
+	// Slate dereferences the resource handle's proxy without checking it, so an invalid one
+	// is a crash rather than a missing texture. Untextured geometry is most of a document -
+	// every background and border arrives with none - so this is not an edge case.
+	if (!ElementList || !Resource.IsValid())
+	{
+		return;
+	}
 
 	// Slate wants window space, RmlUi works in document space, and the two are separated by
 	// the widget's own geometry plus whatever transform RCSS has applied. Composing them here
@@ -160,17 +178,12 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 	{
 		FSlateVertex& Out = ScratchVertices.Add_GetRef(Source);
 		Out.Position = FVector2f(TransformPoint(Transform, FVector2f(Source.Position)));
-	}
 
-	const FTexture* Bound = FindTexture(Texture);
-	const FSlateResourceHandle& Resource = Bound ? Bound->Handle : GetWhiteHandle();
-
-	// Slate dereferences the resource handle's proxy without checking it, so an invalid one
-	// is a crash rather than a missing texture. Untextured geometry is most of a document -
-	// every background, border and gradient - so this is not an edge case.
-	if (!Resource.IsValid())
-	{
-		return;
+		// A shader's geometry carries pixel offsets inside the element box rather than UVs,
+		// so the gradient path normalises them against the box it baked the texture for.
+		Out.TexCoords[0] = Source.TexCoords[0] * UvScale.X;
+		Out.TexCoords[1] = Source.TexCoords[1] * UvScale.Y;
+		Out.MaterialTexCoords = FVector2f(Out.TexCoords[0], Out.TexCoords[1]);
 	}
 
 	// RmlUi 6.x supplies vertex colours and generated texture data premultiplied and expects
@@ -351,21 +364,39 @@ void FFolioRenderInterface::ApplyClipping()
 		bClipPushed = false;
 	}
 
-	if (!bScissorEnabled)
+	const FSlateRenderTransform& ToWindow = Geometry.GetAccumulatedRenderTransform();
+
+	TOptional<FSlateRect> Clip;
+
+	if (bScissorEnabled)
+	{
+		// RmlUi's scissor is in window coordinates with a top-left origin and is deliberately
+		// unaffected by SetTransform, so it composes with the widget's geometry only.
+		const FVector2f Position(static_cast<float>(ScissorRegion.Left()), static_cast<float>(ScissorRegion.Top()));
+		const FVector2f Size(static_cast<float>(ScissorRegion.Width()), static_cast<float>(ScissorRegion.Height()));
+
+		const FVector2f TopLeft(TransformPoint(ToWindow, Position));
+		const FVector2f BottomRight(TransformPoint(ToWindow, Position + Size));
+		Clip = FSlateRect(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y);
+	}
+
+	if (ClipMaskRect.IsSet())
+	{
+		// The mask is in document space and the scissor is already in window space, so the
+		// mask is transformed and then intersected: both are clips, and Slate has one stack.
+		const FVector2f TopLeft(TransformPoint(ToWindow, FVector2f(ClipMaskRect->Left, ClipMaskRect->Top)));
+		const FVector2f BottomRight(TransformPoint(ToWindow, FVector2f(ClipMaskRect->Right, ClipMaskRect->Bottom)));
+		const FSlateRect MaskInWindow(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y);
+
+		Clip = Clip.IsSet() ? Clip.GetValue().IntersectionWith(MaskInWindow) : MaskInWindow;
+	}
+
+	if (!Clip.IsSet())
 	{
 		return;
 	}
 
-	// RmlUi's scissor is in window coordinates with a top-left origin and is deliberately
-	// unaffected by SetTransform, so it composes with the widget's geometry only.
-	const FVector2f Position(static_cast<float>(ScissorRegion.Left()), static_cast<float>(ScissorRegion.Top()));
-	const FVector2f Size(static_cast<float>(ScissorRegion.Width()), static_cast<float>(ScissorRegion.Height()));
-
-	const FSlateRenderTransform& ToWindow = Geometry.GetAccumulatedRenderTransform();
-	const FVector2f TopLeft(TransformPoint(ToWindow, Position));
-	const FVector2f BottomRight(TransformPoint(ToWindow, Position + Size));
-
-	ElementList->PushClip(FSlateClippingZone(FSlateRect(TopLeft.X, TopLeft.Y, BottomRight.X, BottomRight.Y)));
+	ElementList->PushClip(FSlateClippingZone(Clip.GetValue()));
 	bClipPushed = true;
 }
 
@@ -390,4 +421,224 @@ void FFolioRenderInterface::SetTransform(const Rml::Matrix4f* Transform)
 
 	RmlTransform = FSlateRenderTransform(Linear, Offset);
 	bHasTransform = true;
+}
+
+//
+// Clip masks
+//
+
+void FFolioRenderInterface::EnableClipMask(const bool bEnable)
+{
+	if (!bEnable)
+	{
+		ClipMaskRect.Reset();
+	}
+}
+
+void FFolioRenderInterface::RenderToClipMask(const Rml::ClipMaskOperation Operation,
+	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation)
+{
+	const TUniquePtr<FCompiledGeometry>* Found = Geometries.Find(GeometryHandle);
+	if (!Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
+	{
+		return;
+	}
+
+	// Slate clips with a quad, not a stencil, so the mask becomes the bounds of the geometry
+	// that drew it. Exact for a rectangle; a rounded rectangle clips to its square corners.
+	FVector2f Minimum((*Found)->Vertices[0].Position);
+	FVector2f Maximum = Minimum;
+	for (const FSlateVertex& Vertex : (*Found)->Vertices)
+	{
+		Minimum = FVector2f::Min(Minimum, FVector2f(Vertex.Position));
+		Maximum = FVector2f::Max(Maximum, FVector2f(Vertex.Position));
+	}
+
+	const FVector2f Offset(Translation.x, Translation.y);
+	const FSlateRect Bounds(Minimum.X + Offset.X, Minimum.Y + Offset.Y, Maximum.X + Offset.X, Maximum.Y + Offset.Y);
+
+	switch (Operation)
+	{
+	case Rml::ClipMaskOperation::Set:
+	case Rml::ClipMaskOperation::SetInverse:
+		// An inverse mask cannot be expressed as a quad at all. Setting the bounds rather
+		// than inverting them keeps the element visible, which is the lesser wrong.
+		ClipMaskRect = Bounds;
+		break;
+
+	case Rml::ClipMaskOperation::Intersect:
+		ClipMaskRect = ClipMaskRect.IsSet() ? ClipMaskRect.GetValue().IntersectionWith(Bounds) : Bounds;
+		break;
+	}
+}
+
+//
+// Layers
+//
+
+Rml::LayerHandle FFolioRenderInterface::PushLayer()
+{
+	// Not a framebuffer. Draw order is already correct because everything goes into the same
+	// element list in call order, so the depth is only tracked to keep the handles paired.
+	return static_cast<Rml::LayerHandle>(++LayerDepth);
+}
+
+void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, Rml::BlendMode,
+	Rml::Span<const Rml::CompiledFilterHandle>)
+{
+	// Nothing to composite: the layers were never separate. Filters are dropped here, which
+	// is where filter and backdrop-filter quietly stop working.
+}
+
+void FFolioRenderInterface::PopLayer()
+{
+	LayerDepth = FMath::Max(0, LayerDepth - 1);
+}
+
+Rml::TextureHandle FFolioRenderInterface::GetTransparentTexture()
+{
+	if (TransparentTexture != 0)
+	{
+		return TransparentTexture;
+	}
+
+	const uint8 Clear[4] = { 0, 0, 0, 0 };
+	TransparentTexture = RegisterTexture(CreateTexture(Clear, FIntPoint(1, 1)), FIntPoint(1, 1));
+	return TransparentTexture;
+}
+
+Rml::TextureHandle FFolioRenderInterface::SaveLayerAsTexture()
+{
+	// There is no layer to read back. Returning 0 would be worse than useless: zero also
+	// means "no texture" on the geometry path, so the caller's quad would be drawn with the
+	// white fallback and a box-shadow would paint as a solid white rectangle over the
+	// element it was meant to sit behind. A transparent texture makes it draw nothing.
+	return GetTransparentTexture();
+}
+
+Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String& Name, const Rml::Dictionary&)
+{
+	// Accepted and ignored. Returning 0 would make RmlUi log a failure per element per frame;
+	// the effect is equally absent either way, and the log stays readable.
+	static bool bWarned = false;
+	if (!bWarned)
+	{
+		bWarned = true;
+		UE_LOG(LogFolio, Warning,
+			TEXT("filters are not implemented; '%s' and any others will render as nothing"),
+			*Folio::ToFString(Name));
+	}
+
+	return static_cast<Rml::CompiledFilterHandle>(1);
+}
+
+void FFolioRenderInterface::ReleaseFilter(Rml::CompiledFilterHandle)
+{
+}
+
+//
+// Shaders
+//
+
+Rml::CompiledShaderHandle FFolioRenderInterface::CompileShader(const Rml::String& Name,
+	const Rml::Dictionary& Parameters)
+{
+	Folio::FGradient Gradient;
+	if (!Folio::ParseGradient(Name, Parameters, Gradient))
+	{
+		UE_LOG(LogFolio, Warning, TEXT("unsupported shader '%s'"), *Folio::ToFString(Name));
+		return 0;
+	}
+
+	TUniquePtr<FShader> Shader = MakeUnique<FShader>();
+	Shader->Gradient = MoveTemp(Gradient);
+
+	const Rml::CompiledShaderHandle Handle = NextHandle++;
+	Shaders.Add(Handle, MoveTemp(Shader));
+	return Handle;
+}
+
+const FSlateResourceHandle* FFolioRenderInterface::GetGradientResource(const Rml::CompiledShaderHandle Handle,
+	const FVector2f BoxSize)
+{
+	const TUniquePtr<FShader>* Found = Shaders.Find(Handle);
+	if (!Found || !Found->IsValid())
+	{
+		return nullptr;
+	}
+
+	FShader& Shader = **Found;
+
+	// A gradient is smooth, so the texture does not have to match the element pixel for
+	// pixel. Capping it keeps a full-screen background from allocating a full-screen texture
+	// while staying well inside what bilinear filtering hides.
+	static constexpr int32 MaxSize = 256;
+	const FIntPoint TextureSize(
+		FMath::Clamp(FMath::CeilToInt(BoxSize.X), 1, MaxSize),
+		FMath::Clamp(FMath::CeilToInt(BoxSize.Y), 1, MaxSize));
+
+	if (const Rml::TextureHandle* Cached = Shader.Baked.Find(TextureSize))
+	{
+		const FTexture* Texture = FindTexture(*Cached);
+		return Texture ? &Texture->Handle : nullptr;
+	}
+
+	TArray<uint8> Bgra;
+	Folio::RasterizeGradient(Shader.Gradient, BoxSize, TextureSize, Bgra);
+
+	const Rml::TextureHandle Baked = RegisterTexture(CreateTexture(Bgra.GetData(), TextureSize), TextureSize);
+	if (Baked == 0)
+	{
+		return nullptr;
+	}
+
+	Shader.Baked.Add(TextureSize, Baked);
+
+	const FTexture* Texture = FindTexture(Baked);
+	return Texture ? &Texture->Handle : nullptr;
+}
+
+void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
+	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation, Rml::TextureHandle)
+{
+	const TUniquePtr<FCompiledGeometry>* Found = Geometries.Find(GeometryHandle);
+	if (!ElementList || !Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
+	{
+		return;
+	}
+
+	const FCompiledGeometry& Compiled = **Found;
+
+	// The gradient's parameters are expressed in the element box's pixel space, and so are
+	// the geometry's texture coordinates. The box size is therefore the extent of those
+	// coordinates, not of the positions, which differ once a border radius trims the corners.
+	FVector2f Extent(Compiled.Vertices[0].TexCoords[0], Compiled.Vertices[0].TexCoords[1]);
+	for (const FSlateVertex& Vertex : Compiled.Vertices)
+	{
+		Extent = FVector2f::Max(Extent, FVector2f(Vertex.TexCoords[0], Vertex.TexCoords[1]));
+	}
+
+	const FVector2f BoxSize(FMath::Max(Extent.X, 1.0f), FMath::Max(Extent.Y, 1.0f));
+
+	const FSlateResourceHandle* Resource = GetGradientResource(Shader, BoxSize);
+	if (!Resource)
+	{
+		return;
+	}
+
+	ApplyClipping();
+	DrawGeometry(Compiled, Translation, *Resource, FVector2f(1.0f / BoxSize.X, 1.0f / BoxSize.Y));
+}
+
+void FFolioRenderInterface::ReleaseShader(const Rml::CompiledShaderHandle Shader)
+{
+	if (const TUniquePtr<FShader>* Found = Shaders.Find(Shader); Found && Found->IsValid())
+	{
+		for (const TPair<FIntPoint, Rml::TextureHandle>& Baked : (*Found)->Baked)
+		{
+			Textures.Remove(Baked.Value);
+		}
+	}
+
+	Shaders.Remove(Shader);
 }

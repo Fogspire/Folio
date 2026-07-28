@@ -47,12 +47,23 @@ public:
 	 */
 	FFolioRenderInterface* GetRenderInterface() const { return RenderInterface.Get(); }
 
+	/**
+	 * Fires before RmlUi is torn down, so anything holding a context can drop it first.
+	 *
+	 * Widgets outlive the module: a canvas parked in a window is destroyed during static
+	 * teardown, well after ShutdownModule, and a context destroyed by Rml::Shutdown is gone
+	 * by then. Calling RemoveContext at that point walks a destroyed hash map.
+	 */
+	FSimpleMulticastDelegate& OnPreShutdown() { return PreShutdownDelegate; }
+
 private:
 	void RegisterFonts();
 
 	TUniquePtr<FFolioSystemInterface> SystemInterface;
 	TUniquePtr<FFolioFileInterface> FileInterface;
 	TUniquePtr<FFolioRenderInterface> RenderInterface;
+
+	FSimpleMulticastDelegate PreShutdownDelegate;
 
 	FString ContentRoot;
 	bool bRmlInitialised = false;

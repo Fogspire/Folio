@@ -109,6 +109,27 @@ namespace
 		FSlateApplication::Get().AddWindow(ActiveWindow.ToSharedRef());
 	}
 
+	/**
+	 * Tears both down before RmlUi does. These are statics, so without this they are destroyed
+	 * during DLL unload, long after the module has shut RmlUi down.
+	 */
+	struct FShutdownHook
+	{
+		FShutdownHook()
+		{
+			if (FFolioModule::IsAvailable())
+			{
+				FFolioModule::Get().OnPreShutdown().AddStatic(&FShutdownHook::Close);
+			}
+		}
+
+		static void Close()
+		{
+			CloseWindow();
+			HideDocument();
+		}
+	};
+
 	FAutoConsoleCommand ShowWindowCommand(
 		TEXT("folio.ShowWindow"),
 		TEXT("Opens an .rml document in its own window. Works in the editor with no PIE session."),
@@ -128,4 +149,6 @@ namespace
 		TEXT("folio.Hide"),
 		TEXT("Removes the document shown by folio.Show."),
 		FConsoleCommandDelegate::CreateStatic(&HideDocument));
+
+	FShutdownHook ShutdownHook;
 }

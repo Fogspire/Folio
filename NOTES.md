@@ -44,7 +44,11 @@ diffs remain readable across an RmlUi bump.
 
 ## Which advanced rendering features Folio implements
 
-**All of them.** The Unreal render interface implements the complete RmlUi 6.x optional
+**Target: all of them. Implemented so far: geometry, textures, scissor, transforms, clip
+masks and the gradient shaders.** Layers and filters are not, and until they are, anything
+that reads a layer back does not work. Status table at the end of this section.
+
+**All of them, eventually.** The Unreal render interface implements the complete RmlUi 6.x optional
 feature set, not a subset. Decided deliberately: a feature that is absent does not fail
 loudly, it parses and draws nothing, so a missing one is discovered months later as "why is
 this panel flat" rather than as an error. Retrofitting one also means revisiting every
@@ -61,6 +65,29 @@ document authored against its absence.
 
 `box-shadow` needs no interface feature of its own but is drawn through the layer and clip
 mask paths, so it comes with them.
+
+### Current status
+
+| Feature | State |
+|---|---|
+| Geometry, textures, scissor, `transform` | Done, through `MakeCustomVerts` |
+| Gradients (every `*-gradient` decorator) | Done, by baking the gradient into a texture rather than compiling a shader. The decorator's texture coordinates are pixel offsets inside the element box, which is the same space the shader parameters use, so the gradient can be evaluated on the CPU once and sampled |
+| Clip masks | Approximated. Slate clips with a quad rather than a stencil, so a mask becomes the bounding box of the geometry that set it: exact for rectangles, square-cornered for a rounded one, and `SetInverse` cannot be expressed at all |
+| Render layers, `filter`, `backdrop-filter`, `mask-image`, `box-shadow` | **Not implemented.** They need an offscreen target, and nothing reachable from `MakeCustomVerts` provides one |
+
+**An element with `box-shadow` currently renders no background at all**, which is worse than
+the shadow merely being absent. `GeometryBoxShadow` draws the element's background *into* a
+layer to build the shadow texture, then draws the element from that texture alone. With no
+real layer, `SaveLayerAsTexture` has nothing to return. Returning 0 is actively harmful,
+because zero also means "no texture" on the geometry path, so the element paints as a solid
+white rectangle over itself; returning a transparent 1x1 makes it vanish instead. Neither is
+right, so `box-shadow` is out of `ui/lib/` and on the banned list in `UI_CONVENTIONS.md`
+until layers exist.
+
+Layers need a render target, which means an RHI-backed custom Slate element
+(`ICustomSlateElement`) rather than `MakeCustomVerts`. That is not a departure from the
+architecture decision: it still composites inside Slate's own batch order and still needs no
+fullscreen target. It is the next piece of Phase 3.
 
 **The custom shader decorator is in scope for Phase 3, not later.** Additive and screen
 blending are not reachable from RCSS and do not require forking RmlUi: a decorator compiles a

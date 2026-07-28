@@ -52,7 +52,24 @@ public:
 
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 
+	//
+	// Input. Forwarded straight into the RmlUi context: Slate's own focus and navigation
+	// never run for this content, so the widget is the only thing Slate sees.
+	//
+	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
+
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent) override;
+	virtual FReply OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent) override;
+	virtual FReply OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& CharacterEvent) override;
+
 private:
+	/** Screen space to the context's own pixel space. */
+	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;
+
 	void DestroyContext();
 
 	/** RmlUi sizes in whole pixels, so a fractional widget size has to be resolved somewhere. */

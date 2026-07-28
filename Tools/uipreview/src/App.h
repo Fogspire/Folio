@@ -2,6 +2,7 @@
 
 #include "DataModel.h"
 #include "InputScript.h"
+#include "Localization.h"
 #include "MissingAssets.h"
 #include "Options.h"
 
@@ -73,6 +74,7 @@ private:
 
 	MissingAssets missing_assets;
 	JsonDataModel data_model {diagnostics};
+	Localizer localizer {diagnostics};
 
 	Rml::Context* context = nullptr;
 	Rml::ElementDocument* document = nullptr;

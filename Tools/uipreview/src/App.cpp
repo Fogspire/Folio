@@ -5,6 +5,7 @@
 #include "ElementPath.h"
 #include "FileInterface.h"
 #include "InputScript.h"
+#include "Localization.h"
 #include "MissingAssets.h"
 #include "RenderInterface.h"
 #include "Screenshot.h"
@@ -181,7 +182,15 @@ bool App::Initialise()
 		Rml::Debugger::SetVisible(options.debug);
 	}
 
+	if (!localizer.Load(root, options.culture))
+		return false;
+
 	MountDataModel();
+
+	// Data-bound strings never reach the document pass, so inflate them at the source or
+	// HUD text escapes pseudo-localization entirely.
+	if (localizer.IsPseudo())
+		data_model.TransformStrings([this](const std::string& text) { return localizer.Pseudoize(text); });
 
 	return LoadDocumentFromDisk();
 }
@@ -293,6 +302,8 @@ bool App::LoadDocumentFromDisk()
 		return false;
 	}
 	document->Show();
+	context->Update();
+	localizer.ApplyToDocument(document, options.strict);
 	context->Update();
 	CollectSpritesFromDiagnostics();
 	return true;

@@ -6,6 +6,7 @@ add_executable(uipreview
 	src/ElementPath.cpp
 	src/FileInterface.cpp
 	src/InputScript.cpp
+	src/Localization.cpp
 	src/MissingAssets.cpp
 	src/Options.cpp
 	src/RenderInterface.cpp

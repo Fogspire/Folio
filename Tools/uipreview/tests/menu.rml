@@ -1,0 +1,21 @@
+<rml>
+<head>
+	<title>menu</title>
+	<link type="text/rcss" href="base.rcss"/>
+	<style>
+		body { font-family: Roboto; font-size: 22dp; color: #e8e8f0; background-color: #1b1b22;
+		       padding: 24dp; width: 100%; height: 100%; box-sizing: border-box; }
+		h1 { font-size: 34dp; color: #f0c674; margin-bottom: 16dp; }
+		button { display: block; width: 300dp; padding: 10dp 16dp; margin-bottom: 10dp;
+		         background-color: #33333f; border-radius: 6dp; nav: auto; tab-index: auto; }
+		button:focus-visible { background-color: #f0c674; color: #1b1b22; }
+	</style>
+</head>
+<body data-model="hud">
+	<h1 data-loc="menu_title">Main Menu</h1>
+	<button id="start" autofocus data-loc="start">Start Game</button>
+	<button id="options" data-loc="options">Options</button>
+	<button id="quit" data-loc="quit">Quit to Desktop</button>
+	<p data-loc="score_label">Score {{ score }}</p>
+</body>
+</rml>

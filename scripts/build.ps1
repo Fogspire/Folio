@@ -18,9 +18,7 @@ param(
     [ValidateSet('Debug', 'RelWithDebInfo', 'Release')]
     [string] $Config = 'RelWithDebInfo',
 
-    # Matches the toolset UE 5.8 selects, so the static libraries built here can link into the
-    # Phase 3 UE ThirdParty module without an ABI mismatch in the C++ standard library.
-    [string] $Toolset = '14.38.33130',
+    [string] $Toolset = 'latest',
 
     [string] $Target,
 
@@ -30,6 +28,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot 'VsEnv.ps1')
+
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $BuildDir = Join-Path $RepoRoot "build\win64-$Config"
 
@@ -38,63 +38,9 @@ function Fail([string] $Message) {
     exit 1
 }
 
-# --- Locate Visual Studio -------------------------------------------------------------------
-
-$VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-if (-not (Test-Path $VsWhere)) {
-    Fail "vswhere.exe not found at '$VsWhere'. Install Visual Studio 2022 with the C++ desktop workload."
-}
-
-# Pick the install that actually carries the requested toolset rather than simply the newest
-# one: this machine also has a VS BuildTools install that ships neither 14.38 nor CMake.
-$Installs = @(& $VsWhere -products * `
-        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-        -property installationPath)
-if (-not $Installs) {
-    Fail 'No Visual Studio installation with the C++ desktop workload was found.'
-}
-
-$VsPath = $Installs | Where-Object { Test-Path (Join-Path $_ "VC\Tools\MSVC\$Toolset") } | Select-Object -First 1
-if (-not $VsPath) {
-    Write-Host "build.ps1: no Visual Studio install provides MSVC toolset $Toolset." -ForegroundColor Red
-    foreach ($install in $Installs) {
-        $available = Get-ChildItem (Join-Path $install 'VC\Tools\MSVC') -Name -ErrorAction SilentlyContinue
-        Write-Host "  $install -> $($available -join ', ')"
-    }
-    Fail 'Install the required toolset, or select an available one with -Toolset.'
-}
-
-$CMakeExe = Join-Path $VsPath 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
-$NinjaExe = Join-Path $VsPath 'Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe'
-$VsDevCmd = Join-Path $VsPath 'Common7\Tools\VsDevCmd.bat'
-
-foreach ($tool in @($CMakeExe, $NinjaExe, $VsDevCmd)) {
-    if (-not (Test-Path $tool)) {
-        Fail "Missing '$tool'. Add the 'C++ CMake tools for Windows' component to the Visual Studio install."
-    }
-}
-
-# --- Import the MSVC environment ------------------------------------------------------------
-
-# Ninja invokes cl.exe directly, so INCLUDE, LIB and LIBPATH must be present in this process.
-Write-Host "Importing MSVC environment (toolset $Toolset)..." -ForegroundColor DarkGray
-
-# Some of VsDevCmd's helper scripts invoke vswhere without a path.
-$env:PATH = "$(Split-Path -Parent $VsWhere);$env:PATH"
-
-# /s stops cmd from mangling the quoting around a path containing spaces.
-$envLines = & $env:COMSPEC /s /c "`"$VsDevCmd`" -arch=amd64 -host_arch=amd64 -vcvars_ver=$Toolset -no_logo && set"
-if ($LASTEXITCODE -ne 0) {
-    Fail "VsDevCmd.bat failed. Is MSVC toolset $Toolset installed? Override with -Toolset."
-}
-foreach ($line in $envLines) {
-    if ($line -match '^([^=]+)=(.*)$') {
-        Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] -ErrorAction SilentlyContinue
-    }
-}
-if (-not $env:INCLUDE) {
-    Fail 'VsDevCmd.bat did not set INCLUDE. The MSVC environment was not imported.'
-}
+try { $tools = Import-FolioMsvcEnvironment -Toolset $Toolset } catch { Fail $_ }
+$CMakeExe = $tools.CMake
+$NinjaExe = $tools.Ninja
 
 # --- Configure and build --------------------------------------------------------------------
 

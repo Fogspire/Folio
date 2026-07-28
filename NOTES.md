@@ -230,9 +230,27 @@ accumulating atlases, run `git lfs install` and switch those lines to
 
 ## Toolchain
 
-`build.ps1` defaults to **MSVC toolset 14.38.33130**, matching what UE 5.8 selects, so the
-static libraries built here can link into the Phase 3 UE ThirdParty module without an `std::`
-ABI mismatch. Override with `-Toolset` if needed.
+**The MSVC toolset must match whatever UnrealBuildTool picks, and guessing it was wrong.**
+This was originally pinned to 14.38.33130 on the assumption that UE 5.8 selects it. It does
+not: on this machine UBT uses **14.50.35717**, from a Visual Studio 18 BuildTools install, and
+RmlUi built with 14.38 was being linked into modules built with 14.50. It linked, which is
+the dangerous part, because RmlUi's interface passes `std::string` and `std::vector` across
+that boundary and a layout change would corrupt rather than fail.
+
+Both build scripts now default to `-Toolset latest`, which is also UBT's default. When they
+disagree, UBT's `Toolchain Information` line is the authority; pass the version explicitly.
+
+`scripts/build_ue_libs.ps1` builds RmlUi for Unreal, separately from the preview tool. The
+two need different settings: the engine's FreeType rather than our own, `/MD`, no RTTI, and
+output staged into `Source/ThirdParty/RmlUiLibrary`. Those libraries are **not committed** -
+they run to tens of megabytes and would re-enter history on every rebuild - so a fresh clone
+runs the script once before building the plugin. `RmlUiLibrary.Build.cs` fails with that
+instruction rather than a link error if they are missing.
+
+**The engine's FreeType needs zlib and libPNG named explicitly.** `FreeType2.Build.cs`
+declares them as its own private dependencies, which does not reach the module that actually
+links, so `freetype.lib` arrives with 27 unresolved `png_*` and `inflate*` symbols. Adding
+`zlib` and `UElibPNG` alongside `FreeType2` fixes it.
 
 `RMLUI_FONT_ENGINE` is kept as a build parameter rather than hardcoded, because Phase 3 may
 have to set it to `none` and supply a UE-backed font engine to avoid colliding with UE's own

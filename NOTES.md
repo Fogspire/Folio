@@ -198,6 +198,38 @@ different `rmlui_dynamic_cast` depending on it. The library and every consumer m
 it is an ODR violation that shows up the same way. It is set in `cmake/ue/CMakeLists.txt` and
 again in `RmlUiLibrary.Build.cs`; changing one without the other reintroduces the crash.
 
+## Slate ships its own msdfgen, and it does not collide with ours
+
+Unreal 5.8 has an amalgamated msdfgen at `Engine/Source/ThirdParty/msdfgen/`, compiled straight
+into SlateCore for its own SDF text path (`ESlateShader::SdfFont`, `MsdfFont`). Folio pins and
+builds a separate copy, so in a monolithic packaged build both land in one executable - normally
+a `LNK2005` waiting to happen.
+
+It is not one, because `SlateSdfGenerator.cpp:34` does `#define MSDFGEN_PARENT_NAMESPACE
+SlateMsdfgen` before including `msdfgen.cpp`. Verified in the mangled names rather than assumed:
+
+```
+Slate   generateMTSDF@msdfgen@SlateMsdfgen@@
+Folio   generateMTSDF@msdfgen@@
+```
+
+`Module.SlateCore.2.cpp.obj` contains no unnamespaced `@msdfgen@@` symbol at all. So Folio needs
+no parent namespace of its own and no patch.
+
+**Re-check this on an engine upgrade.** If Slate ever drops that define, the two copies merge into
+one namespace, and the failure is asymmetric: editor builds link SlateCore as a DLL and keep
+working, while the packaged monolithic build fails. The fix if it happens is a
+`patches/msdfgen/*.patch` adding the same macro on our side, which is what `folio_patch_command()`
+exists for.
+
+Two other pieces of that amalgam are worth knowing. It sets `MSDFGEN_DISABLE_VARIABLE_FONTS` and
+`MSDFGEN_DISABLE_SVG` by default, and it compiles under `/GR-` with exceptions off - which is the
+evidence that msdfgen needs neither RTTI nor exceptions, so `folio_set_msdfgen_options()` does not
+have to fight Unreal's flags. Skia is enabled only `WITH_EDITOR`, and without it
+`resolveShapeGeometry` is not compiled at all (the whole file is inside `#ifdef MSDFGEN_USE_SKIA`).
+Folio does not build Skia either, so `MsdfGlyphGenerator` uses `normalize()` and
+`orientContours()` instead; a font with self-intersecting contours will show artifacts there.
+
 ## Texture formats
 
 **RmlUi's own texture loader reads uncompressed TGA and nothing else.** Not PNG. Every real
@@ -296,6 +328,23 @@ that boundary and a layout change would corrupt rather than fail.
 
 Both build scripts now default to `-Toolset latest`, which is also UBT's default. When they
 disagree, UBT's `Toolchain Information` line is the authority; pass the version explicitly.
+
+`CMakePresets.json` no longer names a version either. Its toolset strategy is `external`, so
+CMake never applied the value - it only ever read as documentation, and it documented a
+toolset that is not installed.
+
+A build tree caches `CMAKE_CXX_COMPILER` from its first configure, but `INCLUDE` comes from
+whatever `VsEnv.ps1` resolves now. When those drift apart the STL fails the compiler out
+rather than the mismatch being silent:
+
+```
+yvals_core.h(929): error C2338: static_assert failed:
+    'error STL1001: Unexpected compiler version, expected MSVC 19.44 or newer.'
+```
+
+followed by a hundred errors inside `<type_traits>` and `<xutility>`. It looks like the
+dependency that happened to compile first is broken. It is not - the fix is
+`build.ps1 -Clean`.
 
 `scripts/build_ue_libs.ps1` builds RmlUi for Unreal, separately from the preview tool. The
 two need different settings: the engine's FreeType rather than our own, `/MD`, no RTTI, and

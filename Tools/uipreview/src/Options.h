@@ -50,7 +50,7 @@ struct Options {
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree; }
 };
 
-enum class ParseResult { Ok, HelpRequested, Error };
+enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };
 
 ParseResult ParseCommandLine(int argc, char** argv, Options& out_options, std::string& out_error);
 

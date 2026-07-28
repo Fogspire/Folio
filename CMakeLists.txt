@@ -21,6 +21,7 @@ find_package(Git REQUIRED)
 folio_patch_command(RmlUi RMLUI_PATCH_COMMAND)
 folio_patch_command(freetype FREETYPE_PATCH_COMMAND)
 folio_patch_command(glfw GLFW_PATCH_COMMAND)
+folio_patch_command(msdfgen MSDFGEN_PATCH_COMMAND)
 
 FetchContent_Declare(freetype
 	GIT_REPOSITORY "${FOLIO_FREETYPE_REPOSITORY}"
@@ -49,6 +50,17 @@ FetchContent_Declare(lodepng
 	GIT_TAG        "${FOLIO_LODEPNG_TAG}"
 	SOURCE_SUBDIR  "folio-no-cmake"
 )
+FetchContent_Declare(msdfgen
+	GIT_REPOSITORY "${FOLIO_MSDFGEN_REPOSITORY}"
+	GIT_TAG        "${FOLIO_MSDFGEN_TAG}"
+	PATCH_COMMAND  ${MSDFGEN_PATCH_COMMAND}
+)
+# Headers only, like lodepng.
+FetchContent_Declare(nanosvg
+	GIT_REPOSITORY "${FOLIO_NANOSVG_REPOSITORY}"
+	GIT_TAG        "${FOLIO_NANOSVG_TAG}"
+	SOURCE_SUBDIR  "folio-no-cmake"
+)
 
 # Strip FreeType down to what RmlUi's font engine actually uses.
 set(FT_DISABLE_ZLIB     ON CACHE BOOL "" FORCE)
@@ -65,6 +77,7 @@ set(GLFW_INSTALL        OFF CACHE BOOL "" FORCE)
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 
 folio_set_rmlui_options()
+folio_set_msdfgen_options()
 set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "RmlUi font engine (freetype or none)")
 
 # RmlUi resolves its font engine through find_package(Freetype), but treats it as a soft
@@ -76,9 +89,27 @@ if(NOT TARGET Freetype::Freetype)
 	add_library(Freetype::Freetype ALIAS freetype)
 endif()
 
-FetchContent_MakeAvailable(glfw RmlUi nlohmann_json lodepng)
+FetchContent_MakeAvailable(glfw RmlUi nlohmann_json lodepng msdfgen nanosvg)
 
 add_library(lodepng STATIC "${lodepng_SOURCE_DIR}/lodepng.cpp")
 target_include_directories(lodepng PUBLIC "${lodepng_SOURCE_DIR}")
+
+# nanosvg is header-only, and only the vector baking tool includes it.
+add_library(nanosvg INTERFACE)
+target_include_directories(nanosvg INTERFACE "${nanosvg_SOURCE_DIR}/src")
+
+# The MSDF font engine and atlas code is shared with the Unreal plugin, which builds the same
+# sources as the FolioCore module. Everything here is portable: RmlUi, FreeType and msdfgen only.
+# FolioCoreModule.cpp is the one file that includes an Unreal header, so it is excluded.
+file(GLOB FOLIO_CORE_SOURCES CONFIGURE_DEPENDS "${FOLIO_ROOT}/Source/FolioCore/Private/*.cpp")
+list(FILTER FOLIO_CORE_SOURCES EXCLUDE REGEX "FolioCoreModule\\.cpp$")
+
+add_library(folio_core STATIC ${FOLIO_CORE_SOURCES})
+target_include_directories(folio_core PUBLIC
+	"${FOLIO_ROOT}/Source/FolioCore/Public"
+	"${FOLIO_ROOT}/Source/FolioCore/Private"
+)
+target_link_libraries(folio_core PUBLIC RmlUi::Core Freetype::Freetype msdfgen::msdfgen)
+target_compile_features(folio_core PUBLIC cxx_std_20)
 
 add_subdirectory(Tools/uipreview)

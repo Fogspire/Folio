@@ -11,6 +11,12 @@
 	"Installed": false,
 	"Modules": [
 		{
+			"Name": "FolioCore",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"PlatformAllowList": [ "Win64" ]
+		},
+		{
 			"Name": "Folio",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",

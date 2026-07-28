@@ -40,6 +40,7 @@ target_compile_definitions(uipreview PRIVATE
 target_link_libraries(uipreview PRIVATE
 	RmlUi::Core
 	RmlUi::Debugger
+	folio_core
 	glfw
 	lodepng
 	nlohmann_json::nlohmann_json

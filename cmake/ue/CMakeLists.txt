@@ -21,6 +21,7 @@ include("${FOLIO_ROOT}/cmake/Pins.cmake")
 
 find_package(Git REQUIRED)
 folio_patch_command(RmlUi RMLUI_PATCH_COMMAND)
+folio_patch_command(msdfgen MSDFGEN_PATCH_COMMAND)
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
@@ -45,9 +46,14 @@ add_compile_options(/GR- /EHsc)
 # FreeType: the engine's copy, not our own.
 #
 # Two FreeTypes in one link is a duplicate-symbol failure at best and silent, version-skewed
-# aliasing at worst, since the engine already links its own for Slate. RmlUi resolves the font
-# engine through find_package(Freetype) but only checks whether the Freetype::Freetype target
-# exists, so an imported target pointing at the engine's build satisfies it.
+# aliasing at worst, since the engine already links its own for Slate. RmlUi and msdfgen's
+# extensions library both resolve it through find_package(Freetype) but only check whether the
+# Freetype::Freetype target exists, so an imported target pointing at the engine's build
+# satisfies them. FolioCore consumes the same library through the engine's FreeType2 module.
+#
+# It must be a build with TT_CONFIG_OPTION_GX_VAR_SUPPORT, or variable fonts silently degrade to
+# their default instance. 2.14.1 has it; FolioFontFace probes FT_Get_MM_Var rather than trusting
+# the version.
 #
 set(FOLIO_FREETYPE_VERSION "FreeType2-2.14.1" CACHE STRING "Engine FreeType directory name")
 set(FOLIO_FREETYPE_ROOT "${FOLIO_ENGINE_DIR}/Source/ThirdParty/FreeType2/${FOLIO_FREETYPE_VERSION}")
@@ -72,17 +78,28 @@ set(FREETYPE_LIBRARIES "${FOLIO_FREETYPE_LIB}")
 include(FetchContent)
 
 folio_set_rmlui_options()
+
+# Flips to "none" once FFolioFontEngine is installed on the Unreal side. With "none",
+# Rml::Initialise() fails outright unless SetFontEngineInterface was called first, so the two
+# have to change together.
 set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
+
+folio_set_msdfgen_options()
 
 FetchContent_Declare(RmlUi
 	GIT_REPOSITORY "${FOLIO_RMLUI_REPOSITORY}"
 	GIT_TAG        "${FOLIO_RMLUI_TAG}"
 	PATCH_COMMAND  ${RMLUI_PATCH_COMMAND}
 )
-FetchContent_MakeAvailable(RmlUi)
+FetchContent_Declare(msdfgen
+	GIT_REPOSITORY "${FOLIO_MSDFGEN_REPOSITORY}"
+	GIT_TAG        "${FOLIO_MSDFGEN_TAG}"
+	PATCH_COMMAND  ${MSDFGEN_PATCH_COMMAND}
+)
+FetchContent_MakeAvailable(RmlUi msdfgen)
 
 #
-# Stage the result where the .Build.cs expects it.
+# Stage the result where the .Build.cs files expect it.
 #
 set(FOLIO_STAGE "${FOLIO_ROOT}/Source/ThirdParty/RmlUiLibrary")
 
@@ -94,5 +111,25 @@ add_custom_target(folio_stage ALL
 		"$<TARGET_FILE:rmlui_core>" "$<TARGET_FILE:rmlui_debugger>" "${FOLIO_STAGE}/lib/Win64/"
 	DEPENDS rmlui_core rmlui_debugger
 	COMMENT "Staging RmlUi into Source/ThirdParty/RmlUiLibrary"
+	VERBATIM
+)
+
+# msdfgen's include interface is its source root, and msdfgen.h reaches core/ and ext/ relatively,
+# so the staged tree has to keep that shape.
+set(FOLIO_MSDF_STAGE "${FOLIO_ROOT}/Source/ThirdParty/MsdfgenLibrary")
+file(GLOB FOLIO_MSDF_CORE_HEADERS "${msdfgen_SOURCE_DIR}/core/*.h" "${msdfgen_SOURCE_DIR}/core/*.hpp")
+file(GLOB FOLIO_MSDF_EXT_HEADERS  "${msdfgen_SOURCE_DIR}/ext/*.h")
+
+add_custom_target(folio_stage_msdfgen ALL
+	COMMAND ${CMAKE_COMMAND} -E rm -rf "${FOLIO_MSDF_STAGE}/include"
+	COMMAND ${CMAKE_COMMAND} -E make_directory "${FOLIO_MSDF_STAGE}/include/core" "${FOLIO_MSDF_STAGE}/include/ext" "${FOLIO_MSDF_STAGE}/lib/Win64"
+	COMMAND ${CMAKE_COMMAND} -E copy
+		"${msdfgen_SOURCE_DIR}/msdfgen.h" "${msdfgen_SOURCE_DIR}/msdfgen-ext.h" "${FOLIO_MSDF_STAGE}/include/"
+	COMMAND ${CMAKE_COMMAND} -E copy ${FOLIO_MSDF_CORE_HEADERS} "${FOLIO_MSDF_STAGE}/include/core/"
+	COMMAND ${CMAKE_COMMAND} -E copy ${FOLIO_MSDF_EXT_HEADERS}  "${FOLIO_MSDF_STAGE}/include/ext/"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different
+		"$<TARGET_FILE:msdfgen-core>" "$<TARGET_FILE:msdfgen-ext>" "${FOLIO_MSDF_STAGE}/lib/Win64/"
+	DEPENDS msdfgen-core msdfgen-ext
+	COMMENT "Staging msdfgen into Source/ThirdParty/MsdfgenLibrary"
 	VERBATIM
 )

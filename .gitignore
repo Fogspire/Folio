@@ -19,11 +19,13 @@ compile_commands.json
 /build/
 /out/
 
-# Staged RmlUi, produced by scripts/build_ue_libs.ps1. Not committed: the static libraries
-# run to tens of megabytes and would land in history again on every rebuild, and git-lfs has
-# never been set up on this repo. Building them is a documented one-time step.
+# Staged RmlUi and msdfgen, produced by scripts/build_ue_libs.ps1. Not committed: the static
+# libraries run to tens of megabytes and would land in history again on every rebuild, and
+# git-lfs has never been set up on this repo. Building them is a documented one-time step.
 /Source/ThirdParty/RmlUiLibrary/lib/
 /Source/ThirdParty/RmlUiLibrary/include/
+/Source/ThirdParty/MsdfgenLibrary/lib/
+/Source/ThirdParty/MsdfgenLibrary/include/
 /bin/
 
 # uipreview outputs

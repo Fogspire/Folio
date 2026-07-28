@@ -8,7 +8,7 @@
 			"generator": "Ninja",
 			"binaryDir": "${sourceDir}/build/win64-${presetName}",
 			"architecture": { "value": "x64", "strategy": "external" },
-			"toolset": { "value": "host=x64,version=14.38.33130", "strategy": "external" }
+			"toolset": { "value": "host=x64", "strategy": "external" }
 		},
 		{
 			"name": "Debug",

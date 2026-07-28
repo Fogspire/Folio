@@ -3,6 +3,8 @@
 #include "JsonReport.h"
 #include "Options.h"
 
+#include "FolioCore/FolioCoreVersion.h"
+
 #include <cstdio>
 #include <exception>
 
@@ -16,6 +18,9 @@ int main(int argc, char** argv)
 	switch (ParseCommandLine(argc, argv, options, error))
 	{
 	case ParseResult::HelpRequested: PrintUsage(stdout); return 0;
+	case ParseResult::FontReportRequested:
+		std::printf("%s\n", Folio::GetCoreVersionString().c_str());
+		return 0;
 	case ParseResult::Error:
 		std::fprintf(stderr, "uipreview:0:0: error: [E-ARG] %s\n", error.c_str());
 		PrintUsage(stderr);

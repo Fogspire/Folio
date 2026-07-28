@@ -28,6 +28,7 @@ public class Folio : ModuleRules
 			"Projects",
 			"ApplicationCore",
 			"RmlUiLibrary",
+			"FolioCore",
 		});
 	}
 }

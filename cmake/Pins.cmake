@@ -21,6 +21,13 @@ set(FOLIO_JSON_TAG        9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03) # v3.11.3
 set(FOLIO_LODEPNG_REPOSITORY "https://github.com/lvandeve/lodepng.git")
 set(FOLIO_LODEPNG_TAG        ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a)
 
+set(FOLIO_MSDFGEN_REPOSITORY "https://github.com/Chlumsky/msdfgen.git")
+set(FOLIO_MSDFGEN_TAG        85e8b3d47b3d1a42e4a5ebda0a24fb1cc2e669e0) # v1.12
+
+# Only the vector baking tool parses SVG, so nanosvg is fetched by the root build alone.
+set(FOLIO_NANOSVG_REPOSITORY "https://github.com/memononen/nanosvg.git")
+set(FOLIO_NANOSVG_TAG        239e102ec2c691f2902e20ace2ed36ee4a35cfe6)
+
 # Pinning a release for a long project means eventually needing a fix that is on upstream's
 # master but not in the tag. Any .patch file dropped in patches/<dep>/ is applied to that
 # dependency at fetch time, in sorted order, so a local fix is a reviewable file in this repo
@@ -36,6 +43,32 @@ function(folio_patch_command dependency out_variable)
 	set(${out_variable} ${GIT_EXECUTABLE} apply --ignore-whitespace --forward ${patches} PARENT_SCOPE)
 	message(STATUS "Folio: patching ${dependency} with ${patches}")
 endfunction()
+
+# msdfgen, configured the same way in both builds so the two renderers generate identical fields.
+#
+# CORE_ONLY stays off because readFreetypeOutline lives in the extensions library; with SVG and
+# PNG disabled that library's only dependency is FreeType, which both builds already resolve
+# through the Freetype::Freetype target. SVG parsing is nanosvg's job in the baking tool, and
+# variable-font support is disabled because we drive FT_Set_Var_Design_Coordinates directly.
+#
+# DYNAMIC_RUNTIME is not optional: msdfgen sets MSVC_RUNTIME_LIBRARY per target, which overrides
+# CMAKE_MSVC_RUNTIME_LIBRARY, so without it the static runtime is linked into a /MD build.
+#
+# Skia stays off, which means resolveShapeGeometry is not compiled and must not be called -
+# normalize() plus orientContours() is the substitute. Unreal makes the same trade outside the
+# editor (SlateSdfGenerator.cpp only defines MSDFGEN_USE_SKIA under WITH_EDITOR).
+macro(folio_set_msdfgen_options)
+	set(MSDFGEN_CORE_ONLY              OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_BUILD_STANDALONE       OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_USE_VCPKG              OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_USE_SKIA               OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_USE_OPENMP             OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_INSTALL                OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_DYNAMIC_RUNTIME        ON  CACHE BOOL "" FORCE)
+	set(MSDFGEN_DISABLE_SVG            ON  CACHE BOOL "" FORCE)
+	set(MSDFGEN_DISABLE_PNG            ON  CACHE BOOL "" FORCE)
+	set(MSDFGEN_DISABLE_VARIABLE_FONTS ON  CACHE BOOL "" FORCE)
+endmacro()
 
 # Everything RmlUi builds that we never use.
 macro(folio_set_rmlui_options)

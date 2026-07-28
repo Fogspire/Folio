@@ -14,20 +14,44 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 include(FetchContent)
 
+# Pinning a release for a long project means eventually needing a fix that is on upstream's
+# master but not in the tag. Any .patch file dropped in patches/<dep>/ is applied to that
+# dependency at fetch time, in sorted order, so a local fix is a reviewable file in this repo
+# rather than a fork or a manual step. Re-run with a clean build tree after adding one.
+function(folio_patch_command dependency out_variable)
+	file(GLOB patches CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/patches/${dependency}/*.patch")
+	if(NOT patches)
+		set(${out_variable} "" PARENT_SCOPE)
+		return()
+	endif()
+	list(SORT patches)
+	# --forward keeps a re-configure over an already-patched tree from failing.
+	set(${out_variable} ${GIT_EXECUTABLE} apply --ignore-whitespace --forward ${patches} PARENT_SCOPE)
+	message(STATUS "Folio: patching ${dependency} with ${patches}")
+endfunction()
+
+find_package(Git REQUIRED)
+folio_patch_command(RmlUi RMLUI_PATCH_COMMAND)
+folio_patch_command(freetype FREETYPE_PATCH_COMMAND)
+folio_patch_command(glfw GLFW_PATCH_COMMAND)
+
 # Dependencies are pinned to exact commits: git tags are movable, commit hashes are not.
 # The tag each hash corresponds to is in the comment beside it.
 FetchContent_Declare(freetype
 	GIT_REPOSITORY "https://github.com/freetype/freetype.git"
 	GIT_TAG        42608f77f20749dd6ddc9e0536788eaad70ea4b5 # VER-2-13-3
 	GIT_SHALLOW    FALSE
+	PATCH_COMMAND  ${FREETYPE_PATCH_COMMAND}
 )
 FetchContent_Declare(glfw
 	GIT_REPOSITORY "https://github.com/glfw/glfw.git"
 	GIT_TAG        7b6aead9fb88b3623e3b3725ebb42670cbe4c579 # 3.4
+	PATCH_COMMAND  ${GLFW_PATCH_COMMAND}
 )
 FetchContent_Declare(RmlUi
 	GIT_REPOSITORY "https://github.com/mikke89/RmlUi.git"
 	GIT_TAG        2230d1a6e8e0848ed87a5761e2a5160b2a175ba4 # 6.2
+	PATCH_COMMAND  ${RMLUI_PATCH_COMMAND}
 )
 FetchContent_Declare(nlohmann_json
 	GIT_REPOSITORY "https://github.com/nlohmann/json.git"

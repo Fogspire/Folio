@@ -20,11 +20,15 @@ std::string Normalise(std::string path)
 
 } // namespace
 
-RootedFileInterface::RootedFileInterface(std::string in_root) : root(std::move(in_root))
+RootedFileInterface::RootedFileInterface(std::string in_root, std::string in_folio_root)
+	: root(std::move(in_root)), folio_root(std::move(in_folio_root))
 {
-	std::replace(root.begin(), root.end(), '\\', '/');
-	while (!root.empty() && root.back() == '/')
-		root.pop_back();
+	for (std::string* path : {&root, &folio_root})
+	{
+		std::replace(path->begin(), path->end(), '\\', '/');
+		while (!path->empty() && path->back() == '/')
+			path->pop_back();
+	}
 }
 
 std::string RootedFileInterface::Resolve(const std::string& path) const
@@ -38,6 +42,11 @@ std::string RootedFileInterface::Resolve(const std::string& path) const
 
 	while (!normalised.empty() && normalised.front() == '/')
 		normalised.erase(0, 1);
+
+	// Whatever Folio itself ships resolves against the plugin, not the content root, so a
+	// document can import the base stylesheet without knowing where it was launched from.
+	if (!folio_root.empty() && normalised.rfind("folio/", 0) == 0)
+		return folio_root + "/rcss/" + normalised.substr(6);
 
 	return root + "/" + normalised;
 }

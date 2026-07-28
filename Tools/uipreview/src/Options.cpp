@@ -55,7 +55,10 @@ void PrintUsage(std::FILE* stream)
 		"  --dp-ratio <F>        Density independent pixel ratio (default 1.0)\n"
 		"  --root <DIR>          Directory paths resolve against (default: derived)\n"
 		"  --font <FILE>         Register a font face. Repeatable. No typeface is bundled;\n"
-		"                        when omitted, any font under <root>/ui/fonts is used\n"
+		"                        when omitted, fonts under <root>/ui/fonts are used, then\n"
+		"                        the engine's Roboto\n"
+		"  --engine <DIR>        Unreal engine directory, for the default Roboto. Also read\n"
+		"                        from UE_ENGINE_DIR; otherwise located automatically\n"
 		"  --debug               Open the RmlUi debugger. F8 toggles it while running\n"
 		"\n"
 		"Capture\n"
@@ -159,6 +162,11 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		else if (arg == "--root")
 		{
 			if (!TakeValue(argc, argv, i, "--root", o.root, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--engine")
+		{
+			if (!TakeValue(argc, argv, i, "--engine", o.engine, error))
 				return ParseResult::Error;
 		}
 		else if (arg == "--font")

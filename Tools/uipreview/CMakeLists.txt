@@ -11,6 +11,7 @@ add_executable(uipreview
 	src/Localization.cpp
 	src/MissingAssets.cpp
 	src/Options.cpp
+	src/Paths.cpp
 	src/Reload.cpp
 	src/RenderInterface.cpp
 	src/Screenshot.cpp

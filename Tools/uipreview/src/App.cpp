@@ -8,6 +8,7 @@
 #include "InputScript.h"
 #include "Localization.h"
 #include "MissingAssets.h"
+#include "Paths.h"
 #include "Reload.h"
 #include "RenderInterface.h"
 #include "Screenshot.h"
@@ -155,7 +156,7 @@ bool App::Initialise()
 				" but " + std::to_string(options.width) + "x" + std::to_string(options.height) + " was requested");
 	}
 
-	file_interface = std::make_unique<RootedFileInterface>(root);
+	file_interface = std::make_unique<RootedFileInterface>(root, FolioRoot());
 	Rml::SetFileInterface(file_interface.get());
 	Rml::SetSystemInterface(Backend::GetSystemInterface());
 	Rml::SetRenderInterface(Backend::GetRenderInterface());
@@ -287,10 +288,31 @@ bool App::LoadFonts()
 		}
 	}
 
+	// Fall back to the engine's Roboto, which is what Folio registers by default in engine,
+	// so the preview and the game agree on the typeface without anything being bundled here.
+	if (loaded == 0)
+	{
+		const std::string engine = FindEngineDirectory(options.engine);
+		if (!engine.empty())
+		{
+			const fs::path slate_fonts = fs::path(engine) / "Content" / "Slate" / "Fonts";
+			for (const char* face : {"Roboto-Regular.ttf", "Roboto-Bold.ttf", "Roboto-Italic.ttf", "Roboto-BoldItalic.ttf"})
+			{
+				const fs::path file = slate_fonts / face;
+				std::error_code ec;
+				if (fs::exists(file, ec) && Rml::LoadFontFace(ToForwardSlashes(file.string())))
+					++loaded;
+			}
+			if (loaded > 0 && options.verbose)
+				diagnostics.Report(Severity::Info, "I-FONT-ENGINE", "using Roboto from " + ToForwardSlashes(engine));
+		}
+	}
+
 	if (loaded == 0)
 	{
 		diagnostics.Report(Severity::Error, "E-FONT-NONE",
-			"no font faces registered; pass --font <file>, or place fonts under " +
+			"no font faces registered; pass --font <file>, or --engine <dir> to use the engine's Roboto, "
+			"or place fonts under " +
 				diagnostics.Relative(ToForwardSlashes(fonts_dir.string())));
 		return false;
 	}

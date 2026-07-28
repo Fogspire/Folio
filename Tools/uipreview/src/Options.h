@@ -17,6 +17,8 @@ struct Options {
 	 * fonts are configuration. When empty, any font found under <root>/ui/fonts is used.
 	 */
 	std::vector<std::string> fonts;
+	/** Unreal engine directory, used to find Roboto when no font is given. */
+	std::string engine;
 
 	int width = 1920;
 	int height = 1080;

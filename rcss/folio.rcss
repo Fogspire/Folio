@@ -1,0 +1,46 @@
+/*
+ * Folio's base stylesheet, the equivalent of a browser's user-agent stylesheet.
+ *
+ * RmlUi ships nothing like this and defaults every element to display: inline, so without it
+ * a document renders as one run of overlapping text. It belongs to the plugin rather than to
+ * any game's UI: it establishes what the elements mean, not what they look like.
+ *
+ * Import it as a root-absolute path, which resolves against Folio itself rather than the
+ * content root:
+ *
+ *     <link type="text/rcss" href="/folio/folio.rcss"/>
+ */
+
+body, div, p, h1, h2, h3, h4, h5, h6,
+section, header, footer, article, aside, nav,
+ul, ol, li, dl, dt, dd, form, fieldset, figure, figcaption, main, pre, blockquote
+{
+	display: block;
+}
+
+/*
+ * A document is laid out shrink-to-fit against the context, and display: block does not
+ * change that, so without an explicit width the body collapses to its widest line.
+ */
+body
+{
+	width: 100%;
+}
+
+li { display: block; }
+
+em, i { font-style: italic; }
+strong, b { font-weight: bold; }
+
+table  { box-sizing: border-box; display: table; }
+tr     { box-sizing: border-box; display: table-row; }
+td, th { box-sizing: border-box; display: table-cell; }
+col    { box-sizing: border-box; display: table-column; }
+colgroup { display: table-column-group; }
+thead, tbody, tfoot { display: table-row-group; }
+
+/* Interactive elements are inline-block so they size to content but still take a box. */
+button, input, select, textarea { display: inline-block; }
+
+/* RmlUi has no :disabled pseudo-class, so disabled state is carried by a class. */
+.is-disabled { color: #7f7f7f; }

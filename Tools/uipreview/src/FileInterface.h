@@ -17,7 +17,7 @@ namespace uipreview {
  */
 class RootedFileInterface : public Rml::FileInterface {
 public:
-	explicit RootedFileInterface(std::string root);
+	RootedFileInterface(std::string root, std::string folio_root);
 
 	Rml::FileHandle Open(const Rml::String& path) override;
 	void Close(Rml::FileHandle file) override;
@@ -41,6 +41,8 @@ public:
 
 private:
 	std::string root;
+	/** Where Folio's own shipped stylesheets live, reached through /folio/. */
+	std::string folio_root;
 	std::set<std::string> opened;
 };
 

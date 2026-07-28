@@ -41,11 +41,14 @@ GLFW additionally allows a hidden window, which is how screenshots are captured 
 visible one.
 
 **Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests.
-vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, and its
-RmlUi port tracks whatever its baseline pins rather than the exact release we want. FetchContent
-pins each dependency to a commit hash in this file with no global installation. The tradeoff is
-that patching a dependency is awkward; if RmlUi ever needs a local patch, that one dependency
-should become a submodule at that point.
+vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi
+port tracks whatever its baseline pins rather than the exact release we want, and its triplets
+fix the CRT and toolset, which fights Phase 3 where RmlUi has to build with the same toolset as
+Unreal. FetchContent builds from source with whatever toolset we set, pinned to a commit hash in
+this file, with nothing installed globally.
+
+Local fixes to a dependency go in `patches/<dependency>/*.patch` and are applied at fetch time.
+See `patches/README.md`.
 
 ### Dependencies
 
@@ -67,27 +70,40 @@ specific ones that bite.
 
 ## Using `uipreview`
 
-The tool is game agnostic: it renders whatever content root it is pointed at. Folio itself
-ships no markup and no typeface, so a font has to be supplied.
+The tool is game agnostic: it renders whatever content root it is pointed at.
 
 ```powershell
-$roboto = "..\..\..\UnrealEngine-Ninja\Engine\Content\Slate\Fonts\Roboto-Regular.ttf"
-
 # open a document with hot reload and the RmlUi debugger. F8 toggles the debugger
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --debug
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --debug
 
 # render one frame to a PNG without showing a window
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --screenshot out.png --size 1280x800
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --screenshot out.png --size 1280x800
 
 # drive navigation and capture each step, to verify focus order
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --keys "down,down,confirm" --shot-each shots\
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --keys "down,down,confirm" --shot-each shots\
 
 # check a screen for length overflow before any translations exist
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --culture pseudo --screenshot pseudo.png
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --culture pseudo --screenshot pseudo.png
 
 # validate for CI, failing on warnings too, and emit a machine readable report
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --font $roboto --screenshot nul --strict --json-report report.json
+.\bin\win64\uipreview.exe ui\screens\main_menu.rml --screenshot nul --strict --json-report report.json
 ```
+
+**Fonts.** No typeface is bundled. Faces resolve in order: `--font` if given, else any font
+under `<root>/ui/fonts`, else the engine's Roboto from `Engine/Content/Slate/Fonts`, which is
+what Folio registers by default in engine. The engine is found automatically, or named with
+`--engine` or `UE_ENGINE_DIR`.
+
+**The base stylesheet.** RmlUi has no user-agent stylesheet and defaults every element to
+`display: inline`, so Folio ships one. Every document should start with:
+
+```html
+<link type="text/rcss" href="/folio/folio.rcss"/>
+```
+
+`/folio/` resolves against the plugin rather than the content root, so it works from anywhere.
+It establishes block display and gives the document a width, and deliberately sets no colours,
+spacing or typography, which belong to the game.
 
 `uipreview --help` lists every flag.
 

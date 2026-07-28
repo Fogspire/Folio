@@ -1,7 +1,7 @@
 <rml>
 <head>
 	<title>hello</title>
-	<link type="text/rcss" href="base.rcss"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
 	<style>
 		body
 		{

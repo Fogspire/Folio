@@ -59,6 +59,10 @@ diffs remain readable across an RmlUi bump.
 Two layout defaults that make a first document look broken in ways that are nothing to do
 with the markup being wrong.
 
+Folio ships `rcss/folio.rcss` covering both, reachable as `/folio/folio.rcss` from any content
+root. It counts as engine integration rather than game UI: it establishes what elements mean,
+not what they look like.
+
 **Every element defaults to `display: inline`.** RmlUi ships no equivalent of a browser's
 user-agent stylesheet, so `div`, `p` and `h1` are inline until something says otherwise, and
 a document without a base stylesheet renders as one run of overlapping text.
@@ -163,8 +167,8 @@ Capture has to happen after `RenderInterface_GL3::EndFrame` and before `glfwSwap
 
 `.gitattributes` marks `*.png` / `*.ttf` / `*.otf` as plain `binary`, not LFS, because
 `git lfs install` has never been run on this machine and an undefined filter is worse than no
-filter. Fine at Phase 1 scale (one font). Before Phase 2 lands icon atlases, run
-`git lfs install` and switch those lines to
+filter. Folio bundles no art or fonts, so nothing needs it yet. Before a repo starts
+accumulating atlases, run `git lfs install` and switch those lines to
 `filter=lfs diff=lfs merge=lfs -text`.
 
 ## Toolchain

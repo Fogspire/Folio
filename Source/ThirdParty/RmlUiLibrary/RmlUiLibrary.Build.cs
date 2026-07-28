@@ -32,6 +32,12 @@ public class RmlUiLibrary : ModuleRules
 		// Without this every RmlUi symbol is declared __declspec(dllimport) and nothing links.
 		PublicDefinitions.Add("RMLUI_STATIC_LIB=1");
 
+		// RmlUi is built with its own type system because Unreal compiles without RTTI. This
+		// must match the library exactly: the header selects a different rmlui_dynamic_cast
+		// depending on it, so a mismatch is an ODR violation that only shows up as a crash
+		// inside RmlUi at runtime.
+		PublicDefinitions.Add("RMLUI_CUSTOM_RTTI");
+
 		// RmlUi's font engine is FreeType, and it is deliberately the engine's copy rather
 		// than one of our own: two FreeType builds in one link is a duplicate-symbol failure
 		// at best, and silent version-skewed aliasing at worst, since Slate already links it.

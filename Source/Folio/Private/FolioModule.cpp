@@ -1,6 +1,7 @@
 #include "FolioModule.h"
 
 #include "FolioFileInterface.h"
+#include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
 #include "FolioSystemInterface.h"
 #include "Interfaces/IPluginManager.h"
@@ -22,11 +23,13 @@ void FFolioModule::StartupModule()
 
 	SystemInterface = MakeUnique<FFolioSystemInterface>();
 	FileInterface = MakeUnique<FFolioFileInterface>(ContentRoot, PluginRoot);
+	RenderInterface = MakeUnique<FFolioRenderInterface>();
 
 	// Both interfaces have to be installed before Initialise, not after: RmlUi reads files
 	// and logs during startup, and the defaults it would otherwise use call fopen.
 	Rml::SetSystemInterface(SystemInterface.Get());
 	Rml::SetFileInterface(FileInterface.Get());
+	Rml::SetRenderInterface(RenderInterface.Get());
 
 	bRmlInitialised = Rml::Initialise();
 	if (!bRmlInitialised)
@@ -50,9 +53,11 @@ void FFolioModule::ShutdownModule()
 
 	// Only safe after Shutdown: RmlUi logs during teardown and would call into a destroyed
 	// interface otherwise.
+	Rml::SetRenderInterface(nullptr);
 	Rml::SetFileInterface(nullptr);
 	Rml::SetSystemInterface(nullptr);
 
+	RenderInterface.Reset();
 	FileInterface.Reset();
 	SystemInterface.Reset();
 }
@@ -62,7 +67,10 @@ void FFolioModule::RegisterFonts()
 	// No typeface is bundled: the choice is a per-game decision. The engine's Roboto is the
 	// default so a document renders text before anything is configured, which is the same
 	// resolution order the preview tool uses.
-	const FString FontDir = FPaths::EngineContentDir() / TEXT("Slate/Fonts");
+	// Absolute, because font loading goes through our file interface and the engine content
+	// directory is relative to the binary. Left relative it resolves against the project's
+	// content root instead and every face fails to open.
+	const FString FontDir = FPaths::ConvertRelativePathToFull(FPaths::EngineContentDir()) / TEXT("Slate/Fonts");
 
 	static const TCHAR* Faces[] = {
 		TEXT("Roboto-Regular.ttf"),

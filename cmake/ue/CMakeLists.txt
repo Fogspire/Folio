@@ -29,8 +29,16 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # rather than a link error.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 
-# Unreal disables RTTI and exceptions by default, and a static library that assumes otherwise
-# will not link cleanly into a module that does not.
+# Unreal disables RTTI by default, so RmlUi is built to use its own type system instead of
+# language RTTI. Without this it calls dynamic_cast against classes compiled with /GR-, which
+# is undefined behaviour rather than a compile error: it builds, links, and then dies inside
+# Rml::CreateContext on the first cast.
+#
+# RMLUI_CUSTOM_RTTI is a PUBLIC definition, so RmlUiLibrary.Build.cs has to define it too.
+# The header picks a different rmlui_dynamic_cast depending on it, and a library and a
+# consumer that disagree are an ODR violation.
+set(RMLUI_CUSTOM_RTTI ON CACHE BOOL "" FORCE)
+
 add_compile_options(/GR- /EHsc)
 
 #

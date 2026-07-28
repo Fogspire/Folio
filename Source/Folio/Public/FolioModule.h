@@ -7,6 +7,7 @@ FOLIO_API DECLARE_LOG_CATEGORY_EXTERN(LogFolio, Log, All);
 
 class FFolioSystemInterface;
 class FFolioFileInterface;
+class FFolioRenderInterface;
 
 /**
  * Owns RmlUi's process-wide state.
@@ -37,11 +38,21 @@ public:
 	/** Absolute path to the directory documents resolve against. */
 	const FString& GetContentRoot() const { return ContentRoot; }
 
+	/**
+	 * The one render interface for the process.
+	 *
+	 * RmlUi holds a single global renderer, so widgets do not own one: each installs its own
+	 * Slate element list around its render pass instead. Safe because Slate paints serially
+	 * on the game thread, so only one widget is ever inside that pass.
+	 */
+	FFolioRenderInterface* GetRenderInterface() const { return RenderInterface.Get(); }
+
 private:
 	void RegisterFonts();
 
 	TUniquePtr<FFolioSystemInterface> SystemInterface;
 	TUniquePtr<FFolioFileInterface> FileInterface;
+	TUniquePtr<FFolioRenderInterface> RenderInterface;
 
 	FString ContentRoot;
 	bool bRmlInitialised = false;

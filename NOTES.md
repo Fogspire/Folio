@@ -141,6 +141,21 @@ what `--strict` exists for.
 `SystemInterface::LogMessage` returning `false` **interrupts RmlUi execution**. Only ever do
 that for `LT_ASSERT`.
 
+## Unreal builds without RTTI, and RmlUi uses `dynamic_cast`
+
+**Build RmlUi with `RMLUI_CUSTOM_RTTI`, and define it in the consuming module too.**
+
+Unreal compiles with `/GR-`. RmlUi's `rmlui_dynamic_cast` is a plain `dynamic_cast` unless
+`RMLUI_CUSTOM_RTTI` is set, in which case it uses RmlUi's own type identifiers instead.
+Building the library with `/GR-` and without that option compiles and links cleanly and then
+dies at the first cast, which is `Context.cpp:70` inside `Rml::CreateContext` - so the editor
+crashes the moment a context is created, with no message and no usable callstack.
+
+`RMLUI_CUSTOM_RTTI` is a **PUBLIC** compile definition in RmlUi's CMake, so the header picks a
+different `rmlui_dynamic_cast` depending on it. The library and every consumer must agree, or
+it is an ODR violation that shows up the same way. It is set in `cmake/ue/CMakeLists.txt` and
+again in `RmlUiLibrary.Build.cs`; changing one without the other reintroduces the crash.
+
 ## Texture formats
 
 **RmlUi's own texture loader reads uncompressed TGA and nothing else.** Not PNG. Every real

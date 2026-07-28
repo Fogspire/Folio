@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FolioGradient.h"
+#include "FolioLayerStack.h"
 #include "FolioRmlUi.h"
 
 #include "Rendering/DrawElements.h"
@@ -28,7 +29,8 @@ public:
 	virtual ~FFolioRenderInterface() override;
 
 	/** Installs the Slate state that the following RmlUi render calls draw into. */
-	void BeginFrame(FSlateWindowElementList& InElementList, const FGeometry& InGeometry, int32 InLayerId);
+	void BeginFrame(FSlateWindowElementList& InElementList, const FGeometry& InGeometry, int32 InLayerId,
+		FIntPoint InContextSize);
 	void EndFrame();
 
 	/** Highest Slate layer used this frame, so the caller can continue above the document. */
@@ -113,13 +115,20 @@ private:
 
 	struct FTexture
 	{
-		TStrongObjectPtr<UTexture2D> Texture;
+		/** UTexture rather than UTexture2D: a saved layer is a render target. */
+		TStrongObjectPtr<UTexture> Texture;
 		FSlateBrush Brush;
 		FSlateResourceHandle Handle;
 	};
 
 	FTexture* FindTexture(Rml::TextureHandle Handle);
-	Rml::TextureHandle RegisterTexture(UTexture2D* Texture, FIntPoint Size);
+	Rml::TextureHandle RegisterTexture(UTexture* Texture, FIntPoint Size);
+
+	/** Hands a saved layer to RmlUi as an ordinary texture. */
+	Rml::TextureHandle RegisterRenderTarget(class UTextureRenderTarget2D* Target);
+
+	/** The 1x1 white texture itself, for the layer path, which draws without Slate. */
+	UTexture2D* GetWhiteTexture();
 
 	/** Builds a texture from premultiplied BGRA bytes. */
 	static UTexture2D* CreateTexture(const void* Bgra, FIntPoint Size);
@@ -149,6 +158,26 @@ private:
 	/** Scissor state saved and restored around a clip mask, which shares the clip stack. */
 	TOptional<FSlateRect> ClipMaskRect;
 
+	/** Only the blur is implemented; the rest are recorded so the handles stay paired. */
+	struct FFilter
+	{
+		Rml::String Name;
+		float Sigma = 0.0f;
+	};
+
+	TMap<Rml::CompiledFilterHandle, FFilter> Filters;
+
+	FFolioLayerStack Layers;
+
+	/**
+	 * The size a layer is allocated at, and the origin its contents are offset by.
+	 *
+	 * RmlUi renders into a layer in document coordinates, and the layer only covers the
+	 * scissor region, so geometry has to be shifted by the region's top-left to land inside
+	 * the target.
+	 */
+	FIntPoint LayerOrigin = FIntPoint::ZeroValue;
+
 	int32 LayerDepth = 0;
 	Rml::TextureHandle TransparentTexture = 0;
 
@@ -167,6 +196,9 @@ private:
 
 	FSlateWindowElementList* ElementList = nullptr;
 	FGeometry Geometry;
+
+	/** Needed to size a layer when nothing has set a scissor region. */
+	FIntPoint ContextSize = FIntPoint(1, 1);
 	int32 LayerId = 0;
 	int32 MaxLayerId = 0;
 

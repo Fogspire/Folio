@@ -29,10 +29,20 @@ FString FFolioFileInterface::Resolve(const Rml::String& Path) const
 	// /folio/ is the plugin's own mount, so folio.rcss is reachable from any content root.
 	// It has to be checked before the content root, or a game with a ui/folio directory
 	// would shadow the base stylesheet.
-	const TCHAR* FolioPrefix = TEXT("/folio/");
-	if (Relative.StartsWith(FolioPrefix))
+	//
+	// The leading slash is optional because it does not survive the trip: RmlUi joins a
+	// stylesheet reference against the document that made it, and joining a root-absolute
+	// path against a relative document path yields a relative one. So "/folio/folio.rcss"
+	// referenced from "ui/examples/panel.rml" arrives here as "folio/folio.rcss". Matching
+	// only the slashed form meant the base stylesheet silently never loaded in engine, and
+	// every div and p stayed inline as though there were no user-agent stylesheet at all -
+	// which is exactly what RmlUi does without one.
+	for (const TCHAR* Prefix : { TEXT("/folio/"), TEXT("folio/") })
 	{
-		return FPaths::Combine(PluginRoot, TEXT("rcss"), Relative.RightChop(FCString::Strlen(FolioPrefix)));
+		if (Relative.StartsWith(Prefix))
+		{
+			return FPaths::Combine(PluginRoot, TEXT("rcss"), Relative.RightChop(FCString::Strlen(Prefix)));
+		}
 	}
 
 	if (Relative.StartsWith(TEXT("/")))

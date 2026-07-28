@@ -152,7 +152,7 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 		return LayerId;
 	}
 
-	Renderer->BeginFrame(OutDrawElements, AllottedGeometry, LayerId);
+	Renderer->BeginFrame(OutDrawElements, AllottedGeometry, LayerId, ContextSize);
 	Context->Render();
 	Renderer->EndFrame();
 

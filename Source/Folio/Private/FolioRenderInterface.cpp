@@ -1,6 +1,8 @@
 #include "FolioRenderInterface.h"
 
 #include "Engine/Texture2D.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "FolioBlurShader.h"
 #include "FolioModule.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IImageWrapper.h"
@@ -63,11 +65,12 @@ FFolioRenderInterface::~FFolioRenderInterface()
 }
 
 void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, const FGeometry& InGeometry,
-	const int32 InLayerId)
+	const int32 InLayerId, const FIntPoint InContextSize)
 {
 	ElementList = &InElementList;
 	Geometry = InGeometry;
 	LayerId = InLayerId;
+	ContextSize = InContextSize;
 	MaxLayerId = InLayerId;
 
 	bScissorEnabled = false;
@@ -87,6 +90,14 @@ void FFolioRenderInterface::EndFrame()
 		ElementList->PopClip();
 		bClipPushed = false;
 	}
+
+	// A document that fails mid-pass can leave a layer open, which would otherwise send the
+	// next frame's geometry into an orphaned render target instead of to the screen.
+	while (!Layers.IsEmpty())
+	{
+		Layers.Pop();
+	}
+	LayerDepth = 0;
 
 	ElementList = nullptr;
 }
@@ -145,6 +156,21 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 	}
 
 	const FTexture* Bound = FindTexture(Texture);
+
+	// While a layer is open every draw belongs to it, not to Slate: the layer is what
+	// box-shadow and the filters read back, and geometry that leaked past it would appear
+	// twice, once inside the effect and once beside it.
+	if (!Layers.IsEmpty())
+	{
+		UTexture* LayerTexture = Bound && Bound->Texture.IsValid()
+			? static_cast<UTexture*>(Bound->Texture.Get())
+			: GetWhiteTexture();
+
+		Layers.DrawTriangles(Compiled.Vertices, Compiled.Indices, LayerTexture,
+			FVector2f(Translation.x - LayerOrigin.X, Translation.y - LayerOrigin.Y));
+		return;
+	}
+
 	const FSlateResourceHandle& Resource = Bound ? Bound->Handle : GetWhiteHandle();
 
 	ApplyClipping();
@@ -242,7 +268,25 @@ UTexture2D* FFolioRenderInterface::CreateTexture(const void* Bgra, const FIntPoi
 	return Texture;
 }
 
-Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture2D* Texture, const FIntPoint Size)
+UTexture2D* FFolioRenderInterface::GetWhiteTexture()
+{
+	// Shares the lazy construction with the Slate path: the handle is what needs Slate, the
+	// texture itself does not.
+	GetWhiteHandle();
+	return WhiteTexture.Get();
+}
+
+Rml::TextureHandle FFolioRenderInterface::RegisterRenderTarget(UTextureRenderTarget2D* Target)
+{
+	if (!Target)
+	{
+		return 0;
+	}
+
+	return RegisterTexture(Target, FIntPoint(Target->SizeX, Target->SizeY));
+}
+
+Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, const FIntPoint Size)
 {
 	if (!Texture)
 	{
@@ -478,20 +522,58 @@ void FFolioRenderInterface::RenderToClipMask(const Rml::ClipMaskOperation Operat
 
 Rml::LayerHandle FFolioRenderInterface::PushLayer()
 {
-	// Not a framebuffer. Draw order is already correct because everything goes into the same
-	// element list in call order, so the depth is only tracked to keep the handles paired.
+	// A layer covers the current scissor region, which is what RmlUi has already clamped to
+	// the window. Allocating the whole context instead would make a small shadow cost a
+	// full-screen target.
+	FIntPoint Size = ContextSize;
+	FIntPoint Origin = FIntPoint::ZeroValue;
+
+	if (bScissorEnabled && ScissorRegion.Width() > 0 && ScissorRegion.Height() > 0)
+	{
+		Size = FIntPoint(ScissorRegion.Width(), ScissorRegion.Height());
+		Origin = FIntPoint(ScissorRegion.Left(), ScissorRegion.Top());
+	}
+
+	if (Layers.IsEmpty())
+	{
+		LayerOrigin = Origin;
+	}
+
+	if (!Layers.Push(Size))
+	{
+		UE_LOG(LogFolio, Warning, TEXT("could not allocate a %dx%d layer"), Size.X, Size.Y);
+	}
+
 	return static_cast<Rml::LayerHandle>(++LayerDepth);
 }
 
-void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, Rml::BlendMode,
-	Rml::Span<const Rml::CompiledFilterHandle>)
+void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, const Rml::BlendMode BlendMode,
+	const Rml::Span<const Rml::CompiledFilterHandle> AppliedFilters)
 {
-	// Nothing to composite: the layers were never separate. Filters are dropped here, which
-	// is where filter and backdrop-filter quietly stop working.
+	UTextureRenderTarget2D* Source = Layers.GetCurrent();
+	if (!Source)
+	{
+		return;
+	}
+
+	// Filters apply to the layer before it is composited, which is the order that makes a
+	// blurred shadow a blurred shadow rather than a blurred everything.
+	for (const Rml::CompiledFilterHandle Handle : AppliedFilters)
+	{
+		if (const FFilter* Filter = Filters.Find(Handle); Filter && Filter->Sigma > 0.0f)
+		{
+			Folio::BlurRenderTarget(Source, Filter->Sigma);
+		}
+	}
+
+	// The destination is the layer below, and Blend is the only mode RmlUi asks for here that
+	// a canvas tile can express directly.
+	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend);
 }
 
 void FFolioRenderInterface::PopLayer()
 {
+	Layers.Pop();
 	LayerDepth = FMath::Max(0, LayerDepth - 1);
 }
 
@@ -509,31 +591,53 @@ Rml::TextureHandle FFolioRenderInterface::GetTransparentTexture()
 
 Rml::TextureHandle FFolioRenderInterface::SaveLayerAsTexture()
 {
-	// There is no layer to read back. Returning 0 would be worse than useless: zero also
-	// means "no texture" on the geometry path, so the caller's quad would be drawn with the
-	// white fallback and a box-shadow would paint as a solid white rectangle over the
-	// element it was meant to sit behind. A transparent texture makes it draw nothing.
-	return GetTransparentTexture();
-}
-
-Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String& Name, const Rml::Dictionary&)
-{
-	// Accepted and ignored. Returning 0 would make RmlUi log a failure per element per frame;
-	// the effect is equally absent either way, and the log stays readable.
-	static bool bWarned = false;
-	if (!bWarned)
+	UTextureRenderTarget2D* Detached = Layers.DetachCurrent();
+	if (!Detached)
 	{
-		bWarned = true;
-		UE_LOG(LogFolio, Warning,
-			TEXT("filters are not implemented; '%s' and any others will render as nothing"),
-			*Folio::ToFString(Name));
+		// No layer to read back. Transparent rather than zero: zero also means "no texture"
+		// on the geometry path, so the caller's quad would paint white over its own element.
+		return GetTransparentTexture();
 	}
 
-	return static_cast<Rml::CompiledFilterHandle>(1);
+	return RegisterRenderTarget(Detached);
 }
 
-void FFolioRenderInterface::ReleaseFilter(Rml::CompiledFilterHandle)
+Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String& Name,
+	const Rml::Dictionary& Parameters)
 {
+	FFilter Filter;
+	Filter.Name = Name;
+
+	if (Name == "blur")
+	{
+		// RmlUi's blur radius is a standard deviation already, in pixels.
+		const auto It = Parameters.find("sigma");
+		if (It != Parameters.end())
+		{
+			It->second.GetInto(Filter.Sigma);
+		}
+	}
+	else
+	{
+		// std::string has no GetTypeHash, so the set is of FString.
+		static TSet<FString> Reported;
+		const FString Reported_Name = Folio::ToFString(Name);
+		if (!Reported.Contains(Reported_Name))
+		{
+			Reported.Add(Reported_Name);
+			UE_LOG(LogFolio, Warning, TEXT("filter '%s' is not implemented and renders as nothing"),
+				*Reported_Name);
+		}
+	}
+
+	const Rml::CompiledFilterHandle Handle = NextHandle++;
+	Filters.Add(Handle, MoveTemp(Filter));
+	return Handle;
+}
+
+void FFolioRenderInterface::ReleaseFilter(const Rml::CompiledFilterHandle Filter)
+{
+	Filters.Remove(Filter);
 }
 
 //

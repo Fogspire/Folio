@@ -66,5 +66,6 @@ private:
 	FSimpleMulticastDelegate PreShutdownDelegate;
 
 	FString ContentRoot;
+	FString PluginRoot;
 	bool bRmlInitialised = false;
 };

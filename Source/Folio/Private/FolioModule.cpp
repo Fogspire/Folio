@@ -5,6 +5,8 @@
 #include "FolioRmlUi.h"
 #include "FolioSystemInterface.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "ShaderCore.h"
 #include "Misc/Paths.h"
 
 DEFINE_LOG_CATEGORY(LogFolio);
@@ -14,9 +16,14 @@ DEFINE_LOG_CATEGORY(LogFolio);
 void FFolioModule::StartupModule()
 {
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Folio"));
-	const FString PluginRoot = Plugin.IsValid()
-		? FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir())
-		: FString();
+	PluginRoot = Plugin.IsValid() ? FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir()) : FString();
+
+	// The blur behind box-shadow is a global shader living in the plugin, so its virtual
+	// directory has to exist before the shader compiler looks for it.
+	if (!PluginRoot.IsEmpty())
+	{
+		AddShaderSourceDirectoryMapping(TEXT("/Folio"), FPaths::Combine(PluginRoot, TEXT("Shaders/Private")));
+	}
 
 	// Documents live in the project rather than the plugin: Folio ships no game UI.
 	ContentRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
@@ -40,7 +47,7 @@ void FFolioModule::StartupModule()
 
 	RegisterFonts();
 
-	UE_LOG(LogFolio, Log, TEXT("Folio ready. Content root: %s"), *ContentRoot);
+	UE_LOG(LogFolio, Log, TEXT("Folio ready. Content root: %s, plugin root: %s"), *ContentRoot, *PluginRoot);
 }
 
 void FFolioModule::ShutdownModule()

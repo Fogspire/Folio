@@ -73,10 +73,37 @@ mask paths, so it comes with them.
 | Geometry, textures, scissor, `transform` | Done, through `MakeCustomVerts` |
 | Gradients (every `*-gradient` decorator) | Done, by baking the gradient into a texture rather than compiling a shader. The decorator's texture coordinates are pixel offsets inside the element box, which is the same space the shader parameters use, so the gradient can be evaluated on the CPU once and sampled |
 | Clip masks | Approximated. Slate clips with a quad rather than a stencil, so a mask becomes the bounding box of the geometry that set it: exact for rectangles, square-cornered for a rounded one, and `SetInverse` cannot be expressed at all |
-| Render layers, `filter`, `backdrop-filter`, `mask-image`, `box-shadow` | **Not implemented.** They need an offscreen target, and nothing reachable from `MakeCustomVerts` provides one |
+| Render layers | Implemented as render targets, drawn into with `FCanvas` on the game thread. Pooled by size |
+| `filter: blur` | Implemented as a separable gaussian global shader over the layer target |
+| Other filters, `backdrop-filter`, `mask-image` | Accepted and ignored. The layer machinery is there; only the shaders are missing |
+| `box-shadow` | **Composites, but the colour is wrong.** Still banned in the conventions |
 
-**An element with `box-shadow` currently renders no background at all**, which is worse than
-the shadow merely being absent. `GeometryBoxShadow` draws the element's background *into* a
+### Where box-shadow stands
+
+The layer path works end to end: a shadowed element pushes a layer, renders into a render
+target, blurs it, composites and reads it back, and the element appears. What is wrong is the
+colour. Measured on a `#1f1f28` panel: an unshadowed one samples `(31,31,40)`, correct; a
+shadowed one samples `(79,79,90)`, far too light, and the shadow itself is not visible against
+the background at all.
+
+Two candidates, neither confirmed:
+
+- **Gamma.** The layer target is `RTF_RGBA8` with `bForceLinearGamma = false`, so it is sRGB,
+  and `FCanvas` encodes on write. Feeding it the byte values as linear encodes them twice;
+  decoding first with `FLinearColor(FColor)` should round-trip, and did not change the
+  measurement, which suggests the encode is not where the error is.
+- **Double composition.** `GeometryBoxShadow` renders the background inside the layer *and*
+  the element then draws the saved texture, so a surface drawn twice through an alpha blend
+  lands lighter than either. Making `CompositeLayers` blend down without disturbing the stack
+  (it was popping and re-pushing, which clears) did not change it either.
+
+Both fixes were correct in themselves and neither moved the number, so the error is somewhere
+a third thing: most likely the premultiplied convention. `FCanvas` blends straight alpha,
+while everything arriving from RmlUi is premultiplied, so the source is being multiplied by
+alpha a second time during the layer draw. That is the next thing to test.
+
+**Before the layer work, an element with `box-shadow` rendered no background at all**, which
+was worse than the shadow merely being absent. `GeometryBoxShadow` draws the element's background *into* a
 layer to build the shadow texture, then draws the element from that texture alone. With no
 real layer, `SaveLayerAsTexture` has nothing to return. Returning 0 is actively harmful,
 because zero also means "no texture" on the geometry path, so the element paints as a solid

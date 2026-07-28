@@ -1,0 +1,51 @@
+// Separable gaussian blur, for box-shadow and the blur filter.
+//
+// Two passes, horizontal then vertical, which is what makes a wide radius affordable: a
+// 2N+1 tap kernel costs 2*(2N+1) samples instead of (2N+1)^2.
+//
+// Everything here is premultiplied alpha, matching RmlUi 6.x, so the channels can be
+// filtered independently without dividing out alpha first.
+
+#include "/Engine/Public/Platform.ush"
+
+Texture2D SourceTexture;
+SamplerState SourceSampler;
+
+// x,y: the direction and spacing of one tap, in UV. z: sigma. w: tap count on each side.
+float4 BlurParameters;
+
+float2 InvSize;
+
+void MainVS(
+	in float4 InPosition : ATTRIBUTE0,
+	in float2 InUV : ATTRIBUTE1,
+	out float4 OutPosition : SV_POSITION,
+	out float2 OutUV : TEXCOORD0)
+{
+	OutPosition = InPosition;
+	OutUV = InUV;
+}
+
+float4 MainPS(float4 SvPosition : SV_POSITION, float2 UV : TEXCOORD0) : SV_Target0
+{
+	const float2 Step = BlurParameters.xy;
+	const float Sigma = max(BlurParameters.z, 0.0001f);
+	const int Taps = (int)BlurParameters.w;
+
+	// The centre tap, then pairs either side. Weights are normalised at the end rather than
+	// precomputed, so the kernel stays correct whatever the tap count is clamped to.
+	float4 Sum = SourceTexture.SampleLevel(SourceSampler, UV, 0);
+	float Weight = 1.0f;
+
+	for (int Index = 1; Index <= Taps; ++Index)
+	{
+		const float Offset = (float)Index;
+		const float TapWeight = exp(-0.5f * (Offset * Offset) / (Sigma * Sigma));
+
+		Sum += TapWeight * SourceTexture.SampleLevel(SourceSampler, UV + Step * Offset, 0);
+		Sum += TapWeight * SourceTexture.SampleLevel(SourceSampler, UV - Step * Offset, 0);
+		Weight += 2.0f * TapWeight;
+	}
+
+	return Sum / Weight;
+}

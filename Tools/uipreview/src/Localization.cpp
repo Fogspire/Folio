@@ -237,6 +237,22 @@ void Localizer::ApplyToDocument(Rml::ElementDocument* document, bool lint_untagg
 			continue;
 		}
 
+		// Translating replaces the element's entire contents, so a child element inside it
+		// is swallowed into the string and comes back out as escaped, visible markup. The
+		// key has to sit on an element that holds text and nothing else.
+		bool has_element_child = false;
+		for (int i = 0; i < element->GetNumChildren(); ++i)
+			has_element_child |= element->GetChild(i)->GetTagName() != "#text";
+
+		if (has_element_child)
+		{
+			diagnostics.Report(Severity::Warning, "W-LOC-MARKUP",
+				"element with data-loc=\"" + key + "\" contains child elements; translation "
+				"replaces all of its content, so the key belongs on an inner text-only element",
+				{}, 0, {{"key", key}});
+			continue;
+		}
+
 		std::string text;
 		if (const std::optional<std::string> translated = Lookup(key))
 		{
@@ -267,7 +283,37 @@ void Localizer::ApplyToDocument(Rml::ElementDocument* document, bool lint_untagg
 	document->QuerySelectorAll(all, "*");
 	for (Rml::Element* element : all)
 	{
-		if (element->HasAttribute("data-loc") || element->GetNumChildren() != 0)
+		if (element->HasAttribute("data-loc") || element->HasAttribute("data-noloc"))
+			continue;
+
+		// Text is itself a child element, so "has no children" would exempt every element
+		// that has any text in it. What matters is that the element holds text and nothing
+		// but text, so that the text found here is its own rather than a descendant's.
+		bool holds_only_text = false;
+		for (int i = 0; i < element->GetNumChildren(); ++i)
+		{
+			if (element->GetChild(i)->GetTagName() != "#text")
+			{
+				holds_only_text = false;
+				break;
+			}
+			holds_only_text = true;
+		}
+
+		if (!holds_only_text)
+			continue;
+
+		// A value arriving through a data binding is game state, not a translatable string.
+		// The inline {{ }} form is rewritten into data-text before this runs, so the
+		// attribute is what to look for; the raw form is still checked for the cases where
+		// the substitution has not happened yet.
+		if (element->HasAttribute("data-text"))
+			continue;
+
+		bool bound = false;
+		for (int i = 0; i < element->GetNumChildren() && !bound; ++i)
+			bound = element->GetChild(i)->HasAttribute("data-text");
+		if (bound)
 			continue;
 
 		Rml::String text;
@@ -276,7 +322,8 @@ void Localizer::ApplyToDocument(Rml::ElementDocument* document, bool lint_untagg
 			continue;
 
 		diagnostics.Report(Severity::Warning, "W-LOC-UNTAGGED",
-			"text without a data-loc key cannot be translated: \"" + text + "\"");
+			"text without a data-loc key cannot be translated: \"" + text + "\"",
+			{}, 0, {{"text", text}});
 	}
 }
 

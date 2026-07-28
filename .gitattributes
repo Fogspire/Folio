@@ -1,0 +1,13 @@
+# RmlUi reports parse errors by line number, so CRLF churn would make diagnostics
+# differ between machines.
+*.rml   text eol=lf
+*.rcss  text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+
+*.ps1   text eol=crlf
+*.cmd   text eol=crlf
+
+*.png   binary
+*.ttf   binary
+*.otf   binary

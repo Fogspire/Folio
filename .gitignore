@@ -1,8 +1,25 @@
-DerivedDataCache
-Saved
-Script
-Intermediate
-Binaries
-.idea
-.vs
+# Unreal. Anchored: UBT only ever creates these at the plugin root, and unanchored
+# patterns would also match directories inside the CMake tree and fetched dependencies.
+/Binaries/
+/Intermediate/
+/Saved/
+/DerivedDataCache/
+/Script/
+
+# IDE
+.idea/
+.vs/
 *.sln
+*.vcxproj*
+CMakeUserPresets.json
+.cache/
+compile_commands.json
+
+# Native build tree
+/build/
+/out/
+/bin/
+
+# uipreview outputs
+/shots/
+/reports/

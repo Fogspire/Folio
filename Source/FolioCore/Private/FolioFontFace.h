@@ -18,11 +18,27 @@
 
 namespace Folio
 {
-	/// One font file at one set of variation coordinates.
+	/// One variable axis a font file declares, in design units.
+	struct FVariationAxis
+	{
+		char Tag[5] = { 0, 0, 0, 0, 0 };
+		float Minimum = 0.0f;
+		float Default = 0.0f;
+		float Maximum = 0.0f;
+	};
+
+	/// The bytes of a font file, shared by every instance cut from it.
+	///
+	/// FreeType keeps reading the buffer for the life of a face, and a variable file produces one
+	/// face per coordinate set, so the data outlives any single face and is reference counted
+	/// rather than copied per instance - Inter is close to a megabyte.
+	using FFontData = std::shared_ptr<const std::vector<unsigned char>>;
+
+	/// One font file at one fixed set of variation coordinates.
 	///
 	/// Everything here is size-independent. A face owns a single atlas whose fields serve every
-	/// font size the face is ever asked for, which is the whole point of the approach: asking for
-	/// 13 dp and 96 dp costs one atlas, not two.
+	/// font size it is ever asked for, which is the point of the approach: 13 dp and 96 dp cost
+	/// one atlas, not two. Two *weights* are two faces, because the outlines genuinely differ.
 	class FFolioFontFace
 	{
 	public:
@@ -32,15 +48,16 @@ namespace Folio
 		FFolioFontFace(const FFolioFontFace&) = delete;
 		FFolioFontFace& operator=(const FFolioFontFace&) = delete;
 
-		/// Takes a copy of the file bytes: FreeType keeps pointing at them for the face's life,
-		/// and the caller's buffer usually does not live that long.
-		bool LoadFromMemory(std::vector<unsigned char> FontData, int FaceIndex);
-		bool LoadFromFile(const std::string& Path, int FaceIndex);
+		/// Opens the file and applies the coordinates. Passing none leaves the face at whatever
+		/// instance the file names as its default.
+		bool Load(FFontData Data, int FaceIndex, const FVariationCoords& Coords);
 
-		/// True when the face carries an fvar table and FreeType was built with variation support.
-		/// Probed rather than inferred from the version, because a FreeType without
-		/// TT_CONFIG_OPTION_GX_VAR_SUPPORT fails the call instead of the build.
-		bool IsVariable() const { return bVariable; }
+		/// Axes the file declares. Empty for a static face, or when FreeType was built without
+		/// variation support - probed rather than assumed, because that build option is the
+		/// difference between a variable font working and silently rendering one instance.
+		const std::vector<FVariationAxis>& GetAxes() const { return Axes; }
+		bool IsVariable() const { return !Axes.empty(); }
+		const FVariationCoords& GetCoords() const { return Coords; }
 
 		unsigned int GetGlyphIndex(char32_t Codepoint) const;
 
@@ -78,11 +95,16 @@ namespace Folio
 		FT_Face GetFtFace() const { return Face; }
 
 	private:
-		bool FinishLoad();
+		void ReadAxes();
+		bool ApplyCoords(const FVariationCoords& InCoords);
+		void ReadMetrics();
 
 		FT_Library Library = nullptr;
 		FT_Face Face = nullptr;
-		std::vector<unsigned char> FontData;
+		FFontData Data;
+
+		std::vector<FVariationAxis> Axes;
+		FVariationCoords Coords;
 
 		IMsdfTextureSink& Sink;
 		FMsdfAtlas Atlas;
@@ -93,7 +115,6 @@ namespace Folio
 		std::vector<std::unique_ptr<Rml::CallbackTextureSource>> PageTextures;
 
 		int Version = 0;
-		bool bVariable = false;
 		bool bHasEllipsis = false;
 
 		float AscentEm = 0.0f;

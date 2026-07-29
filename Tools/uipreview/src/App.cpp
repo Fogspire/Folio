@@ -321,8 +321,33 @@ bool App::LoadFonts()
 		}
 	}
 
-	// Fall back to the engine's Roboto, which is what Folio registers by default in engine,
-	// so the preview and the game agree on the typeface without anything being bundled here.
+	// Then the typefaces Folio ships. These are variable, so one file covers every weight the
+	// markup can ask for, and a game overrides them simply by putting its own under ui/fonts.
+	if (loaded == 0)
+	{
+		const fs::path bundled = fs::path(FolioRoot()) / "fonts";
+		std::vector<fs::path> found;
+		std::error_code ec;
+		if (fs::is_directory(bundled, ec))
+		{
+			for (const fs::directory_entry& entry : fs::directory_iterator(bundled, ec))
+			{
+				if (entry.is_regular_file() && IsFontFile(entry.path()))
+					found.push_back(entry.path());
+			}
+		}
+		std::sort(found.begin(), found.end());
+
+		for (const fs::path& font : found)
+		{
+			if (Rml::LoadFontFace(ToForwardSlashes(font.string())))
+				++loaded;
+		}
+		if (loaded > 0 && options.verbose)
+			diagnostics.Report(Severity::Info, "I-FONT-BUNDLED", "using the typefaces bundled with Folio");
+	}
+
+	// Finally the engine's Roboto, so a checkout with no bundled fonts still renders.
 	if (loaded == 0)
 	{
 		const std::string engine = FindEngineDirectory(options.engine);

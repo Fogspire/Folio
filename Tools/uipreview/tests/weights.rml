@@ -1,0 +1,62 @@
+<rml>
+<head>
+	<title>weights</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			A variable font's weight axis, driven from font-weight.
+
+			The sweep proves the axis is wired at all. The pair below it proves the value is
+			actually carried rather than snapped to the nearest named weight: 375 and 425 sit
+			either side of 400, so if they render identically the axis is not connected and
+			everything is falling back to one instance.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 28dp;
+			color: #e8e8f0;
+			background-color: #16161c;
+			padding: 32dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		h1 { font-size: 24dp; font-weight: 700; color: #f0c674; margin-bottom: 4dp; }
+		.note { font-size: 15dp; color: #8a8a9a; margin-bottom: 20dp; }
+		.row { display: block; margin-bottom: 1dp; }
+
+		.w100 { font-weight: 100; }
+		.w200 { font-weight: 200; }
+		.w300 { font-weight: 300; }
+		.w400 { font-weight: 400; }
+		.w500 { font-weight: 500; }
+		.w600 { font-weight: 600; }
+		.w700 { font-weight: 700; }
+		.w800 { font-weight: 800; }
+		.w900 { font-weight: 900; }
+
+		.w375 { font-weight: 375; }
+		.w425 { font-weight: 425; }
+	</style>
+</head>
+<body>
+	<h1>Weight axis</h1>
+	<p class="note">font-weight drives wght. Quantized to 50, so 375 and 425 are distinct instances.</p>
+
+	<div class="row w100">100 Kaboom RAWZ</div>
+	<div class="row w200">200 Kaboom RAWZ</div>
+	<div class="row w300">300 Kaboom RAWZ</div>
+	<div class="row w400">400 Kaboom RAWZ</div>
+	<div class="row w500">500 Kaboom RAWZ</div>
+	<div class="row w600">600 Kaboom RAWZ</div>
+	<div class="row w700">700 Kaboom RAWZ</div>
+	<div class="row w800">800 Kaboom RAWZ</div>
+	<div class="row w900">900 Kaboom RAWZ</div>
+
+	<p class="note" style="margin-top: 20dp;">These two must differ.</p>
+	<div class="row w375">375 Kaboom RAWZ</div>
+	<div class="row w425">425 Kaboom RAWZ</div>
+</body>
+</rml>

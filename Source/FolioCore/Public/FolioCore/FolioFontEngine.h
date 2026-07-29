@@ -13,6 +13,9 @@ namespace Folio
 {
 	class FFolioFontFace;
 
+	/// Shared bytes of a font file. Declared in FolioFontFace.h.
+	using FFontData = std::shared_ptr<const std::vector<unsigned char>>;
+
 	/// Replaces RmlUi's FreeType font engine with one that renders from multi-channel distance
 	/// fields, so text stays sharp at any size, any DPI and under any transform scale.
 	///
@@ -57,6 +60,15 @@ namespace Folio
 
 		void ReleaseFontResources() override;
 
+		/// Registers a variable font file under a family name with some axes pinned.
+		///
+		/// GetFontFaceHandle only receives family, style, weight and size, so an axis RCSS cannot
+		/// express has to be baked into a family: register "Inter Condensed" with wdth at 75 and
+		/// markup then asks for it by name. wght and opsz need none of this - they are driven from
+		/// font-weight and font-size directly.
+		bool RegisterVariableFace(const Rml::String& FileName, const Rml::String& Family,
+			Rml::Style::FontStyle Style, const FVariationCoords& PinnedAxes, bool bFallbackFace = false);
+
 		/// One line naming the engine, its faces and what they have cost so far. Behind
 		/// uipreview --font-report and the folio.Font.Report console command, so that "is the
 		/// distance-field engine actually running" has an answer that is not a debugger.
@@ -68,8 +80,13 @@ namespace Folio
 
 		FFaceEntry* FindFace(const Rml::String& Family, Rml::Style::FontStyle Style, Rml::Style::FontWeight Weight);
 		FHandle* ResolveHandle(Rml::FontFaceHandle Handle);
-		bool RegisterFace(std::unique_ptr<FFolioFontFace> Face, const Rml::String& Family,
-			Rml::Style::FontStyle Style, Rml::Style::FontWeight Weight, bool bFallbackFace);
+		FFolioFontFace* GetInstance(FFaceEntry& Entry, const FVariationCoords& Coords);
+		FVariationCoords BuildCoords(const FFaceEntry& Entry, Rml::Style::FontWeight Weight, int Size) const;
+		bool RegisterFace(FFontData Data, int FaceIndex, const Rml::String& Family,
+			Rml::Style::FontStyle Style, Rml::Style::FontWeight Weight, bool bFallbackFace,
+			const FVariationCoords& PinnedAxes);
+		/// Reads a file through RmlUi's file interface, so mounts resolve and a packaged build works.
+		FFontData ReadFontFile(const Rml::String& FileName) const;
 
 		struct FImpl;
 		std::unique_ptr<FImpl> Impl;

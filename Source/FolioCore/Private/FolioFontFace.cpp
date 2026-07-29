@@ -2,6 +2,8 @@
 
 #include "MsdfGlyphGenerator.h"
 
+#include <cstring>
+
 #include <RmlUi/Core/RenderManager.h>
 
 #include FT_MULTIPLE_MASTERS_H
@@ -9,6 +11,22 @@
 
 namespace Folio
 {
+	namespace
+	{
+		/// FreeType reports axis bounds and takes coordinates as 16.16 fixed point.
+		float FromFixed(FT_Fixed Value) { return float(Value) / 65536.0f; }
+		FT_Fixed ToFixed(float Value) { return FT_Fixed(double(Value) * 65536.0 + 0.5); }
+
+		void TagToString(FT_ULong Tag, char OutTag[5])
+		{
+			OutTag[0] = char((Tag >> 24) & 0xFF);
+			OutTag[1] = char((Tag >> 16) & 0xFF);
+			OutTag[2] = char((Tag >> 8) & 0xFF);
+			OutTag[3] = char(Tag & 0xFF);
+			OutTag[4] = '\0';
+		}
+	}
+
 	FFolioFontFace::FFolioFontFace(FT_Library InLibrary, IMsdfTextureSink& InSink,
 		const FMsdfAtlasParams& InParams, int InPageSize)
 		: Library(InLibrary)
@@ -25,43 +43,104 @@ namespace Folio
 		}
 	}
 
-	bool FFolioFontFace::LoadFromMemory(std::vector<unsigned char> InFontData, int FaceIndex)
+	bool FFolioFontFace::Load(FFontData InData, int FaceIndex, const FVariationCoords& InCoords)
 	{
-		FontData = std::move(InFontData);
-		if (FontData.empty())
+		Data = std::move(InData);
+		if (!Data || Data->empty())
 		{
 			return false;
 		}
 
-		if (FT_New_Memory_Face(Library, FontData.data(), FT_Long(FontData.size()), FaceIndex, &Face) != 0)
-		{
-			Face = nullptr;
-			return false;
-		}
-
-		return FinishLoad();
-	}
-
-	bool FFolioFontFace::LoadFromFile(const std::string& Path, int FaceIndex)
-	{
-		if (FT_New_Face(Library, Path.c_str(), FaceIndex, &Face) != 0)
+		if (FT_New_Memory_Face(Library, Data->data(), FT_Long(Data->size()), FaceIndex, &Face) != 0)
 		{
 			Face = nullptr;
 			return false;
 		}
 
-		return FinishLoad();
-	}
-
-	bool FFolioFontFace::FinishLoad()
-	{
 		// Only outline faces can produce a distance field. A bitmap-only face has nothing to
 		// measure a distance to.
-		if (Face == nullptr || Face->units_per_EM == 0 || (Face->face_flags & FT_FACE_FLAG_SCALABLE) == 0)
+		if (Face->units_per_EM == 0 || (Face->face_flags & FT_FACE_FLAG_SCALABLE) == 0)
 		{
 			return false;
 		}
 
+		ReadAxes();
+		if (!InCoords.empty() && !ApplyCoords(InCoords))
+		{
+			return false;
+		}
+
+		// After the coordinates, because a variable face's metrics move with its axes.
+		ReadMetrics();
+		return true;
+	}
+
+	void FFolioFontFace::ReadAxes()
+	{
+		Axes.clear();
+		if ((Face->face_flags & FT_FACE_FLAG_MULTIPLE_MASTERS) == 0)
+		{
+			return;
+		}
+
+		FT_MM_Var* Var = nullptr;
+		if (FT_Get_MM_Var(Face, &Var) != 0 || Var == nullptr)
+		{
+			// A FreeType built without TT_CONFIG_OPTION_GX_VAR_SUPPORT fails here rather than at
+			// link time, so a variable file quietly becomes its default instance.
+			return;
+		}
+
+		for (FT_UInt Index = 0; Index < Var->num_axis; ++Index)
+		{
+			FVariationAxis Axis;
+			TagToString(Var->axis[Index].tag, Axis.Tag);
+			Axis.Minimum = FromFixed(Var->axis[Index].minimum);
+			Axis.Default = FromFixed(Var->axis[Index].def);
+			Axis.Maximum = FromFixed(Var->axis[Index].maximum);
+			Axes.push_back(Axis);
+		}
+
+		FT_Done_MM_Var(Library, Var);
+	}
+
+	bool FFolioFontFace::ApplyCoords(const FVariationCoords& InCoords)
+	{
+		if (Axes.empty())
+		{
+			return true;
+		}
+
+		// The call takes a value for every axis in order, so start from the file's own defaults
+		// and overwrite only the axes the caller named.
+		std::vector<FT_Fixed> Values;
+		Values.reserve(Axes.size());
+		for (const FVariationAxis& Axis : Axes)
+		{
+			float Value = Axis.Default;
+			for (const FVariationAxisValue& Wanted : InCoords)
+			{
+				if (std::strcmp(Wanted.Tag, Axis.Tag) == 0)
+				{
+					Value = Wanted.Value < Axis.Minimum ? Axis.Minimum
+						: (Wanted.Value > Axis.Maximum ? Axis.Maximum : Wanted.Value);
+					break;
+				}
+			}
+			Values.push_back(ToFixed(Value));
+		}
+
+		if (FT_Set_Var_Design_Coordinates(Face, FT_UInt(Values.size()), Values.data()) != 0)
+		{
+			return false;
+		}
+
+		Coords = InCoords;
+		return true;
+	}
+
+	void FFolioFontFace::ReadMetrics()
+	{
 		const float EmScale = 1.0f / float(Face->units_per_EM);
 
 		AscentEm = float(Face->ascender) * EmScale;
@@ -91,16 +170,6 @@ namespace Folio
 		}
 
 		bHasEllipsis = FT_Get_Char_Index(Face, 0x2026) != 0;
-
-		FT_MM_Var* Variations = nullptr;
-		bVariable = (Face->face_flags & FT_FACE_FLAG_MULTIPLE_MASTERS) != 0
-			&& FT_Get_MM_Var(Face, &Variations) == 0;
-		if (Variations != nullptr)
-		{
-			FT_Done_MM_Var(Library, Variations);
-		}
-
-		return true;
 	}
 
 	unsigned int FFolioFontFace::GetGlyphIndex(char32_t Codepoint) const

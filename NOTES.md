@@ -453,3 +453,23 @@ Capturing it needs care: the Folio window is its own `SWindow` with its own swap
 editor viewport and not the document. Attach from the RenderDoc UI with **capture all activity**
 and make the window repaint. The pass is marked `FolioLayer` in the event browser; confirm the
 right capture by looking for a render target the size of the document window.
+
+## Folio bundles typefaces, reversing the brief
+
+`FOLIO_BRIEF.md` says "Font registration defaults to Unreal's Roboto ... Do not bundle a
+typeface." Folio ships Inter and RobotoMono, both variable, under `fonts/`, and that was a
+deliberate reversal agreed when the distance-field engine went in.
+
+The reason is that the engine's Roboto is a static face. Variable-font support is most of the
+value here: `font-weight: 450` is a real instance rather than a snap to the nearest cut, and
+`opsz` is driven from the requested size automatically. Neither is expressible with a static
+face, so shipping one that has axes is what makes the feature reachable by default rather than
+only after a game supplies its own faces.
+
+Resolution order is unchanged in spirit and is the same in both renderers: the game's own
+`ui/fonts/` first, then the faces Folio ships, then the engine's Roboto as a last resort. A game
+that drops faces in `ui/fonts/` still wins outright, which was the part of the brief's intent
+that mattered.
+
+The first face registered becomes the fallback. Without one, a document naming a family nobody
+registered renders nothing at all, which reads as a layout bug and says nothing about the cause.

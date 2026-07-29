@@ -65,14 +65,21 @@ namespace Folio
 
 		Glyph.normalize();
 
+		// Fonts routinely draw a glyph as overlapping contours - a stem, a bowl and a leg that
+		// intersect - because a scanline filling by non-zero winding does not care. A distance
+		// field does: inside an overlap the field is inconsistent, the median reconstructs a false
+		// edge, and a solid stem comes out as two thin strokes with a gap. It scales with weight,
+		// so Regular looks fine and Black is unusable.
+		//
+		// Resolving the geometry unions the contours into one outline, which removes the
+		// inconsistency at the source. It needs Skia's path operations, which is why the amalgam
+		// is vendored.
+		resolveShapeGeometry(Glyph);
+
 		// Deliberately no orientContours() here. readFreetypeOutline keeps the outline's own
 		// winding, which TrueType already gets right for non-zero fill; re-deriving it from a
 		// scanline instead fills the counters of glyphs whose topology the heuristic misreads
 		// (4, £, Ç and most accented capitals, in Inter).
-		//
-		// resolveShapeGeometry() would additionally sort out self-intersections, but it only
-		// exists when msdfgen is built against Skia, which neither build does. A font with
-		// overlapping contours will show artifacts at the overlaps.
 
 		if (Glyph.contours.empty())
 		{

@@ -85,6 +85,7 @@ folio_set_rmlui_options()
 set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
 
 folio_set_msdfgen_options()
+folio_add_skia()
 
 FetchContent_Declare(RmlUi
 	GIT_REPOSITORY "${FOLIO_RMLUI_REPOSITORY}"
@@ -128,8 +129,8 @@ add_custom_target(folio_stage_msdfgen ALL
 	COMMAND ${CMAKE_COMMAND} -E copy ${FOLIO_MSDF_CORE_HEADERS} "${FOLIO_MSDF_STAGE}/include/core/"
 	COMMAND ${CMAKE_COMMAND} -E copy ${FOLIO_MSDF_EXT_HEADERS}  "${FOLIO_MSDF_STAGE}/include/ext/"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
-		"$<TARGET_FILE:msdfgen-core>" "$<TARGET_FILE:msdfgen-ext>" "${FOLIO_MSDF_STAGE}/lib/Win64/"
-	DEPENDS msdfgen-core msdfgen-ext
+		"$<TARGET_FILE:msdfgen-core>" "$<TARGET_FILE:msdfgen-ext>" "$<TARGET_FILE:skia>" "${FOLIO_MSDF_STAGE}/lib/Win64/"
+	DEPENDS msdfgen-core msdfgen-ext skia
 	COMMENT "Staging msdfgen into Source/ThirdParty/MsdfgenLibrary"
 	VERBATIM
 )

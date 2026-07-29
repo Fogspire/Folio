@@ -28,6 +28,12 @@ public class MsdfgenLibrary : ModuleRules
 		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "msdfgen-core.lib"));
 		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "msdfgen-ext.lib"));
 
+		// Skia's path operations, vendored as a single-file amalgam under
+		// Source/ThirdParty/SkiaSimplify. msdfgen's resolveShapeGeometry lives in the extensions
+		// library but its implementation is here, and without it every heavy font weight renders
+		// with broken stems.
+		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "skia.lib"));
+
 		// These are PUBLIC definitions on the CMake targets, so a consumer that disagrees with
 		// the library gets a different declaration of the same function: an ODR violation, not a
 		// compile error. cmake/Pins.cmake's folio_set_msdfgen_options() is the other half.
@@ -38,6 +44,7 @@ public class MsdfgenLibrary : ModuleRules
 		PublicDefinitions.Add("MSDFGEN_DISABLE_SVG");
 		PublicDefinitions.Add("MSDFGEN_DISABLE_PNG");
 		PublicDefinitions.Add("MSDFGEN_DISABLE_VARIABLE_FONTS");
+		PublicDefinitions.Add("MSDFGEN_USE_SKIA");
 
 		// Slate compiles its own copy of msdfgen into SlateCore, but wraps it in a parent
 		// namespace (SlateSdfGenerator.cpp defines MSDFGEN_PARENT_NAMESPACE=SlateMsdfgen before

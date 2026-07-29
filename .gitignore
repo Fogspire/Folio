@@ -26,6 +26,7 @@ compile_commands.json
 /Source/ThirdParty/RmlUiLibrary/include/
 /Source/ThirdParty/MsdfgenLibrary/lib/
 /Source/ThirdParty/MsdfgenLibrary/include/
+# SkiaSimplify's source IS committed; only the staged library output is generated.
 /bin/
 
 # uipreview outputs

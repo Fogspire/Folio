@@ -54,14 +54,16 @@ endfunction()
 # DYNAMIC_RUNTIME is not optional: msdfgen sets MSVC_RUNTIME_LIBRARY per target, which overrides
 # CMAKE_MSVC_RUNTIME_LIBRARY, so without it the static runtime is linked into a /MD build.
 #
-# Skia stays off, which means resolveShapeGeometry is not compiled and must not be called -
-# normalize() plus orientContours() is the substitute. Unreal makes the same trade outside the
-# editor (SlateSdfGenerator.cpp only defines MSDFGEN_USE_SKIA under WITH_EDITOR).
+# Skia is on, which is what makes resolveShapeGeometry exist. Without it, a font that draws a
+# glyph as overlapping contours - which every heavy weight does - produces a distance field that
+# is inconsistent inside the overlap, and a solid stem reconstructs as two thin strokes. It gets
+# worse with weight: Inter is clean at Regular, visibly broken at Bold, badly broken at Black.
+# Unreal hits the same wall and vendors the same amalgam, though only under WITH_EDITOR.
 macro(folio_set_msdfgen_options)
 	set(MSDFGEN_CORE_ONLY              OFF CACHE BOOL "" FORCE)
 	set(MSDFGEN_BUILD_STANDALONE       OFF CACHE BOOL "" FORCE)
 	set(MSDFGEN_USE_VCPKG              OFF CACHE BOOL "" FORCE)
-	set(MSDFGEN_USE_SKIA               OFF CACHE BOOL "" FORCE)
+	set(MSDFGEN_USE_SKIA               ON  CACHE BOOL "" FORCE)
 	set(MSDFGEN_USE_OPENMP             OFF CACHE BOOL "" FORCE)
 	set(MSDFGEN_INSTALL                OFF CACHE BOOL "" FORCE)
 	set(MSDFGEN_DYNAMIC_RUNTIME        ON  CACHE BOOL "" FORCE)
@@ -69,6 +71,24 @@ macro(folio_set_msdfgen_options)
 	set(MSDFGEN_DISABLE_PNG            ON  CACHE BOOL "" FORCE)
 	set(MSDFGEN_DISABLE_VARIABLE_FONTS ON  CACHE BOOL "" FORCE)
 endmacro()
+
+# msdfgen finds Skia through find_package unless a target called `skia` already exists, so
+# declaring one first is enough to hand it our vendored amalgam. It has to be declared before
+# msdfgen is configured.
+function(folio_add_skia)
+	set(dir "${FOLIO_ROOT}/Source/ThirdParty/SkiaSimplify")
+	add_library(skia STATIC "${dir}/skia-simplify.cpp")
+	target_include_directories(skia PUBLIC "${dir}" "${dir}/include")
+	target_compile_features(skia PUBLIC cxx_std_17)
+	# Not namespaced, despite the amalgam offering SKIA_SIMPLIFY_NAMESPACE: parts of it qualify
+	# their own traits with :: and stop compiling once wrapped. Slate leaves it global for the
+	# same reason. Nothing collides anyway - Slate only builds its copy under WITH_EDITOR, and an
+	# editor build is modular, so each module carries its own; a monolithic game build compiles
+	# Slate's out entirely and only this one remains.
+	if(MSVC)
+		target_compile_options(skia PRIVATE /w)
+	endif()
+endfunction()
 
 # Everything RmlUi builds that we never use.
 macro(folio_set_rmlui_options)

@@ -155,41 +155,80 @@ namespace
 	 */
 	TSharedPtr<SWidget> GateBelow;
 	TSharedPtr<SWidget> GateAbove;
+	TSharedPtr<SWidget> GateDocument;
+	FTSTicker::FDelegateHandle GateTicker;
 
-	TSharedRef<SWidget> MakeGateBar(const FLinearColor Colour)
+	/** A marker beside the document rather than across the screen, so the world stays visible. */
+	TSharedRef<SWidget> MakeGateBar(const FLinearColor Colour, const FVector2D Offset)
 	{
 		return SNew(SBox)
-			.HAlign(HAlign_Fill)
+			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Top)
-			.HeightOverride(48.0f)
+			.Padding(FMargin(Offset.X, Offset.Y, 0.0f, 0.0f))
 			[
-				SNew(SOverlay)
-					+ SOverlay::Slot()
+				SNew(SBox)
+					.WidthOverride(760.0f)
+					.HeightOverride(28.0f)
 					[
 						SNew(SImage).ColorAndOpacity(Colour)
 					]
 			];
 	}
 
-	FTSTicker::FDelegateHandle GateTicker;
-
-	void RunGate(const TArray<FString>& Args)
+	void HideGate()
 	{
-		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("ui/examples/panel.rml");
-		const float Settle = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 4.0f;
-
 		if (GateTicker.IsValid())
 		{
 			FTSTicker::GetCoreTicker().RemoveTicker(GateTicker);
 			GateTicker.Reset();
 		}
 
-		// Polled rather than run on the spot. -ExecCmds fires during engine init, long before
-		// there is a game viewport to put anything in, and a level load clears viewport widgets
-		// anyway - so the first attempt would be thrown away even if it worked.
+		UGameViewportClient* Viewport = FindViewport();
+		if (Viewport)
+		{
+			if (GateBelow.IsValid()) { Viewport->RemoveViewportWidgetContent(GateBelow.ToSharedRef()); }
+			if (GateAbove.IsValid()) { Viewport->RemoveViewportWidgetContent(GateAbove.ToSharedRef()); }
+			if (GateDocument.IsValid()) { Viewport->RemoveViewportWidgetContent(GateDocument.ToSharedRef()); }
+		}
+
+		GateBelow.Reset();
+		GateAbove.Reset();
+		GateDocument.Reset();
+	}
+
+	/**
+	 * The Phase 3 gate: a document in a running game, composited in the right place.
+	 *
+	 *   folio.Gate [document] [shot]
+	 *
+	 * Boxed rather than full screen, so the world stays visible behind and beside it - the point
+	 * is what the document composites *with*. A marker sits above the box at viewport order 50
+	 * and another at 200, with the document at 100 between them: the 200 one must cover the
+	 * document's top edge and the 50 one must not.
+	 *
+	 * Pass `shot` to screenshot after a few seconds. Off by default because a screenshot request
+	 * is not something to fire into an editor session unasked.
+	 */
+	void RunGate(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0 && Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
+		{
+			HideGate();
+			return;
+		}
+
+		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("ui/examples/panel.rml");
+		const bool bShot = Args.ContainsByPredicate([](const FString& Arg)
+			{ return Arg.Equals(TEXT("shot"), ESearchCase::IgnoreCase); });
+
+		HideGate();
+
+		// Polled: -ExecCmds fires during engine init, before there is a viewport to put anything
+		// in, and a level load clears viewport widgets anyway. Typed into a running session this
+		// fires on the first tick.
 		double Shown = -1.0;
 		GateTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
-			[Document, Settle, Shown](float) mutable -> bool
+			[Document, bShot, Shown](float) mutable -> bool
 			{
 				UGameViewportClient* Viewport = FindViewport();
 				if (!Viewport || !Viewport->GetWorld() || !Viewport->GetWorld()->HasBegunPlay())
@@ -199,25 +238,43 @@ namespace
 
 				if (Shown < 0.0)
 				{
-					// Below and above the document, at the orders game UI uses. Slate draws
-					// viewport widgets in order, so a document composited into the wrong place
-					// would be covered by one of these.
-					GateBelow = MakeGateBar(FLinearColor(0.05f, 0.35f, 0.15f, 1.0f));
-					GateAbove = MakeGateBar(FLinearColor(0.6f, 0.1f, 0.5f, 0.6f));
+					GateBelow = MakeGateBar(FLinearColor(0.05f, 0.6f, 0.2f, 1.0f), FVector2D(40.0, 60.0));
+					GateAbove = MakeGateBar(FLinearColor(0.8f, 0.1f, 0.6f, 0.75f), FVector2D(40.0, 60.0));
+
+					// The document, boxed and offset so the game is visible around it.
+					GateDocument = SNew(SBox)
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Top)
+						.Padding(FMargin(40.0f, 60.0f, 0.0f, 0.0f))
+						[
+							SNew(SBox)
+								.WidthOverride(760.0f)
+								.HeightOverride(520.0f)
+								[
+									SNew(SFolioCanvas)
+										.DocumentPath(Document)
+										.DesiredSize(FVector2D(760.0, 520.0))
+								]
+						];
 
 					Viewport->AddViewportWidgetContent(GateBelow.ToSharedRef(), 50);
-					ShowDocument({ Document });
+					Viewport->AddViewportWidgetContent(GateDocument.ToSharedRef(), 100);
 					Viewport->AddViewportWidgetContent(GateAbove.ToSharedRef(), 200);
 
-					UE_LOG(LogFolio, Display, TEXT("folio.Gate: showing '%s'"), *Document);
+					UE_LOG(LogFolio, Display,
+						TEXT("folio.Gate: '%s' is up. The magenta bar must cover its top edge and the "
+							"green one must not. folio.Gate off to remove it."), *Document);
+
 					Shown = FPlatformTime::Seconds();
+					if (!bShot)
+					{
+						GateTicker.Reset();
+						return false;
+					}
 					return true;
 				}
 
-				// Frames for the document to load its stylesheet, generate its glyphs and draw,
-				// and for whatever loading screen the game puts up to go away. A screenshot before
-				// that catches something else entirely and proves nothing.
-				if (FPlatformTime::Seconds() - Shown < double(Settle))
+				if (FPlatformTime::Seconds() - Shown < 4.0)
 				{
 					return true;
 				}
@@ -228,7 +285,7 @@ namespace
 
 				GateTicker.Reset();
 				return false;
-			}), 0.25f);
+			}), 0.0f);
 	}
 
 	/**
@@ -249,8 +306,7 @@ namespace
 		{
 			CloseWindow();
 			HideDocument();
-			GateBelow.Reset();
-			GateAbove.Reset();
+			HideGate();
 		}
 	};
 
@@ -276,8 +332,8 @@ namespace
 
 	FAutoConsoleCommand GateCommand(
 		TEXT("folio.Gate"),
-		TEXT("folio.Gate [document] [seconds]. Shows a document between two viewport widgets and "
-			"screenshots it once the game is up. The Phase 3 gate."),
+		TEXT("folio.Gate [document] [shot|off]. Shows a boxed document between two viewport markers, "
+			"so compositing is visible against the world. The Phase 3 gate."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunGate));
 
 	FAutoConsoleCommand ReloadTexturesCommand(

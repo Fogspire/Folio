@@ -93,12 +93,13 @@ public:
 	//
 	// Layers.
 	//
-	// Slate has no offscreen target reachable from MakeCustomVerts, so a layer is not a real
-	// framebuffer: pushing one keeps drawing into the same element list, and compositing is a
-	// no-op. Everything that only needs draw ordering is therefore correct, and everything
-	// that needs to read the layer back - box-shadow, filter, backdrop-filter, mask-image -
-	// is not. SaveLayerAsTexture returns a fully transparent texture so those degrade to
-	// nothing rather than to a solid rectangle.
+	// Slate has no offscreen target reachable from MakeCustomVerts, so a layer is a render target
+	// of our own that draws are recorded into and replayed with RHI. That is what box-shadow,
+	// filter and mask-image read back.
+	//
+	// backdrop-filter is the exception and cannot work that way: what it reads is the game, the
+	// editor viewport and any UMG beneath us, none of which we own. It goes through Slate's
+	// post-process element instead, which blurs the backbuffer in place.
 	//
 	virtual Rml::LayerHandle PushLayer() override;
 	virtual void CompositeLayers(Rml::LayerHandle Source, Rml::LayerHandle Destination, Rml::BlendMode BlendMode,
@@ -149,6 +150,12 @@ private:
 	 * correctly and is then dropped, so the element and everything inside it renders as nothing.
 	 */
 	void CompositeLayerToSlate(float BlurSigma);
+
+	/** backdrop-filter: blur, through Slate's post-process element, which reads the backbuffer. */
+	void BlurBackdrop(float Sigma);
+
+	/** Carried between the two composites backdrop-filter issues, so the clipped one does the work. */
+	float PendingBackdropSigma = 0.0f;
 
 	/** A resolved layer waiting for Slate to read it, which it does at the end of the frame. */
 	struct FLayerComposite

@@ -84,6 +84,7 @@ void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, c
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
 	RmlTransform = FSlateRenderTransform();
+	PendingBackdropSigma = 0.0f;
 
 	// Released now rather than at EndFrame: Slate reads them after the last draw is issued.
 	LayerComposites.Reset();
@@ -619,8 +620,8 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 	return static_cast<Rml::LayerHandle>(++LayerDepth);
 }
 
-void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, const Rml::BlendMode BlendMode,
-	const Rml::Span<const Rml::CompiledFilterHandle> AppliedFilters)
+void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const Rml::LayerHandle Destination,
+	const Rml::BlendMode BlendMode, const Rml::Span<const Rml::CompiledFilterHandle> AppliedFilters)
 {
 	// Filters apply to the layer after it resolves and before it composites, which is the
 	// order that makes a blurred shadow a blurred shadow rather than a blurred everything.
@@ -633,6 +634,29 @@ void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, 
 		}
 	}
 
+	// A composite that reads from a layer below the top is backdrop-filter asking for whatever is
+	// already on screen. Nothing we own has it: the backdrop is the game, the editor viewport and
+	// any UMG under us, all of which went straight into Slate's own targets.
+	//
+	// Slate can do it though. A post-process element blurs the backbuffer in place, which is the
+	// only way to blur the 3D scene behind a HUD panel and is exactly what SBackgroundBlur is.
+	//
+	// Deferred to the second of the pair, because the first runs with the scissor widened to
+	// include everything the filter reads and only the second is clipped to the element itself.
+	// Blurring on the first bleeds a rectangle of blur out past the panel's edges.
+	if (Source < Destination)
+	{
+		PendingBackdropSigma = Sigma;
+		return;
+	}
+
+	if (PendingBackdropSigma > 0.0f)
+	{
+		BlurBackdrop(PendingBackdropSigma);
+		PendingBackdropSigma = 0.0f;
+		return;
+	}
+
 	// Below the bottom layer is Slate, not another target.
 	if (Layers.Num() <= 1)
 	{
@@ -641,6 +665,70 @@ void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, 
 	}
 
 	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma);
+}
+
+void FFolioRenderInterface::BlurBackdrop(const float Sigma)
+{
+	if (!ElementList || Sigma <= 0.0f)
+	{
+		return;
+	}
+
+	// RmlUi has already set the scissor to the element's border box plus whatever the filter reads
+	// beyond it, so the region to blur is the region we are clipped to.
+	const FVector2f Origin = bScissorEnabled
+		? FVector2f(float(ScissorRegion.Left()), float(ScissorRegion.Top()))
+		: FVector2f(0.0f, 0.0f);
+	const FVector2f Size = bScissorEnabled
+		? FVector2f(float(ScissorRegion.Width()), float(ScissorRegion.Height()))
+		: FVector2f(float(ContextSize.X), float(ContextSize.Y));
+
+	if (Size.X < 1.0f || Size.Y < 1.0f)
+	{
+		return;
+	}
+
+	// Kernel and downsampling follow SBackgroundBlur: past nine taps the cost is better spent on a
+	// smaller target, and the strength is divided to match so the result looks the same.
+	int32 Kernel = FMath::RoundToInt(Sigma * 3.0f);
+	int32 Downsample = 0;
+
+	if (Kernel > 9)
+	{
+		Downsample = Kernel >= 64 ? (Kernel >= 96 ? 4 : 3) : 2;
+		Kernel /= Downsample;
+	}
+
+	if (Kernel % 2 == 0)
+	{
+		++Kernel;
+	}
+	Kernel = FMath::Clamp(Kernel, 3, 255);
+
+	float Strength = FMath::Max(0.5f, Sigma);
+	FIntPoint Target(FMath::RoundToInt(Size.X), FMath::RoundToInt(Size.Y));
+
+	if (Downsample > 0)
+	{
+		Target = FIntPoint(FMath::DivideAndRoundUp(Target.X, Downsample), FMath::DivideAndRoundUp(Target.Y, Downsample));
+		Strength /= float(Downsample);
+	}
+
+	const FSlateRenderTransform Transform = Geometry.GetAccumulatedRenderTransform();
+	const FVector2f TopLeft = TransformPoint(Transform, Origin);
+	const FVector2f BottomRight = TransformPoint(Transform, Origin + Size);
+
+	ApplyClipping();
+
+	FSlateDrawElement::MakePostProcessBlur(*ElementList, LayerId,
+		FPaintGeometry(FVector2D(TopLeft), FVector2D(BottomRight - TopLeft), 1.0f),
+		FVector4f(float(Kernel), Strength, float(Target.X), float(Target.Y)), Downsample);
+
+	// Everything after this has to land in a higher Slate layer, or it is drawn into the same batch
+	// the post-process reads and comes back blurred along with the backdrop - including the panel's
+	// own text, which is the first thing anyone notices.
+	++LayerId;
+	MaxLayerId = FMath::Max(MaxLayerId, LayerId);
 }
 
 void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma)

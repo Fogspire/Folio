@@ -20,6 +20,8 @@
 		}
 
 		h2 { font-size: 13dp; color: #8a8a99; margin-bottom: 6dp; }
+		h2 code { color: #f0c674; }
+		h2.locked { color: #e06c75; }
 
 		.bar { display: flex; flex-direction: row; margin-bottom: 12dp; }
 		.badge {
@@ -44,7 +46,12 @@
 		.row { display: flex; flex-direction: row; }
 		.col { margin-right: 22dp; }
 
-		.list { width: 190dp; }
+		/* Marked, because an axis-locked list is indistinguishable from a broken one otherwise. */
+		.list {
+			width: 190dp;
+			border-left: 3dp #e06c75;
+			padding-left: 8dp;
+		}
 		.item {
 			tab-index: auto;
 			nav: vertical;
@@ -94,7 +101,7 @@
 
 	<div class="row">
 		<div class="col">
-			<h2>nav: auto - all four directions</h2>
+			<h2><code>nav: auto</code> - all four directions</h2>
 			<div class="grid">
 				<div class="tile" id="t1" autofocus>1</div>
 				<div class="tile" id="t2">2</div>
@@ -109,7 +116,11 @@
 		</div>
 
 		<div class="col">
-			<h2>nav: vertical - left and right do nothing</h2>
+			<h2 class="locked">
+				<code>nav: vertical</code> - up and down only, on purpose.<br/>
+				Left and right are filtered out, so focus cannot leave sideways either.
+				Go down to the field to escape.
+			</h2>
 			<div class="list">
 				<div class="item" id="i1">first</div>
 				<div class="item" id="i2">second</div>
@@ -117,7 +128,7 @@
 				<div class="item" id="i4">third</div>
 			</div>
 
-			<h2>letters stay letters in here</h2>
+			<h2><code>nav: auto</code> again - letters stay letters in here</h2>
 			<input type="text" class="text" id="entry" value="type wasd"/>
 		</div>
 	</div>

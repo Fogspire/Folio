@@ -13,11 +13,13 @@
 #include "Reload.h"
 #include "RenderInterface.h"
 #include "Screenshot.h"
+#include "CoreHost.h"
 #include "SystemInterface.h"
 #include "TraceReport.h"
 #include "backend/UipreviewBackendGLFW.h"
 
 #include "FolioCore/FolioCoreVersion.h"
+#include "FolioCore/FolioHost.h"
 #include "FolioCore/FolioFontEngine.h"
 
 #include <RmlUi/Core.h>
@@ -171,6 +173,12 @@ bool App::Initialise()
 	// quietly rendering no text.
 	if (options.font_report)
 		TraceReport::Install();
+
+	// The core reads faces and reports problems through the host. Here that is a thin wrapper over
+	// the same file interface documents use; in Unreal it has to exist because the two modules do
+	// not share RmlUi's globals.
+	core_host = std::make_unique<PreviewCoreHost>(*file_interface, diagnostics);
+	Folio::SetHost(core_host.get());
 
 	Folio::FMsdfAtlasParams msdf_params;
 	msdf_params.PxPerEm = options.msdf_px_em;

@@ -9,8 +9,11 @@
 #include "Framework/Application/SlateApplication.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Rendering/DrawElements.h"
+#include "Rendering/SlateRenderer.h"
 #include "TextureResource.h"
 
 namespace
@@ -160,6 +163,23 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		return;
 	}
 
+	// A field page resolves through its material rather than as an image. Everything else about
+	// the draw is unchanged: this is a resource handle swap, not a second path.
+	if (FMsdfBinding* Msdf = ResolveMsdfBinding(Texture))
+	{
+		// The layer path draws with its own pipelines and knows nothing about materials, so a
+		// field inside a layer would come out as raw distance channels. Skipped rather than drawn
+		// wrong until the layer shader gains a field permutation.
+		if (!Layers.IsEmpty())
+		{
+			return;
+		}
+
+		ApplyClipping();
+		DrawGeometry(Compiled, Translation, Msdf->Handle, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ true);
+		return;
+	}
+
 	const FTexture* Bound = FindTexture(Texture);
 
 	// While a layer is open every draw belongs to it, not to Slate: the layer is what
@@ -183,7 +203,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 }
 
 void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, const Rml::Vector2f Translation,
-	const FSlateResourceHandle& Resource, const FVector2f UvScale)
+	const FSlateResourceHandle& Resource, const FVector2f UvScale, const bool bStraightAlpha)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_DrawGeometry);
 	SCOPE_CYCLE_COUNTER(STAT_FolioDrawGeometry);
@@ -219,6 +239,19 @@ void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, cons
 		Out.TexCoords[0] = Source.TexCoords[0] * UvScale.X;
 		Out.TexCoords[1] = Source.TexCoords[1] * UvScale.Y;
 		Out.MaterialTexCoords = FVector2f(Out.TexCoords[0], Out.TexCoords[1]);
+
+		// A material batch has its vertex colour decoded from sRGB by Slate's vertex shader,
+		// and only the colour: the alpha is left alone. Decoding a premultiplied colour raises
+		// the product to a power rather than the straight colour, so the two stop agreeing and
+		// every partially covered pixel comes out too dark - a dark rim around every glyph. The
+		// colour is handed over straight instead and the material multiplies it back.
+		if (bStraightAlpha && Out.Color.A != 0 && Out.Color.A != 255)
+		{
+			const float Alpha = float(Out.Color.A) / 255.0f;
+			Out.Color.R = uint8(FMath::Clamp(FMath::RoundToInt(float(Out.Color.R) / Alpha), 0, 255));
+			Out.Color.G = uint8(FMath::Clamp(FMath::RoundToInt(float(Out.Color.G) / Alpha), 0, 255));
+			Out.Color.B = uint8(FMath::Clamp(FMath::RoundToInt(float(Out.Color.B) / Alpha), 0, 255));
+		}
 	}
 
 	// RmlUi 6.x supplies vertex colours and generated texture data premultiplied and expects
@@ -766,4 +799,199 @@ void FFolioRenderInterface::ReleaseShader(const Rml::CompiledShaderHandle Shader
 	}
 
 	Shaders.Remove(Shader);
+}
+
+//
+// Distance-field atlases.
+//
+
+Folio::FMsdfHandle FFolioRenderInterface::CreateAtlasPage(const Folio::FMsdfPoint Size,
+	const Folio::FMsdfAtlasParams& Params)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_CreateAtlasPage);
+	LLM_SCOPE_BYTAG(Folio);
+
+	if (Size.X <= 0 || Size.Y <= 0)
+	{
+		return Folio::InvalidMsdfHandle;
+	}
+
+	UTexture2D* Texture = UTexture2D::CreateTransient(Size.X, Size.Y, PF_B8G8R8A8);
+	if (!Texture)
+	{
+		return Folio::InvalidMsdfHandle;
+	}
+
+	// Emphatically not sRGB. These channels are distances, not colour, and decoding them as
+	// colour moves every edge. Bilinear because reconstructing an edge depends on interpolating
+	// between distances, clamped because a field means nothing outside its own rectangle, and
+	// unstreamed because glyphs are written into it as they are first drawn.
+	Texture->SRGB = false;
+	Texture->Filter = TF_Bilinear;
+	Texture->AddressX = TA_Clamp;
+	Texture->AddressY = TA_Clamp;
+	Texture->CompressionSettings = TC_EditorIcon;
+	Texture->NeverStream = true;
+
+	// Cleared rather than left as whatever the allocator held: every texel is a distance, and
+	// garbage in an unwritten one reads as ink.
+	{
+		FTexture2DMipMap& Mip = Texture->GetPlatformData()->Mips[0];
+		void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE);
+		FMemory::Memzero(Data, Mip.BulkData.GetBulkDataSize());
+		Mip.BulkData.Unlock();
+	}
+	Texture->UpdateResource();
+
+	TSharedPtr<FMsdfPage> Page = MakeShared<FMsdfPage>();
+	Page->Texture = TStrongObjectPtr<UTexture2D>(Texture);
+	Page->Params = Params;
+
+	TUniquePtr<FMsdfBinding> Binding = MakeUnique<FMsdfBinding>();
+	Binding->Page = Page;
+
+	const Rml::TextureHandle Handle = NextHandle++;
+	MsdfBindings.Add(Handle, MoveTemp(Binding));
+	return Folio::FMsdfHandle(Handle);
+}
+
+void FFolioRenderInterface::UploadAtlasRegion(const Folio::FMsdfHandle Page, const Folio::FMsdfRect Region,
+	const unsigned char* Rgba, const int Stride)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_UploadAtlasRegion);
+
+	const TUniquePtr<FMsdfBinding>* Found = MsdfBindings.Find(Rml::TextureHandle(Page));
+	if (!Found || !Found->IsValid() || !(*Found)->Page.IsValid() || Rgba == nullptr)
+	{
+		return;
+	}
+
+	UTexture2D* Texture = (*Found)->Page->Texture.Get();
+	if (!Texture || Region.Width <= 0 || Region.Height <= 0)
+	{
+		return;
+	}
+
+	// The field arrives RGBA and the texture is BGRA. The three colour channels are
+	// interchangeable to the shader, since a median does not care which is which, but alpha
+	// carries the true distance and has to stay where it is.
+	const int32 Width = Region.Width;
+	const int32 Height = Region.Height;
+	const int32 ByteCount = Width * Height * 4;
+
+	uint8* Bgra = static_cast<uint8*>(FMemory::Malloc(ByteCount));
+	for (int32 Y = 0; Y < Height; ++Y)
+	{
+		const unsigned char* SourceRow = Rgba + static_cast<int64>(Y) * Stride;
+		uint8* DestRow = Bgra + static_cast<int64>(Y) * Width * 4;
+		for (int32 X = 0; X < Width; ++X)
+		{
+			DestRow[X * 4 + 0] = SourceRow[X * 4 + 2];
+			DestRow[X * 4 + 1] = SourceRow[X * 4 + 1];
+			DestRow[X * 4 + 2] = SourceRow[X * 4 + 0];
+			DestRow[X * 4 + 3] = SourceRow[X * 4 + 3];
+		}
+	}
+
+	// A sub-rectangle update into the same texture, so every resource handle already handed out
+	// stays valid. Reallocating would strand geometry RmlUi has cached against this page.
+	FUpdateTextureRegion2D* UpdateRegion =
+		new FUpdateTextureRegion2D(Region.X, Region.Y, 0, 0, Width, Height);
+
+	Texture->UpdateTextureRegions(0, 1, UpdateRegion, Width * 4, 4, Bgra,
+		[](uint8* Data, const FUpdateTextureRegion2D* Regions)
+		{
+			FMemory::Free(Data);
+			delete Regions;
+		});
+}
+
+Folio::FMsdfHandle FFolioRenderInterface::CreateEffectAlias(const Folio::FMsdfHandle Page,
+	const Folio::FMsdfEffectParams& Effect)
+{
+	const TUniquePtr<FMsdfBinding>* Source = MsdfBindings.Find(Rml::TextureHandle(Page));
+	if (!Source || !Source->IsValid())
+	{
+		return Folio::InvalidMsdfHandle;
+	}
+
+	TUniquePtr<FMsdfBinding> Alias = MakeUnique<FMsdfBinding>();
+	Alias->Page = (*Source)->Page;
+	Alias->Effect = Effect;
+
+	const Rml::TextureHandle Handle = NextHandle++;
+	MsdfBindings.Add(Handle, MoveTemp(Alias));
+	return Folio::FMsdfHandle(Handle);
+}
+
+void FFolioRenderInterface::ReleaseAtlasHandle(const Folio::FMsdfHandle Handle)
+{
+	// Aliases hold the page by shared pointer, so dropping one leaves the texture alive as long
+	// as anything else still names it.
+	MsdfBindings.Remove(Rml::TextureHandle(Handle));
+}
+
+FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::ResolveMsdfBinding(const Rml::TextureHandle Handle)
+{
+	const TUniquePtr<FMsdfBinding>* Found = MsdfBindings.Find(Handle);
+	if (!Found || !Found->IsValid())
+	{
+		return nullptr;
+	}
+
+	FMsdfBinding& Binding = **Found;
+	if (Binding.Handle.IsValid())
+	{
+		return &Binding;
+	}
+
+	if (!bMsdfMaterialChecked)
+	{
+		bMsdfMaterialChecked = true;
+		MsdfMaterial = TStrongObjectPtr<UMaterialInterface>(
+			LoadObject<UMaterialInterface>(nullptr, TEXT("/Folio/M_FolioMSDF.M_FolioMSDF")));
+
+		if (!MsdfMaterial.IsValid())
+		{
+			UE_LOG(LogFolio, Error,
+				TEXT("could not load /Folio/M_FolioMSDF; text has no shader to resolve its fields"));
+		}
+	}
+
+	if (!MsdfMaterial.IsValid() || !Binding.Page.IsValid() || !Binding.Page->Texture.IsValid()
+		|| !FSlateApplication::IsInitialized())
+	{
+		return nullptr;
+	}
+
+	UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(MsdfMaterial.Get(), nullptr);
+	if (!Instance)
+	{
+		return nullptr;
+	}
+
+	const UTexture2D* Texture = Binding.Page->Texture.Get();
+	const float Range = static_cast<float>(Binding.Page->Params.PxRange);
+	const FVector2f PageSize(static_cast<float>(Texture->GetSizeX()), static_cast<float>(Texture->GetSizeY()));
+
+	Instance->SetTextureParameterValue(TEXT("Atlas"), Binding.Page->Texture.Get());
+	// Unhalved: FolioMsdf.ush applies the half itself. Halving it here as well doubles the
+	// coverage ramp and text goes soft.
+	Instance->SetScalarParameterValue(TEXT("UnitRangeX"), Range / PageSize.X);
+	Instance->SetScalarParameterValue(TEXT("UnitRangeY"), Range / PageSize.Y);
+	Instance->SetScalarParameterValue(TEXT("Threshold"), 0.5f);
+	Instance->SetScalarParameterValue(TEXT("EffectMode"), static_cast<float>(static_cast<int32>(Binding.Effect.Effect)));
+	Instance->SetScalarParameterValue(TEXT("EffectOffset"), Binding.Effect.OffsetEm);
+	Instance->SetScalarParameterValue(TEXT("EffectSoftness"), Binding.Effect.SoftnessEm);
+
+	Binding.Material = TStrongObjectPtr<UMaterialInstanceDynamic>(Instance);
+	Binding.Brush.SetResourceObject(Instance);
+	Binding.Brush.ImageSize = PageSize;
+
+	// A material resource is the whole mechanism: MakeCustomVerts tags its batches
+	// ESlateShader::Custom, and Slate answers that with TSlateMaterialShaderPS<Custom>, so the
+	// material supplies the pixel shader for geometry that is otherwise drawn exactly as before.
+	Binding.Handle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(Binding.Brush);
+
+	return Binding.Handle.IsValid() ? &Binding : nullptr;
 }

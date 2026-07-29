@@ -2,7 +2,10 @@
 
 #include "FolioInsights.h"
 
+#include "FolioCore/FolioFontEngine.h"
 #include "FolioFileInterface.h"
+#include "FolioCoreHost.h"
+#include "FolioFontCache.h"
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
 #include "FolioSystemInterface.h"
@@ -10,6 +13,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "ShaderCore.h"
 #include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 
 DEFINE_LOG_CATEGORY(LogFolio);
 
@@ -37,11 +41,34 @@ void FFolioModule::StartupModule()
 	FileInterface = MakeUnique<FFolioFileInterface>(ContentRoot, PluginRoot);
 	RenderInterface = MakeUnique<FFolioRenderInterface>();
 
-	// Both interfaces have to be installed before Initialise, not after: RmlUi reads files
-	// and logs during startup, and the defaults it would otherwise use call fopen.
+	// The system and file interfaces go in first, before anything that might log or read: the
+	// font engine is built next and would otherwise report a failure to RmlUi's default sink
+	// rather than to the log, which is a silence that takes a while to explain.
 	Rml::SetSystemInterface(SystemInterface.Get());
 	Rml::SetFileInterface(FileInterface.Get());
 	Rml::SetRenderInterface(RenderInterface.Get());
+
+	// The core reaches files and the log through here rather than RmlUi's globals, which this
+	// module and FolioCore do not share.
+	CoreHost = MakeUnique<FFolioCoreHost>(*FileInterface);
+	Folio::SetHost(CoreHost.Get());
+
+	// The render interface is also the atlas sink: the font engine builds its pages through it,
+	// so a page arrives back at RenderGeometry looking like an ordinary texture and is recognised
+	// there. RmlUi never learns the difference.
+	FontEngine = MakeUnique<Folio::FFolioFontEngine>(*RenderInterface);
+	if (!FontEngine->IsValid())
+	{
+		UE_LOG(LogFolio, Error,
+			TEXT("FreeType would not start, so no font face can load and no text will render"));
+	}
+
+	FontCache = MakeUnique<FFolioFontCache>(FPaths::ProjectSavedDir() / TEXT("Folio") / TEXT("Fields"));
+	FontEngine->SetCacheStore(FontCache.Get());
+
+	// RmlUi is built with RMLUI_FONT_ENGINE=none, so a missing font engine fails Initialise
+	// outright rather than leaving a context that silently renders no text.
+	Rml::SetFontEngineInterface(FontEngine.Get());
 
 	bRmlInitialised = Rml::Initialise();
 	if (!bRmlInitialised)
@@ -74,50 +101,73 @@ void FFolioModule::ShutdownModule()
 	Rml::SetSystemInterface(nullptr);
 
 	RenderInterface.Reset();
+	Folio::SetHost(nullptr);
+	CoreHost.Reset();
+	FontEngine.Reset();
+	FontCache.Reset();
 	FileInterface.Reset();
 	SystemInterface.Reset();
 }
 
 void FFolioModule::RegisterFonts()
 {
-	// No typeface is bundled: the choice is a per-game decision. The engine's Roboto is the
-	// default so a document renders text before anything is configured, which is the same
-	// resolution order the preview tool uses.
-	// Absolute, because font loading goes through our file interface and the engine content
-	// directory is relative to the binary. Left relative it resolves against the project's
-	// content root instead and every face fails to open.
-	const FString FontDir = FPaths::ConvertRelativePathToFull(FPaths::EngineContentDir()) / TEXT("Slate/Fonts");
+	// The same order the preview tool uses, so a document looks the same in both: the game's own
+	// faces first, then the ones Folio ships, then the engine's Roboto as a last resort. Anything
+	// the game puts under ui/fonts wins outright.
+	//
+	// Paths are absolute because font loading goes through our file interface, and both the engine
+	// and plugin directories are relative to the binary rather than the content root; left
+	// relative, every face fails to open.
+	int32 Loaded = 0;
 
-	static const TCHAR* Faces[] = {
-		TEXT("Roboto-Regular.ttf"),
-		TEXT("Roboto-Bold.ttf"),
-		TEXT("Roboto-Italic.ttf"),
-		TEXT("Roboto-BoldItalic.ttf"),
+	const auto LoadFacesIn = [&Loaded](const FString& Directory)
+	{
+		if (Directory.IsEmpty() || !FPaths::DirectoryExists(Directory))
+		{
+			return;
+		}
+
+		TArray<FString> Files;
+		IFileManager::Get().FindFiles(Files, *(Directory / TEXT("*.ttf")), true, false);
+		IFileManager::Get().FindFiles(Files, *(Directory / TEXT("*.otf")), true, false);
+		Files.Sort();
+
+		for (const FString& File : Files)
+		{
+			// The first face registered is the fallback. A document naming a family nobody
+			// registered would otherwise render nothing at all, which reads as a layout bug and
+			// says nothing about the cause.
+			if (Rml::LoadFontFace(Folio::ToRmlString(Directory / File), Loaded == 0))
+			{
+				++Loaded;
+			}
+			else
+			{
+				UE_LOG(LogFolio, Warning, TEXT("could not register font face '%s'"), *File);
+			}
+		}
 	};
 
-	int32 Loaded = 0;
-	for (const TCHAR* Face : Faces)
-	{
-		const FString Path = FontDir / Face;
-		if (!FPaths::FileExists(Path))
-		{
-			continue;
-		}
+	LoadFacesIn(ContentRoot / TEXT("ui") / TEXT("fonts"));
 
-		if (Rml::LoadFontFace(Folio::ToRmlString(Path)))
-		{
-			++Loaded;
-		}
-		else
-		{
-			UE_LOG(LogFolio, Warning, TEXT("could not register font face '%s'"), *Path);
-		}
+	if (Loaded == 0)
+	{
+		LoadFacesIn(PluginRoot / TEXT("fonts"));
+	}
+
+	if (Loaded == 0)
+	{
+		LoadFacesIn(FPaths::ConvertRelativePathToFull(FPaths::EngineContentDir()) / TEXT("Slate/Fonts"));
 	}
 
 	if (Loaded == 0)
 	{
 		UE_LOG(LogFolio, Error,
 			TEXT("no font faces registered; RmlUi renders no text at all without one"));
+	}
+	else
+	{
+		UE_LOG(LogFolio, Log, TEXT("registered %d font face(s)"), Loaded);
 	}
 }
 

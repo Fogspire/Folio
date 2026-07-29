@@ -79,10 +79,10 @@ include(FetchContent)
 
 folio_set_rmlui_options()
 
-# Flips to "none" once FFolioFontEngine is installed on the Unreal side. With "none",
-# Rml::Initialise() fails outright unless SetFontEngineInterface was called first, so the two
-# have to change together.
-set(RMLUI_FONT_ENGINE "freetype" CACHE STRING "" FORCE)
+# Text comes from FolioCore's distance-field engine, so RmlUi's own is not built. With "none",
+# Rml::Initialise() fails outright unless SetFontEngineInterface was called first - a loud
+# failure rather than a context that renders no text.
+set(RMLUI_FONT_ENGINE "none" CACHE STRING "" FORCE)
 
 folio_set_msdfgen_options()
 folio_add_skia()

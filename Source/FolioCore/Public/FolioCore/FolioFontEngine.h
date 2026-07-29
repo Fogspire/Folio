@@ -35,6 +35,10 @@ namespace Folio
 		/// one costs a few milliseconds and a screen can want hundreds. Set it before loading any
 		/// face; the store must outlive the engine.
 		void SetCacheStore(IMsdfCacheStore* Store);
+
+		/// False when FreeType would not start, in which case every face load fails and nothing
+		/// renders. Worth checking at startup rather than inferring it from the silence.
+		bool IsValid() const;
 		~FFolioFontEngine() override;
 
 		FFolioFontEngine(const FFolioFontEngine&) = delete;

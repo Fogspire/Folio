@@ -4,6 +4,8 @@
 #include "FolioLayerStack.h"
 #include "FolioRmlUi.h"
 
+#include "FolioCore/MsdfTextureSink.h"
+
 #include "Rendering/DrawElements.h"
 #include "Styling/SlateBrush.h"
 #include "UObject/StrongObjectPtr.h"
@@ -22,7 +24,7 @@ class UTexture2D;
  * and expects scissor, transform and layer state to persist between calls. BeginFrame installs
  * the element list and geometry that the following calls draw into, and EndFrame clears them.
  */
-class FFolioRenderInterface final : public Rml::RenderInterface
+class FFolioRenderInterface final : public Rml::RenderInterface, public Folio::IMsdfTextureSink
 {
 public:
 	FFolioRenderInterface();
@@ -60,6 +62,18 @@ public:
 	//
 	// Clipping and transforms.
 	//
+	//
+	// Distance-field atlases.
+	//
+	// The font engine builds its pages through here and hands the resulting handles to RmlUi, so
+	// a page arrives back at RenderGeometry looking like any other texture. Recognising it is what
+	// selects the field material without RmlUi having to know the difference.
+	//
+	virtual Folio::FMsdfHandle CreateAtlasPage(Folio::FMsdfPoint Size, const Folio::FMsdfAtlasParams& Params) override;
+	virtual void UploadAtlasRegion(Folio::FMsdfHandle Page, Folio::FMsdfRect Region, const unsigned char* Rgba, int Stride) override;
+	virtual Folio::FMsdfHandle CreateEffectAlias(Folio::FMsdfHandle Page, const Folio::FMsdfEffectParams& Effect) override;
+	virtual void ReleaseAtlasHandle(Folio::FMsdfHandle Handle) override;
+
 	virtual void EnableScissorRegion(bool bEnable) override;
 	virtual void SetScissorRegion(Rml::Rectanglei Region) override;
 	virtual void SetTransform(const Rml::Matrix4f* Transform) override;
@@ -137,7 +151,7 @@ private:
 
 	/** Draws compiled geometry with an explicit resource, optionally renormalising UVs. */
 	void DrawGeometry(const FCompiledGeometry& Compiled, Rml::Vector2f Translation,
-		const FSlateResourceHandle& Resource, const FVector2f UvScale);
+		const FSlateResourceHandle& Resource, const FVector2f UvScale, bool bStraightAlpha = false);
 
 	/** The texture for a gradient at this size, generated on first use and cached. */
 	const FSlateResourceHandle* GetGradientResource(Rml::CompiledShaderHandle Shader, FVector2f BoxSize);
@@ -150,6 +164,37 @@ private:
 		/** One baked texture per box size the gradient is asked for. */
 		TMap<FIntPoint, Rml::TextureHandle> Baked;
 	};
+
+	/**
+	 * One distance-field page, and the material instance that resolves it.
+	 *
+	 * The instance carries the page's texture and its field parameters, so a draw is a resource
+	 * handle swap rather than a different code path. Effect aliases share the page and differ only
+	 * in the parameters, which is why the texture is shared rather than owned.
+	 */
+	struct FMsdfPage
+	{
+		TStrongObjectPtr<UTexture2D> Texture;
+		Folio::FMsdfAtlasParams Params;
+	};
+
+	struct FMsdfBinding
+	{
+		TSharedPtr<FMsdfPage> Page;
+		Folio::FMsdfEffectParams Effect;
+		TStrongObjectPtr<class UMaterialInstanceDynamic> Material;
+		FSlateBrush Brush;
+		FSlateResourceHandle Handle;
+	};
+
+	/** Builds the material instance for a binding on first draw, so a page that is never drawn
+	    costs nothing. Null if the material asset is missing. */
+	FMsdfBinding* ResolveMsdfBinding(Rml::TextureHandle Handle);
+
+	TMap<Rml::TextureHandle, TUniquePtr<FMsdfBinding>> MsdfBindings;
+	/** Loaded once on the first field page. */
+	TStrongObjectPtr<class UMaterialInterface> MsdfMaterial;
+	bool bMsdfMaterialChecked = false;
 
 	TMap<Rml::CompiledGeometryHandle, TUniquePtr<FCompiledGeometry>> Geometries;
 	TMap<Rml::TextureHandle, TUniquePtr<FTexture>> Textures;

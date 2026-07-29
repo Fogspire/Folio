@@ -6,7 +6,7 @@
 	"Description": "RmlUi-based UI system. Documents are plain text rather than hand-assembled widget hierarchies.",
 	"Category": "UI",
 	"CreatedBy": "Fogspire",
-	"CanContainContent": false,
+	"CanContainContent": true,
 	"IsBetaVersion": true,
 	"Installed": false,
 	"Modules": [
@@ -14,13 +14,17 @@
 			"Name": "FolioCore",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
-			"PlatformAllowList": [ "Win64" ]
+			"PlatformAllowList": [
+				"Win64"
+			]
 		},
 		{
 			"Name": "Folio",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
-			"PlatformAllowList": [ "Win64" ]
+			"PlatformAllowList": [
+				"Win64"
+			]
 		}
 	]
 }

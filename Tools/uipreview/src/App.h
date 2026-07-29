@@ -90,6 +90,7 @@ private:
 	/** Outlives Rml::Shutdown, which still reads through it while releasing font resources. */
 	std::unique_ptr<Folio::FFolioFontEngine> font_engine;
 	std::unique_ptr<FileFontCache> font_cache;
+	std::unique_ptr<class PreviewCoreHost> core_host;
 	/** Owned by the backend, which constructs them once the GL context exists. */
 	PreviewSystemInterface* system_interface = nullptr;
 	PreviewRenderInterface* render_interface = nullptr;

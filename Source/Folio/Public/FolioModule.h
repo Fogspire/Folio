@@ -9,6 +9,8 @@ class FFolioSystemInterface;
 class FFolioFileInterface;
 class FFolioRenderInterface;
 
+namespace Folio { class FFolioFontEngine; }
+
 /**
  * Owns RmlUi's process-wide state.
  *
@@ -62,6 +64,10 @@ private:
 	TUniquePtr<FFolioSystemInterface> SystemInterface;
 	TUniquePtr<FFolioFileInterface> FileInterface;
 	TUniquePtr<FFolioRenderInterface> RenderInterface;
+	/// The distance-field text engine, and where its generated fields are kept between runs.
+	TUniquePtr<Folio::FFolioFontEngine> FontEngine;
+	TUniquePtr<class FFolioFontCache> FontCache;
+	TUniquePtr<class FFolioCoreHost> CoreHost;
 
 	FSimpleMulticastDelegate PreShutdownDelegate;
 

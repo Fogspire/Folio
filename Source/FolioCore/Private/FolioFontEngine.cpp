@@ -1,5 +1,6 @@
 #include "FolioCore/FolioFontEngine.h"
 
+#include "FolioCore/FolioHost.h"
 #include "FolioCore/FolioTrace.h"
 
 #include "FolioFontFace.h"
@@ -166,8 +167,13 @@ namespace Folio
 		if (FT_Init_FreeType(&Impl->Library) != 0)
 		{
 			Impl->Library = nullptr;
-			Rml::Log::Message(Rml::Log::LT_ERROR, "FolioMsdf: FreeType would not start; no text can be rendered.");
+			LogError("FolioMsdf: FreeType would not start, so no text can be rendered");
 		}
+	}
+
+	bool FFolioFontEngine::IsValid() const
+	{
+		return Impl->Library != nullptr;
 	}
 
 	void FFolioFontEngine::SetCacheStore(IMsdfCacheStore* Store)
@@ -286,6 +292,7 @@ namespace Folio
 		FFolioFontFace* First = GetInstance(*Raw, PinnedAxes);
 		if (First == nullptr)
 		{
+			LogError(Format("FolioMsdf: could not build the first instance of family %s", Family.c_str()));
 			Impl->Faces.pop_back();
 			return false;
 		}
@@ -306,31 +313,23 @@ namespace Folio
 
 	FFontData FFolioFontEngine::ReadFontFile(const Rml::String& FileName) const
 	{
-		// Read through RmlUi's file interface rather than letting FreeType open the path itself.
-		// That is what makes mounts like /folio/ and /ui/fonts/ resolve, and in Unreal it is the
-		// difference between working in a packaged build and not: the default reads with fopen,
-		// which cannot see inside a pak.
-		Rml::FileInterface* Files = Rml::GetFileInterface();
-		if (Files == nullptr)
+		// Through the host rather than Rml::GetFileInterface(). RmlUi is a static library, so in
+		// Unreal this module has its own copy of that global and it is null: the module that
+		// installed the interface set a different one. The host is also what resolves mounts and
+		// what makes reading from inside a pak work.
+		IFolioHost* Host = GetHost();
+		if (Host == nullptr)
 		{
 			return nullptr;
 		}
 
-		const Rml::FileHandle File = Files->Open(FileName);
-		if (!File)
+		auto Bytes = std::make_shared<std::vector<unsigned char>>();
+		if (!Host->ReadFile(FileName, *Bytes) || Bytes->empty())
 		{
 			return nullptr;
 		}
 
-		Files->Seek(File, 0, SEEK_END);
-		const std::size_t Length = Files->Tell(File);
-		Files->Seek(File, 0, SEEK_SET);
-
-		auto Bytes = std::make_shared<std::vector<unsigned char>>(Length);
-		const bool bOk = Length > 0 && Files->Read(Bytes->data(), Length, File) == Length;
-		Files->Close(File);
-
-		return bOk ? FFontData(Bytes) : nullptr;
+		return FFontData(Bytes);
 	}
 
 	bool FFolioFontEngine::LoadFontFace(const Rml::String& FileName, int FaceIndex, bool bFallbackFace,
@@ -344,7 +343,7 @@ namespace Folio
 		FFontData Data = ReadFontFile(FileName);
 		if (!Data)
 		{
-			Rml::Log::Message(Rml::Log::LT_ERROR, "FolioMsdf: cannot read font face %s", FileName.c_str());
+			LogError(Format("FolioMsdf: cannot read font face %s", FileName.c_str()));
 			return false;
 		}
 
@@ -354,7 +353,7 @@ namespace Folio
 		FFolioFontFace Probe(Impl->Library, *Impl->Atlas);
 		if (!Probe.Load(Data, FaceIndex, {}))
 		{
-			Rml::Log::Message(Rml::Log::LT_ERROR, "FolioMsdf: %s is not a scalable font face", FileName.c_str());
+			LogError(Format("FolioMsdf: %s is not a scalable font face", FileName.c_str()));
 			return false;
 		}
 
@@ -386,7 +385,7 @@ namespace Folio
 		FFontData Data = ReadFontFile(FileName);
 		if (!Data)
 		{
-			Rml::Log::Message(Rml::Log::LT_ERROR, "FolioMsdf: cannot read font face %s", FileName.c_str());
+			LogError(Format("FolioMsdf: cannot read font face %s", FileName.c_str()));
 			return false;
 		}
 
@@ -408,7 +407,7 @@ namespace Folio
 		auto Bytes = std::make_shared<std::vector<unsigned char>>(Data.begin(), Data.end());
 		if (!RegisterFace(FFontData(Bytes), FaceIndex, Family, Style, Weight, bFallbackFace, {}))
 		{
-			Rml::Log::Message(Rml::Log::LT_ERROR, "FolioMsdf: cannot load the in-memory font face %s", Family.c_str());
+			LogError(Format("FolioMsdf: cannot load the in-memory font face %s", Family.c_str()));
 			return false;
 		}
 		return true;

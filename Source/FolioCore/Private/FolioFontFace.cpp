@@ -1,11 +1,14 @@
 #include "FolioFontFace.h"
 
+#include "FolioCore/FolioHost.h"
+
 #include "MsdfGlyphGenerator.h"
 
 #include "FolioCore/FolioTrace.h"
 
 #include <cstring>
 
+#include <RmlUi/Core/Log.h>
 #include <RmlUi/Core/RenderManager.h>
 
 #include FT_MULTIPLE_MASTERS_H
@@ -53,8 +56,9 @@ namespace Folio
 			return false;
 		}
 
-		if (FT_New_Memory_Face(Library, Data->data(), FT_Long(Data->size()), FaceIndex, &Face) != 0)
+		if (const FT_Error Error = FT_New_Memory_Face(Library, Data->data(), FT_Long(Data->size()), FaceIndex, &Face))
 		{
+			LogError(Format("FolioMsdf: FreeType refused the face, error %d, %zu bytes, index %d", int(Error), Data->size(), FaceIndex));
 			Face = nullptr;
 			return false;
 		}
@@ -63,6 +67,7 @@ namespace Folio
 		// measure a distance to.
 		if (Face->units_per_EM == 0 || (Face->face_flags & FT_FACE_FLAG_SCALABLE) == 0)
 		{
+			LogError(Format("FolioMsdf: face is not scalable, upem %d, flags %ld", int(Face->units_per_EM), long(Face->face_flags)));
 			return false;
 		}
 

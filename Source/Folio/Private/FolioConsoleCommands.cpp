@@ -289,6 +289,111 @@ namespace
 	}
 
 	/**
+	 * A boxed, focused document for driving navigation by hand in PIE.
+	 *
+	 *   folio.NavTest            the bundled document
+	 *   folio.NavTest <path>     any other one
+	 *   folio.NavTest off
+	 *
+	 * What it adds over folio.Show is keyboard focus. Slate sends key and analog events to the
+	 * focused widget, and in PIE that is the viewport, so a document put up by folio.Show renders
+	 * correctly and navigates not at all - which reads as Folio being broken rather than as nobody
+	 * having asked for focus.
+	 *
+	 * Boxed and offset, never full screen: the world stays visible so it is obvious the game is
+	 * still running underneath. Nothing is screenshotted and no ticker keeps running once it is up.
+	 */
+	TSharedPtr<SFolioCanvas> NavCanvas;
+	TSharedPtr<SWidget> NavContainer;
+	FTSTicker::FDelegateHandle NavTicker;
+
+	void HideNavTest()
+	{
+		if (NavTicker.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(NavTicker);
+			NavTicker.Reset();
+		}
+
+		UGameViewportClient* Viewport = FindViewport();
+		if (Viewport && NavContainer.IsValid())
+		{
+			Viewport->RemoveViewportWidgetContent(NavContainer.ToSharedRef());
+
+			// Focus goes back to the game, or the session is left taking no input at all.
+			if (FSlateApplication::IsInitialized())
+			{
+				if (const TSharedPtr<SWidget> GameWidget = Viewport->GetGameViewportWidget())
+				{
+					FSlateApplication::Get().SetAllUserFocus(GameWidget, EFocusCause::SetDirectly);
+				}
+			}
+		}
+
+		NavContainer.Reset();
+		NavCanvas.Reset();
+	}
+
+	void RunNavTest(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0 && Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
+		{
+			HideNavTest();
+			return;
+		}
+
+		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("/folio/dev/nav_test.rml");
+
+		HideNavTest();
+
+		// Polled for the same reason folio.Gate is: -ExecCmds runs before a viewport exists, and a
+		// level load clears viewport widgets. Typed into a running session this fires next tick.
+		NavTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
+			[Document](float) -> bool
+			{
+				UGameViewportClient* Viewport = FindViewport();
+				if (!Viewport || !Viewport->GetWorld() || !Viewport->GetWorld()->HasBegunPlay())
+				{
+					return true;
+				}
+
+				const FVector2D Size(760.0, 560.0);
+
+				NavCanvas = SNew(SFolioCanvas)
+					.DocumentPath(Document)
+					.DesiredSize(Size);
+
+				NavContainer = SNew(SBox)
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Top)
+					.Padding(FMargin(40.0f, 60.0f, 0.0f, 0.0f))
+					[
+						SNew(SBox)
+							.WidthOverride(Size.X)
+							.HeightOverride(Size.Y)
+							[
+								SNew(SWeakWidget).PossiblyNullContent(NavCanvas)
+							]
+					];
+
+				Viewport->AddViewportWidgetContent(NavContainer.ToSharedRef(), 100);
+
+				// Every user, not just user 0: a gamepad in PIE is often a second Slate user, and
+				// focusing only the keyboard's user leaves the sticks going to the game.
+				FSlateApplication::Get().SetAllUserFocus(NavCanvas, EFocusCause::SetDirectly);
+
+				UE_LOG(LogFolio, Display,
+					TEXT("folio.NavTest: '%s' has focus. Arrows, WASD, IJKL, d-pad and the sticks all ")
+					TEXT("navigate. 'folio.NavTest off' closes it and gives focus back to the game; ")
+					TEXT("Escape stops PIE, which is the way out if the console cannot be opened."),
+					*Document);
+
+				NavTicker.Reset();
+				return false;
+			}), 0.0f);
+	}
+
+	/**
 	 * Tears both down before RmlUi does. These are statics, so without this they are destroyed
 	 * during DLL unload, long after the module has shut RmlUi down.
 	 */
@@ -307,6 +412,7 @@ namespace
 			CloseWindow();
 			HideDocument();
 			HideGate();
+			HideNavTest();
 		}
 	};
 
@@ -335,6 +441,12 @@ namespace
 		TEXT("folio.Gate [document] [shot|off]. Shows a boxed document between two viewport markers, "
 			"so compositing is visible against the world. The Phase 3 gate."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunGate));
+
+	FAutoConsoleCommand NavTestCommand(
+		TEXT("folio.NavTest"),
+		TEXT("folio.NavTest [document|off]. Opens a boxed document in PIE and gives it keyboard focus, "
+			"so arrows, WASD, IJKL and the gamepad can be tried by hand."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunNavTest));
 
 	FAutoConsoleCommand ReloadTexturesCommand(
 		TEXT("folio.ReloadTextures"),

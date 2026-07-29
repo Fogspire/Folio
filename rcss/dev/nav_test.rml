@@ -1,0 +1,135 @@
+<rml>
+<head>
+	<title>Folio navigation test</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+		 * Self-contained on purpose. It ships with the plugin and has to work in a project that
+		 * has no ui/lib and no tokens yet, so nothing here imports anything but folio.rcss and no
+		 * font family is named - the first face a host registered is the fallback.
+		 */
+		body {
+			nav: auto;
+			background-color: #14141ae8;
+			color: #e8e8f0;
+			font-size: 15dp;
+			padding: 14dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		h2 { font-size: 13dp; color: #8a8a99; margin-bottom: 6dp; }
+
+		.bar { display: flex; flex-direction: row; margin-bottom: 12dp; }
+		.badge {
+			background-color: #2b2b36; border: 1dp #3a3a48; border-radius: 4dp;
+			padding: 4dp 8dp; margin-right: 8dp;
+		}
+		.badge.live { background-color: #f0c674; color: #14141a; font-weight: bold; }
+
+		.grid { display: flex; flex-direction: row; flex-wrap: wrap; width: 330dp; }
+		.tile {
+			tab-index: auto;
+			nav: auto;
+			width: 96dp; height: 52dp;
+			margin: 0 9dp 9dp 0;
+			background-color: #2b2b36;
+			border: 2dp #3a3a48;
+			border-radius: 4dp;
+			text-align: center;
+			line-height: 48dp;
+		}
+
+		.row { display: flex; flex-direction: row; }
+		.col { margin-right: 22dp; }
+
+		.list { width: 190dp; }
+		.item {
+			tab-index: auto;
+			nav: vertical;
+			padding: 7dp 10dp;
+			margin-bottom: 6dp;
+			background-color: #2b2b36;
+			border: 2dp #3a3a48;
+			border-radius: 4dp;
+		}
+
+		/* :focus-visible, never :focus - it is set by navigation, so a mouse leaves no ring. */
+		.tile:focus-visible, .item:focus-visible, input:focus-visible {
+			border-color: #f0c674;
+			background-color: #363642;
+		}
+
+		.is-disabled { color: #5c5c6b; focus: none; pointer-events: none; }
+
+		input.text {
+			width: 190dp; tab-index: auto; nav: auto;
+			/* Closes the loop, so the last element is not a dead end. */
+			nav-down: #t1;
+			background-color: #0e0e13; color: #e8e8f0;
+			border: 2dp #3a3a48; border-radius: 4dp; padding: 6dp 8dp;
+		}
+
+		.hint { color: #8a8a99; font-size: 13dp; margin-top: 10dp; }
+		.hint strong { color: #e8e8f0; }
+
+		/* The presentation route: prompts follow the device with no data binding at all. */
+		.prompt { display: none; }
+		body.folio-input-gamepad .prompt.pad { display: inline; }
+		body.folio-input-kbm .prompt.key { display: inline; }
+
+		/* A ring is noise under a mouse. Proves the mouse class arrives. */
+		body.folio-device-mouse .tile:focus-visible,
+		body.folio-device-mouse .item:focus-visible { border-color: #3a3a48; }
+	</style>
+</head>
+<body data-model="folio">
+
+	<div class="bar">
+		<div class="badge live" id="device">{{ device }}</div>
+		<div class="badge" id="confirm">confirm = {{ confirm }}</div>
+		<div class="badge" id="back">back = {{ back }}</div>
+	</div>
+
+	<div class="row">
+		<div class="col">
+			<h2>nav: auto - all four directions</h2>
+			<div class="grid">
+				<div class="tile" id="t1" autofocus>1</div>
+				<div class="tile" id="t2">2</div>
+				<div class="tile" id="t3">3</div>
+				<div class="tile" id="t4">4</div>
+				<div class="tile" id="t5">5</div>
+				<div class="tile" id="t6">6</div>
+				<div class="tile" id="t7">7</div>
+				<div class="tile" id="t8">8</div>
+				<div class="tile" id="t9">9</div>
+			</div>
+		</div>
+
+		<div class="col">
+			<h2>nav: vertical - left and right do nothing</h2>
+			<div class="list">
+				<div class="item" id="i1">first</div>
+				<div class="item" id="i2">second</div>
+				<div class="item is-disabled" id="i3">skipped, focus: none</div>
+				<div class="item" id="i4">third</div>
+			</div>
+
+			<h2>letters stay letters in here</h2>
+			<input type="text" class="text" id="entry" value="type wasd"/>
+		</div>
+	</div>
+
+	<div class="hint">
+		<p>Arrows, <strong>WASD</strong>, <strong>IJKL</strong>, d-pad and either stick all move focus.
+		<span class="prompt pad">The confirm button above activates.</span><span class="prompt key">Enter or Space activates.</span></p>
+		<p>Focus the text field and type: W is a W again, and the letters navigate the moment you leave it.</p>
+		<p>The yellow badge tracks the last device you touched.</p>
+		<p><strong>folio.NavTest off</strong> closes it and returns focus to the game.
+		<strong>Escape</strong> stops PIE outright, which is the way out if anything goes wrong.</p>
+	</div>
+
+</body>
+</rml>

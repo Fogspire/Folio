@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FolioUiSounds.h"
+
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 
@@ -64,6 +66,16 @@ public:
 	 */
 	FSimpleMulticastDelegate& OnPreShutdown() { return PreShutdownDelegate; }
 
+	/**
+	 * Fires on focus change, confirm, back and invalid, for whoever wants to play a sound.
+	 *
+	 * Folio plays nothing: it has no business owning a sound asset, and what a game wants to hear
+	 * is a game decision. This exists because threading sound through a component library after
+	 * the fact means touching every component, and a delegate now costs nothing.
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUiSound, Folio::EUiSound);
+	FOnUiSound& OnUiSound() { return UiSoundDelegate; }
+
 private:
 	void RegisterFonts();
 
@@ -76,6 +88,7 @@ private:
 	TUniquePtr<class FFolioCoreHost> CoreHost;
 
 	FSimpleMulticastDelegate PreShutdownDelegate;
+	FOnUiSound UiSoundDelegate;
 
 	FString ContentRoot;
 	FString PluginRoot;

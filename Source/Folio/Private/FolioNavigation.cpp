@@ -1,5 +1,26 @@
 #include "FolioNavigation.h"
 
+#include "HAL/IConsoleManager.h"
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarNavArrows(TEXT("folio.Nav.Arrows"), 1,
+		TEXT("Arrow keys navigate a document. Off leaves them to text fields alone."),
+		ECVF_Default);
+
+	TAutoConsoleVariable<int32> CVarNavWASD(TEXT("folio.Nav.WASD"), 1,
+		TEXT("W, A, S and D navigate a document while nothing is taking text."),
+		ECVF_Default);
+
+	TAutoConsoleVariable<int32> CVarNavIJKL(TEXT("folio.Nav.IJKL"), 1,
+		TEXT("I, J, K and L navigate a document while nothing is taking text."),
+		ECVF_Default);
+
+	TAutoConsoleVariable<int32> CVarNavGamepad(TEXT("folio.Nav.Gamepad"), 1,
+		TEXT("The gamepad navigates a document: d-pad, sticks, face buttons and shoulders."),
+		ECVF_Default);
+}
+
 namespace Folio
 {
 	const TCHAR* DescribeDevice(const EInputDevice Device)
@@ -26,9 +47,23 @@ namespace Folio
 		return EInputDevice::Keyboard;
 	}
 
+	bool ArrowsNavigate()
+	{
+		return CVarNavArrows.GetValueOnAnyThread() != 0;
+	}
+
 	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key)
 	{
 		using namespace Rml::Input;
+
+		const bool bGamepad = CVarNavGamepad.GetValueOnAnyThread() != 0;
+		const bool bWASD = CVarNavWASD.GetValueOnAnyThread() != 0;
+		const bool bIJKL = CVarNavIJKL.GetValueOnAnyThread() != 0;
+
+		if (Key.IsGamepadKey() && !bGamepad)
+		{
+			return KI_UNKNOWN;
+		}
 
 		// The gamepad. Both sticks' digital equivalents come through as d-pad keys, so a stick
 		// pushed to its extreme navigates even before FAnalogNavigator sees it.
@@ -68,10 +103,21 @@ namespace Folio
 		//
 		// Not folded into ToRmlKey: those letters still have to reach a text field as letters.
 		// The canvas asks for a navigation meaning only when nothing is being typed into.
-		if (Key == EKeys::W || Key == EKeys::I) { return KI_UP; }
-		if (Key == EKeys::S || Key == EKeys::K) { return KI_DOWN; }
-		if (Key == EKeys::A || Key == EKeys::J) { return KI_LEFT; }
-		if (Key == EKeys::D || Key == EKeys::L) { return KI_RIGHT; }
+		if (bWASD)
+		{
+			if (Key == EKeys::W) { return KI_UP; }
+			if (Key == EKeys::S) { return KI_DOWN; }
+			if (Key == EKeys::A) { return KI_LEFT; }
+			if (Key == EKeys::D) { return KI_RIGHT; }
+		}
+
+		if (bIJKL)
+		{
+			if (Key == EKeys::I) { return KI_UP; }
+			if (Key == EKeys::K) { return KI_DOWN; }
+			if (Key == EKeys::J) { return KI_LEFT; }
+			if (Key == EKeys::L) { return KI_RIGHT; }
+		}
 
 		return KI_UNKNOWN;
 	}
@@ -99,6 +145,11 @@ namespace Folio
 	Rml::Input::KeyIdentifier FAnalogNavigator::Advance(const float DeltaSeconds)
 	{
 		using namespace Rml::Input;
+
+		if (CVarNavGamepad.GetValueOnAnyThread() == 0)
+		{
+			return KI_UNKNOWN;
+		}
 
 		// The larger axis wins, so a diagonal push means one direction rather than two. Unreal's
 		// Y is positive upwards where RmlUi's screen is positive downwards.

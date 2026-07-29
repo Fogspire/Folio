@@ -38,6 +38,19 @@ namespace Folio
 	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key);
 
 	/**
+	 * Whether the arrow keys navigate.
+	 *
+	 * Arrows reach RmlUi through ToRmlKey rather than ToNavigationKey, because they mean
+	 * something inside a text field too, so switching them off is the caller's job.
+	 *
+	 * All four schemes are console variables so a project can pick without rebuilding:
+	 * folio.Nav.Arrows, folio.Nav.WASD, folio.Nav.IJKL, folio.Nav.Gamepad, set from
+	 * DefaultEngine.ini like any other. A game that binds WASD to movement while a HUD is up
+	 * wants that off; one with no gamepad support wants it gone from the glyph swapping too.
+	 */
+	bool ArrowsNavigate();
+
+	/**
 	 * Turns a held analog stick into repeated directional presses.
 	 *
 	 * A stick reports a position, not an event, so without this it either does nothing or fires

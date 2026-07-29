@@ -501,6 +501,15 @@ learns what produced a direction.
 **Letters only navigate when nothing is taking text.** With an `input` or `textarea` focused, W is
 a W. That is what lets three keyboard schemes coexist without any of them breaking typing.
 
+**Each scheme can be switched off** by a project, from `DefaultEngine.ini` or the console, with no
+rebuild: `folio.Nav.Arrows`, `folio.Nav.WASD`, `folio.Nav.IJKL`, `folio.Nav.Gamepad`. A game that
+binds WASD to movement while a HUD is up wants that one off. Turning the arrows off still leaves
+them working inside a text field, where they mean something else.
+
+**UI sounds** are reported, not played: `FFolioModule::OnUiSound()` fires `Focus`, `Confirm`,
+`Back` or `Invalid`. Folio owns no sound assets. `Invalid` is a click on something carrying
+`.is-disabled`, which is the case worth a different noise.
+
 ---
 
 ## 9. Data binding

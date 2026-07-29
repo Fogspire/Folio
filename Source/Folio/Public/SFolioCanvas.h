@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FolioNavigation.h"
+#include "FolioUiSounds.h"
 
 #include "CoreMinimal.h"
 #include "Widgets/SLeafWidget.h"
@@ -84,6 +85,7 @@ private:
 	bool IsTakingText() const;
 
 	Folio::FAnalogNavigator Analog;
+	Folio::FUiSoundListener Sounds;
 	Folio::EInputDevice LastDevice = Folio::EInputDevice::Unknown;
 
 	/** Screen space to the context's own pixel space. */

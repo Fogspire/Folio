@@ -6,6 +6,7 @@
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
+#include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
 #include "Misc/FileHelper.h"
 
@@ -68,6 +69,7 @@ void SFolioCanvas::DestroyContext()
 
 	// Closing a document is deferred until the next Update, so the context has to outlive the
 	// close. Removing the context destroys everything in it outright, which is what we want.
+	Sounds.Detach();
 	Document = nullptr;
 	Rml::RemoveContext(Context->GetName());
 	Context = nullptr;
@@ -83,6 +85,7 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 
 	if (Document)
 	{
+		Sounds.Detach();
 		Document->Close();
 		// Close is deferred to the next update; without this the old document is still alive
 		// when the new one loads and both would render.
@@ -120,6 +123,7 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 	}
 
 	Document->Show();
+	Sounds.Attach(Document);
 	UE_LOG(LogFolio, Log, TEXT("loaded '%s'"), *RelativePath);
 }
 
@@ -350,6 +354,14 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	if (const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
 		Key != Rml::Input::KI_UNKNOWN)
 	{
+		// An arrow with navigation switched off still belongs to a text field, and nowhere else.
+		const bool bArrow = Key == Rml::Input::KI_UP || Key == Rml::Input::KI_DOWN
+			|| Key == Rml::Input::KI_LEFT || Key == Rml::Input::KI_RIGHT;
+		if (bArrow && !Folio::ArrowsNavigate() && !IsTakingText())
+		{
+			return FReply::Unhandled();
+		}
+
 		return !Context->ProcessKeyDown(Key, Modifiers) ? FReply::Handled() : FReply::Unhandled();
 	}
 

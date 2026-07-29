@@ -44,11 +44,10 @@ diffs remain readable across an RmlUi bump.
 
 ## Which advanced rendering features Folio implements
 
-**Target: all of them. Implemented so far: geometry, textures, scissor, transforms, clip
-masks and the gradient shaders.** Layers and filters are not, and until they are, anything
-that reads a layer back does not work. Status table at the end of this section.
+**Target: all of them.** Everything except the non-blur filters and `mask-image` is in. Status
+table at the end of this section.
 
-**All of them, eventually.** The Unreal render interface implements the complete RmlUi 6.x optional
+The Unreal render interface implements the complete RmlUi 6.x optional
 feature set, not a subset. Decided deliberately: a feature that is absent does not fail
 loudly, it parses and draws nothing, so a missing one is discovered months later as "why is
 this panel flat" rather than as an error. Retrofitting one also means revisiting every
@@ -72,11 +71,14 @@ mask paths, so it comes with them.
 |---|---|
 | Geometry, textures, scissor, `transform` | Done, through `MakeCustomVerts` |
 | Gradients (every `*-gradient` decorator) | Done, by baking the gradient into a texture rather than compiling a shader. The decorator's texture coordinates are pixel offsets inside the element box, which is the same space the shader parameters use, so the gradient can be evaluated on the CPU once and sampled |
-| Clip masks | Approximated. Slate clips with a quad rather than a stencil, so a mask becomes the bounding box of the geometry that set it: exact for rectangles, square-cornered for a rounded one, and `SetInverse` cannot be expressed at all |
-| Render layers | Implemented as render targets, drawn into with `FCanvas` on the game thread. Pooled by size |
-| `filter: blur` | Implemented as a separable gaussian global shader over the layer target |
-| Other filters, `backdrop-filter`, `mask-image` | Accepted and ignored. The layer machinery is there; only the shaders are missing |
-| `box-shadow` | **Composites, but the colour is wrong.** Still banned in the conventions |
+| Clip masks | Done. A real stencil on the layer path, so `SetInverse` is exact |
+| Render layers | Done. Render targets recorded on the game thread and replayed with RHI on the render thread, one pass per layer. Pooled by size |
+| `filter: blur` | Done. A separable gaussian global shader over the layer target |
+| `backdrop-filter: blur` | Done, via a Slate post-process pass, so the 3D scene behind a panel blurs with it. The region is a rectangle, so a rounded corner blurs square |
+| `box-shadow` | Done |
+| Text, font effects, vector sprites | Done. Distance fields through a UI-domain material |
+| Other filters, `mask-image` | Accepted and ignored. The layer machinery is there; only the shaders are missing |
+| Custom shader decorator | Not started |
 
 ### box-shadow, and why the layer path draws with RHI rather than FCanvas
 
@@ -239,6 +241,17 @@ interface decodes `.png` itself through lodepng, which it already links for scre
 premultiplies on the way in because 6.x expects premultiplied texture data and lodepng
 decodes straight alpha. Phase 3 needs the same thing from Unreal's texture path.
 
+**A distance field atlas is not colour, and must not be treated as one.** `SRGB = false`, and
+premultiplying is wrong. Both mistakes were made and both are quiet:
+
+- sRGB on an atlas applies a transfer curve to numbers that are distances, so the field's zero
+  crossing moves and every glyph comes out the wrong weight.
+- Premultiplying multiplies RGB by alpha. In an MTSDF, alpha is the *true signed distance*, not
+  coverage. The loaders did this to the vector atlas at first and the art eroded to blobs.
+
+The renderer detects a field atlas *before* the premultiply step for exactly this reason.
+Bilinear, clamped, no mips, never streamed.
+
 ## Missing sprites
 
 Most decorators resolve a value as a sprite name first and **silently** fall back to treating
@@ -399,9 +412,19 @@ declares them as its own private dependencies, which does not reach the module t
 links, so `freetype.lib` arrives with 27 unresolved `png_*` and `inflate*` symbols. Adding
 `zlib` and `UElibPNG` alongside `FreeType2` fixes it.
 
-`RMLUI_FONT_ENGINE` is kept as a build parameter rather than hardcoded, because Phase 3 may
-have to set it to `none` and supply a UE-backed font engine to avoid colliding with UE's own
-copy of FreeType (`Engine/Source/ThirdParty/FreeType2`).
+**`RMLUI_FONT_ENGINE` is `none` in both builds.** Folio supplies its own
+`Rml::FontEngineInterface`, so RmlUi's FreeType engine is not compiled at all - which also
+sidesteps colliding with the engine's own copy of FreeType
+(`Engine/Source/ThirdParty/FreeType2`).
+
+The consequence is worth knowing before it happens: `Rml::Initialise()` **fails hard** with "No
+font engine interface set!" unless `SetFontEngineInterface` ran first (`Core.cpp:109-118`). Both
+`FolioModule::StartupModule` and `uipreview`'s `App` install theirs before initialising, and the
+failure is loud, but a new host that forgets will not get a subtle degradation.
+
+The debugger's font loads through the **memory** `LoadFontFace` overload under the family
+`rmlui-debugger-font`. A font engine that only implements the file overload gives a debugger
+with no text at all, which reads as a rendering bug.
 
 ## Live Coding cannot introduce a global shader type
 
@@ -496,3 +519,57 @@ with both stacks - the free and the later read - after an afternoon of bisecting
 established that it needed a cold cache. It builds into `build/win64-asan` but writes its
 binaries to the same `bin/win64`, so rebuild without the flag afterwards, and run it from a
 shell with the MSVC environment imported or the sanitizer runtime will not resolve.
+
+## Advances changed when the text engine did
+
+Folio's advances come from FreeType's unhinted `linearHoriAdvance`, scaled linearly from design
+units. Hinted advances do not scale linearly - that is the whole point of hinting - and a
+non-linear advance cannot serve one size-independent atlas, so this is deliberate rather than an
+oversight.
+
+It does mean every existing screen re-flows slightly against a hinted rasteriser, and that a
+line break is not stable across dp ratios: an advance is a whole number of pixels at each size,
+so doubling the ratio halves the relative rounding error and words move between lines.
+
+`uipreview --metrics-report` and `scripts/verify.ps1 -Baseline` exist to make that visible
+rather than discovered. Compare like for like - same size, same dp ratio. A break that moves
+after an engine change is usually correct and still has to be looked at.
+
+## Baking is a build step, not a runtime one
+
+`msdfbake` runs offline and writes into the game's content:
+
+- `msdfbake font` writes `.folioatlas` caches. They are an optimisation - a missing one is
+  generated at runtime, costing about 0.2-0.5 ms per glyph - so packaging without them works
+  and merely stutters on first use of a face.
+- `msdfbake vector` writes the atlas PNG, its sidecar and a `@spritesheet` block. These are
+  **not** optional. Nothing generates a vector atlas at runtime, so an unbaked SVG is a missing
+  sprite in the packaged build.
+
+So the vector bake belongs in the content pipeline ahead of cook, next to whatever packs the
+raster atlases, and its outputs are committed like any other art. Re-run it after editing an
+SVG. RmlUi caches textures by path, so a re-baked atlas at the same path renders stale in the
+editor until it restarts.
+
+## Engine upgrade checklist
+
+Things that read engine internals and would fail quietly rather than loudly if the engine moved:
+
+- **`ChooseMaterialShaderTypes`** - the UI-domain material reaches the distance field shader
+  because `ElementBatcher.cpp` tags custom-verts batches `ESlateShader::Custom` and
+  `SlateRHIRenderingPolicy.cpp` maps that to `TSlateMaterialShaderPS<ESlateShader::Custom>`. If
+  that mapping changes, text loses its shader and falls back to something that draws the raw
+  field as colour.
+- **`FSlateResourceHandle`'s private constructor**, friended only to
+  `FSlateShaderResourceManager`. Only `GetResourceHandle(Brush)` yields one; anything else that
+  looks like it should work does not compile, and the workaround people reach for is a
+  reinterpret cast.
+- **`FSlateBaseUTextureResource::AccessRHIResource`** calls `FApp::GetCurrentTime()` from the
+  render thread, which ensures on `IsInGameThread()`. Folio uses
+  `FSlateDynamicImageBrush::CreateWithImageData` to get a native `FSlateDynamicTextureResource`
+  and avoid that branch entirely.
+- **Slate's own MTSDF maths** in `SlateElementPixelShader.usf`. Folio's spread term is taken
+  from it deliberately; if Slate's changes, the two stop agreeing about what a field means.
+- **msdfgen is vendored by SlateCore too.** Both copies link into a monolithic build, so ours
+  compiles under `MSDFGEN_PARENT_NAMESPACE` and the macro must match between the library build
+  and `MsdfgenLibrary.Build.cs`. Mismatched, it links in the editor and fails at packaging.

@@ -763,3 +763,26 @@ Two things the script fixes up in the build tree, because uipreview has one cont
 design and their harness has several search paths: it copies `Samples/assets/*.tga` under
 `Tests/Data/assets/` so the image tests resolve their art, and it registers the four LatoLatin
 faces the suite's stylesheet names. A clean rebuild undoes both and the script redoes them.
+
+## The Phase 3 gate, and how to re-run it
+
+`folio.Gate [document] [seconds]` is the gate as a command rather than a description. It puts a
+plain Slate widget in the viewport at order 50, the document at 100, and another widget at 200 -
+the orders game UI actually uses - waits for the game to be up, then screenshots.
+
+```
+UnrealEditor.exe <project>.uproject -game -windowed -resx=1280 -resy=720 -nosplash \
+    -ExecCmds="folio.Gate ui/examples/panel.rml 6"
+```
+
+The image lands in `Saved/Screenshots/WindowsEditor/FolioGate.png`. Passing means the document
+renders, the order-200 widget covers its top edge, and the order-50 widget is hidden behind it.
+
+**The command has to poll.** `-ExecCmds` runs during engine init, long before there is a game
+viewport to put anything in, and a level load clears viewport widgets anyway - so the obvious
+version ran, found nothing, and logged nothing. The first attempt at this screenshotted the
+game's own loading screen. It now waits on `GetWorld()->HasBegunPlay()` and then gives the
+document a few seconds to load its stylesheet, generate its glyphs and draw.
+
+Verified with `ui/examples/panel.rml`: borders, radii, drop shadows, a vertical gradient, a
+button and distance-field text, all in a running game, composited in the right place.

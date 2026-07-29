@@ -4,6 +4,11 @@
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Containers/Ticker.h"
+#include "UnrealClient.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/SBoxPanel.h"
 #include "Widgets/SWeakWidget.h"
 #include "Widgets/SWindow.h"
 
@@ -139,6 +144,94 @@ namespace
 	}
 
 	/**
+	 * The Phase 3 gate, run as one command so it is repeatable rather than described.
+	 *
+	 * Shows a document over the game viewport with a plain Slate widget below it and another
+	 * above, at the orders UMG uses, then screenshots. That is the whole claim being made: a
+	 * document renders in a running game and composites in the right place in the widget stack -
+	 * over the world and whatever the game drew, under anything added later at a higher order.
+	 *
+	 *   folio.Gate ui/examples/panel.rml
+	 */
+	TSharedPtr<SWidget> GateBelow;
+	TSharedPtr<SWidget> GateAbove;
+
+	TSharedRef<SWidget> MakeGateBar(const FLinearColor Colour)
+	{
+		return SNew(SBox)
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Top)
+			.HeightOverride(48.0f)
+			[
+				SNew(SOverlay)
+					+ SOverlay::Slot()
+					[
+						SNew(SImage).ColorAndOpacity(Colour)
+					]
+			];
+	}
+
+	FTSTicker::FDelegateHandle GateTicker;
+
+	void RunGate(const TArray<FString>& Args)
+	{
+		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("ui/examples/panel.rml");
+		const float Settle = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 4.0f;
+
+		if (GateTicker.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(GateTicker);
+			GateTicker.Reset();
+		}
+
+		// Polled rather than run on the spot. -ExecCmds fires during engine init, long before
+		// there is a game viewport to put anything in, and a level load clears viewport widgets
+		// anyway - so the first attempt would be thrown away even if it worked.
+		double Shown = -1.0;
+		GateTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
+			[Document, Settle, Shown](float) mutable -> bool
+			{
+				UGameViewportClient* Viewport = FindViewport();
+				if (!Viewport || !Viewport->GetWorld() || !Viewport->GetWorld()->HasBegunPlay())
+				{
+					return true;
+				}
+
+				if (Shown < 0.0)
+				{
+					// Below and above the document, at the orders game UI uses. Slate draws
+					// viewport widgets in order, so a document composited into the wrong place
+					// would be covered by one of these.
+					GateBelow = MakeGateBar(FLinearColor(0.05f, 0.35f, 0.15f, 1.0f));
+					GateAbove = MakeGateBar(FLinearColor(0.6f, 0.1f, 0.5f, 0.6f));
+
+					Viewport->AddViewportWidgetContent(GateBelow.ToSharedRef(), 50);
+					ShowDocument({ Document });
+					Viewport->AddViewportWidgetContent(GateAbove.ToSharedRef(), 200);
+
+					UE_LOG(LogFolio, Display, TEXT("folio.Gate: showing '%s'"), *Document);
+					Shown = FPlatformTime::Seconds();
+					return true;
+				}
+
+				// Frames for the document to load its stylesheet, generate its glyphs and draw,
+				// and for whatever loading screen the game puts up to go away. A screenshot before
+				// that catches something else entirely and proves nothing.
+				if (FPlatformTime::Seconds() - Shown < double(Settle))
+				{
+					return true;
+				}
+
+				FScreenshotRequest::RequestScreenshot(TEXT("FolioGate"), /*bShowUI*/ true,
+					/*bAddFilenameSuffix*/ false);
+				UE_LOG(LogFolio, Display, TEXT("folio.Gate: screenshot requested"));
+
+				GateTicker.Reset();
+				return false;
+			}), 0.25f);
+	}
+
+	/**
 	 * Tears both down before RmlUi does. These are statics, so without this they are destroyed
 	 * during DLL unload, long after the module has shut RmlUi down.
 	 */
@@ -156,6 +249,8 @@ namespace
 		{
 			CloseWindow();
 			HideDocument();
+			GateBelow.Reset();
+			GateAbove.Reset();
 		}
 	};
 
@@ -178,6 +273,12 @@ namespace
 		TEXT("folio.Hide"),
 		TEXT("Removes the document shown by folio.Show."),
 		FConsoleCommandDelegate::CreateStatic(&HideDocument));
+
+	FAutoConsoleCommand GateCommand(
+		TEXT("folio.Gate"),
+		TEXT("folio.Gate [document] [seconds]. Shows a document between two viewport widgets and "
+			"screenshots it once the game is up. The Phase 3 gate."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunGate));
 
 	FAutoConsoleCommand ReloadTexturesCommand(
 		TEXT("folio.ReloadTextures"),

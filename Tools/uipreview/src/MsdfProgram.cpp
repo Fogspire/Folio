@@ -62,7 +62,12 @@ void main() {
 	} else if (_mode < 1.5) {
 		Coverage = clamp((TrueDistance - (_threshold - _offset)) * Spread + 0.5, 0.0, 1.0);
 	} else {
-		Coverage = smoothstep(_threshold - _offset - _softness, _threshold - _offset + _softness, TrueDistance);
+		// The lower bound is clamped to zero because the field saturates there. Left negative, a
+		// pixel far outside the glyph still reads somewhere up the ramp, and every glyph quad
+		// picks up a uniform wash out to its corners - a second, blocky glow sitting behind the
+		// real one, with hard edges where the quads meet.
+		float Lower = max(_threshold - _offset - _softness, 0.0);
+		Coverage = smoothstep(Lower, _threshold - _offset + _softness, TrueDistance);
 	}
 
 	finalColor = fragColor * Coverage;

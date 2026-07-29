@@ -49,7 +49,12 @@ float4 FolioMsdfShade(Texture2D Atlas, SamplerState AtlasSampler, float2 UV, flo
 	}
 	else
 	{
-		Coverage = smoothstep(Threshold - Offset - Softness, Threshold - Offset + Softness, TrueDistance);
+		// The lower bound is clamped to zero because the field saturates there. Left negative, a
+		// pixel far outside the glyph still reads somewhere up the ramp, and every glyph quad
+		// picks up a uniform wash out to its corners - a second, blocky glow sitting behind the
+		// real one, with hard edges where the quads meet.
+		const float Lower = max(Threshold - Offset - Softness, 0.0f);
+		Coverage = smoothstep(Lower, Threshold - Offset + Softness, TrueDistance);
 	}
 
 	// Colour arrives premultiplied and leaves premultiplied, which is what RmlUi's blend state

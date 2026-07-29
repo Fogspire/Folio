@@ -7,6 +7,7 @@
 #include "FolioBlurShader.h"
 #include "FolioCore/MsdfSidecar.h"
 #include "FolioModule.h"
+#include "Brushes/SlateDynamicImageBrush.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
@@ -42,25 +43,22 @@ const FSlateResourceHandle& FFolioRenderInterface::GetWhiteHandle()
 		return WhiteHandle;
 	}
 
-	if (!WhiteTexture.IsValid())
+	if (!FSlateApplication::IsInitialized())
+	{
+		return WhiteHandle;
+	}
+
+	if (!WhiteBrush.IsValid())
 	{
 		const uint8 Opaque[4] = { 255, 255, 255, 255 };
-		WhiteTexture.Reset(CreateTexture(Opaque, FIntPoint(1, 1)));
-		if (!WhiteTexture.IsValid())
+		WhiteBrush = MakeDynamicBrush(TEXT("Folio.White"), Opaque, FIntPoint(1, 1));
+		if (!WhiteBrush.IsValid())
 		{
 			return WhiteHandle;
 		}
-
-		WhiteBrush.SetResourceObject(WhiteTexture.Get());
-		WhiteBrush.ImageSize = FVector2f(1.0f, 1.0f);
-		WhiteBrush.DrawAs = ESlateBrushDrawType::Image;
 	}
 
-	if (FSlateApplication::IsInitialized())
-	{
-		WhiteHandle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(WhiteBrush);
-	}
-
+	WhiteHandle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(*WhiteBrush);
 	return WhiteHandle;
 }
 
@@ -326,9 +324,15 @@ UTexture2D* FFolioRenderInterface::CreateTexture(const void* Bgra, const FIntPoi
 
 UTexture2D* FFolioRenderInterface::GetWhiteTexture()
 {
-	// Shares the lazy construction with the Slate path: the handle is what needs Slate, the
-	// texture itself does not.
-	GetWhiteHandle();
+	// Separate from the Slate brush on purpose. The layer path draws with RHI and binds a real
+	// texture; Slate's path wants a resource handle and gets one from a dynamic brush, which is
+	// what keeps it off the UTexture branch that ensures on the render thread.
+	if (!WhiteTexture.IsValid())
+	{
+		const uint8 Opaque[4] = { 255, 255, 255, 255 };
+		WhiteTexture.Reset(CreateTexture(Opaque, FIntPoint(1, 1)));
+	}
+
 	return WhiteTexture.Get();
 }
 
@@ -340,6 +344,51 @@ Rml::TextureHandle FFolioRenderInterface::RegisterRenderTarget(UTextureRenderTar
 	}
 
 	return RegisterTexture(Target, FIntPoint(Target->SizeX, Target->SizeY));
+}
+
+TSharedPtr<FSlateDynamicImageBrush> FFolioRenderInterface::MakeDynamicBrush(const FString& Name,
+	const void* Bgra, const FIntPoint Size)
+{
+	// A dynamic image resource rather than a UTexture brush.
+	//
+	// Slate resolves a UTexture brush through FSlateBaseUTextureResource, whose AccessRHIResource
+	// stamps LastRenderTime with FApp::GetCurrentTime - a game-thread call, made from the render
+	// thread while batches are built, which ensures every frame a document is drawn. A dynamic
+	// resource is native and takes a different branch entirely. It also costs no UObject, which
+	// these never needed: they are render resources, not assets.
+	if (!FSlateApplication::IsInitialized() || Bgra == nullptr || Size.X <= 0 || Size.Y <= 0)
+	{
+		return nullptr;
+	}
+
+	const int32 Bytes = Size.X * Size.Y * 4;
+	TArray<uint8> Pixels;
+	Pixels.SetNumUninitialized(Bytes);
+	FMemory::Memcpy(Pixels.GetData(), Bgra, Bytes);
+
+	// The brush owns the resource and releases it when the last reference goes, which is why it is
+	// held by pointer rather than sliced into a plain FSlateBrush.
+	return FSlateDynamicImageBrush::CreateWithImageData(FName(*Name),
+		FVector2D(double(Size.X), double(Size.Y)), Pixels);
+}
+
+Rml::TextureHandle FFolioRenderInterface::RegisterPixels(const void* Bgra, const FIntPoint Size)
+{
+	const Rml::TextureHandle Handle = NextHandle++;
+
+	TSharedPtr<FSlateDynamicImageBrush> Brush = MakeDynamicBrush(
+		FString::Printf(TEXT("Folio.Tex.%llu"), static_cast<uint64>(Handle)), Bgra, Size);
+	if (!Brush.IsValid())
+	{
+		return 0;
+	}
+
+	TUniquePtr<FTexture> Entry = MakeUnique<FTexture>();
+	Entry->DynamicBrush = Brush;
+	Entry->Handle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(*Brush);
+
+	Textures.Add(Handle, MoveTemp(Entry));
+	return Handle;
 }
 
 Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, const FIntPoint Size)
@@ -425,7 +474,7 @@ Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensio
 		Raw[Index + 2] = static_cast<uint8>((Raw[Index + 2] * Alpha + 127) / 255);
 	}
 
-	return RegisterTexture(CreateTexture(Raw.GetData(), Size), Size);
+	return RegisterPixels(Raw.GetData(), Size);
 }
 
 Rml::TextureHandle FFolioRenderInterface::GenerateTexture(const Rml::Span<const Rml::byte> Source,
@@ -444,11 +493,15 @@ Rml::TextureHandle FFolioRenderInterface::GenerateTexture(const Rml::Span<const 
 		Bgra[Index + 3] = Source[Index + 3];
 	}
 
-	return RegisterTexture(CreateTexture(Bgra.GetData(), Size), Size);
+	return RegisterPixels(Bgra.GetData(), Size);
 }
 
 void FFolioRenderInterface::ReleaseTexture(const Rml::TextureHandle Handle)
 {
+	// A dynamic resource is keyed by name in Slate's manager, so dropping our entry is not enough
+	// to free it. A field page is not in this map at all - it releases through ReleaseAtlasHandle.
+	// A dynamic brush releases its own resource once the last reference to it goes. A field page is
+	// not in this map at all - it releases through ReleaseAtlasHandle.
 	Textures.Remove(Handle);
 }
 
@@ -813,7 +866,7 @@ Rml::TextureHandle FFolioRenderInterface::GetTransparentTexture()
 	}
 
 	const uint8 Clear[4] = { 0, 0, 0, 0 };
-	TransparentTexture = RegisterTexture(CreateTexture(Clear, FIntPoint(1, 1)), FIntPoint(1, 1));
+	TransparentTexture = RegisterPixels(Clear, FIntPoint(1, 1));
 	return TransparentTexture;
 }
 
@@ -919,7 +972,7 @@ const FSlateResourceHandle* FFolioRenderInterface::GetGradientResource(const Rml
 	TArray<uint8> Bgra;
 	Folio::RasterizeGradient(Shader.Gradient, BoxSize, TextureSize, Bgra);
 
-	const Rml::TextureHandle Baked = RegisterTexture(CreateTexture(Bgra.GetData(), TextureSize), TextureSize);
+	const Rml::TextureHandle Baked = RegisterPixels(Bgra.GetData(), TextureSize);
 	if (Baked == 0)
 	{
 		return nullptr;

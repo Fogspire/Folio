@@ -130,14 +130,23 @@ private:
 
 	struct FTexture
 	{
-		/** UTexture rather than UTexture2D: a saved layer is a render target. */
+		/** Only set for a saved layer, which has to stay a render target. */
 		TStrongObjectPtr<UTexture> Texture;
 		FSlateBrush Brush;
 		FSlateResourceHandle Handle;
+		/** Set instead of Texture for pixels we generated; owns its Slate resource. */
+		TSharedPtr<struct FSlateDynamicImageBrush> DynamicBrush;
 	};
 
 	FTexture* FindTexture(Rml::TextureHandle Handle);
 	Rml::TextureHandle RegisterTexture(UTexture* Texture, FIntPoint Size);
+
+	/** Builds a brush over a Slate dynamic image resource, avoiding the UTexture path entirely. */
+	static TSharedPtr<struct FSlateDynamicImageBrush> MakeDynamicBrush(const FString& Name, const void* Bgra,
+		FIntPoint Size);
+
+	/** Registers decoded bytes as a texture without creating a UObject for them. */
+	Rml::TextureHandle RegisterPixels(const void* Bgra, FIntPoint Size);
 
 	/** Registers a baked sheet as a field page if it has a sidecar. Zero if it is ordinary art. */
 	Rml::TextureHandle LoadFieldAtlas(const Rml::String& Source, const TArray64<uint8>& Bgra, FIntPoint Size);
@@ -271,8 +280,9 @@ private:
 	 */
 	const FSlateResourceHandle& GetWhiteHandle();
 
+	TSharedPtr<struct FSlateDynamicImageBrush> WhiteBrush;
+	/** The layer path draws with RHI and needs a real texture, not a Slate resource. */
 	TStrongObjectPtr<UTexture2D> WhiteTexture;
-	FSlateBrush WhiteBrush;
 	FSlateResourceHandle WhiteHandle;
 
 	FSlateWindowElementList* ElementList = nullptr;

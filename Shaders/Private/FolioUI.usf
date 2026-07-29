@@ -49,8 +49,13 @@ float4 MsdfPS(
 	in float4 Color : TEXCOORD1) : SV_Target0
 {
 	float4 Premultiplied = float4(Color.rgb * Color.a, Color.a);
+
+	// No fill pattern on this path. A layer already means a filter or a mask is in play, and
+	// binding a second texture here would need a second sampler through the layer's own state.
+	// Passing the atlas keeps the sampler valid; a strength of zero means it is never read.
 	return FolioMsdfShade(UITexture, UISampler, UV, MsdfField.xy, MsdfField.z,
-		MsdfEffect.x, MsdfEffect.y, MsdfEffect.z, MsdfField.w, Premultiplied);
+		MsdfEffect.x, MsdfEffect.y, MsdfEffect.z, MsdfField.w, Premultiplied,
+		UITexture, UISampler, UV, 0.0f);
 }
 
 // Colour writes are disabled for a mask pass, so the stencil is the only output that matters.

@@ -174,6 +174,10 @@ private:
 	 */
 	TSet<Rml::TextureHandle> FieldAtlasesFromFile;
 
+	/** The texture for a fill pattern path, loaded once. Null when it could not be used. */
+	UTexture* ResolveFillTexture(const std::string& Path);
+	TMap<FString, TStrongObjectPtr<UTexture>> FillTextures;
+
 	/** Every source LoadTexture has read, against the file's timestamp when it read it. */
 	TMap<FString, FDateTime> LoadedTextureTimes;
 

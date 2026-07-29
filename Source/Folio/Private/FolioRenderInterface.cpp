@@ -547,6 +547,43 @@ int32 FFolioRenderInterface::ReloadChangedTextures(const bool bForce)
 	return Stale.Num();
 }
 
+UTexture* FFolioRenderInterface::ResolveFillTexture(const std::string& Path)
+{
+	if (Path.empty())
+	{
+		return nullptr;
+	}
+
+	const FString Key = Folio::ToFString(Path);
+	if (TStrongObjectPtr<UTexture>* Found = FillTextures.Find(Key))
+	{
+		return Found->Get();
+	}
+
+	// Through the ordinary texture path, so a pattern is loaded and decoded exactly like any other
+	// piece of art. The handle it hands back is one of ours, so the texture is fished back out of
+	// the map rather than reconstructed.
+	Rml::Vector2i Size;
+	const Rml::TextureHandle Handle = LoadTexture(Size, Path);
+
+	UTexture* Texture = nullptr;
+	if (const FTexture* Entry = FindTexture(Handle))
+	{
+		Texture = Entry->Texture.Get();
+	}
+
+	if (Texture == nullptr)
+	{
+		// A dynamic brush owns its pixels through Slate rather than a UTexture, and the material
+		// needs a UTexture. Nothing is lost by saying so: the text still draws, just flat.
+		UE_LOG(LogFolio, Warning,
+			TEXT("could not use '%s' as a fill pattern; the text is drawn flat"), *Key);
+	}
+
+	FillTextures.Add(Key, TStrongObjectPtr<UTexture>(Texture));
+	return Texture;
+}
+
 void FFolioRenderInterface::ReleaseTexture(const Rml::TextureHandle Handle)
 {
 	// A dynamic brush releases its own Slate resource once the last reference to it goes.
@@ -1412,6 +1449,19 @@ FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::ResolveMsdfBinding(c
 	Instance->SetScalarParameterValue(TEXT("EffectMode"), Effect.X);
 	Instance->SetScalarParameterValue(TEXT("EffectOffset"), Effect.Y);
 	Instance->SetScalarParameterValue(TEXT("EffectSoftness"), Effect.Z);
+
+	// Textured text. The pattern is a file rather than a sprite, because a font effect is built
+	// while the stylesheet parses and has no route to a spritesheet.
+	if (UTexture* Fill = ResolveFillTexture(Binding.Effect.FillImage))
+	{
+		Instance->SetTextureParameterValue(TEXT("Fill"), Fill);
+		Instance->SetScalarParameterValue(TEXT("FillSize"), FMath::Max(Binding.Effect.FillSizePx, 1.0f));
+		Instance->SetScalarParameterValue(TEXT("FillStrength"), 1.0f);
+	}
+	else
+	{
+		Instance->SetScalarParameterValue(TEXT("FillStrength"), 0.0f);
+	}
 
 	Binding.Material = TStrongObjectPtr<UMaterialInstanceDynamic>(Instance);
 	Binding.Brush.SetResourceObject(Instance);

@@ -21,7 +21,8 @@ float FolioMsdfMedian(float3 Field)
 }
 
 float4 FolioMsdfShade(Texture2D Atlas, SamplerState AtlasSampler, float2 UV, float2 UnitRange,
-	float Threshold, float Mode, float Offset, float Softness, float Sharpen, float4 Colour)
+	float Threshold, float Mode, float Offset, float Softness, float Sharpen, float4 Colour,
+	Texture2D Fill, SamplerState FillSampler, float2 FillUV, float FillStrength)
 {
 	float4 Sample = Atlas.Sample(AtlasSampler, UV);
 	float MedianDistance = FolioMsdfMedian(Sample.rgb);
@@ -63,5 +64,17 @@ float4 FolioMsdfShade(Texture2D Atlas, SamplerState AtlasSampler, float2 UV, flo
 
 	// Colour arrives premultiplied and leaves premultiplied, which is what RmlUi's blend state
 	// expects. Scaling a premultiplied colour by coverage is the correct fade.
-	return Colour * Coverage;
+	float4 Result = Colour * Coverage;
+
+	// Filling text with a pattern rather than a flat colour. The sample is premultiplied too, so
+	// multiplying carries its alpha through and a transparent part of the pattern cuts a hole in
+	// the text. FillUV is computed by the caller, from screen position, so the pattern is
+	// continuous across a whole run instead of restarting on every glyph quad.
+	if (FillStrength > 0.0f)
+	{
+		float4 Pattern = Fill.Sample(FillSampler, FillUV);
+		Result *= lerp(float4(1.0f, 1.0f, 1.0f, 1.0f), Pattern, FillStrength);
+	}
+
+	return Result;
 }

@@ -27,8 +27,10 @@ public:
 
 	bool IsValid() const { return program != 0; }
 
+	/** fill is a GL texture the coverage is multiplied by, or zero for a flat colour. */
 	void Bind(const Rml::Matrix4f& transform, Rml::Vector2f translation, unsigned int texture,
-		Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect, float sharpen);
+		Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect, float sharpen,
+		unsigned int fill, float viewport_height);
 
 	unsigned int program = 0;
 
@@ -38,6 +40,10 @@ private:
 	int uniform_atlas = -1;
 	int uniform_unit_range = -1;
 	int uniform_threshold = -1;
+	int uniform_fill = -1;
+	int uniform_fill_uv_scale = -1;
+	int uniform_fill_strength = -1;
+	int uniform_viewport_height = -1;
 	int uniform_mode = -1;
 	int uniform_offset = -1;
 	int uniform_softness = -1;

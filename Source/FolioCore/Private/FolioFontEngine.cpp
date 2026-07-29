@@ -65,13 +65,16 @@ namespace Folio
 		}
 	};
 
-	/// One extra pass over the string, drawn before the text itself.
+	/// One extra pass over the string, drawn either side of the text itself.
 	struct FFolioFontEngine::FEffectLayer
 	{
 		FMsdfEffectParams Params;
 		Rml::ColourbPremultiplied Colour;
 		float OffsetX = 0.0f;
 		float OffsetY = 0.0f;
+		/// Behind the glyph or over it, as the effect asked. An outline, glow or shadow goes
+		/// behind; a fill pattern has to go over or the glyph covers it.
+		bool bFront = false;
 	};
 
 	/// A face instance resolved at one size. Handles are cheap: the atlas they read from is
@@ -582,6 +585,7 @@ namespace Folio
 
 			FEffectLayer& Layer = Layers.emplace_back();
 			Layer.Params = Folio->Params;
+			Layer.bFront = Folio->GetLayer() == Rml::FontEffect::Layer::Front;
 
 			// Effect colours are authored straight and the meshes want premultiplied, the same
 			// conversion RmlUi applies to a text colour before it reaches here.
@@ -696,13 +700,33 @@ namespace Folio
 		{
 			for (const FEffectLayer& Layer : Impl->EffectSets[std::size_t(EffectsHandle) - 1])
 			{
-				AppendPass(RenderManager, *Resolved, String, Position + Rml::Vector2f(Layer.OffsetX, Layer.OffsetY),
-					Layer.Colour, TextShapingContext, &Layer.Params, MeshList);
+				if (!Layer.bFront)
+				{
+					AppendPass(RenderManager, *Resolved, String, Position + Rml::Vector2f(Layer.OffsetX, Layer.OffsetY),
+						Layer.Colour, TextShapingContext, &Layer.Params, MeshList);
+				}
 			}
 		}
 
-		return AppendPass(RenderManager, *Resolved, String, Position, Colour, TextShapingContext,
+		const int Width = AppendPass(RenderManager, *Resolved, String, Position, Colour, TextShapingContext,
 			nullptr, MeshList);
+
+		// After the glyph, not before. RmlUi lets an effect choose a side and every one it ships
+		// picks the back, which is why drawing them all behind went unnoticed - until a fill
+		// pattern asked to go in front and the glyph painted straight over it.
+		if (EffectsHandle != 0 && std::size_t(EffectsHandle) <= Impl->EffectSets.size())
+		{
+			for (const FEffectLayer& Layer : Impl->EffectSets[std::size_t(EffectsHandle) - 1])
+			{
+				if (Layer.bFront)
+				{
+					AppendPass(RenderManager, *Resolved, String, Position + Rml::Vector2f(Layer.OffsetX, Layer.OffsetY),
+						Layer.Colour, TextShapingContext, &Layer.Params, MeshList);
+				}
+			}
+		}
+
+		return Width;
 	}
 
 	int FFolioFontEngine::AppendPass(Rml::RenderManager& RenderManager, FHandle& Resolved,

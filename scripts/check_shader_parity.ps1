@@ -65,7 +65,16 @@ $TokenMap = [ordered] @{
     'Offset'     = '_offset'
     'Softness'   = '_softness'
     'Sharpen'    = '_sharpen'
-    'Colour'     = 'fragColor'
+    'Colour'       = 'fragColor'
+    'Fill'         = '_fill'
+    'FillStrength' = '_fillStrength'
+}
+
+# A block the two renderers are expected to do differently, because it is the host supplying an
+# input rather than the field maths itself. Marked in the source so the exception is visible where
+# it applies rather than only here.
+function Remove-HostBlocks([string] $Text) {
+    return [regex]::Replace($Text, '//\s*FOLIO_MSDF_HOST_BEGIN.*?//\s*FOLIO_MSDF_HOST_END', '', 'Singleline')
 }
 
 function Remove-Comments([string] $Text) {
@@ -120,6 +129,7 @@ function Convert-ClampToSaturate([string] $Text) {
 }
 
 function Get-Canonical([string] $Text) {
+    $Text = Remove-HostBlocks $Text
     $Text = Remove-Comments $Text
     $Text = Remove-Declarations $Text
     $Text = Convert-Dialect $Text

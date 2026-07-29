@@ -1,0 +1,54 @@
+<rml>
+<head>
+	<title>textured text</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			Text filled with a pattern rather than a flat colour.
+
+			font-effect: fill-image draws the glyph a second time at the same coverage with a
+			texture multiplied in, as a front layer. That is why an outline or a glow on the same
+			text stays flat: only the fill layer is textured.
+
+			The pattern is anchored to the screen, not to the text, so a scanline stays put while
+			text moves under it - which is what a scanline is for, and worth knowing before using
+			it for something that should travel with the words.
+
+			It names a file, not a sprite. A font effect is built while the stylesheet parses and
+			has no route to a spritesheet.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 54dp;
+			color: #f0c674;
+			background-color: #16161c;
+			padding: 24dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		.label { font-size: 13dp; color: #8a8a99; margin-bottom: 2dp; font-effect: none; }
+		.row { margin-bottom: 14dp; }
+
+		.plain   { }
+		.striped { font-effect: fill-image("/ui/art/scanlines.png" 6dp); }
+		.fine    { font-effect: fill-image("/ui/art/scanlines.png" 3dp); }
+		.tinted  { color: #4aa3df; font-effect: fill-image("/ui/art/scanlines.png" 6dp); }
+	</style>
+</head>
+<body>
+	<div class="label">no fill</div>
+	<div class="row plain">Handgloves</div>
+
+	<div class="label">fill-image, 6dp tile</div>
+	<div class="row striped">Handgloves</div>
+
+	<div class="label">fill-image, 3dp tile</div>
+	<div class="row fine">Handgloves</div>
+
+	<div class="label">the flat colour still tints what shows through</div>
+	<div class="row tinted">Handgloves</div>
+</body>
+</rml>

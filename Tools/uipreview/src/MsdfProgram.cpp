@@ -39,6 +39,10 @@ uniform float _mode;
 uniform float _offset;
 uniform float _softness;
 uniform float _sharpen;
+uniform sampler2D _fill;
+uniform vec2 _fillUvScale;
+uniform float _fillStrength;
+uniform float _viewportHeight;
 
 in vec2 fragTexCoord;
 in vec4 fragColor;
@@ -55,6 +59,15 @@ void main() {
 	float TrueDistance = Sample.a;
 
 	float Spread = max(0.5 * dot(_unitRange, 1.0 / fwidth(fragTexCoord)) * _sharpen, 1.0);
+
+	// FOLIO_MSDF_HOST_BEGIN
+	// Where the fill pattern is read from is the host's job, not the field maths: Unreal's
+	// material computes it from SvPosition in the Custom node, and this does the same from
+	// gl_FragCoord. GL puts the origin at the bottom and every other renderer puts it at the top,
+	// so it is flipped here and a pattern lands the same way round in both. The parity script
+	// skips this block for exactly that reason.
+	vec2 FillUV = vec2(gl_FragCoord.x, _viewportHeight - gl_FragCoord.y) * _fillUvScale;
+	// FOLIO_MSDF_HOST_END
 
 	float Coverage;
 	if (_mode < 0.5) {
@@ -74,7 +87,18 @@ void main() {
 		Coverage = smoothstep(Lower, Upper, TrueDistance);
 	}
 
-	finalColor = fragColor * Coverage;
+	vec4 Result = fragColor * Coverage;
+
+	// Filling text with a pattern rather than a flat colour. The sample is premultiplied too, so
+	// multiplying carries its alpha through and a transparent part of the pattern cuts a hole in
+	// the text. FillUV is computed by the caller, from screen position, so the pattern is
+	// continuous across a whole run instead of restarting on every glyph quad.
+	if (_fillStrength > 0.0) {
+		vec4 Pattern = texture(_fill, FillUV);
+		Result *= mix(vec4(1.0, 1.0, 1.0, 1.0), Pattern, _fillStrength);
+	}
+
+	finalColor = Result;
 }
 )";
 // FOLIO_MSDF_GLSL_END
@@ -157,12 +181,17 @@ bool MsdfProgram::Initialise(std::string& error)
 	uniform_offset = glGetUniformLocation(program, "_offset");
 	uniform_softness = glGetUniformLocation(program, "_softness");
 	uniform_sharpen = glGetUniformLocation(program, "_sharpen");
+	uniform_fill = glGetUniformLocation(program, "_fill");
+	uniform_fill_uv_scale = glGetUniformLocation(program, "_fillUvScale");
+	uniform_fill_strength = glGetUniformLocation(program, "_fillStrength");
+	uniform_viewport_height = glGetUniformLocation(program, "_viewportHeight");
 
 	return true;
 }
 
 void MsdfProgram::Bind(const Rml::Matrix4f& transform, Rml::Vector2f translation, unsigned int texture,
-	Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect, float sharpen)
+	Rml::Vector2f unit_range, const Folio::FMsdfEffectParams& effect, float sharpen,
+	unsigned int fill, float viewport_height)
 {
 	glUseProgram(program);
 
@@ -175,9 +204,22 @@ void MsdfProgram::Bind(const Rml::Matrix4f& transform, Rml::Vector2f translation
 	glUniform1f(uniform_softness, effect.SoftnessEm);
 	glUniform1f(uniform_sharpen, sharpen);
 
+	const bool has_fill = fill != 0 && effect.FillSizePx > 0.0f;
+	const float scale = has_fill ? 1.0f / effect.FillSizePx : 0.0f;
+	glUniform2f(uniform_fill_uv_scale, scale, scale);
+	glUniform1f(uniform_fill_strength, has_fill ? 1.0f : 0.0f);
+	glUniform1f(uniform_viewport_height, viewport_height);
+
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glUniform1i(uniform_atlas, 0);
+
+	// Bound even when unused: a sampler left pointing at a unit with no texture is undefined, and
+	// on some drivers that is a black draw rather than the ignored branch it looks like.
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, has_fill ? fill : texture);
+	glUniform1i(uniform_fill, 1);
+	glActiveTexture(GL_TEXTURE0);
 }
 
 void MsdfGeometry::Upload(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices)

@@ -76,9 +76,21 @@ namespace Folio
 		/// Width of the smoothstep band, in em. Zero gives a hard edge.
 		float SoftnessEm = 0.0f;
 
+		/// A texture the coverage is multiplied by, so text can be filled with a pattern rather
+		/// than a colour. Empty for the ordinary case.
+		///
+		/// Named rather than handed over as a handle, because a font effect is built while the
+		/// stylesheet is parsed and only the renderer can turn a path into a texture. The renderer
+		/// resolves it once per distinct name.
+		std::string FillImage;
+		/// Tile size in pixels. The pattern is anchored to the screen, not to the text, so a
+		/// scanline stays put while text moves under it.
+		float FillSizePx = 0.0f;
+
 		friend bool operator==(const FMsdfEffectParams& A, const FMsdfEffectParams& B)
 		{
-			return A.Effect == B.Effect && A.OffsetEm == B.OffsetEm && A.SoftnessEm == B.SoftnessEm;
+			return A.Effect == B.Effect && A.OffsetEm == B.OffsetEm && A.SoftnessEm == B.SoftnessEm
+				&& A.FillSizePx == B.FillSizePx && A.FillImage == B.FillImage;
 		}
 		friend bool operator!=(const FMsdfEffectParams& A, const FMsdfEffectParams& B) { return !(A == B); }
 	};

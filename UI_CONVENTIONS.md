@@ -232,8 +232,8 @@ Two limits. The hole is a rectangle, so a `border-radius` dialog still cuts a sq
 costs four blurred regions rather than one, because a rectangle cannot be cut out of another
 rectangle.
 
-**`font-effect`** takes: `glow`, `outline`, `shadow`, `blur`. These are the only way to get a
-text shadow; `text-shadow` does not exist.
+**`font-effect`** takes: `glow`, `outline`, `shadow`, `blur`, and Folio's own `fill-image`.
+These are the only way to get a text shadow; `text-shadow` does not exist.
 
 ### Renderer support
 
@@ -336,6 +336,30 @@ held back to give it one.
 Clamping is a real limit, not a soft one. An effect asked for at three times the cap looks
 identical to one asked for at the cap. To go wider, raise `pxrange` when baking, at a quadratic
 cost in atlas area.
+
+### Textured text
+
+`fill-image` fills the glyphs with a pattern instead of a flat colour - a scanline, a gradient, a
+gold-leaf sheet:
+
+```css
+.crt { font-effect: fill-image("/ui/art/scanlines.png" 4dp); }
+```
+
+The arguments are a path, a tile size, and an optional colour the pattern is multiplied by.
+Three things to know:
+
+- **It names a file, not a sprite.** A font effect is built while the stylesheet is parsed, and
+  has no route to the spritesheet a decorator would use.
+- **The pattern is anchored to the screen, not to the text.** A scanline stays put while text
+  scrolls under it, which is what a scanline is for and wrong for anything meant to travel with
+  the words.
+- **It only textures the fill.** It is a front layer over the glyph, so an `outline`, `glow` or
+  `shadow` on the same text stays flat. Where the pattern is transparent the flat `color` shows
+  through, so the two compose.
+
+Not available inside a layer - text under a `filter`, a `mask-image`, or an `opacity` on an
+ancestor. Those paths bind one texture, and the pattern is skipped.
 
 ---
 

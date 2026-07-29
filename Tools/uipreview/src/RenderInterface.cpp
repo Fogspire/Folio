@@ -261,8 +261,12 @@ void PreviewRenderInterface::RenderGeometry(Rml::CompiledGeometryHandle geometry
 	if (shadow->second.msdf.vao == 0)
 		shadow->second.msdf.Upload(shadow->second.vertices, shadow->second.indices);
 
+	const unsigned int fill = binding->second.effect.FillImage.empty()
+		? 0u
+		: ResolveFill(binding->second.effect.FillImage);
+
 	msdf_program.Bind(GetTransform(), translation, binding->second.texture, binding->second.unit_range,
-		binding->second.effect, msdf_sharpen);
+		binding->second.effect, msdf_sharpen, fill, float(viewport.y));
 
 	glBindVertexArray(shadow->second.msdf.vao);
 	glDrawElements(GL_TRIANGLES, shadow->second.msdf.index_count, GL_UNSIGNED_INT, nullptr);
@@ -514,6 +518,46 @@ void PreviewRenderInterface::CompositeLayers(Rml::LayerHandle source, Rml::Layer
 
 	// Left as RmlUi set it, so whatever draws next is clipped to what it expects.
 	RenderInterface_GL3::SetScissorRegion(hole);
+}
+
+unsigned int PreviewRenderInterface::ResolveFill(const std::string& path)
+{
+	const auto found = fill_textures.find(path);
+	if (found != fill_textures.end())
+		return found->second;
+
+	// Through our own override, because the base class reads uncompressed TGA and nothing else
+	// and a pattern is a PNG like every other piece of art here.
+	Rml::Vector2i size;
+	Rml::TextureHandle handle = LoadTexture(size, path);
+
+	// A field page's handle is an index, not a GL name, so binding it as a texture would sample
+	// whatever shares the number.
+	if (handle && msdf_bindings.find(handle) != msdf_bindings.end())
+	{
+		diagnostics.Report(Severity::Warning, "W-FONT-FILL",
+			"'" + diagnostics.Relative(path) + "' is a distance field atlas, which cannot be a fill "
+			"pattern; the text is drawn flat", {}, 0, {{"path", diagnostics.Relative(path)}});
+		handle = {};
+	}
+
+	if (!handle)
+	{
+		diagnostics.Report(Severity::Warning, "W-FONT-FILL",
+			"could not load the fill pattern '" + diagnostics.Relative(path) + "'; the text is drawn flat",
+			{}, 0, {{"path", diagnostics.Relative(path)}});
+	}
+	else
+	{
+		// Tiled, since the pattern is anchored to the screen and has to cover it.
+		glBindTexture(GL_TEXTURE_2D, (unsigned int)handle);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+
+	fill_textures[path] = (unsigned int)handle;
+	return (unsigned int)handle;
 }
 
 void PreviewRenderInterface::ClearPlaceholders()

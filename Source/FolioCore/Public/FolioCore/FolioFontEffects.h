@@ -205,6 +205,53 @@ namespace Folio
 			Rml::PropertyId IdColour = Rml::PropertyId::Invalid;
 		};
 
+		/// `font-effect: fill-image(/ui/art/scanlines.png 4dp)` - text filled with a pattern.
+		///
+		/// A front layer rather than a change to the base pass: the glyph is drawn again at the
+		/// same coverage with the pattern multiplied in, so it covers the flat colour underneath
+		/// wherever the pattern is opaque and lets it through where the pattern is not. That keeps
+		/// it per layer, which is what an outline or a glow wants - those stay flat while only the
+		/// fill is textured.
+		///
+		/// The pattern is named by path, not by sprite. A font effect is built while the
+		/// stylesheet parses, with no route to the spritesheet a decorator would use.
+		class FFillImageInstancer final : public Rml::FontEffectInstancer
+		{
+		public:
+			FFillImageInstancer()
+			{
+				IdImage = RegisterProperty("image", "").AddParser("string").GetId();
+				IdSize = RegisterProperty("size", "8px", true).AddParser("length").GetId();
+				IdColour = RegisterProperty("color", "white", false).AddParser("color").GetId();
+				RegisterShorthand("font-effect", "image, size, color", Rml::ShorthandType::FallThrough);
+			}
+
+			Rml::SharedPtr<Rml::FontEffect> InstanceFontEffect(const Rml::String&,
+				const Rml::PropertyDictionary& Properties) override
+			{
+				const Rml::Property* Image = Properties.GetProperty(IdImage);
+				if (Image == nullptr || Image->Get<Rml::String>().empty())
+				{
+					return nullptr;
+				}
+
+				auto Effect = Rml::MakeShared<FFolioFontEffect>();
+				Effect->SetLayer(Rml::FontEffect::Layer::Front);
+
+				// Same coverage as the glyph itself. Only the pattern differs.
+				Effect->Params.Effect = EMsdfEffect::Fill;
+				Effect->Params.FillImage = Image->Get<Rml::String>();
+				Effect->Params.FillSizePx = ToLength(Properties.GetProperty(IdSize), 8.0f);
+				ApplyColour(*Effect, Properties.GetProperty(IdColour));
+				return Effect;
+			}
+
+		private:
+			Rml::PropertyId IdImage = Rml::PropertyId::Invalid;
+			Rml::PropertyId IdSize = Rml::PropertyId::Invalid;
+			Rml::PropertyId IdColour = Rml::PropertyId::Invalid;
+		};
+
 		inline std::vector<std::unique_ptr<Rml::FontEffectInstancer>>& OwnedInstancers()
 		{
 			static std::vector<std::unique_ptr<Rml::FontEffectInstancer>> Owned;
@@ -235,6 +282,9 @@ namespace Folio
 		Add("glow", std::make_unique<Detail::FGlowInstancer>());
 		Add("shadow", std::make_unique<Detail::FShadowInstancer>());
 		Add("blur", std::make_unique<Detail::FBlurInstancer>());
+
+		// Not a replacement for anything RmlUi ships; this name is Folio's own.
+		Add("fill-image", std::make_unique<Detail::FFillImageInstancer>());
 	}
 
 	/// Drops the instancers. RmlUi holds raw pointers, so this must happen after shutdown.

@@ -694,3 +694,43 @@ bite a crescent out of its end. The direction has to be the one that goes throug
 plus the outward tangent.
 
 `Tools/uipreview/tests/vector_strokes.rml` is one of each case, at two sizes.
+
+## Font effects all drew behind the glyph, whatever they asked for
+
+`Rml::FontEffect` lets an effect choose a side with `GetLayer()`, Back or Front. Every effect
+RmlUi ships picks Back, and so did all four of ours, so `GenerateString` drawing the whole effect
+set before the glyph went unnoticed for as long as nothing wanted the other side.
+
+`fill-image` does. It is a front layer by construction - the glyph drawn again at the same
+coverage with a pattern multiplied in - and the base pass painted straight over it. The symptom
+was a red fringe: only where the glyph's own antialiasing let it through did any of the front
+layer survive.
+
+Back layers, then the glyph, then front layers.
+
+## Textured text needs a second sampler, and that means editing the material
+
+The pattern is a second texture multiplied into the resolved coverage. `FolioMsdfShade` grew
+`Fill`, `FillSampler`, `FillUV` and `FillStrength`, which means `M_FolioMSDF`'s Custom node had
+to grow three inputs to match - a binary asset, so it cannot be edited from a text diff.
+
+Done headlessly, and repeatable:
+
+```
+UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript -script=<file> -unattended -nosplash
+```
+
+with `PythonScriptPlugin` temporarily added to the project's plugin list. It does not belong in
+`Folio.uplugin`: it is an authoring tool used once, not something every game on Folio should have
+to enable. The script is idempotent - it checks for the `Fill` input and exits if it is already
+there.
+
+`print` from a commandlet only reaches the console with `-stdout -FullStdOutLogOutput`. Without
+those the script runs silently and looks like it did nothing.
+
+**Where the pattern is read from is the host's job, not the field maths.** Unreal computes the UV
+from `Parameters.SvPosition` in the Custom node; the preview tool from `gl_FragCoord`, flipped,
+since GL puts the origin at the bottom. Both are screen space, so a pattern is continuous across
+a whole run instead of restarting on each glyph quad. `check_shader_parity.ps1` skips a block
+fenced with `FOLIO_MSDF_HOST_BEGIN`/`END` for exactly this - the two renderers are expected to
+differ there, and only there.

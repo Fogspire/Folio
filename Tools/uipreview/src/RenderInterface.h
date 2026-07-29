@@ -115,6 +115,13 @@ private:
 	/** Carried between the two composites backdrop-filter issues, so the second does the work. */
 	bool pending_outside = false;
 
+	/** Fill patterns by path, loaded once. Textured text names a file rather than a sprite: a font
+	    effect is built while the stylesheet parses and has no way to reach a spritesheet. */
+	std::map<std::string, unsigned int> fill_textures;
+
+	/** The GL texture for a fill pattern path, loaded on first use. Zero if it will not load. */
+	unsigned int ResolveFill(const std::string& path);
+
 	Rml::Rectanglei scissor = Rml::Rectanglei::MakeInvalid();
 	Rml::Vector2i viewport;
 

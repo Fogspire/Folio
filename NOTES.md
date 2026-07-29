@@ -734,3 +734,32 @@ since GL puts the origin at the bottom. Both are screen space, so a pattern is c
 a whole run instead of restarting on each glyph quad. `check_shader_parity.ps1` skips a block
 fenced with `FOLIO_MSDF_HOST_BEGIN`/`END` for exactly this - the two renderers are expected to
 differ there, and only there.
+
+## RmlUi's visual test suite, and what its numbers mean
+
+`scripts/visual_tests.ps1` runs the 109 documents in `Tests/Data/VisualTests` from the fetched
+RmlUi tree through uipreview. They cover layout, floats, flexbox, tables, transforms, filters,
+clip masks, box-shadow and text, and they exercise the render interface far harder than anything
+hand-written here. `verify.ps1 -VisualTests` runs them; it is off by default because they take
+longer than the whole rest of the harness.
+
+All 109 render. The suite still reports 197 errors and 448 warnings, and almost none of that is
+ours:
+
+- **180 errors across 89 documents are `<link>` tags with no `type`.** The suite uses them to
+  carry metadata - a link to the W3C test it came from, a reference image. RmlUi's own parser
+  rejects them; their harness ignores the log.
+- **17 documents link `../Tests/Data/style.rcss`**, which is wrong relative to the document
+  wherever it is resolved from. Those seventeen render unstyled, which is where 430 of the 448
+  warnings come from - every element then has no `font-family`.
+- One warning is ours, and correct: a test asks for a font effect wider than the field describes
+  and gets told it was clamped.
+
+So the bar is not zero. The baseline in `Tools/uipreview/tests/visual_baseline.json` records what
+each document does today, and the script fails on any **increase**. A renderer regression moves
+those numbers; a document we never handled stays where it is and is visible in the file.
+
+Two things the script fixes up in the build tree, because uipreview has one content root by
+design and their harness has several search paths: it copies `Samples/assets/*.tga` under
+`Tests/Data/assets/` so the image tests resolve their art, and it registers the four LatoLatin
+faces the suite's stylesheet names. A clean rebuild undoes both and the script redoes them.

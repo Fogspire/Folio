@@ -1,0 +1,547 @@
+{
+    "acid1":  {
+                  "exit":  1,
+                  "errors":  3,
+                  "warnings":  0
+              },
+    "border_radius":  {
+                          "exit":  1,
+                          "errors":  1,
+                          "warnings":  0
+                      },
+    "box_sizing":  {
+                       "exit":  1,
+                       "errors":  1,
+                       "warnings":  0
+                   },
+    "clip_mask":  {
+                      "exit":  0,
+                      "errors":  0,
+                      "warnings":  0
+                  },
+    "color_interpolation":  {
+                                "exit":  1,
+                                "errors":  1,
+                                "warnings":  0
+                            },
+    "css1_clear":  {
+                       "exit":  1,
+                       "errors":  2,
+                       "warnings":  0
+                   },
+    "display_block_inside_inline":  {
+                                        "exit":  1,
+                                        "errors":  1,
+                                        "warnings":  0
+                                    },
+    "document_position":  {
+                              "exit":  1,
+                              "errors":  1,
+                              "warnings":  0
+                          },
+    "drag":  {
+                 "exit":  1,
+                 "errors":  1,
+                 "warnings":  0
+             },
+    "element_label":  {
+                          "exit":  1,
+                          "errors":  1,
+                          "warnings":  0
+                      },
+    "filter_backdrop_filter_box_shadow":  {
+                                              "exit":  0,
+                                              "errors":  0,
+                                              "warnings":  0
+                                          },
+    "filter_blur_area":  {
+                             "exit":  0,
+                             "errors":  0,
+                             "warnings":  0
+                         },
+    "filter_blur_orb":  {
+                            "exit":  0,
+                            "errors":  0,
+                            "warnings":  0
+                        },
+    "filter_drop_shadow":  {
+                               "exit":  0,
+                               "errors":  0,
+                               "warnings":  0
+                           },
+    "filter_overflow":  {
+                            "exit":  1,
+                            "errors":  1,
+                            "warnings":  0
+                        },
+    "filter_with_backdrop":  {
+                                 "exit":  1,
+                                 "errors":  1,
+                                 "warnings":  0
+                             },
+    "flex_01":  {
+                    "exit":  1,
+                    "errors":  1,
+                    "warnings":  0
+                },
+    "flex_02":  {
+                    "exit":  1,
+                    "errors":  1,
+                    "warnings":  41
+                },
+    "flex_03_scroll":  {
+                           "exit":  1,
+                           "errors":  1,
+                           "warnings":  0
+                       },
+    "flex_04":  {
+                    "exit":  1,
+                    "errors":  1,
+                    "warnings":  0
+                },
+    "flex_05":  {
+                    "exit":  1,
+                    "errors":  2,
+                    "warnings":  0
+                },
+    "flex_06":  {
+                    "exit":  1,
+                    "errors":  3,
+                    "warnings":  0
+                },
+    "flex_absolutely_positioned":  {
+                                       "exit":  0,
+                                       "errors":  0,
+                                       "warnings":  0
+                                   },
+    "flex_direction":  {
+                           "exit":  1,
+                           "errors":  5,
+                           "warnings":  45
+                       },
+    "flex_inline":  {
+                        "exit":  1,
+                        "errors":  1,
+                        "warnings":  0
+                    },
+    "flex_nested":  {
+                        "exit":  1,
+                        "errors":  2,
+                        "warnings":  0
+                    },
+    "flex_shrink_to_fit_01":  {
+                                  "exit":  1,
+                                  "errors":  2,
+                                  "warnings":  0
+                              },
+    "flex_shrink_to_fit_02":  {
+                                  "exit":  1,
+                                  "errors":  2,
+                                  "warnings":  0
+                              },
+    "flex_wrap_column_reverse":  {
+                                     "exit":  1,
+                                     "errors":  7,
+                                     "warnings":  37
+                                 },
+    "float_basic":  {
+                        "exit":  1,
+                        "errors":  1,
+                        "warnings":  0
+                    },
+    "float_excluded_by_flow_root":  {
+                                        "exit":  1,
+                                        "errors":  3,
+                                        "warnings":  0
+                                    },
+    "float_overflow":  {
+                           "exit":  1,
+                           "errors":  1,
+                           "warnings":  0
+                       },
+    "float_placement":  {
+                            "exit":  1,
+                            "errors":  1,
+                            "warnings":  0
+                        },
+    "float_text_wrap":  {
+                            "exit":  1,
+                            "errors":  1,
+                            "warnings":  0
+                        },
+    "fractional-dimensions-01":  {
+                                     "exit":  1,
+                                     "errors":  2,
+                                     "warnings":  3
+                                 },
+    "fractional-dimensions-02":  {
+                                     "exit":  1,
+                                     "errors":  7,
+                                     "warnings":  3
+                                 },
+    "fractional-dimensions-03":  {
+                                     "exit":  1,
+                                     "errors":  1,
+                                     "warnings":  3
+                                 },
+    "gap-001":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  7
+                },
+    "gap-002":  {
+                    "exit":  1,
+                    "errors":  5,
+                    "warnings":  7
+                },
+    "gap-003":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  7
+                },
+    "gap-004":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  63
+                },
+    "gap-005":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  63
+                },
+    "gap-006":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  15
+                },
+    "gap-007":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  31
+                },
+    "gap-008":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  7
+                },
+    "gap-009":  {
+                    "exit":  1,
+                    "errors":  7,
+                    "warnings":  7
+                },
+    "handle_target_anchor":  {
+                                 "exit":  0,
+                                 "errors":  0,
+                                 "warnings":  0
+                             },
+    "image_ratio":  {
+                        "exit":  0,
+                        "errors":  0,
+                        "warnings":  0
+                    },
+    "ink_overflow_bounding_box":  {
+                                      "exit":  0,
+                                      "errors":  0,
+                                      "warnings":  0
+                                  },
+    "inline_block":  {
+                         "exit":  1,
+                         "errors":  2,
+                         "warnings":  0
+                     },
+    "inline_formatting_01":  {
+                                 "exit":  1,
+                                 "errors":  1,
+                                 "warnings":  0
+                             },
+    "inline_formatting_02":  {
+                                 "exit":  1,
+                                 "errors":  1,
+                                 "warnings":  0
+                             },
+    "inline_formatting_03":  {
+                                 "exit":  1,
+                                 "errors":  1,
+                                 "warnings":  0
+                             },
+    "inline_formatting_04":  {
+                                 "exit":  1,
+                                 "errors":  1,
+                                 "warnings":  0
+                             },
+    "inline_formatting_05":  {
+                                 "exit":  1,
+                                 "errors":  2,
+                                 "warnings":  0
+                             },
+    "inline_formatting_06":  {
+                                 "exit":  1,
+                                 "errors":  1,
+                                 "warnings":  0
+                             },
+    "inline_formatting_07":  {
+                                 "exit":  1,
+                                 "errors":  1,
+                                 "warnings":  0
+                             },
+    "inline_formatting_aligned_subtree":  {
+                                              "exit":  1,
+                                              "errors":  1,
+                                              "warnings":  0
+                                          },
+    "issue_143_overflow_in_absolutely_positioned_input":  {
+                                                              "exit":  1,
+                                                              "errors":  1,
+                                                              "warnings":  0
+                                                          },
+    "issue_452_scrollbar_resets":  {
+                                       "exit":  1,
+                                       "errors":  1,
+                                       "warnings":  0
+                                   },
+    "letter_spacing":  {
+                           "exit":  1,
+                           "errors":  1,
+                           "warnings":  0
+                       },
+    "mask_image":  {
+                       "exit":  1,
+                       "errors":  1,
+                       "warnings":  0
+                   },
+    "media_query_01":  {
+                           "exit":  0,
+                           "errors":  0,
+                           "warnings":  0
+                       },
+    "media_query_02":  {
+                           "exit":  0,
+                           "errors":  0,
+                           "warnings":  0
+                       },
+    "navigation_01":  {
+                          "exit":  1,
+                          "errors":  2,
+                          "warnings":  0
+                      },
+    "navigation_02":  {
+                          "exit":  1,
+                          "errors":  2,
+                          "warnings":  0
+                      },
+    "opacity":  {
+                    "exit":  1,
+                    "errors":  1,
+                    "warnings":  1
+                },
+    "overflow_clip_transform":  {
+                                    "exit":  0,
+                                    "errors":  0,
+                                    "warnings":  0
+                                },
+    "overflow_hidden":  {
+                            "exit":  1,
+                            "errors":  3,
+                            "warnings":  0
+                        },
+    "overflow_nested":  {
+                            "exit":  0,
+                            "errors":  0,
+                            "warnings":  0
+                        },
+    "position_01_normal_flow":  {
+                                    "exit":  1,
+                                    "errors":  2,
+                                    "warnings":  0
+                                },
+    "position_02_relative_positioning":  {
+                                             "exit":  1,
+                                             "errors":  2,
+                                             "warnings":  0
+                                         },
+    "position_03_floating_a_box":  {
+                                       "exit":  1,
+                                       "errors":  2,
+                                       "warnings":  0
+                                   },
+    "position_04_floating_a_box_sibling":  {
+                                               "exit":  1,
+                                               "errors":  2,
+                                               "warnings":  0
+                                           },
+    "position_05_floating_a_box_clear":  {
+                                             "exit":  1,
+                                             "errors":  2,
+                                             "warnings":  0
+                                         },
+    "position_06_absolute_positioning":  {
+                                             "exit":  1,
+                                             "errors":  2,
+                                             "warnings":  0
+                                         },
+    "position_07_absolute_positioning_relative":  {
+                                                      "exit":  1,
+                                                      "errors":  2,
+                                                      "warnings":  0
+                                                  },
+    "position_08_absolute_positioning_no_relative":  {
+                                                         "exit":  1,
+                                                         "errors":  2,
+                                                         "warnings":  0
+                                                     },
+    "position_09_absolute_positioning_change_bars":  {
+                                                         "exit":  1,
+                                                         "errors":  2,
+                                                         "warnings":  0
+                                                     },
+    "position_absolute_static_position":  {
+                                              "exit":  1,
+                                              "errors":  3,
+                                              "warnings":  0
+                                          },
+    "position_absolute_transform":  {
+                                        "exit":  1,
+                                        "errors":  1,
+                                        "warnings":  0
+                                    },
+    "position_relative":  {
+                              "exit":  1,
+                              "errors":  2,
+                              "warnings":  0
+                          },
+    "renderer_alpha_blending_01":  {
+                                       "exit":  0,
+                                       "errors":  0,
+                                       "warnings":  0
+                                   },
+    "renderer_alpha_blending_02":  {
+                                       "exit":  0,
+                                       "errors":  0,
+                                       "warnings":  0
+                                   },
+    "renderer_alpha_blending_03":  {
+                                       "exit":  0,
+                                       "errors":  0,
+                                       "warnings":  0
+                                   },
+    "replaced_display":  {
+                             "exit":  1,
+                             "errors":  1,
+                             "warnings":  0
+                         },
+    "replaced_elements":  {
+                              "exit":  1,
+                              "errors":  1,
+                              "warnings":  0
+                          },
+    "shader_conic_gradient":  {
+                                  "exit":  1,
+                                  "errors":  1,
+                                  "warnings":  0
+                              },
+    "shader_linear_gradient":  {
+                                   "exit":  1,
+                                   "errors":  1,
+                                   "warnings":  0
+                               },
+    "shader_radial_gradient":  {
+                                   "exit":  1,
+                                   "errors":  1,
+                                   "warnings":  0
+                               },
+    "shrink_to_fit_01":  {
+                             "exit":  1,
+                             "errors":  1,
+                             "warnings":  0
+                         },
+    "shrink_to_fit_02":  {
+                             "exit":  1,
+                             "errors":  1,
+                             "warnings":  0
+                         },
+    "shrink_to_fit_03":  {
+                             "exit":  1,
+                             "errors":  1,
+                             "warnings":  0
+                         },
+    "shrink_to_fit_04":  {
+                             "exit":  1,
+                             "errors":  1,
+                             "warnings":  0
+                         },
+    "stacking_context_01":  {
+                                "exit":  1,
+                                "errors":  1,
+                                "warnings":  0
+                            },
+    "stacking_context_02":  {
+                                "exit":  1,
+                                "errors":  2,
+                                "warnings":  0
+                            },
+    "table_01":  {
+                     "exit":  1,
+                     "errors":  2,
+                     "warnings":  0
+                 },
+    "table_02":  {
+                     "exit":  1,
+                     "errors":  1,
+                     "warnings":  0
+                 },
+    "table_03":  {
+                     "exit":  1,
+                     "errors":  1,
+                     "warnings":  0
+                 },
+    "table_04":  {
+                     "exit":  1,
+                     "errors":  1,
+                     "warnings":  0
+                 },
+    "table_05":  {
+                     "exit":  1,
+                     "errors":  1,
+                     "warnings":  0
+                 },
+    "table_inline":  {
+                         "exit":  1,
+                         "errors":  1,
+                         "warnings":  0
+                     },
+    "text_alignment":  {
+                           "exit":  0,
+                           "errors":  0,
+                           "warnings":  0
+                       },
+    "text_decorator":  {
+                           "exit":  0,
+                           "errors":  0,
+                           "warnings":  0
+                       },
+    "text_input_overflow":  {
+                                "exit":  1,
+                                "errors":  2,
+                                "warnings":  0
+                            },
+    "text_overflow_01":  {
+                             "exit":  1,
+                             "errors":  3,
+                             "warnings":  55
+                         },
+    "text_overflow_02":  {
+                             "exit":  1,
+                             "errors":  2,
+                             "warnings":  53
+                         },
+    "white_space":  {
+                        "exit":  1,
+                        "errors":  3,
+                        "warnings":  0
+                    },
+    "word_break":  {
+                       "exit":  1,
+                       "errors":  1,
+                       "warnings":  0
+                   }
+}

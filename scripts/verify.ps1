@@ -35,7 +35,12 @@ param(
     # listed; without it the run only records.
     [string] $Baseline,
 
-    [switch] $SkipShaderParity
+    [switch] $SkipShaderParity,
+
+    # Also run RmlUi's own visual test suite. Off by default: 109 documents take longer than the
+    # rest of the harness put together, and it is the sweep you run before a commit that touches
+    # the render interface rather than after every edit.
+    [switch] $VisualTests
 )
 
 $ErrorActionPreference = 'Stop'
@@ -243,6 +248,15 @@ foreach ($name in @('typography', 'effects', 'menu')) {
     $b = (Get-FileHash -Algorithm SHA256 $after).Hash
     if ($a -ne $b) { Fail "$name renders differently after releasing its textures" }
     else { Pass "$name survives a texture reload" }
+}
+
+# --- RmlUi's visual test suite --------------------------------------------------------------
+
+if ($VisualTests) {
+    Write-Host 'Visual tests' -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot 'visual_tests.ps1') -Out (Join-Path $Out 'visual')
+    if ($LASTEXITCODE -ne 0) { Fail 'RmlUi visual tests regressed (run visual_tests.ps1)' }
+    else { Pass 'RmlUi visual tests match their baseline' }
 }
 
 # --- Summary --------------------------------------------------------------------------------

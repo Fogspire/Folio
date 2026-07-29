@@ -28,6 +28,7 @@ public class Folio : ModuleRules
 			"Projects",
 			"TraceLog",
 			"ApplicationCore",
+			"Json",
 			"RmlUiLibrary",
 			"FolioCore",
 		});

@@ -2,10 +2,12 @@
 
 #include "FolioInsights.h"
 
+#include "FolioDataModel.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
 #include "FolioRmlUi.h"
+#include "Misc/FileHelper.h"
 
 void SFolioCanvas::Construct(const FArguments& InArgs)
 {
@@ -67,6 +69,7 @@ void SFolioCanvas::DestroyContext()
 	Document = nullptr;
 	Rml::RemoveContext(Context->GetName());
 	Context = nullptr;
+	DataModel.Reset();
 }
 
 void SFolioCanvas::LoadDocument(const FString& RelativePath)
@@ -91,6 +94,8 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 		return;
 	}
 
+	MountDataModel(RelativePath);
+
 	Document = Context->LoadDocument(Folio::ToRmlString(RelativePath));
 	if (!Document)
 	{
@@ -100,6 +105,46 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 
 	Document->Show();
 	UE_LOG(LogFolio, Log, TEXT("loaded '%s'"), *RelativePath);
+}
+
+void SFolioCanvas::MountDataModel(const FString& RelativePath)
+{
+	// Once per context. A model cannot be added to a context that already has one under the same
+	// name, and a document reload keeps the values it was mounted with.
+	if (DataModel.IsValid())
+	{
+		return;
+	}
+
+	const FString& ContentRoot = FFolioModule::Get().GetContentRoot();
+
+	FString Markup;
+	if (!FFileHelper::LoadFileToString(Markup, *(ContentRoot / RelativePath)))
+	{
+		return;
+	}
+
+	const FString ModelName = FFolioDataModel::DiscoverModelName(Markup);
+	if (ModelName.IsEmpty())
+	{
+		return;
+	}
+
+	const FString MockPath = FFolioDataModel::FindMockFile(ContentRoot, ModelName);
+	if (MockPath.IsEmpty())
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("'%s' declares data-model=\"%s\" and nothing is bound, so its bindings render as literal ")
+			TEXT("{{ }}. Provide the model from game code, or put mock values in ui/mock/%s.json."),
+			*RelativePath, *ModelName, *ModelName);
+		return;
+	}
+
+	DataModel = MakeUnique<FFolioDataModel>();
+	if (!DataModel->Mount(Context, ModelName, MockPath))
+	{
+		DataModel.Reset();
+	}
 }
 
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)

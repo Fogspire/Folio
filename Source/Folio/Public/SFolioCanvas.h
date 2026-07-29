@@ -72,6 +72,9 @@ private:
 
 	void DestroyContext();
 
+	/** Mounts ui/mock/<model>.json if the document declares a model, so bindings resolve. */
+	void MountDataModel(const FString& RelativePath);
+
 	/** RmlUi sizes in whole pixels, so a fractional widget size has to be resolved somewhere. */
 	void UpdateContextSize(const FGeometry& AllottedGeometry);
 
@@ -79,6 +82,8 @@ private:
 	Rml::ElementDocument* Document = nullptr;
 
 	FString PendingDocumentPath;
+	/** Rebuilt with the context: a model cannot be added once a document is loaded. */
+	TUniquePtr<class FFolioDataModel> DataModel;
 	FVector2D DesiredSize = FVector2D(1920.0, 1080.0);
 
 	/** Mutable: Slate's paint is const, and RmlUi's render pass is not. */

@@ -5,6 +5,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioBlurShader.h"
+#include "FolioCore/MsdfSidecar.h"
 #include "FolioModule.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IImageWrapper.h"
@@ -403,6 +404,18 @@ Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensio
 
 	const FIntPoint Size(Wrapper->GetWidth(), Wrapper->GetHeight());
 
+	OutDimensions = Rml::Vector2i(Size.X, Size.Y);
+
+	// A sheet baked by msdfbake carries a sidecar naming its field parameters. With it the image
+	// is distance rather than colour, and a sprite cut from it scales like text does.
+	//
+	// Deliberately before premultiplying: a field's alpha is a distance, not an opacity, and
+	// scaling the three channels by it erases the field wherever the shape is thin.
+	if (const Rml::TextureHandle Field = LoadFieldAtlas(Source, Raw, Size))
+	{
+		return Field;
+	}
+
 	// Everything downstream assumes premultiplied alpha; decoded images are straight.
 	for (int64 Index = 0; Index + 3 < Raw.Num(); Index += 4)
 	{
@@ -412,7 +425,6 @@ Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensio
 		Raw[Index + 2] = static_cast<uint8>((Raw[Index + 2] * Alpha + 127) / 255);
 	}
 
-	OutDimensions = Rml::Vector2i(Size.X, Size.Y);
 	return RegisterTexture(CreateTexture(Raw.GetData(), Size), Size);
 }
 
@@ -967,6 +979,64 @@ void FFolioRenderInterface::ReleaseShader(const Rml::CompiledShaderHandle Shader
 //
 // Distance-field atlases.
 //
+
+Rml::TextureHandle FFolioRenderInterface::LoadFieldAtlas(const Rml::String& Source,
+	const TArray64<uint8>& Bgra, const FIntPoint Size)
+{
+	const std::string SidecarPath = Folio::MsdfSidecarPathFor(Source);
+	if (SidecarPath.empty())
+	{
+		return 0;
+	}
+
+	Rml::FileInterface* Files = Rml::GetFileInterface();
+	const Rml::FileHandle File = Files ? Files->Open(SidecarPath) : Rml::FileHandle();
+	if (!File)
+	{
+		// The suffix is a promise the bake makes, so a missing sidecar is a broken pair rather
+		// than ordinary art that happens to be named this way.
+		UE_LOG(LogFolio, Warning,
+			TEXT("'%s' is named as a distance-field atlas but has no sidecar beside it; drawn as ordinary art"),
+			*Folio::ToFString(Source));
+		return 0;
+	}
+
+	const size_t Length = Files->Length(File);
+	std::string Text(Length, '\0');
+	Files->Read(Text.data(), Length, File);
+	Files->Close(File);
+
+	Folio::FMsdfSidecar Sidecar;
+	if (!Folio::ParseMsdfSidecar(Text, Sidecar) || !Sidecar.IsValid())
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("the sidecar beside '%s' is unreadable; drawn as ordinary art"), *Folio::ToFString(Source));
+		return 0;
+	}
+
+	// Through the same sink the font engine builds its pages with, so a baked sheet and a glyph
+	// atlas are the same kind of resource from here on and resolve through the same material.
+	const Folio::FMsdfHandle Page = CreateAtlasPage(Folio::FMsdfPoint{ Size.X, Size.Y }, Sidecar.Params);
+	if (Page == Folio::InvalidMsdfHandle)
+	{
+		return 0;
+	}
+
+	// The sink takes RGBA and the decode gave BGRA, so the channels are swapped on the way in
+	// rather than leaving the field's three distance channels in the wrong order.
+	TArray64<uint8> Rgba;
+	Rgba.SetNumUninitialized(Bgra.Num());
+	for (int64 Index = 0; Index + 3 < Bgra.Num(); Index += 4)
+	{
+		Rgba[Index + 0] = Bgra[Index + 2];
+		Rgba[Index + 1] = Bgra[Index + 1];
+		Rgba[Index + 2] = Bgra[Index + 0];
+		Rgba[Index + 3] = Bgra[Index + 3];
+	}
+
+	UploadAtlasRegion(Page, Folio::FMsdfRect{ 0, 0, Size.X, Size.Y }, Rgba.GetData(), Size.X * 4);
+	return Rml::TextureHandle(Page);
+}
 
 Folio::FMsdfHandle FFolioRenderInterface::CreateAtlasPage(const Folio::FMsdfPoint Size,
 	const Folio::FMsdfAtlasParams& Params)

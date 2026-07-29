@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FolioCore/FolioCoreAPI.h"
 #include "FolioCore/MsdfTypes.h"
 
 #include <string>
@@ -23,11 +24,11 @@ namespace Folio
 
 	/// Parses sidecar text. Returns false if a required key is missing or malformed, leaving
 	/// OutSidecar untouched. Callers treat failure as "this is an ordinary raster atlas".
-	bool ParseMsdfSidecar(const std::string& Text, FMsdfSidecar& OutSidecar);
+	FOLIOCORE_API bool ParseMsdfSidecar(const std::string& Text, FMsdfSidecar& OutSidecar);
 
-	std::string WriteMsdfSidecar(const FMsdfSidecar& Sidecar);
+	FOLIOCORE_API std::string WriteMsdfSidecar(const FMsdfSidecar& Sidecar);
 
 	/// Given "ui/art/vectors.msdf.png", returns "ui/art/vectors.msdf". Empty if the path does not
 	/// carry the suffix that marks an atlas as a distance field.
-	std::string MsdfSidecarPathFor(const std::string& TexturePath);
+	FOLIOCORE_API std::string MsdfSidecarPathFor(const std::string& TexturePath);
 }

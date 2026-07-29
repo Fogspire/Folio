@@ -139,6 +139,9 @@ private:
 	FTexture* FindTexture(Rml::TextureHandle Handle);
 	Rml::TextureHandle RegisterTexture(UTexture* Texture, FIntPoint Size);
 
+	/** Registers a baked sheet as a field page if it has a sidecar. Zero if it is ordinary art. */
+	Rml::TextureHandle LoadFieldAtlas(const Rml::String& Source, const TArray64<uint8>& Bgra, FIntPoint Size);
+
 	/** Hands a saved layer to RmlUi as an ordinary texture. */
 	Rml::TextureHandle RegisterRenderTarget(class UTextureRenderTarget2D* Target);
 

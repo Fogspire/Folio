@@ -173,6 +173,29 @@ namespace msdfbake
 			}
 		}
 
+		/// nanosvg has no clip support at all, and neither does a distance field: a clip is an
+		/// intersection, and a field carries one shape. Detected by reading the file rather than
+		/// asking the parser, because the parser has already discarded it by then.
+		int CountClipPaths(const std::string& Path)
+		{
+			std::ifstream File(Path, std::ios::binary);
+			if (!File)
+			{
+				return 0;
+			}
+
+			const std::string Text((std::istreambuf_iterator<char>(File)), std::istreambuf_iterator<char>());
+
+			int Count = 0;
+			for (std::size_t At = Text.find("clip-path"); At != std::string::npos;
+				At = Text.find("clip-path", At + 1))
+			{
+				++Count;
+			}
+
+			return Count;
+		}
+
 		int CountDistinctFills(const NSVGimage& Image)
 		{
 			std::set<unsigned int> Fills;
@@ -281,14 +304,16 @@ namespace msdfbake
 
 			// A stroke carries its own colour, so it becomes its own layer rather than joining the
 			// fill's.
+			// Only the layer on top of the stack can be added to. Merging a colour with an earlier
+			// layer of the same colour would reorder it past everything painted in between, and
+			// paint order is the whole of what a stack of silhouettes encodes: eyes painted black
+			// over a white head belong above it, not merged into the black outline beneath it.
 			const auto LayerFor = [&OutLayers, Width, Height](unsigned int Colour, bool bStroke) -> FVectorLayer&
 			{
-				for (FVectorLayer& Existing : OutLayers)
+				if (!OutLayers.empty() && OutLayers.back().Colour == Colour
+					&& OutLayers.back().bStroke == bStroke)
 				{
-					if (Existing.Colour == Colour && Existing.bStroke == bStroke)
-					{
-						return Existing;
-					}
+					return OutLayers.back();
 				}
 
 				OutLayers.push_back(FVectorLayer());
@@ -541,6 +566,15 @@ namespace msdfbake
 					++LayerIndex;
 				}
 
+				if (const int Clips = CountClipPaths(Input); Clips > 0)
+				{
+					std::fprintf(stderr,
+						"msdfbake: warning: %s uses clip-path %d time(s), which is ignored. Clipping "
+						"is an intersection and a field holds one shape, so the clipped geometry "
+						"bakes unclipped and will cover things it should not. Apply the clip in the "
+						"drawing program first.\n", SpriteStem.c_str(), Clips);
+				}
+
 				std::printf("%s: %d layer(s)\n", SpriteStem.c_str(), LayerIndex);
 				continue;
 			}
@@ -558,6 +592,15 @@ namespace msdfbake
 
 			// Said plainly rather than left for someone to work out from a bake that looks nothing
 			// like the drawing. Neither is recoverable inside a single field.
+			if (const int Clips = CountClipPaths(Input); Clips > 0)
+			{
+				std::fprintf(stderr,
+					"msdfbake: warning: %s uses clip-path %d time(s), which is ignored. Clipping is "
+					"an intersection and a field holds one shape, so the clipped geometry bakes "
+					"unclipped and will cover things it should not. Apply the clip in the drawing "
+					"program first.\n", SpriteName.c_str(), Clips);
+			}
+
 			if (Drawing.DistinctFills > 1)
 			{
 				std::fprintf(stderr,

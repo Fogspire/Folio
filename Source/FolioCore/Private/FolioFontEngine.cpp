@@ -594,9 +594,10 @@ namespace Folio
 			float OffsetEm = Folio->Params.OffsetEm * ToEm;
 			float SoftnessEm = Folio->Params.SoftnessEm * ToEm;
 
-			// The field only describes distance out to half its range, so an effect cannot reach
-			// further than that whatever the stylesheet asks for. Clamped rather than left to
-			// saturate, which looks like the effect stopping at an arbitrary width.
+			// The field only describes distance out to half its range, and the last texel of that
+			// is needed for the effect's own edge to fade out in, so an effect cannot reach as far
+			// as the stylesheet may ask. Clamped rather than left to saturate, which fills each
+			// glyph's quad with a rectangle of half-covered ink.
 			const float MaxEm = float(Impl->Params.MaxEffectEm());
 			if (OffsetEm > MaxEm || SoftnessEm > MaxEm)
 			{
@@ -605,11 +606,11 @@ namespace Folio
 				SoftnessEm = std::min(SoftnessEm, MaxEm);
 			}
 
-			// The shader moves a threshold, and a threshold lives in the field's own units: the
-			// whole range spans one, so half of it - the furthest an effect can reach - is 0.5.
-			// Passing em straight through makes every effect a quarter of its width at the default
-			// range, which reads as an outline that never leaves the glyph.
-			const float RangeEm = 2.0f * MaxEm;
+			// The shader moves a threshold, and a threshold lives in the field's own units, where
+			// the whole range spans one. That range is PxRange texels wide whatever the effect cap
+			// happens to be, so it is derived from the atlas rather than from the cap: tying the
+			// two together would rescale every effect the moment the margin changed.
+			const float RangeEm = float(Impl->Params.PxRange) / float(Impl->Params.PxPerEm);
 			Layer.Params.OffsetEm = RangeEm > 0.0f ? OffsetEm / RangeEm : 0.0f;
 			Layer.Params.SoftnessEm = RangeEm > 0.0f ? SoftnessEm / RangeEm : 0.0f;
 		}

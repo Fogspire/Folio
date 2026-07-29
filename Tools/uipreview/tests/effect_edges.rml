@@ -1,0 +1,50 @@
+<rml>
+<head>
+	<title>effect edges</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			Every font effect asked for more reach than the field has, so every one is clamped.
+			That is the case that used to fail: an effect whose edge lands exactly where the field
+			saturates has no outside, because a texel one em away holds the same number as a texel
+			just past the edge. The outline then drew at half coverage across each glyph's whole
+			quad, and since the quads abut, the text came out as a row of rectangles.
+
+			So this document is a deliberate clamp. It is expected to warn, and expected to exit 5
+			under --strict. What it must not do is show a rectangle anywhere, or a seam between one
+			glyph and the next. The repeated m's are there because their quads certainly overlap.
+
+			glow with no blur is the other edge: its ramp has zero width, which is a division by
+			zero in smoothstep unless the shader widens it.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 40dp;
+			color: #f0c674;
+			background-color: #16161c;
+			padding: 24dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		.r { margin-bottom: 18dp; }
+
+		.o4    { font-effect: outline(4px #000000); }
+		.omax  { font-effect: outline(20px #ff3040); }
+		.g0    { font-effect: glow(0px 4px #f0c674); }
+		.gmax  { font-effect: glow(10px 40px #f0c674); }
+		.smax  { font-effect: shadow(20px 20px #000000); }
+		.bmax  { font-effect: blur(20px #ffffff); }
+	</style>
+</head>
+<body>
+	<div class="r o4">outline 4px mmmm</div>
+	<div class="r omax">outline at cap mmmm</div>
+	<div class="r g0">glow no blur mmmm</div>
+	<div class="r gmax">glow at cap mmmm</div>
+	<div class="r smax">shadow at cap mmmm</div>
+	<div class="r bmax">blur at cap mmmm</div>
+</body>
+</rml>

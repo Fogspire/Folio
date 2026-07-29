@@ -236,7 +236,7 @@ some preview correctly and render as nothing in engine:
 | `box-shadow`, clip masks, render layers, `filter: blur` | Works. Layers are render targets and clip masks are a real stencil, so an inverse mask - which is what stops an outer shadow painting inside its own element - is exact |
 | `backdrop-filter: blur` | Works, and is the one effect that reaches outside the UI: it blurs the backbuffer, so the 3D scene behind a HUD panel blurs with it. The blurred region is a rectangle, so a `border-radius` corner blurs square |
 | Text, at any size or transform scale | Works. See §6 |
-| `font-effect`, all four | Works, in both renderers, resolved from the field. See §6 for its bounds |
+| `font-effect`, all four | Works, in both renderers, resolved from the field. Bounded in reach - see §6 |
 | **`filter` other than `blur`, `mask-image`, `backdrop-filter` other than `blur`** | **Banned.** The layer machinery is in place and only the shaders are missing, so these parse, log once and render nothing |
 
 A surface drawn through a layer lands about 3/255 darker than the same colour drawn directly,
@@ -310,15 +310,19 @@ Folio::RegisterVariableFace("Inter Condensed", "<path>", {{"wdth", 75}});
 All four are resolved from the field's true-distance channel rather than baked into extra glyph
 textures, so each costs one more quad per glyph and no atlas at all.
 
-**Their reach is bounded, and the bound is in em, not pixels** — currently 0.125em. `outline(2px)`
-is a twentieth of an em on 40dp text and well inside it; on 13dp text it is a sixth of an em and
-gets clamped, with a warning naming the limit. Size an effect against the text it decorates, and
-check small text specifically.
+**Their reach is bounded, and the bound is in em, not pixels** — currently 0.104em at the
+default atlas settings. `outline(2px)` is a twentieth of an em on 40dp text and well inside it;
+on 13dp text it is a sixth of an em and gets clamped, with a warning naming the limit. Size an
+effect against the text it decorates, and check small text specifically.
 
-**Keep them narrow.** Each glyph's effect is its own quad, so once a halo is wide enough to
-overlap the neighbouring glyph's quad the overlap shows as a rectangle grid across the text.
-`outline` and `shadow` at a pixel or two are safe; a wide `glow` or `blur` is not. Check
-anything decorative at the size it ships at.
+The bound is a little under half the field's range rather than exactly half. Past half, the
+field is saturated: a texel an em away from the glyph holds the same number as one just beyond
+the edge, so an effect whose edge lands there has no outside to fade into. The last texel is
+held back to give it one.
+
+Clamping is a real limit, not a soft one. An effect asked for at three times the cap looks
+identical to one asked for at the cap. To go wider, raise `pxrange` when baking, at a quadratic
+cost in atlas area.
 
 ---
 

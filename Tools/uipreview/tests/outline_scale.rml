@@ -1,10 +1,12 @@
 <rml><head><link type="text/rcss" href="/folio/folio.rcss"/><style>
+/* Outline widths inside the cap, which at 40dp is 0.104em - a little over 4px. Effects asked
+   for past the cap are effect_edges.rml's job. */
 body { font-family: Inter; font-size: 40dp; color: #f0c674; background-color: #16161c; padding: 20dp; }
 div { margin-bottom: 6dp; }
 .a { font-effect: outline(1px #ff0000); }
 .b { font-effect: outline(2px #ff0000); }
-.c { font-effect: outline(4px #ff0000); }
-.d { font-effect: outline(5px #ff0000); }
+.c { font-effect: outline(3px #ff0000); }
+.d { font-effect: outline(4px #ff0000); }
 </style></head><body>
-<div class="a">Hnbo 1px</div><div class="b">Hnbo 2px</div><div class="c">Hnbo 4px</div><div class="d">Hnbo 5px</div>
+<div class="a">Hnbo 1px</div><div class="b">Hnbo 2px</div><div class="c">Hnbo 3px</div><div class="d">Hnbo 4px</div>
 </body></rml>

@@ -54,7 +54,11 @@ float4 FolioMsdfShade(Texture2D Atlas, SamplerState AtlasSampler, float2 UV, flo
 		// picks up a uniform wash out to its corners - a second, blocky glow sitting behind the
 		// real one, with hard edges where the quads meet.
 		const float Lower = max(Threshold - Offset - Softness, 0.0f);
-		Coverage = smoothstep(Lower, Threshold - Offset + Softness, TrueDistance);
+
+		// smoothstep is a division by the width of its ramp, so a glow asked for with no blur at
+		// all would divide by zero. A ramp narrower than this is already a hard edge on screen.
+		const float Upper = max(Threshold - Offset + Softness, Lower + 0.0001f);
+		Coverage = smoothstep(Lower, Upper, TrueDistance);
 	}
 
 	// Colour arrives premultiplied and leaves premultiplied, which is what RmlUi's blend state

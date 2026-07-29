@@ -67,7 +67,11 @@ void main() {
 		// picks up a uniform wash out to its corners - a second, blocky glow sitting behind the
 		// real one, with hard edges where the quads meet.
 		float Lower = max(_threshold - _offset - _softness, 0.0);
-		Coverage = smoothstep(Lower, _threshold - _offset + _softness, TrueDistance);
+
+		// smoothstep is a division by the width of its ramp, so a glow asked for with no blur at
+		// all would divide by zero. A ramp narrower than this is already a hard edge on screen.
+		float Upper = max(_threshold - _offset + _softness, Lower + 0.0001);
+		Coverage = smoothstep(Lower, Upper, TrueDistance);
 	}
 
 	finalColor = fragColor * Coverage;

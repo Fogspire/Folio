@@ -40,8 +40,22 @@ namespace Folio
 		}
 		friend bool operator!=(const FMsdfAtlasParams& A, const FMsdfAtlasParams& B) { return !(A == B); }
 
-		/// Half the field's reach, in em. The cap on any effect offset.
-		double MaxEffectEm() const { return 0.5 * double(PxRange) / double(PxPerEm); }
+		/// The furthest an effect may reach, in em.
+		///
+		/// Not simply half the field's reach. Past PxRange/2 the field is saturated: one texel
+		/// there says "at least this far away" and so does one a whole em away, and they are the
+		/// same number. An outline whose edge lands exactly on that value therefore has no outside
+		/// - every texel beyond it reads as sitting on the edge, at half coverage, filling the
+		/// glyph's whole quad with a rectangle of ink. A texel of margin leaves the edge somewhere
+		/// the field can still describe, and gives the antialiasing ramp room to reach zero.
+		double MaxEffectEm() const
+		{
+			const double UsableTexels = 0.5 * double(PxRange) - EffectMarginTexels;
+			return UsableTexels > 0.0 ? UsableTexels / double(PxPerEm) : 0.0;
+		}
+
+		/// Texels of field held back from the effect cap, for the ramp to fade out in.
+		static constexpr double EffectMarginTexels = 1.0;
 	};
 
 	/// Selects the branch taken by FolioMsdfShade. Fill reads the median of the three MSDF

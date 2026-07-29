@@ -593,3 +593,28 @@ atlas belongs to the font engine and goes at shutdown through `ReleaseAtlasHandl
 `verify.ps1` compares that against an ordinary capture and fails on any difference, which is the
 only cheap way to catch this class of bug: it needs a reload to happen, and a reload is
 something you normally only do by hand.
+
+## An effect cannot reach as far as the field does
+
+`outline(20px)` on 40dp text drew each glyph as a solid rectangle of colour, quad edges and all,
+with the text as a row of coloured boxes. It looked like the effect quads were leaking into each
+other. They were not.
+
+The outline branch is `saturate((sd - (Threshold - Offset)) * Spread + 0.5)`. Clamping the offset
+to exactly half the field's range put `Threshold - Offset` at zero - and zero is where the field
+saturates. Every texel beyond `PxRange/2` holds zero, whether it is one texel past the edge or a
+whole em away, so every one of them evaluated as sitting exactly on the outline and came out at
+half coverage. The whole padded quad filled, and the quads abut.
+
+The cap is now `(PxRange/2 - 1) / PxPerEm`, which is 0.104em at the defaults instead of 0.125em.
+One texel of field is held back for the effect's own edge to fade out in. `MaxEffectEm()` is
+therefore no longer half the range, and the em-to-field-units conversion had to stop deriving the
+range from it - they are separate numbers now.
+
+The glow and blur branch was already safe, because its lower bound is clamped to zero for a
+different reason, but it had its own edge: a glow with no blur gives `smoothstep` a zero-width
+ramp, which is a division by zero. Its upper bound now has a floor.
+
+`Tools/uipreview/tests/effect_edges.rml` is every effect asked for well past the cap. It is
+expected to warn and to exit 5 under `--strict`; what it must never show is a rectangle or a seam
+between adjacent glyphs.

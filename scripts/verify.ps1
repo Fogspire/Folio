@@ -101,6 +101,7 @@ $DocumentSetup = @{
     'hud'            = @{ Args = @('--data', (Join-Path $TestsDir 'hud.json')) }
     'menu'           = @{ Args = @('--data', (Join-Path $TestsDir 'hud.json')) }
     'missing_assets' = @{ Expect = 5 }
+    'effect_edges'   = @{ Expect = 5 }
 }
 
 # The dp ratio is pinned rather than derived from the window. A window larger than the display is
@@ -190,7 +191,8 @@ $Shots = @(
     @{ Doc = 'weights.rml';    Size = '1920x1080'; Ratio = 1.0 },
     @{ Doc = 'typography.rml'; Size = '1920x1080'; Ratio = 1.0 },
     @{ Doc = 'typography.rml'; Size = '1920x1080'; Ratio = 2.0 },
-    @{ Doc = 'effects.rml';    Size = '1920x1080'; Ratio = 1.0 }
+    @{ Doc = 'effects.rml';      Size = '1920x1080'; Ratio = 1.0 },
+    @{ Doc = 'effect_edges.rml'; Size = '800x480';   Ratio = 1.0 }
 )
 
 foreach ($shot in $Shots) {

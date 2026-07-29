@@ -281,11 +281,11 @@ namespace msdfbake
 
 			// A stroke carries its own colour, so it becomes its own layer rather than joining the
 			// fill's.
-			const auto LayerFor = [&OutLayers, Width, Height](unsigned int Colour) -> FVectorLayer&
+			const auto LayerFor = [&OutLayers, Width, Height](unsigned int Colour, bool bStroke) -> FVectorLayer&
 			{
 				for (FVectorLayer& Existing : OutLayers)
 				{
-					if (Existing.Colour == Colour)
+					if (Existing.Colour == Colour && Existing.bStroke == bStroke)
 					{
 						return Existing;
 					}
@@ -294,6 +294,7 @@ namespace msdfbake
 				OutLayers.push_back(FVectorLayer());
 				FVectorLayer& Added = OutLayers.back();
 				Added.Colour = Colour;
+				Added.bStroke = bStroke;
 				Added.Shape.Width = Width;
 				Added.Shape.Height = Height;
 				Added.Shape.DistinctFills = 1;
@@ -302,7 +303,7 @@ namespace msdfbake
 
 			if (Source->fill.type != NSVG_PAINT_NONE)
 			{
-				FVectorLayer& Layer = LayerFor(Source->fill.color);
+				FVectorLayer& Layer = LayerFor(Source->fill.color, false);
 				for (const NSVGpath* SubPath = Source->paths; SubPath != nullptr; SubPath = SubPath->next)
 				{
 					AddPath(Layer.Shape.Shape, *SubPath, Height);
@@ -311,7 +312,7 @@ namespace msdfbake
 
 			if (Source->stroke.type != NSVG_PAINT_NONE)
 			{
-				AddStroke(LayerFor(Source->stroke.color).Shape.Shape, *Source, Height);
+				AddStroke(LayerFor(Source->stroke.color, true).Shape.Shape, *Source, Height);
 			}
 		}
 
@@ -414,8 +415,16 @@ namespace msdfbake
 
 		std::vector<std::string> Inputs;
 		std::string OutputDir, RcssPath, Name = "vectors", Value;
+
+		// Not the glyph default. 48 px/em is ample for a glyph because a glyph fills its em, but a
+		// drawing normalised to one em puts its whole extent in that many texels, and anything
+		// finer than one of them disappears. A 2.5-unit stroke in a 400-unit drawing lands at a
+		// third of a texel: it comes out as a dashed line, or as nothing.
 		FMsdfAtlasParams Params;
-		int PageSize = 1024;
+		Params.PxPerEm = 256;
+		Params.PxRange = 8;
+
+		int PageSize = 2048;
 		bool bLayers = false;
 
 		for (int Index = 2; Index < Argc; ++Index)

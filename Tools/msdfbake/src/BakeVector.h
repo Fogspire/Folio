@@ -32,6 +32,9 @@ namespace msdfbake
 		FVectorShape Shape;
 		/// Packed 0xAABBGGRR as nanosvg reports it; written out as #rrggbb.
 		unsigned int Colour = 0;
+		/// Stroke geometry is kept apart from fills even at the same colour: the two are wound
+		/// differently and unioning them subtracts rather than adds.
+		bool bStroke = false;
 	};
 
 	/// Reads an SVG's filled paths into a shape, mirroring y so it matches a font outline.

@@ -582,24 +582,36 @@ namespace Folio
 
 			FEffectLayer& Layer = Layers.emplace_back();
 			Layer.Params = Folio->Params;
-			Layer.Params.OffsetEm *= ToEm;
-			Layer.Params.SoftnessEm *= ToEm;
+
 			// Effect colours are authored straight and the meshes want premultiplied, the same
 			// conversion RmlUi applies to a text colour before it reaches here.
 			Layer.Colour = Folio->GetColour().ToPremultiplied();
 			Layer.OffsetX = Folio->OffsetX;
 			Layer.OffsetY = Folio->OffsetY;
 
+			// Widths arrive in the length units the stylesheet used, which resolve against the font
+			// size, so they become em first.
+			float OffsetEm = Folio->Params.OffsetEm * ToEm;
+			float SoftnessEm = Folio->Params.SoftnessEm * ToEm;
+
 			// The field only describes distance out to half its range, so an effect cannot reach
-			// further than that no matter what the stylesheet asks for. Clamped rather than left to
-			// saturate, which looks like the effect simply stopping at an arbitrary width.
-			const float MaxEm = Impl->Params.MaxEffectEm();
-			if (Layer.Params.OffsetEm > MaxEm || Layer.Params.SoftnessEm > MaxEm)
+			// further than that whatever the stylesheet asks for. Clamped rather than left to
+			// saturate, which looks like the effect stopping at an arbitrary width.
+			const float MaxEm = float(Impl->Params.MaxEffectEm());
+			if (OffsetEm > MaxEm || SoftnessEm > MaxEm)
 			{
 				WarnEffectClamped(MaxEm);
-				Layer.Params.OffsetEm = std::min(Layer.Params.OffsetEm, MaxEm);
-				Layer.Params.SoftnessEm = std::min(Layer.Params.SoftnessEm, MaxEm);
+				OffsetEm = std::min(OffsetEm, MaxEm);
+				SoftnessEm = std::min(SoftnessEm, MaxEm);
 			}
+
+			// The shader moves a threshold, and a threshold lives in the field's own units: the
+			// whole range spans one, so half of it - the furthest an effect can reach - is 0.5.
+			// Passing em straight through makes every effect a quarter of its width at the default
+			// range, which reads as an outline that never leaves the glyph.
+			const float RangeEm = 2.0f * MaxEm;
+			Layer.Params.OffsetEm = RangeEm > 0.0f ? OffsetEm / RangeEm : 0.0f;
+			Layer.Params.SoftnessEm = RangeEm > 0.0f ? SoftnessEm / RangeEm : 0.0f;
 		}
 
 		if (Layers.empty())

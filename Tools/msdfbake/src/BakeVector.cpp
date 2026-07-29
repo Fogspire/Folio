@@ -61,6 +61,118 @@ namespace msdfbake
 			}
 		}
 
+		/// Flattens a path's cubics into points, closely enough that the stroke's own width hides
+		/// the error.
+		void FlattenPath(const NSVGpath& Path, std::vector<msdfgen::Point2>& Out, double Height)
+		{
+			using namespace msdfgen;
+
+			const auto At = [Height](const float* P) { return Point2(double(P[0]), Height - double(P[1])); };
+
+			if (Path.npts < 4)
+			{
+				return;
+			}
+
+			constexpr int Steps = 8;
+
+			Out.push_back(At(&Path.pts[0]));
+
+			for (int Index = 0; Index + 3 < Path.npts; Index += 3)
+			{
+				const float* P = &Path.pts[Index * 2];
+				const Point2 A = At(P), B = At(P + 2), C = At(P + 4), D = At(P + 6);
+
+				for (int Step = 1; Step <= Steps; ++Step)
+				{
+					const double T = double(Step) / double(Steps);
+					const double U = 1.0 - T;
+					Out.push_back(U * U * U * A + 3.0 * U * U * T * B + 3.0 * U * T * T * C + T * T * T * D);
+				}
+			}
+		}
+
+		void AddDisc(msdfgen::Shape& Shape, msdfgen::Point2 Centre, double Radius)
+		{
+			using namespace msdfgen;
+
+			// Four cubics is indistinguishable from a circle at any size a UI draws one.
+			constexpr double K = 0.5522847498;
+
+			Contour& Out = Shape.addContour();
+			const Point2 R(Radius, 0.0), U(0.0, Radius);
+			const Point2 E = Centre + R, N = Centre + U, W = Centre - R, S = Centre - U;
+
+			Out.addEdge(EdgeHolder(E, E + U * K, N + R * K, N));
+			Out.addEdge(EdgeHolder(N, N - R * K, W + U * K, W));
+			Out.addEdge(EdgeHolder(W, W - U * K, S - R * K, S));
+			Out.addEdge(EdgeHolder(S, S + R * K, E - U * K, E));
+		}
+
+		/// Outlines a stroke as area, because a distance field has no notion of a line.
+		///
+		/// Every segment becomes a rectangle and every joint a disc, and the union of that pile is
+		/// the stroke. Skia's path operations do the union in resolveShapeGeometry, which is what
+		/// makes the approach robust enough to be worth its simplicity - overlapping pieces are
+		/// exactly what that call exists to resolve.
+		///
+		/// Joins and caps are always round. A miter would need the joint geometry proper; at UI
+		/// sizes the difference is a fraction of a pixel on anything but a very sharp corner.
+		void AddStroke(msdfgen::Shape& Shape, const NSVGshape& Source, double Height)
+		{
+			using namespace msdfgen;
+
+			const double HalfWidth = 0.5 * double(Source.strokeWidth);
+			if (HalfWidth <= 0.0)
+			{
+				return;
+			}
+
+			std::vector<Point2> Points;
+
+			for (const NSVGpath* Path = Source.paths; Path != nullptr; Path = Path->next)
+			{
+				Points.clear();
+				FlattenPath(*Path, Points, Height);
+
+				if (Path->closed && Points.size() > 1)
+				{
+					Points.push_back(Points.front());
+				}
+
+				for (std::size_t Index = 0; Index + 1 < Points.size(); ++Index)
+				{
+					const Point2 A = Points[Index];
+					const Point2 B = Points[Index + 1];
+
+					const Vector2 Along = B - A;
+					const double Length = Along.length();
+					if (Length < 1e-9)
+					{
+						continue;
+					}
+
+					// Perpendicular, scaled to half the stroke: the rectangle that segment sweeps.
+					const Vector2 Side = Vector2(-Along.y, Along.x) / Length * HalfWidth;
+
+					// Counter-clockwise, matching the discs. Mixed winding does not union - the
+					// path operations subtract one from the other and the stroke disappears
+					// except where a disc happens to sit alone.
+					Contour& Quad = Shape.addContour();
+					Quad.addEdge(EdgeHolder(A - Side, B - Side));
+					Quad.addEdge(EdgeHolder(B - Side, B + Side));
+					Quad.addEdge(EdgeHolder(B + Side, A + Side));
+					Quad.addEdge(EdgeHolder(A + Side, A - Side));
+				}
+
+				// A disc at every point covers the joins, and at the ends it is a round cap.
+				for (const Point2& Point : Points)
+				{
+					AddDisc(Shape, Point, HalfWidth);
+				}
+			}
+		}
+
 		int CountDistinctFills(const NSVGimage& Image)
 		{
 			std::set<unsigned int> Fills;
@@ -111,11 +223,9 @@ namespace msdfbake
 			if (Source->stroke.type != NSVG_PAINT_NONE)
 			{
 				++OutShape.StrokedPaths;
+				AddStroke(Shape, *Source, OutShape.Height);
 			}
 
-			// A stroke has no area of its own until it is outlined, and nanosvg does not outline
-			// one. Only fills contribute, which is why a drawing that is mostly strokes bakes to
-			// far less than it looks like it should.
 			if (Source->fill.type == NSVG_PAINT_NONE)
 			{
 				continue;
@@ -164,34 +274,44 @@ namespace msdfbake
 		// and merging them keeps the draw count down.
 		for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
 		{
-			if ((Source->flags & NSVG_FLAGS_VISIBLE) == 0 || Source->fill.type == NSVG_PAINT_NONE)
+			if ((Source->flags & NSVG_FLAGS_VISIBLE) == 0)
 			{
 				continue;
 			}
 
-			FVectorLayer* Layer = nullptr;
-			for (FVectorLayer& Existing : OutLayers)
+			// A stroke carries its own colour, so it becomes its own layer rather than joining the
+			// fill's.
+			const auto LayerFor = [&OutLayers, Width, Height](unsigned int Colour) -> FVectorLayer&
 			{
-				if (Existing.Colour == Source->fill.color)
+				for (FVectorLayer& Existing : OutLayers)
 				{
-					Layer = &Existing;
-					break;
+					if (Existing.Colour == Colour)
+					{
+						return Existing;
+					}
+				}
+
+				OutLayers.push_back(FVectorLayer());
+				FVectorLayer& Added = OutLayers.back();
+				Added.Colour = Colour;
+				Added.Shape.Width = Width;
+				Added.Shape.Height = Height;
+				Added.Shape.DistinctFills = 1;
+				return Added;
+			};
+
+			if (Source->fill.type != NSVG_PAINT_NONE)
+			{
+				FVectorLayer& Layer = LayerFor(Source->fill.color);
+				for (const NSVGpath* SubPath = Source->paths; SubPath != nullptr; SubPath = SubPath->next)
+				{
+					AddPath(Layer.Shape.Shape, *SubPath, Height);
 				}
 			}
 
-			if (Layer == nullptr)
+			if (Source->stroke.type != NSVG_PAINT_NONE)
 			{
-				OutLayers.push_back(FVectorLayer());
-				Layer = &OutLayers.back();
-				Layer->Colour = Source->fill.color;
-				Layer->Shape.Width = Width;
-				Layer->Shape.Height = Height;
-				Layer->Shape.DistinctFills = 1;
-			}
-
-			for (const NSVGpath* SubPath = Source->paths; SubPath != nullptr; SubPath = SubPath->next)
-			{
-				AddPath(Layer->Shape.Shape, *SubPath, Height);
+				AddStroke(LayerFor(Source->stroke.color).Shape.Shape, *Source, Height);
 			}
 		}
 
@@ -436,14 +556,6 @@ namespace msdfbake
 					"silhouette. Every filled path merges into a single shape, coloured wherever it "
 					"is drawn. Keep this as raster art, or split it into one file per colour.\n",
 					SpriteName.c_str(), Drawing.DistinctFills);
-			}
-
-			if (Drawing.StrokedPaths > 0)
-			{
-				std::fprintf(stderr,
-					"msdfbake: warning: %s has %d stroked path(s), which contribute nothing. A "
-					"stroke has no area until it is outlined; convert strokes to fills first.\n",
-					SpriteName.c_str(), Drawing.StrokedPaths);
 			}
 
 			FMsdfGlyphBitmap Bitmap;

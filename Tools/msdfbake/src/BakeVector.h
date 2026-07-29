@@ -6,6 +6,7 @@
 #include <msdfgen.h>
 
 #include <string>
+#include <vector>
 
 namespace msdfbake
 {
@@ -25,8 +26,23 @@ namespace msdfbake
 		int StrokedPaths = 0;
 	};
 
+	/// One fill colour's worth of an SVG, in the order it is painted.
+	struct FVectorLayer
+	{
+		FVectorShape Shape;
+		/// Packed 0xAABBGGRR as nanosvg reports it; written out as #rrggbb.
+		unsigned int Colour = 0;
+	};
+
 	/// Reads an SVG's filled paths into a shape, mirroring y so it matches a font outline.
 	bool LoadSvgShape(const std::string& Path, FVectorShape& OutShape, std::string& OutError);
+
+	/// Reads the same SVG as one shape per fill colour, painted back to front.
+	///
+	/// A single field is one silhouette, which is all an icon needs. A drawing with several fills
+	/// is several silhouettes stacked, each tinted - still one atlas, still resolution
+	/// independent, at the cost of one draw per colour.
+	bool LoadSvgLayers(const std::string& Path, std::vector<FVectorLayer>& OutLayers, std::string& OutError);
 
 	/// Normalises the drawing to one em on its longest side and generates its field.
 	bool GenerateVectorField(FVectorShape& Shape, const Folio::FMsdfAtlasParams& Params,

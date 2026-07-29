@@ -138,6 +138,78 @@ namespace msdfbake
 		return true;
 	}
 
+	bool LoadSvgLayers(const std::string& Path, std::vector<FVectorLayer>& OutLayers, std::string& OutError)
+	{
+		NSVGimage* Image = nsvgParseFromFile(Path.c_str(), "px", 96.0f);
+		if (Image == nullptr)
+		{
+			OutError = "cannot read " + Path;
+			return false;
+		}
+
+		if (Image->width <= 0.0f || Image->height <= 0.0f)
+		{
+			nsvgDelete(Image);
+			OutError = Path + " has no width or height";
+			return false;
+		}
+
+		const double Width = double(Image->width);
+		const double Height = double(Image->height);
+
+		OutLayers.clear();
+
+		// Grouped by colour but kept in paint order, so a later shape of a colour already seen
+		// joins that colour's layer. Two layers of the same colour would draw identically anyway,
+		// and merging them keeps the draw count down.
+		for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
+		{
+			if ((Source->flags & NSVG_FLAGS_VISIBLE) == 0 || Source->fill.type == NSVG_PAINT_NONE)
+			{
+				continue;
+			}
+
+			FVectorLayer* Layer = nullptr;
+			for (FVectorLayer& Existing : OutLayers)
+			{
+				if (Existing.Colour == Source->fill.color)
+				{
+					Layer = &Existing;
+					break;
+				}
+			}
+
+			if (Layer == nullptr)
+			{
+				OutLayers.push_back(FVectorLayer());
+				Layer = &OutLayers.back();
+				Layer->Colour = Source->fill.color;
+				Layer->Shape.Width = Width;
+				Layer->Shape.Height = Height;
+				Layer->Shape.DistinctFills = 1;
+			}
+
+			for (const NSVGpath* SubPath = Source->paths; SubPath != nullptr; SubPath = SubPath->next)
+			{
+				AddPath(Layer->Shape.Shape, *SubPath, Height);
+			}
+		}
+
+		nsvgDelete(Image);
+
+		// A layer with no contours would bake to nothing and still cost a draw.
+		OutLayers.erase(std::remove_if(OutLayers.begin(), OutLayers.end(),
+			[](const FVectorLayer& Layer) { return Layer.Shape.Shape.contours.empty(); }), OutLayers.end());
+
+		if (OutLayers.empty())
+		{
+			OutError = Path + " has no filled paths to bake";
+			return false;
+		}
+
+		return true;
+	}
+
 	bool GenerateVectorField(FVectorShape& Shape, const Folio::FMsdfAtlasParams& Params,
 		Folio::FMsdfGlyphBitmap& OutBitmap)
 	{
@@ -224,6 +296,7 @@ namespace msdfbake
 		std::string OutputDir, RcssPath, Name = "vectors", Value;
 		FMsdfAtlasParams Params;
 		int PageSize = 1024;
+		bool bLayers = false;
 
 		for (int Index = 2; Index < Argc; ++Index)
 		{
@@ -237,6 +310,7 @@ namespace msdfbake
 			else if (Arg == "--px-em")    { Ok = TakeValue(Argc, Argv, Index, Value); Params.PxPerEm = std::atoi(Value.c_str()); }
 			else if (Arg == "--px-range") { Ok = TakeValue(Argc, Argv, Index, Value); Params.PxRange = std::atoi(Value.c_str()); }
 			else if (Arg == "--page")     { Ok = TakeValue(Argc, Argv, Index, Value); PageSize = std::atoi(Value.c_str()); }
+			else if (Arg == "--layers")   { bLayers = true; }
 			else
 			{
 				std::fprintf(stderr, "msdfbake: error: unknown option %s\n", Arg.c_str());
@@ -269,6 +343,12 @@ namespace msdfbake
 		{
 			std::string Name;
 			FGlyphBox Box;
+			/// Set when the sprite came from --layers, so the stylesheet can tint it.
+			bool bHasColour = false;
+			unsigned char R = 0, G = 0, B = 0;
+			/// Where this layer sits inside the drawing, as fractions of it. A layer is packed at
+			/// its own bounds, so without this they all stack at the origin and the art comes apart.
+			float Left = 0.0f, Top = 0.0f, Width = 1.0f, Height = 1.0f;
 		};
 
 		std::vector<FPacked> Sprites;
@@ -276,8 +356,67 @@ namespace msdfbake
 
 		for (const std::string& Input : Inputs)
 		{
-			FVectorShape Drawing;
+			const std::string SpriteStem = StemOf(Input);
 			std::string Error;
+
+			if (bLayers)
+			{
+				std::vector<FVectorLayer> Layers;
+				if (!LoadSvgLayers(Input, Layers, Error))
+				{
+					std::fprintf(stderr, "msdfbake: error: %s\n", Error.c_str());
+					++Failed;
+					continue;
+				}
+
+				int LayerIndex = 0;
+				for (FVectorLayer& Layer : Layers)
+				{
+					FMsdfGlyphBitmap LayerBitmap;
+					if (!GenerateVectorField(Layer.Shape, Params, LayerBitmap) || LayerBitmap.bEmpty)
+					{
+						++Failed;
+						continue;
+					}
+
+					FGlyphBox LayerBox;
+					if (!Atlas.Add(LayerBitmap, 0.0f, LayerBox))
+					{
+						std::fprintf(stderr, "msdfbake: error: a layer of %s did not fit the atlas\n",
+							SpriteStem.c_str());
+						++Failed;
+						continue;
+					}
+
+					FPacked Packed;
+					Packed.Name = SpriteStem + "_" + std::to_string(LayerIndex);
+					Packed.Box = LayerBox;
+					Packed.bHasColour = true;
+					// nanosvg packs a fill colour as 0xAABBGGRR.
+					Packed.R = (unsigned char)(Layer.Colour & 0xFF);
+					Packed.G = (unsigned char)((Layer.Colour >> 8) & 0xFF);
+					Packed.B = (unsigned char)((Layer.Colour >> 16) & 0xFF);
+
+					// Plane bounds are in em from the drawing's own origin, and the drawing is one
+					// em on its longest side, so dividing by its extent gives the fraction.
+					const double Longest = std::max(Layer.Shape.Width, Layer.Shape.Height);
+					const double SpanX = Layer.Shape.Width / Longest;
+					const double SpanY = Layer.Shape.Height / Longest;
+
+					Packed.Left = float(double(LayerBox.PlaneLeft) / SpanX);
+					Packed.Top = float((SpanY - double(LayerBox.PlaneTop)) / SpanY);
+					Packed.Width = float(double(LayerBox.PlaneRight - LayerBox.PlaneLeft) / SpanX);
+					Packed.Height = float(double(LayerBox.PlaneTop - LayerBox.PlaneBottom) / SpanY);
+
+					Sprites.push_back(Packed);
+					++LayerIndex;
+				}
+
+				std::printf("%s: %d layer(s)\n", SpriteStem.c_str(), LayerIndex);
+				continue;
+			}
+
+			FVectorShape Drawing;
 
 			if (!LoadSvgShape(Input, Drawing, Error))
 			{
@@ -286,7 +425,7 @@ namespace msdfbake
 				continue;
 			}
 
-			const std::string SpriteName = StemOf(Input);
+			const std::string& SpriteName = SpriteStem;
 
 			// Said plainly rather than left for someone to work out from a bake that looks nothing
 			// like the drawing. Neither is recoverable inside a single field.
@@ -386,6 +525,32 @@ namespace msdfbake
 			}
 
 			Block += "}\n";
+			// One class per layer, in paint order, carrying the colour the drawing used. Stacking
+			// them reproduces the artwork; overriding image-color on any of them recolours it.
+			bool bAnyColour = false;
+			for (const FPacked& Sprite : Sprites)
+			{
+				if (!Sprite.bHasColour)
+				{
+					continue;
+				}
+
+				if (!bAnyColour)
+				{
+					Block += "\n/* Put these inside one position:relative box, in this order, to rebuild the art.\n";
+					Block += "   Each carries where it sits in the drawing, so the box can be any size. */\n";
+					bAnyColour = true;
+				}
+
+				char Rule[256] = {};
+				std::snprintf(Rule, sizeof(Rule),
+					".%s-ink { position: absolute; left: %.4f%%; top: %.4f%%; width: %.4f%%; height: %.4f%%; "
+					"image-color: #%02x%02x%02x; }\n",
+					Sprite.Name.c_str(), 100.0f * Sprite.Left, 100.0f * Sprite.Top,
+					100.0f * Sprite.Width, 100.0f * Sprite.Height, Sprite.R, Sprite.G, Sprite.B);
+				Block += Rule;
+			}
+
 			Block += SpritesheetEnd;
 
 			std::string Error;

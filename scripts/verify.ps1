@@ -194,7 +194,8 @@ $Shots = @(
     @{ Doc = 'effects.rml';      Size = '1920x1080'; Ratio = 1.0 },
     @{ Doc = 'effect_edges.rml'; Size = '800x480';   Ratio = 1.0 },
     @{ Doc = 'vector_stack.rml'; Size = '600x400';   Ratio = 1.0 },
-    @{ Doc = 'outside_blur.rml'; Size = '700x460';   Ratio = 1.0 }
+    @{ Doc = 'outside_blur.rml'; Size = '700x460';   Ratio = 1.0 },
+    @{ Doc = 'vector_strokes.rml'; Size = '620x700'; Ratio = 1.0 }
 )
 
 foreach ($shot in $Shots) {

@@ -381,9 +381,9 @@ The rules, all of which come from what a distance field can represent:
 - **`clip-path` is ignored** by the SVG front end, and the baker warns when it drops one. A
   clipped path bakes at full extent, which usually shows as a shape crossing in front of
   something it should be behind. Flatten clips in the drawing program.
-- **A stroke on a complex closed path currently bakes solid** rather than as a ring. Simple
-  closed shapes and open paths are correct. Until the stroker is rewritten, convert strokes to
-  fills in the drawing program - which also resolves `clip-path` in the same pass.
+- **Strokes are outlined into area**, since a field has no notion of a line. Joins (miter with
+  its limit, round, bevel) and caps (butt, round, square) are read from the SVG and honoured. A
+  stroke costs its own layer, because it is its own colour.
 
 **Baking is not automatic.** Re-run `msdfbake vector` after changing an SVG.
 

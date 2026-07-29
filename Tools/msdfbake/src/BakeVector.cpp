@@ -24,6 +24,9 @@ namespace msdfbake
 {
 	namespace
 	{
+		/// Arcs are built by angle, and msdfgen brings no pi of its own.
+		constexpr double kPi = 3.14159265358979323846;
+
 		/// Cubic segments come out of nanosvg already flattened to beziers, so the shape is built
 		/// from them directly rather than re-sampling into line segments.
 		void AddPath(msdfgen::Shape& Shape, const NSVGpath& Path, double Height)
@@ -109,15 +112,194 @@ namespace msdfbake
 			Out.addEdge(EdgeHolder(S, S + R * K, E - U * K, E));
 		}
 
+		/// Appends an arc about Centre from From to To as line segments.
+		///
+		/// Line segments rather than cubics because these are joins and caps: a few degrees each,
+		/// at a radius of half a stroke width. A cubic would be exact and unmeasurable.
+		void AppendArc(std::vector<msdfgen::Point2>& Out, msdfgen::Point2 Centre, msdfgen::Point2 From,
+			msdfgen::Point2 To, double Radius, bool bClockwise)
+		{
+			using namespace msdfgen;
+
+			const Vector2 Start = From - Centre;
+			const Vector2 End = To - Centre;
+
+			double Angle = std::atan2(End.y, End.x) - std::atan2(Start.y, Start.x);
+			while (Angle <= -kPi) { Angle += 2.0 * kPi; }
+			while (Angle > kPi) { Angle -= 2.0 * kPi; }
+
+			if (bClockwise && Angle > 0.0) { Angle -= 2.0 * kPi; }
+			if (!bClockwise && Angle < 0.0) { Angle += 2.0 * kPi; }
+
+			// About fifteen degrees a segment, well under a tenth of a pixel of chord error at any
+			// stroke width a drawing uses.
+			const int Steps = std::max(2, int(std::ceil(std::fabs(Angle) / (kPi / 12.0))));
+			const double Base = std::atan2(Start.y, Start.x);
+
+			for (int Step = 1; Step < Steps; ++Step)
+			{
+				const double T = Base + Angle * (double(Step) / double(Steps));
+				Out.push_back(Centre + Vector2(std::cos(T), std::sin(T)) * Radius);
+			}
+
+			Out.push_back(To);
+		}
+
+		/// One side of a stroked polyline, with the joins put in.
+		///
+		/// Side is +1 or -1: which way the offset goes. The result runs in the same direction as
+		/// the input, so closing a ring means walking the two sides in opposite directions.
+		void OffsetSide(const std::vector<msdfgen::Point2>& Points, bool bClosed, double HalfWidth,
+			double Side, char Join, double MiterLimit, std::vector<msdfgen::Point2>& Out)
+		{
+			using namespace msdfgen;
+
+			const std::size_t Count = Points.size();
+			const std::size_t Segments = bClosed ? Count : Count - 1;
+
+			const auto UnitNormal = [&](std::size_t Index) -> Vector2
+			{
+				const Point2 A = Points[Index];
+				const Point2 B = Points[(Index + 1) % Count];
+				const Vector2 Along = B - A;
+				const double Length = Along.length();
+				if (Length < 1e-12)
+				{
+					return Vector2(0.0, 0.0);
+				}
+				return Vector2(-Along.y, Along.x) / Length * Side;
+			};
+
+			for (std::size_t Index = 0; Index < Segments; ++Index)
+			{
+				const Vector2 Unit = UnitNormal(Index);
+				const Vector2 N = Unit * HalfWidth;
+				const Point2 A = Points[Index];
+				const Point2 B = Points[(Index + 1) % Count];
+
+				Out.push_back(A + N);
+				Out.push_back(B + N);
+
+				// The junction with the next segment. An open path has none at its last vertex.
+				if (!bClosed && Index + 2 >= Count)
+				{
+					continue;
+				}
+
+				const std::size_t NextIndex = (Index + 1) % Segments;
+				const Vector2 NextUnit = UnitNormal(NextIndex);
+				if (NextUnit.length() < 1e-12 || Unit.length() < 1e-12)
+				{
+					continue;
+				}
+
+				const Point2 From = B + N;
+				const Point2 To = B + NextUnit * HalfWidth;
+				if ((To - From).length() < 1e-12)
+				{
+					continue;
+				}
+
+				// Which way the path turns decides whether this side is the outside of the corner.
+				// On the inside the two offsets cross, and the join is emitted anyway: the path
+				// operations that run afterwards resolve the self-intersection, and deciding which
+				// case is which here would buy nothing.
+				const double Cross = crossProduct(Unit, NextUnit);
+
+				if (Join == NSVG_JOIN_MITER)
+				{
+					// The bisector is the sum of the two unit normals; the miter reaches half the
+					// width divided by the cosine of the half angle between them.
+					const Vector2 Bisector = Unit + NextUnit;
+					const double BisectorLength = Bisector.length();
+					if (BisectorLength > 1e-12)
+					{
+						const Vector2 Direction = Bisector / BisectorLength;
+						const double Cosine = dotProduct(Direction, Unit);
+						if (Cosine > 1e-6 && 1.0 / Cosine <= MiterLimit)
+						{
+							Out.push_back(B + Direction * (HalfWidth / Cosine));
+							continue;
+						}
+					}
+					// Past the limit SVG says bevel, which is the direct line already implied.
+				}
+				else if (Join == NSVG_JOIN_ROUND)
+				{
+					AppendArc(Out, B, From, To, HalfWidth, Cross < 0.0);
+					continue;
+				}
+
+				// Bevel: nothing to add. The next segment's first point closes the corner.
+			}
+		}
+
+		/// Closes an open stroke's two sides, turning them into one loop.
+		void AppendCap(std::vector<msdfgen::Point2>& Out, msdfgen::Point2 End, msdfgen::Point2 From,
+			msdfgen::Point2 To, msdfgen::Vector2 Outward, double HalfWidth, char Cap)
+		{
+			using namespace msdfgen;
+
+			if (Cap == NSVG_CAP_ROUND)
+			{
+				// The half turn has to go round the outside, through End + Outward. Taken the other
+				// way it passes through the stroke instead and bites a crescent out of its end.
+				AppendArc(Out, End, From, To, HalfWidth, crossProduct(From - End, Outward) < 0.0);
+				return;
+			}
+
+			if (Cap == NSVG_CAP_SQUARE)
+			{
+				Out.push_back(From + Outward * HalfWidth);
+				Out.push_back(To + Outward * HalfWidth);
+			}
+
+			// Butt: the two sides meet directly, which this last point does.
+			Out.push_back(To);
+		}
+
+		/// Adds a closed contour through the given points, dropping any that repeat.
+		void AddPolygon(msdfgen::Shape& Shape, const std::vector<msdfgen::Point2>& Points)
+		{
+			using namespace msdfgen;
+
+			std::vector<Point2> Clean;
+			Clean.reserve(Points.size());
+			for (const Point2& Point : Points)
+			{
+				if (Clean.empty() || (Point - Clean.back()).length() > 1e-9)
+				{
+					Clean.push_back(Point);
+				}
+			}
+			while (Clean.size() > 1 && (Clean.front() - Clean.back()).length() <= 1e-9)
+			{
+				Clean.pop_back();
+			}
+
+			if (Clean.size() < 3)
+			{
+				return;
+			}
+
+			Contour& Out = Shape.addContour();
+			for (std::size_t Index = 0; Index < Clean.size(); ++Index)
+			{
+				Out.addEdge(EdgeHolder(Clean[Index], Clean[(Index + 1) % Clean.size()]));
+			}
+		}
+
 		/// Outlines a stroke as area, because a distance field has no notion of a line.
 		///
-		/// Every segment becomes a rectangle and every joint a disc, and the union of that pile is
-		/// the stroke. Skia's path operations do the union in resolveShapeGeometry, which is what
-		/// makes the approach robust enough to be worth its simplicity - overlapping pieces are
-		/// exactly what that call exists to resolve.
+		/// One offset contour per side, with real joins and caps, rather than a rectangle per
+		/// segment and a disc per vertex unioned together. The pile of pieces was simple and it
+		/// failed on exactly the drawings that matter: a long ragged path produced hundreds of
+		/// overlapping contours whose union came out solid, so a stroked outline baked as a
+		/// silhouette and hid whatever it had been drawn over. It also forced round joins.
 		///
-		/// Joins and caps are always round. A miter would need the joint geometry proper; at UI
-		/// sizes the difference is a fraction of a pixel on anything but a very sharp corner.
+		/// A closed path gives two loops, one per side, wound against each other, which reads as a
+		/// ring under non-zero fill. An open path gives one loop: up one side, round the cap, back
+		/// down the other.
 		void AddStroke(msdfgen::Shape& Shape, const NSVGshape& Source, double Height)
 		{
 			using namespace msdfgen;
@@ -128,48 +310,73 @@ namespace msdfbake
 				return;
 			}
 
+			const char Join = Source.strokeLineJoin;
+			const char Cap = Source.strokeLineCap;
+			const double MiterLimit = Source.miterLimit > 1.0 ? double(Source.miterLimit) : 1.0;
+
 			std::vector<Point2> Points;
+			std::vector<Point2> Left;
+			std::vector<Point2> Right;
 
 			for (const NSVGpath* Path = Source.paths; Path != nullptr; Path = Path->next)
 			{
 				Points.clear();
 				FlattenPath(*Path, Points, Height);
 
-				if (Path->closed && Points.size() > 1)
-				{
-					Points.push_back(Points.front());
-				}
+				// A repeated point carries no direction, and a join needs one.
+				Points.erase(std::unique(Points.begin(), Points.end(),
+					[](const Point2& A, const Point2& B) { return (A - B).length() <= 1e-9; }), Points.end());
 
-				for (std::size_t Index = 0; Index + 1 < Points.size(); ++Index)
+				const bool bClosed = Path->closed != 0;
+				if (bClosed)
 				{
-					const Point2 A = Points[Index];
-					const Point2 B = Points[Index + 1];
-
-					const Vector2 Along = B - A;
-					const double Length = Along.length();
-					if (Length < 1e-9)
+					while (Points.size() > 1 && (Points.front() - Points.back()).length() <= 1e-9)
 					{
-						continue;
+						Points.pop_back();
 					}
-
-					// Perpendicular, scaled to half the stroke: the rectangle that segment sweeps.
-					const Vector2 Side = Vector2(-Along.y, Along.x) / Length * HalfWidth;
-
-					// Counter-clockwise, matching the discs. Mixed winding does not union - the
-					// path operations subtract one from the other and the stroke disappears
-					// except where a disc happens to sit alone.
-					Contour& Quad = Shape.addContour();
-					Quad.addEdge(EdgeHolder(A - Side, B - Side));
-					Quad.addEdge(EdgeHolder(B - Side, B + Side));
-					Quad.addEdge(EdgeHolder(B + Side, A + Side));
-					Quad.addEdge(EdgeHolder(A + Side, A - Side));
 				}
 
-				// A disc at every point covers the joins, and at the ends it is a round cap.
-				for (const Point2& Point : Points)
+				if (Points.size() < 2)
 				{
-					AddDisc(Shape, Point, HalfWidth);
+					// A lone point is only visible under a round cap, where it is a dot.
+					if (Points.size() == 1 && Cap == NSVG_CAP_ROUND)
+					{
+						AddDisc(Shape, Points.front(), HalfWidth);
+					}
+					continue;
 				}
+
+				Left.clear();
+				Right.clear();
+				OffsetSide(Points, bClosed, HalfWidth, 1.0, Join, MiterLimit, Left);
+				OffsetSide(Points, bClosed, HalfWidth, -1.0, Join, MiterLimit, Right);
+
+				if (bClosed)
+				{
+					// Wound against each other, so the area between them fills and the middle does
+					// not. Which one is reversed does not matter, only that they disagree.
+					std::reverse(Right.begin(), Right.end());
+					AddPolygon(Shape, Left);
+					AddPolygon(Shape, Right);
+					continue;
+				}
+
+				// One loop: up the left side, round the far cap, back down the right, round the
+				// near cap. A cap points away from the path along its end tangent.
+				std::vector<Point2> Loop = Left;
+
+				const Vector2 EndTangent = (Points.back() - Points[Points.size() - 2]).normalize();
+				AppendCap(Loop, Points.back(), Left.back(), Right.back(), EndTangent, HalfWidth, Cap);
+
+				for (std::size_t Index = Right.size() - 1; Index-- > 0;)
+				{
+					Loop.push_back(Right[Index]);
+				}
+
+				const Vector2 StartTangent = (Points[0] - Points[1]).normalize();
+				AppendCap(Loop, Points.front(), Right.front(), Left.front(), StartTangent, HalfWidth, Cap);
+
+				AddPolygon(Shape, Loop);
 			}
 		}
 

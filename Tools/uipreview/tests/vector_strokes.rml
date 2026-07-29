@@ -1,0 +1,67 @@
+<rml>
+<head>
+	<title>vector strokes</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<link type="text/rcss" href="/ui/vectors.rcss"/>
+	<style>
+		/*
+			Strokes baked as area, since a distance field has no notion of a line.
+
+			strokes.svg is one of each case the stroker has to get right, and each is checked by
+			eye against the shape it is supposed to be:
+
+			  the rectangle       a ring, with the middle open. Baked solid, it would read as a
+			                      filled box and hide whatever it was drawn over
+			  three triangles     miter, round and bevel joins, which must look different
+			  two zigzags         butt and round caps
+			  the curve           square caps, and a stroke that follows a bezier
+			  the ragged line     the case that used to fail: many short segments turning sharply,
+			                      which the old rectangle-per-segment stroker unioned into a solid
+
+			Re-bake both test drawings together with:
+
+			  msdfbake vector --in Tools/uipreview/tests/vectors/wide.svg
+			                  --in Tools/uipreview/tests/vectors/strokes.svg
+			                  --out Tools/uipreview/tests/ui/art
+			                  --rcss Tools/uipreview/tests/ui/vectors.rcss --layers
+		*/
+		body
+		{
+			background-color: #101014;
+			color: #e8e8f0;
+			font-family: Inter;
+			font-size: 13dp;
+			padding: 16dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		p { margin-bottom: 6dp; }
+
+		.big { width: 560dp; margin-bottom: 16dp; }
+		.small { width: 180dp; }
+	</style>
+</head>
+<body>
+	<p>joins, caps, and a ring that must stay open in the middle</p>
+	<div class="strokes-stack big">
+		<img class="strokes-frame" sprite="strokes_frame"/>
+		<img class="strokes_0-ink" sprite="strokes_0"/>
+		<img class="strokes_1-ink" sprite="strokes_1"/>
+		<img class="strokes_2-ink" sprite="strokes_2"/>
+		<img class="strokes_3-ink" sprite="strokes_3"/>
+		<img class="strokes_4-ink" sprite="strokes_4"/>
+	</div>
+
+	<p>the same at a size where a stroke is a couple of pixels</p>
+	<div class="strokes-stack small">
+		<img class="strokes-frame" sprite="strokes_frame"/>
+		<img class="strokes_0-ink" sprite="strokes_0"/>
+		<img class="strokes_1-ink" sprite="strokes_1"/>
+		<img class="strokes_2-ink" sprite="strokes_2"/>
+		<img class="strokes_3-ink" sprite="strokes_3"/>
+		<img class="strokes_4-ink" sprite="strokes_4"/>
+	</div>
+</body>
+</rml>

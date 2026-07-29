@@ -667,3 +667,30 @@ The filter is registered through `Factory::RegisterFilterInstancer` from `FolioF
 is header-inline for the same reason the font effect instancers are: an instancer's constructor
 calls `RegisterProperty`, which resolves parsers through the `StyleSheetSpecification` that only
 one module's `Rml::Initialise` populated.
+
+## Stroking by piling up pieces does not survive a real drawing
+
+A stroke has to become area, because a field has no notion of a line. The first stroker did that
+the easy way: a rectangle per segment, a disc per vertex, and Skia's path operations to union the
+pile. Simple, and correct on everything simple.
+
+It failed on the drawings that matter. A ragged path - 64 points, ~169 after flattening, turning
+sharply every few units - produced hundreds of overlapping contours, and the union came out
+**solid**. A `fill:none` outline baked as a filled silhouette and hid the shape it was drawn
+over. Diagnosing it cost an afternoon and produced three correct-but-irrelevant answers along the
+way: stroke width was right, winding was consistent, and a closed stroked square baked perfectly.
+
+The stroker now walks each contour once and emits one offset polyline per side, with the joins
+put in: miter with its limit, round, or bevel, read from the SVG rather than forced. A closed
+path gives two loops wound against each other, which is a ring under non-zero fill. An open path
+gives one loop - up one side, round the cap, back down the other - with butt, round or square
+caps. Two contours instead of hundreds, and the bake is faster for it.
+
+On the inside of a corner the two offsets cross. That self-intersection is left for the path
+operations to resolve rather than special-cased, which is what they are there for.
+
+The cap arcs went the wrong way round first: taken the short way they pass through the stroke and
+bite a crescent out of its end. The direction has to be the one that goes through the end point
+plus the outward tangent.
+
+`Tools/uipreview/tests/vector_strokes.rml` is one of each case, at two sizes.

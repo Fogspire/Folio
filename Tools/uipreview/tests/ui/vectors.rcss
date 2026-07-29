@@ -8,9 +8,15 @@
 	wide_0: 0px 0px 264px 104px;
 	wide_1: 265px 0px 79px 79px;
 	wide_2: 345px 0px 130px 53px;
+	strokes_0: 476px 0px 72px 60px;
+	strokes_1: 549px 0px 170px 65px;
+	strokes_2: 720px 0px 112px 89px;
+	strokes_3: 833px 0px 127px 51px;
+	strokes_4: 961px 0px 106px 35px;
 
 	/* Each drawing's proportions. Nothing draws these; see below. */
 	wide_frame: 0px 0px 512px 192px;
+	strokes_frame: 0px 0px 512px 333px;
 }
 
 /* One stack box, a hidden frame image, then these in order:
@@ -29,7 +35,15 @@
 .wide_0-ink { position: absolute; left: -1.3672%; top: -3.6458%; width: 102.7344%; height: 107.2917%; image-color: #3050a0; }
 .wide_1-ink { position: absolute; left: 4.8828%; top: 9.6875%; width: 30.2344%; height: 80.6250%; image-color: #f0c674; }
 .wide_2-ink { position: absolute; left: 43.6328%; top: 23.0208%; width: 50.2344%; height: 53.9583%; image-color: #c04030; }
+.strokes_0-ink { position: absolute; left: 2.3828%; top: 3.6659%; width: 27.7344%; height: 34.9760%; image-color: #2b6cb0; }
+.strokes_1-ink { position: absolute; left: 31.7371%; top: 3.6659%; width: 65.7790%; height: 37.9348%; image-color: #c04030; }
+.strokes_2-ink { position: absolute; left: 2.1420%; top: 41.0952%; width: 43.2215%; height: 52.4250%; image-color: #f0c674; }
+.strokes_3-ink { position: absolute; left: 49.9422%; top: 37.1539%; width: 48.8543%; height: 29.6696%; image-color: #3aa06a; }
+.strokes_4-ink { position: absolute; left: 50.4685%; top: 66.2887%; width: 40.9237%; height: 19.9930%; image-color: #9a4fd0; }
 
 .wide-stack { position: relative; display: block; }
 .wide-frame { display: block; width: 100%; visibility: hidden; }
+
+.strokes-stack { position: relative; display: block; }
+.strokes-frame { display: block; width: 100%; visibility: hidden; }
 /* END msdfbake vectors */

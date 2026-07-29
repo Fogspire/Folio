@@ -618,3 +618,24 @@ ramp, which is a division by zero. Its upper bound now has a floor.
 `Tools/uipreview/tests/effect_edges.rml` is every effect asked for well past the cap. It is
 expected to warn and to exit 5 under `--strict`; what it must never show is a rectangle or a seam
 between adjacent glyphs.
+
+## A layer stack has no height of its own
+
+Every sprite in a `--layers` bake is `position: absolute`, so none of them contributes to the
+container's height. Give the container a width and nothing at all renders, which reads as the
+bake being broken rather than as a collapsed box.
+
+RCSS has no `aspect-ratio` and no `calc()`, so nothing in a stylesheet can turn a width into the
+right height. The only thing in RmlUi that carries a ratio is an image element's intrinsic size.
+
+So the baker emits a `<name>_frame` sprite per drawing, holding the drawing's proportions, and a
+`.<name>-frame` rule that is `visibility: hidden` - it keeps its box and never draws. A hidden
+`<img>` on it is the first child of the stack, and the width alone is then enough.
+
+The frame rectangle is **not packed and owns no atlas area**. A sprite rectangle is only
+coordinates, and nothing ever samples this one, so it may sit over whatever else is there. It is
+written as `0px 0px W H` scaled to a longest side of 512, which keeps the ratio error under a
+fifth of a percent and cannot exceed a page.
+
+`Tools/uipreview/tests/vector_stack.rml` covers it, with the container behind the art in magenta:
+the drawing's own background layer must cover it exactly at every size.

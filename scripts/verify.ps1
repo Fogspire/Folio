@@ -192,7 +192,8 @@ $Shots = @(
     @{ Doc = 'typography.rml'; Size = '1920x1080'; Ratio = 1.0 },
     @{ Doc = 'typography.rml'; Size = '1920x1080'; Ratio = 2.0 },
     @{ Doc = 'effects.rml';      Size = '1920x1080'; Ratio = 1.0 },
-    @{ Doc = 'effect_edges.rml'; Size = '800x480';   Ratio = 1.0 }
+    @{ Doc = 'effect_edges.rml'; Size = '800x480';   Ratio = 1.0 },
+    @{ Doc = 'vector_stack.rml'; Size = '600x400';   Ratio = 1.0 }
 )
 
 foreach ($shot in $Shots) {

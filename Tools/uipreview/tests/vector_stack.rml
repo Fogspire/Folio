@@ -1,0 +1,70 @@
+<rml>
+<head>
+	<title>vector stack</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<link type="text/rcss" href="/ui/vectors.rcss"/>
+	<style>
+		/*
+			A multi-colour drawing rebuilt from stacked distance fields, sized by width alone.
+
+			Every layer is absolutely positioned, so the container has no height of its own. The
+			frame image is what supplies one: RCSS has no aspect-ratio, and an image element's
+			intrinsic size is the only thing that carries a ratio. Without it the box collapses and
+			the drawing does not render at all.
+
+			wide.svg is 400x150, so the magenta container must be exactly covered by the drawing's
+			own blue background at every size. Any magenta showing means the frame and the art
+			disagree. Re-bake with:
+
+			  msdfbake vector --in Tools/uipreview/tests/vectors/wide.svg
+			                  --out Tools/uipreview/tests/ui/art
+			                  --rcss Tools/uipreview/tests/ui/vectors.rcss --layers
+		*/
+		body
+		{
+			background-color: #202028;
+			color: #ffffff;
+			font-family: Inter;
+			font-size: 13dp;
+			padding: 16dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		p { margin-bottom: 4dp; }
+
+		/* Shows through anywhere the stack is the wrong shape. */
+		.probe { background-color: #ff00ff; margin-bottom: 16dp; }
+
+		.w400 { width: 400dp; }
+		.w200 { width: 200dp; }
+		.w96  { width: 96dp; }
+	</style>
+</head>
+<body>
+	<p>400dp wide</p>
+	<div class="wide-stack probe w400">
+		<img class="wide-frame" sprite="wide_frame"/>
+		<img class="wide_0-ink" sprite="wide_0"/>
+		<img class="wide_1-ink" sprite="wide_1"/>
+		<img class="wide_2-ink" sprite="wide_2"/>
+	</div>
+
+	<p>200dp wide</p>
+	<div class="wide-stack probe w200">
+		<img class="wide-frame" sprite="wide_frame"/>
+		<img class="wide_0-ink" sprite="wide_0"/>
+		<img class="wide_1-ink" sprite="wide_1"/>
+		<img class="wide_2-ink" sprite="wide_2"/>
+	</div>
+
+	<p>96dp wide</p>
+	<div class="wide-stack probe w96">
+		<img class="wide-frame" sprite="wide_frame"/>
+		<img class="wide_0-ink" sprite="wide_0"/>
+		<img class="wide_1-ink" sprite="wide_1"/>
+		<img class="wide_2-ink" sprite="wide_2"/>
+	</div>
+</body>
+</rml>

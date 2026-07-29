@@ -343,11 +343,27 @@ The rules, all of which come from what a distance field can represent:
   baked as a **stack of silhouettes**, one per fill colour, painted back to front - still one
   atlas, still resolution independent, at the cost of one draw per layer. Keep the colour count
   low deliberately.
+- **A stack needs its frame image.** Every layer is absolutely positioned and so adds nothing to
+  its container's height; on its own the container collapses and nothing renders. The baker emits
+  a `<name>_frame` sprite carrying the drawing's proportions, and a hidden `<img>` on it is what
+  gives the box a height:
+
+  ```html
+  <div class="knight-stack" style="width: 240dp">
+    <img class="knight-frame" sprite="knight_frame"/>
+    <img class="knight_0-ink" sprite="knight_0"/>
+    <img class="knight_1-ink" sprite="knight_1"/>
+  </div>
+  ```
+
+  Set the width and let the frame find the height. RCSS has no `aspect-ratio`, and an image
+  element's intrinsic size is the only thing that carries one.
 - **`ninepatch` and `tiled-box` are invalid on a vector atlas.** Non-uniform stretching corrupts
   the distance metric, so corners round off and edges soften. A vector sprite scales uniformly
   or not at all.
-- **Set width or height, not both.** They resolve against different bases, and setting both
-  squashes the art. One dimension preserves the intrinsic ratio.
+- **Set width or height, not both.** They resolve against different bases - the parent's width
+  and the parent's height - so a stack sized as a percentage of both squashes whenever the window
+  aspect changes. One dimension preserves the intrinsic ratio.
 - The vector sheet is declared `1x`. There is no second resolution to author.
 - **`clip-path` is ignored** by the SVG front end, and the baker warns when it drops one. A
   clipped path bakes at full extent, which usually shows as a shape crossing in front of

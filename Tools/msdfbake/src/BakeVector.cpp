@@ -505,7 +505,24 @@ namespace msdfbake
 			float Left = 0.0f, Top = 0.0f, Width = 1.0f, Height = 1.0f;
 		};
 
+		/// The drawing's own extent, as a sprite rectangle nothing ever draws.
+		///
+		/// RCSS has no aspect-ratio, and the only thing that carries one is an image element's
+		/// intrinsic size. A hidden img on this sprite gives a layer stack its height from its
+		/// width alone; without it the container collapses, because every layer is absolutely
+		/// positioned and so adds nothing to its parent.
+		///
+		/// The rectangle is not packed and owns no atlas area. Nothing ever samples it, so it may
+		/// sit over whatever else is there; only its proportions are read.
+		struct FFrame
+		{
+			std::string Name;
+			int Width = 1;
+			int Height = 1;
+		};
+
 		std::vector<FPacked> Sprites;
+		std::vector<FFrame> Frames;
 		int Failed = 0;
 
 		for (const std::string& Input : Inputs)
@@ -573,6 +590,22 @@ namespace msdfbake
 						"is an intersection and a field holds one shape, so the clipped geometry "
 						"bakes unclipped and will cover things it should not. Apply the clip in the "
 						"drawing program first.\n", SpriteStem.c_str(), Clips);
+				}
+
+				if (LayerIndex > 0)
+				{
+					// Scaled rather than taken literally: a drawing may be larger than a page, and
+					// only the ratio is ever read. 512 holds the rounding error under a fifth of a
+					// percent, far below anything visible in a stacked drawing.
+					constexpr double FrameLongest = 512.0;
+					const double Longest = std::max(Layers.front().Shape.Width, Layers.front().Shape.Height);
+					const double Scale = Longest > 0.0 ? FrameLongest / Longest : 1.0;
+
+					FFrame Frame;
+					Frame.Name = SpriteStem + "_frame";
+					Frame.Width = std::max(1, int(std::lround(Layers.front().Shape.Width * Scale)));
+					Frame.Height = std::max(1, int(std::lround(Layers.front().Shape.Height * Scale)));
+					Frames.push_back(Frame);
 				}
 
 				std::printf("%s: %d layer(s)\n", SpriteStem.c_str(), LayerIndex);
@@ -688,6 +721,16 @@ namespace msdfbake
 					+ "px " + std::to_string(W) + "px " + std::to_string(H) + "px;\n";
 			}
 
+			if (!Frames.empty())
+			{
+				Block += "\n\t/* Each drawing's proportions. Nothing draws these; see below. */\n";
+				for (const FFrame& Frame : Frames)
+				{
+					Block += "\t" + Frame.Name + ": 0px 0px " + std::to_string(Frame.Width) + "px "
+						+ std::to_string(Frame.Height) + "px;\n";
+				}
+			}
+
 			Block += "}\n";
 			// One class per layer, in paint order, carrying the colour the drawing used. Stacking
 			// them reproduces the artwork; overriding image-color on any of them recolours it.
@@ -701,8 +744,19 @@ namespace msdfbake
 
 				if (!bAnyColour)
 				{
-					Block += "\n/* Put these inside one position:relative box, in this order, to rebuild the art.\n";
-					Block += "   Each carries where it sits in the drawing, so the box can be any size. */\n";
+					Block += "\n/* One stack box, a hidden frame image, then these in order:\n";
+					Block += "\n";
+					Block += "     <div class=\"art-stack\" style=\"width: 240dp\">\n";
+					Block += "       <img class=\"art-frame\" sprite=\"art_frame\"/>\n";
+					Block += "       <img class=\"art_0-ink\" sprite=\"art_0\"/>\n";
+					Block += "       <img class=\"art_1-ink\" sprite=\"art_1\"/>\n";
+					Block += "     </div>\n";
+					Block += "\n";
+					Block += "   The frame is what gives the box a height. Every layer is absolutely positioned,\n";
+					Block += "   so on its own the box would collapse and nothing would render; RCSS has no\n";
+					Block += "   aspect-ratio, and an image element's intrinsic size is the only thing that\n";
+					Block += "   carries one. Set the width and let the frame find the height - setting both as\n";
+					Block += "   percentages squashes the art, because the two resolve against different bases. */\n";
 					bAnyColour = true;
 				}
 
@@ -713,6 +767,15 @@ namespace msdfbake
 					Sprite.Name.c_str(), 100.0f * Sprite.Left, 100.0f * Sprite.Top,
 					100.0f * Sprite.Width, 100.0f * Sprite.Height, Sprite.R, Sprite.G, Sprite.B);
 				Block += Rule;
+			}
+
+			for (const FFrame& Frame : Frames)
+			{
+				const std::string Stem = Frame.Name.substr(0, Frame.Name.size() - 6);
+				Block += "\n." + Stem + "-stack { position: relative; display: block; }\n";
+				// Hidden rather than transparent: it must keep its box, which is the whole point
+				// of it, and never cost a draw.
+				Block += "." + Stem + "-frame { display: block; width: 100%; visibility: hidden; }\n";
 			}
 
 			Block += SpritesheetEnd;

@@ -9,6 +9,8 @@
 #include "FolioRmlUi.h"
 #include "Misc/FileHelper.h"
 
+#include <RmlUi/Core/MeshUtilities.h>
+
 void SFolioCanvas::Construct(const FArguments& InArgs)
 {
 	DesiredSize = InArgs._DesiredSize;
@@ -178,6 +180,12 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	// Slate's layout scale is Unreal's UI scaling; RmlUi expresses the same thing as a
 	// density independent pixel ratio, which is what dp units resolve against.
 	Context->SetDensityIndependentPixelRatio(AllottedGeometry.Scale);
+
+	// Backgrounds carry their own antialiasing because Slate composites straight into the
+	// swapchain with no multisampling to soften a rounded corner. The generator works in
+	// document units, so it needs one rendered pixel expressed in them.
+	const float RenderScale = AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
+	Rml::MeshUtilities::SetBackgroundAntialiasWidth(RenderScale > KINDA_SMALL_NUMBER ? 1.0f / RenderScale : 1.0f);
 
 	Context->Update();
 }

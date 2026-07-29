@@ -526,6 +526,11 @@ void App::ApplyViewportSize(int width, int height)
 	context->SetDimensions(Rml::Vector2i(width, height));
 	context->SetDensityIndependentPixelRatio(ComputeDpRatio(width, height));
 
+	// Geometry is generated in pixels here, so one rendered pixel is one unit. The backend also
+	// multisamples, which makes this redundant in the preview - it is set anyway so both renderers
+	// produce the same vertices and a geometry diff between them stays meaningful.
+	Rml::MeshUtilities::SetBackgroundAntialiasWidth(1.0f);
+
 	viewport_width = width;
 	viewport_height = height;
 }

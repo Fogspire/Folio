@@ -1,0 +1,139 @@
+diff --git a/Include/RmlUi/Core/MeshUtilities.h b/Include/RmlUi/Core/MeshUtilities.h
+index 4785fd1e..d94665ad 100644
+--- a/Include/RmlUi/Core/MeshUtilities.h
++++ b/Include/RmlUi/Core/MeshUtilities.h
+@@ -53,6 +53,12 @@ public:
+ 	/// @note Vertex positions are relative to the border-box, vertex texture coordinates are default initialized.
+ 	static void GenerateBackground(Mesh& mesh, const RenderBox& render_box, ColourbPremultiplied color);
+ 
++	/// Sets how far the transparent skirt on a background's outer boundary extends, in the units
++	/// geometry is generated in. Backgrounds are otherwise hard-edged and rely on the renderer
++	/// multisampling, which a renderer compositing straight into a swapchain cannot do.
++	/// @param[in] width One rendered pixel expressed in geometry units, or zero to disable.
++	static void SetBackgroundAntialiasWidth(float width);
++
+ private:
+ 	MeshUtilities() = delete;
+ };
+diff --git a/Source/Core/GeometryBackgroundBorder.cpp b/Source/Core/GeometryBackgroundBorder.cpp
+index 6106b49b..e47da258 100644
+--- a/Source/Core/GeometryBackgroundBorder.cpp
++++ b/Source/Core/GeometryBackgroundBorder.cpp
+@@ -1,4 +1,5 @@
+ #include "GeometryBackgroundBorder.h"
++#include "../../Include/RmlUi/Core/MeshUtilities.h"
+ #include "../../Include/RmlUi/Core/Box.h"
+ #include "../../Include/RmlUi/Core/Math.h"
+ #include <algorithm>
+@@ -6,6 +7,15 @@
+ 
+ namespace Rml {
+ 
++// One rendered pixel, in the units geometry is generated in. The generator cannot know the scale
++// its output will be drawn at, so whoever does sets this; zero leaves backgrounds hard-edged.
++static float g_background_antialias_width = 0.f;
++
++void MeshUtilities::SetBackgroundAntialiasWidth(float width)
++{
++	g_background_antialias_width = Math::Max(width, 0.f);
++}
++
+ GeometryBackgroundBorder::GeometryBackgroundBorder(Vector<Vertex>& vertices, Vector<int>& indices) : vertices(vertices), indices(indices) {}
+ 
+ BorderMetrics GeometryBackgroundBorder::ComputeBorderMetrics(Vector2f outer_position, EdgeSizes edge_sizes, Vector2f inner_size,
+@@ -81,6 +91,8 @@ void GeometryBackgroundBorder::DrawBackground(const BorderMetrics& metrics, Colo
+ 			metrics.inner_radii[corner], color);
+ 
+ 	FillBackground(offset_vertices);
++
++	AntialiasRing(offset_vertices);
+ }
+ 
+ void GeometryBackgroundBorder::DrawBorder(const BorderMetrics& metrics, EdgeSizes edge_sizes, const ColourbPremultiplied border_colors[4])
+@@ -190,6 +202,72 @@ void GeometryBackgroundBorder::FillBackground(int index_start)
+ 	}
+ }
+ 
++void GeometryBackgroundBorder::AntialiasRing(int index_start)
++{
++	// Corners are a fan of hard-edged triangles, so without this they alias unless the whole
++	// surface is multisampled. A renderer drawing UI straight into a composited swapchain has no
++	// opportunity to do that.
++	//
++	// A transparent skirt is added just outside the existing boundary, so coverage ramps across a
++	// pixel at the edge. The filled ring is deliberately left where it is: pulling it inward and
++	// skirting back out to the original boundary preserves the shape's extents, but it also puts a
++	// seam through the interior, and any sub-pixel crack along that seam reads as a line of
++	// half-lit pixels wherever there is no multisampling to hide it.
++
++	const float width = g_background_antialias_width;
++	const int count = (int)vertices.size() - index_start;
++
++	if (width <= 0.f || count < 3)
++		return;
++
++	Vector<Vector2f> outer(count);
++	for (int i = 0; i < count; i++)
++		outer[i] = vertices[index_start + i].position;
++
++	// The ring runs clockwise in screen space, y down, so (dy, -dx) points out of the shape.
++	auto edge_normal = [](Vector2f from, Vector2f to) -> Vector2f {
++		const Vector2f d = to - from;
++		const float length = Math::SquareRoot(d.x * d.x + d.y * d.y);
++		return length > 0.0001f ? Vector2f(d.y, -d.x) / length : Vector2f(0.f, 0.f);
++	};
++
++	const int offset_skirt = (int)vertices.size();
++	vertices.resize(offset_skirt + count);
++
++	// Premultiplied, so a fully transparent vertex is zero in every channel and the interpolation
++	// from the opaque ring out to it is a straight coverage ramp.
++	const ColourbPremultiplied transparent(0, 0, 0, 0);
++
++	for (int i = 0; i < count; i++)
++	{
++		const Vector2f previous = outer[(i + count - 1) % count];
++		const Vector2f next = outer[(i + 1) % count];
++
++		Vector2f outward = edge_normal(previous, outer[i]) + edge_normal(outer[i], next);
++		const float length = Math::SquareRoot(outward.x * outward.x + outward.y * outward.y);
++
++		vertices[offset_skirt + i].position = length > 0.0001f ? outer[i] + (outward / length) * width : outer[i];
++		vertices[offset_skirt + i].colour = transparent;
++	}
++
++	const int offset_indices = (int)indices.size();
++	indices.resize(offset_indices + 6 * count);
++
++	for (int i = 0; i < count; i++)
++	{
++		const int next = (i + 1) % count;
++		int* triangle = &indices[offset_indices + 6 * i];
++
++		triangle[0] = index_start + i;
++		triangle[1] = offset_skirt + next;
++		triangle[2] = offset_skirt + i;
++
++		triangle[3] = index_start + i;
++		triangle[4] = index_start + next;
++		triangle[5] = offset_skirt + next;
++	}
++}
++
+ void GeometryBackgroundBorder::DrawBorderCorner(Corner corner, Vector2f pos_outer, Vector2f pos_inner, Vector2f pos_circle_center, float R,
+ 	Vector2f r, ColourbPremultiplied color0, ColourbPremultiplied color1)
+ {
+diff --git a/Source/Core/GeometryBackgroundBorder.h b/Source/Core/GeometryBackgroundBorder.h
+index a0808439..06ed5bf5 100644
+--- a/Source/Core/GeometryBackgroundBorder.h
++++ b/Source/Core/GeometryBackgroundBorder.h
+@@ -71,6 +71,9 @@ private:
+ 	// Generates triangles by connecting the added vertices.
+ 	void FillBackground(int index_start);
+ 
++	/// Softens the outer boundary of a filled ring so it does not depend on renderer multisampling.
++	void AntialiasRing(int index_start);
++
+ 	// -- Border --
+ 	// All draw operations place the first and last vertices in the following manner.
+ 	// Let N be the number of vertices placed, and the numbers be indices into the newly placed vertices:

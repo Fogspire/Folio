@@ -33,14 +33,23 @@ set(FOLIO_NANOSVG_TAG        239e102ec2c691f2902e20ace2ed36ee4a35cfe6)
 # dependency at fetch time, in sorted order, so a local fix is a reviewable file in this repo
 # rather than a fork or a manual step. Re-run with a clean build tree after adding one.
 function(folio_patch_command dependency out_variable)
-	file(GLOB patches CONFIGURE_DEPENDS "${FOLIO_ROOT}/patches/${dependency}/*.patch")
+	set(directory "${FOLIO_ROOT}/patches/${dependency}")
+
+	file(GLOB patches CONFIGURE_DEPENDS "${directory}/*.patch")
 	if(NOT patches)
 		set(${out_variable} "" PARENT_SCOPE)
 		return()
 	endif()
-	list(SORT patches)
-	# --forward keeps a re-configure over an already-patched tree from failing.
-	set(${out_variable} ${GIT_EXECUTABLE} apply --ignore-whitespace --forward ${patches} PARENT_SCOPE)
+
+	# Through a script rather than `git apply` directly: FetchContent re-runs its patch command
+	# on every re-configure, and git apply treats an already-applied patch as an error.
+	set(${out_variable}
+		${CMAKE_COMMAND}
+			-DFOLIO_PATCH_DIR=${directory}
+			-DFOLIO_SOURCE_DIR=<SOURCE_DIR>
+			-P ${FOLIO_ROOT}/cmake/ApplyPatches.cmake
+		PARENT_SCOPE)
+
 	message(STATUS "Folio: patching ${dependency} with ${patches}")
 endfunction()
 

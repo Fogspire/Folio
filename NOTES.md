@@ -80,26 +80,7 @@ mask paths, so it comes with them.
 
 ### box-shadow, and why the layer path draws with RHI rather than FCanvas
 
-**It does not work in Unreal, and the claim here that it did was wrong.** Measured 2026-07-29:
-a layer records its draws correctly - a filtered element hands the stack one geometry draw, two
-field draws and 224 vertices - and `ReadPixels` on the resolved target then returns 702000
-pixels of zero. The replay pass writes nothing at all, silently, with no RHI validation error.
-So every effect built on a layer (outer box-shadow, `filter`, `backdrop-filter`, `mask-image`)
-renders as nothing: a dialog with `box-shadow: #000000a5 0dp 14dp 40dp` measures flat
-`(12,12,16)` background right up to its own edge.
-
-`ERDGPassFlags::NeverCull` was the obvious suspect and is not the cause - it changes nothing.
-Next candidates, untested: the vertex declaration global not being initialised when the PSO is
-built, the volatile vertex/index buffers, and `RegisterExternalTexture` against
-`GetRenderTargetTexture()` rather than an extracted pooled target.
-
-The evidence that this "worked" was a panel measuring its correct colour after the inverse clip
-mask went in. That reading is equally consistent with the shadow not drawing at all, which is
-what was actually happening. **A number that matches the expectation is not proof the feature
-works when "draws nothing" produces the same number.** The uipreview GL path is unaffected and
-does render these correctly, which is why the two renderers disagree.
-
-The design below is still the right one, and the reasoning that led to it stands: **an outer box-shadow must not paint inside the
+It works. Getting there turned on one thing: **an outer box-shadow must not paint inside the
 element it belongs to**, and RmlUi says so with `ClipMaskOperation::SetInverse` - "everywhere
 except this shape". A clipping rectangle cannot express a complement, and `FCanvas` exposes no
 stencil state, so the layer path draws with RHI: recorded on the game thread as RmlUi issues
@@ -439,3 +420,36 @@ the module already loads early enough on a normal start.
 Editing the body of an existing shader is fine - shaders compile at runtime and the editor
 picks up a changed `.usf` on its own. Adding, removing or renaming a `IMPLEMENT_GLOBAL_SHADER`
 needs the editor closed and a full build.
+
+
+## A fullscreen RDG pass does not use your vertex shader
+
+Every layer effect in Unreal - outer box-shadow, `filter`, `backdrop-filter` - rendered as
+nothing, and the cause was one line in `FolioBlur.usf`:
+
+```hlsl
+float4 MainPS(float4 SvPosition : SV_POSITION, float2 UV : TEXCOORD0)
+```
+
+`FPixelShaderUtils::AddFullscreenPass` supplies **the engine's** vertex shader, not the `MainVS`
+sitting next to that function. Nothing writes `TEXCOORD0`, so every tap sampled the same
+undefined coordinate, the blur returned a uniform value, and the pass overwrote the layer with
+it. The layer had drawn correctly the whole time. UV comes from `SvPosition.xy * InvSize` now -
+`InvSize` was already being set and never read, which was the clue.
+
+Two things made this expensive to find. The blur runs on the *result* of the layer, so the
+symptom points at the layer, not at the filter. And the failure is silent in every channel that
+usually helps: no RHI validation error, no shader warning, correct pipeline state, correct
+geometry, a dead vertex shader that still compiles and still gets an `IMPLEMENT_GLOBAL_SHADER`.
+
+**What actually settled it was RenderDoc, and specifically reading the render target between
+passes.** After `FolioLayer` the target held 15188 non-zero pixels; after `FolioBlur` it held
+zero. That one comparison named the culprit in a way that hours of reasoning about PSOs,
+scissors, volatile buffers and RDG culling did not - all of which were checked and all of which
+were fine.
+
+Capturing it needs care: the Folio window is its own `SWindow` with its own swapchain, so
+`RenderDoc.CaptureFrame` (which needs `-AttachRenderDoc` on the command line) captures the main
+editor viewport and not the document. Attach from the RenderDoc UI with **capture all activity**
+and make the window repaint. The pass is marked `FolioLayer` in the event browser; confirm the
+right capture by looking for a render target the size of the document window.

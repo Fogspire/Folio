@@ -9,7 +9,6 @@
 #include "RenderingThread.h"
 #include "TextureResource.h"
 
-IMPLEMENT_GLOBAL_SHADER(FFolioBlurVS, "/Folio/FolioBlur.usf", "MainVS", SF_Vertex);
 IMPLEMENT_GLOBAL_SHADER(FFolioBlurPS, "/Folio/FolioBlur.usf", "MainPS", SF_Pixel);
 
 namespace

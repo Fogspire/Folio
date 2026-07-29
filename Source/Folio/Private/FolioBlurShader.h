@@ -33,20 +33,6 @@ public:
 	}
 };
 
-class FFolioBlurVS : public FGlobalShader
-{
-public:
-	DECLARE_GLOBAL_SHADER(FFolioBlurVS);
-	SHADER_USE_PARAMETER_STRUCT(FFolioBlurVS, FGlobalShader);
-
-	using FParameters = FFolioBlurPS::FParameters;
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::ES3_1);
-	}
-};
-
 namespace Folio
 {
 	/**

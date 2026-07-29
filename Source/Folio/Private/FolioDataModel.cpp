@@ -88,6 +88,29 @@ public:
 		}
 	};
 
+	/**
+	 * How many entries an array has, as a scalar.
+	 *
+	 * RmlUi calls VariableDefinition::Size() from data-for and nowhere else, so nothing in a data
+	 * expression can reach an array's length: `{{ Items.size }}` and `{{ Items | size }}` both
+	 * fail, and a transform function cannot help because transforms take Variants and an array
+	 * cannot produce one. Every screen that wants "3 items" or an empty-list message needs it.
+	 *
+	 * Must stay in step with the preview tool's copy, or a document counts differently in the
+	 * editor than in the tool it was authored in.
+	 */
+	class FCount final : public Rml::VariableDefinition
+	{
+	public:
+		FCount() : VariableDefinition(Rml::DataVariableType::Scalar) {}
+
+		bool Get(void* Ptr, Rml::Variant& Variant) override
+		{
+			Variant = static_cast<FJsonValue*>(Ptr)->AsArray().Num();
+			return true;
+		}
+	};
+
 	class FArray final : public Rml::VariableDefinition
 	{
 	public:
@@ -100,6 +123,12 @@ public:
 
 		Rml::DataVariable Child(void* Ptr, const Rml::DataAddressEntry& Address) override
 		{
+			// An array has no named members of its own, so this shadows nothing.
+			if (Address.index < 0 && Address.name == "size")
+			{
+				return Rml::DataVariable(&Owner.Count, Ptr);
+			}
+
 			const TArray<TSharedPtr<FJsonValue>>& Values = static_cast<FJsonValue*>(Ptr)->AsArray();
 			if (!Values.IsValidIndex(Address.index))
 			{
@@ -135,6 +164,7 @@ public:
 	};
 
 	FScalar Scalar;
+	FCount Count;
 	FArray Array {*this};
 	FStruct Structure {*this};
 };

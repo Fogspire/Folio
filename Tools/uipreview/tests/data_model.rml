@@ -13,5 +13,7 @@
 	<div id="items">
 		<p data-for="item : items">{{ it_index }}. {{ item.name }} x{{ item.count }}</p>
 	</div>
+	<p id="count">n={{ items.size }}</p>
+	<p id="empty" data-if="items.size == 0">nothing here</p>
 </body>
 </rml>

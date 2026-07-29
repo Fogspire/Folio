@@ -62,6 +62,25 @@ public:
 		}
 	};
 
+	/**
+	 * How many entries an array has, as a scalar.
+	 *
+	 * RmlUi calls VariableDefinition::Size() from data-for and nowhere else, so nothing in a data
+	 * expression can reach an array's length: `{{ items.size }}` and `{{ items | size }}` both
+	 * fail, and a transform function cannot help because transforms take Variants and an array
+	 * cannot produce one. Every screen that wants "3 items" or an empty-list message needs it.
+	 */
+	class Count final : public Rml::VariableDefinition {
+	public:
+		Count() : VariableDefinition(Rml::DataVariableType::Scalar) {}
+
+		bool Get(void* ptr, Rml::Variant& variant) override
+		{
+			variant = (int)static_cast<ordered_json*>(ptr)->size();
+			return true;
+		}
+	};
+
 	class Array final : public Rml::VariableDefinition {
 	public:
 		explicit Array(Definitions& owner) : VariableDefinition(Rml::DataVariableType::Array), owner(owner) {}
@@ -71,6 +90,11 @@ public:
 		Rml::DataVariable Child(void* ptr, const Rml::DataAddressEntry& address) override
 		{
 			ordered_json& node = *static_cast<ordered_json*>(ptr);
+
+			// An array has no named members of its own, so this shadows nothing.
+			if (address.index < 0 && address.name == "size")
+				return Rml::DataVariable(&owner.count, ptr);
+
 			if (address.index < 0 || address.index >= (int)node.size())
 				return Rml::DataVariable();
 			return owner.For(node[(size_t)address.index]);
@@ -98,6 +122,7 @@ public:
 	};
 
 	Scalar scalar;
+	Count count;
 	Array array {*this};
 	Struct structure {*this};
 };

@@ -450,10 +450,14 @@ listeners for actions.
 `{{ }}` interpolation is text-only and only inside an element's text content — not in attribute
 values, where `data-attr-*` is the mechanism.
 
-**An array's length is not reachable from an expression.** `{{ items.size }}` and
-`{{ items | size }}` both fail: RmlUi calls `DataVariable::Size()` from `data-for` and nowhere
-else, and a transform function cannot help because transforms take Variants and an array
-variable cannot produce one. Publish the count as its own scalar until Folio closes this.
+**`{{ items.size }}` gives an array's length**, and works anywhere an expression does -
+`data-if="items.size == 0"` for an empty-list message, `{{ items.size }} items` for a count.
+
+This is Folio's, not RmlUi's. Upstream calls `DataVariable::Size()` from `data-for` and nowhere
+else, so nothing in an expression can reach a length; a transform function cannot help either,
+because transforms take Variants and an array variable cannot produce one. Both data models
+answer a `size` member on an array instead. An array has no named members of its own, so nothing
+is shadowed.
 
 Inside a `data-for`, `it_index` is the zero-based index and is always available.
 

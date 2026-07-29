@@ -41,6 +41,10 @@ public:
 	Folio::FMsdfHandle CreateEffectAlias(Folio::FMsdfHandle page, const Folio::FMsdfEffectParams& effect) override;
 	void ReleaseAtlasHandle(Folio::FMsdfHandle handle) override;
 
+	/** Registers a baked sheet as a field page if it has a sidecar. Empty if it is ordinary art. */
+	Rml::TextureHandle LoadFieldAtlas(const Rml::String& source, const std::vector<unsigned char>& pixels,
+		Rml::Vector2i size);
+
 	/** Drops the placeholder cache, so a reload picks up art that has since appeared. */
 	void ClearPlaceholders();
 

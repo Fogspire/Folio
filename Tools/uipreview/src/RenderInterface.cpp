@@ -1,5 +1,7 @@
 #include "RenderInterface.h"
 
+#include "FolioCore/MsdfSidecar.h"
+
 #include "Diagnostics.h"
 #include "MissingAssets.h"
 
@@ -33,7 +35,8 @@ bool HasExtension(const std::string& source, const std::string& extension)
  * would fail to load. Reads through the file interface rather than the filesystem, which is
  * what makes root-relative paths and the /folio/ mount work.
  */
-bool LoadPng(const std::string& source, std::vector<unsigned char>& out_pixels, Rml::Vector2i& out_size)
+bool LoadPng(const std::string& source, std::vector<unsigned char>& out_pixels, Rml::Vector2i& out_size,
+	bool premultiply = true)
 {
 	Rml::FileInterface* files = Rml::GetFileInterface();
 	Rml::FileHandle file = files->Open(source);
@@ -56,7 +59,11 @@ bool LoadPng(const std::string& source, std::vector<unsigned char>& out_pixels, 
 		return false;
 
 	// RmlUi 6.x expects premultiplied alpha; lodepng decodes straight alpha.
-	for (size_t i = 0; i + 3 < out_pixels.size(); i += 4)
+	//
+	// Never for a distance field. Its alpha is a distance, not an opacity, so scaling the three
+	// channels by it is not a colour conversion - it erases the field everywhere the shape is
+	// thin, and what survives is only the deep interior.
+	for (size_t i = 0; premultiply && i + 3 < out_pixels.size(); i += 4)
 	{
 		const unsigned alpha = out_pixels[i + 3];
 		out_pixels[i + 0] = (unsigned char)((out_pixels[i + 0] * alpha + 127) / 255);
@@ -101,11 +108,23 @@ Rml::TextureHandle PreviewRenderInterface::LoadTexture(Rml::Vector2i& texture_di
 {
 	if (HasExtension(source, ".png"))
 	{
+		// A sheet baked by msdfbake carries a sidecar naming its field parameters. With it, the
+		// image is distance rather than colour and resolves through the field shader, so a sprite
+		// from it scales like text. Without it, this is ordinary art.
+		const bool is_field = !Folio::MsdfSidecarPathFor(source).empty();
+
 		std::vector<unsigned char> pixels;
 		Rml::Vector2i size;
-		if (LoadPng(source, pixels, size))
+		if (LoadPng(source, pixels, size, !is_field))
 		{
 			texture_dimensions = size;
+
+			if (is_field)
+			{
+				if (const Rml::TextureHandle field = LoadFieldAtlas(source, pixels, size))
+					return field;
+			}
+
 			return RenderInterface_GL3::GenerateTexture(
 				Rml::Span<const Rml::byte>(pixels.data(), pixels.size()), size);
 		}
@@ -255,6 +274,43 @@ void PreviewRenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometr
 	}
 
 	RenderInterface_GL3::ReleaseGeometry(geometry);
+}
+
+Rml::TextureHandle PreviewRenderInterface::LoadFieldAtlas(const Rml::String& source,
+	const std::vector<unsigned char>& pixels, Rml::Vector2i size)
+{
+	const std::string sidecar_path = Folio::MsdfSidecarPathFor(source);
+	if (sidecar_path.empty())
+		return {};
+
+	Rml::String text;
+	if (!Rml::GetFileInterface()->LoadFile(sidecar_path, text))
+	{
+		// The suffix is a promise the bake makes, so a missing sidecar is a broken pair rather
+		// than ordinary art that happens to be named this way.
+		diagnostics.Report(Severity::Warning, "W-MSDF-NOSIDECAR",
+			"'" + diagnostics.Relative(source) + "' is named as a distance-field atlas but has no "
+			"sidecar beside it; drawn as ordinary art", {}, 0, {{"path", diagnostics.Relative(source)}});
+		return {};
+	}
+
+	Folio::FMsdfSidecar sidecar;
+	if (!Folio::ParseMsdfSidecar(text, sidecar) || !sidecar.IsValid())
+	{
+		diagnostics.Report(Severity::Warning, "W-MSDF-BADSIDECAR",
+			"the sidecar beside '" + diagnostics.Relative(source) + "' is unreadable; drawn as "
+			"ordinary art", {}, 0, {{"path", diagnostics.Relative(source)}});
+		return {};
+	}
+
+	// Uploaded through the same sink the font engine builds its pages with, so a baked sheet and a
+	// glyph atlas are the same kind of resource from here on.
+	const Folio::FMsdfHandle page = CreateAtlasPage(Folio::FMsdfPoint{size.x, size.y}, sidecar.Params);
+	if (page == Folio::InvalidMsdfHandle)
+		return {};
+
+	UploadAtlasRegion(page, Folio::FMsdfRect{0, 0, size.x, size.y}, pixels.data(), size.x * 4);
+	return Rml::TextureHandle(page);
 }
 
 Folio::FMsdfHandle PreviewRenderInterface::CreateAtlasPage(Folio::FMsdfPoint size,

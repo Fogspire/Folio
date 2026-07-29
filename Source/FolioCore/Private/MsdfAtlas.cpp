@@ -258,4 +258,42 @@ namespace Folio
 
 		return PageTextures[std::size_t(Page)]->GetTexture(RenderManager);
 	}
+
+	Rml::Texture FMsdfAtlasSet::GetEffectTexture(Rml::RenderManager& RenderManager, const int Page,
+		const FMsdfEffectParams& Effect)
+	{
+		if (Page < 0 || Page >= Atlas.GetPageCount())
+		{
+			return Rml::Texture();
+		}
+
+		const FEffectKey Key { Page, Effect };
+
+		for (const FEffectTexture& Existing : EffectTextures)
+		{
+			if (Existing.Key == Key)
+			{
+				return Existing.Texture->GetTexture(RenderManager);
+			}
+		}
+
+		// One alias per distinct effect, not per string. A screen styled from a handful of classes
+		// produces a handful of these no matter how much text it draws.
+		const FMsdfHandle Alias = Atlas.GetSink().CreateEffectAlias(Atlas.GetPageHandle(Page), Effect);
+		if (Alias == InvalidMsdfHandle)
+		{
+			return GetPageTexture(RenderManager, Page);
+		}
+
+		const int Size = Atlas.GetPageSize();
+
+		EffectTextures.push_back({ Key, std::make_unique<Rml::CallbackTextureSource>(
+			[Alias, Size](const Rml::CallbackTextureInterface& TextureInterface) -> bool
+			{
+				TextureInterface.SetTextureHandle(Rml::TextureHandle(Alias), Rml::Vector2i(Size, Size));
+				return true;
+			}) });
+
+		return EffectTextures.back().Texture->GetTexture(RenderManager);
+	}
 }

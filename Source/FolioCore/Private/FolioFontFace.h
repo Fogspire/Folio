@@ -80,6 +80,8 @@ namespace Folio
 		float GetKerningEm(unsigned int LeftGlyph, unsigned int RightGlyph) const;
 
 		Rml::Texture GetPageTexture(Rml::RenderManager& RenderManager, int Page);
+		Rml::Texture GetEffectTexture(Rml::RenderManager& RenderManager, int Page,
+			const FMsdfEffectParams& Effect);
 
 		/// Bumped whenever a glyph is appended. RmlUi rebuilds cached text geometry when the
 		/// version it generated against no longer matches.

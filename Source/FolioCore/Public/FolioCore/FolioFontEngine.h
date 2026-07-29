@@ -90,10 +90,18 @@ namespace Folio
 	private:
 		struct FFaceEntry;
 		struct FHandle;
+		struct FEffectLayer;
 
 		FFaceEntry* FindFace(const Rml::String& Family, Rml::Style::FontStyle Style, Rml::Style::FontWeight Weight);
 		FHandle* ResolveHandle(Rml::FontFaceHandle Handle);
 		FFolioFontFace* GetInstance(FFaceEntry& Entry, const FVariationCoords& Coords);
+
+		/// One pass over a string. Effects are the same glyphs read at a different threshold, so
+		/// they run through here too, with Effect naming which alias to sample.
+		int AppendPass(Rml::RenderManager& RenderManager, FHandle& Resolved, Rml::StringView String,
+			Rml::Vector2f Position, Rml::ColourbPremultiplied Colour,
+			const Rml::TextShapingContext& TextShapingContext, const FMsdfEffectParams* Effect,
+			Rml::TexturedMeshList& MeshList);
 		FVariationCoords BuildCoords(const FFaceEntry& Entry, Rml::Style::FontWeight Weight, int Size) const;
 		bool RegisterFace(FFontData Data, int FaceIndex, const Rml::String& Family,
 			Rml::Style::FontStyle Style, Rml::Style::FontWeight Weight, bool bFallbackFace,

@@ -2,6 +2,7 @@
 
 #include "FolioInsights.h"
 
+#include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
 #include "FolioFileInterface.h"
 #include "FolioCoreHost.h"
@@ -78,6 +79,11 @@ void FFolioModule::StartupModule()
 		return;
 	}
 
+	// After Initialise, because registering over a name replaces an instancer the factory only
+	// creates during it. Markup is unchanged; the effects stop being baked into glyph textures and
+	// start being resolved from the field.
+	Folio::RegisterFolioFontEffects();
+
 	RegisterFonts();
 
 	UE_LOG(LogFolio, Log, TEXT("Folio ready. Content root: %s, plugin root: %s"), *ContentRoot, *PluginRoot);
@@ -100,6 +106,9 @@ void FFolioModule::ShutdownModule()
 	Rml::SetRenderInterface(nullptr);
 	Rml::SetFileInterface(nullptr);
 	Rml::SetSystemInterface(nullptr);
+
+	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
+	Folio::ReleaseFolioFontEffects();
 
 	RenderInterface.Reset();
 	Folio::SetHost(nullptr);

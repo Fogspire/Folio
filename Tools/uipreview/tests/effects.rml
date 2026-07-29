@@ -1,0 +1,50 @@
+<rml>
+<head>
+	<title>font effects</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			Effects are resolved from the field's true-distance channel, not baked into extra glyph
+			textures, so each one costs a second quad per glyph and no atlas at all. That is also
+			why they are bounded: the field only describes distance out to half its range, so an
+			effect cannot reach further than that no matter what is asked for here.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 40dp;
+			color: #f0c674;
+			background-color: #16161c;
+			padding: 28dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		div { margin-bottom: 18dp; }
+		.label { font-size: 13dp; color: #8a8a99; margin-bottom: 2dp; font-effect: none; }
+
+		.plain    { font-effect: none; }
+		.outline  { font-effect: outline(2px #000000); }
+		.glow     { font-effect: glow(2px 4px #f0c674); color: #ffffff; }
+		.shadow   { font-effect: shadow(3px 3px #000000); }
+		.blurred  { font-effect: blur(3px #ffffff); }
+	</style>
+</head>
+<body>
+	<div class="label">no effect</div>
+	<div class="plain">Handgloves</div>
+
+	<div class="label">outline(2px black)</div>
+	<div class="outline">Handgloves</div>
+
+	<div class="label">glow(2px 4px)</div>
+	<div class="glow">Handgloves</div>
+
+	<div class="label">shadow(3px 3px black)</div>
+	<div class="shadow">Handgloves</div>
+
+	<div class="label">blur(3px)</div>
+	<div class="blurred">Handgloves</div>
+</body>
+</rml>

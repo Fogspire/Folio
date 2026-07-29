@@ -329,4 +329,10 @@ namespace Folio
 	{
 		return Atlas.GetPageTexture(RenderManager, Page);
 	}
+
+	Rml::Texture FFolioFontFace::GetEffectTexture(Rml::RenderManager& RenderManager, const int Page,
+		const FMsdfEffectParams& Effect)
+	{
+		return Atlas.GetEffectTexture(RenderManager, Page, Effect);
+	}
 }

@@ -20,6 +20,7 @@
 
 #include "FolioCore/FolioCoreVersion.h"
 #include "FolioCore/FolioHost.h"
+#include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
 
 #include <RmlUi/Core.h>
@@ -60,6 +61,9 @@ App::~App()
 {
 	if (rml_initialised)
 		Rml::Shutdown();
+
+	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
+	Folio::ReleaseFolioFontEffects();
 	if (backend_initialised)
 		Backend::Shutdown();
 }
@@ -199,6 +203,11 @@ bool App::Initialise()
 		return false;
 	}
 	rml_initialised = true;
+
+	// After Initialise, because registering over a name replaces an instancer the factory only
+	// creates during it. Markup is unchanged; the effects stop being baked into glyph textures and
+	// start being resolved from the field.
+	Folio::RegisterFolioFontEffects();
 
 	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));
 	if (!context)

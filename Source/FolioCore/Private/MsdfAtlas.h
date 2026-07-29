@@ -33,6 +33,8 @@ namespace Folio
 		bool Add(const FMsdfGlyphBitmap& Bitmap, float AdvanceEm, FGlyphBox& OutBox);
 
 		FMsdfHandle GetPageHandle(int Page) const;
+		/// The renderer, so an effect can be aliased onto a page without going back through the set.
+		IMsdfTextureSink& GetSink() const { return Sink; }
 		int GetPageCount() const { return int(Pages.size()); }
 		int GetPageSize() const { return PageSize; }
 		const FMsdfAtlasParams& GetParams() const { return Params; }
@@ -89,12 +91,43 @@ namespace Folio
 
 		Rml::Texture GetPageTexture(Rml::RenderManager& RenderManager, int Page);
 
+		/// The same page, resolved with an effect rather than as a plain fill.
+		///
+		/// Nothing is generated or copied: the alias is the same field with different shader
+		/// parameters, which is the whole reason effects are free here. A glow is the true-distance
+		/// channel thresholded further out, not a second atlas.
+		Rml::Texture GetEffectTexture(Rml::RenderManager& RenderManager, int Page,
+			const FMsdfEffectParams& Effect);
+
 		/// Drops the RmlUi-side textures while keeping the pages and the fields in them. RmlUi
 		/// checks at shutdown that no callback texture outlived it, so these cannot simply be left
 		/// to the destructor.
-		void ReleaseTextures() { PageTextures.clear(); }
+		void ReleaseTextures()
+		{
+			PageTextures.clear();
+			EffectTextures.clear();
+		}
 
 	private:
+		struct FEffectKey
+		{
+			int Page = 0;
+			FMsdfEffectParams Effect;
+
+			bool operator==(const FEffectKey& Other) const
+			{
+				return Page == Other.Page && Effect == Other.Effect;
+			}
+		};
+
+		struct FEffectTexture
+		{
+			FEffectKey Key;
+			std::unique_ptr<Rml::CallbackTextureSource> Texture;
+		};
+
+		std::vector<FEffectTexture> EffectTextures;
+
 		FMsdfAtlas Atlas;
 		/// One per page. A CallbackTextureSource rather than a CallbackTexture because a process
 		/// can have more than one render manager, and each needs its own resource.

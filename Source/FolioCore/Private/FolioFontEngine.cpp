@@ -1,5 +1,6 @@
 #include "FolioCore/FolioFontEngine.h"
 
+#include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioHost.h"
 #include "FolioCore/FolioTrace.h"
 
@@ -64,6 +65,15 @@ namespace Folio
 		}
 	};
 
+	/// One extra pass over the string, drawn before the text itself.
+	struct FFolioFontEngine::FEffectLayer
+	{
+		FMsdfEffectParams Params;
+		Rml::ColourbPremultiplied Colour;
+		float OffsetX = 0.0f;
+		float OffsetY = 0.0f;
+	};
+
 	/// A face instance resolved at one size. Handles are cheap: the atlas they read from is
 	/// shared, so asking for the same instance at ten sizes costs ten of these and one atlas.
 	struct FFolioFontEngine::FHandle
@@ -88,6 +98,10 @@ namespace Folio
 
 		IMsdfCacheStore* CacheStore = nullptr;
 
+		/// Effect sets, indexed by handle. Entry zero is "no effects", so a handle of 0 keeps
+		/// meaning plain text and RmlUi's default needs no special case.
+		std::vector<std::vector<FEffectLayer>> EffectSets;
+
 		Rml::FontMetrics EmptyMetrics{};
 
 		explicit FImpl(IMsdfTextureSink& InSink) : Sink(InSink) {}
@@ -100,6 +114,32 @@ namespace Folio
 		{
 			const int Value = int(Weight);
 			return Value == 0 ? 400 : Value;
+		}
+
+		/// Once each, not once per string. A stylesheet that asks for too wide an effect would
+		/// otherwise repeat the same line for every text element on the screen, every frame.
+		void WarnEffectClamped(float MaxEm)
+		{
+			static bool bWarned = false;
+			if (!bWarned)
+			{
+				bWarned = true;
+				LogWarning(Format("a font effect reaches further than the field describes and was "
+					"clamped to %.3f em. Raise pxrange to go wider, at a quadratic cost in atlas "
+					"area", double(MaxEm)));
+			}
+		}
+
+		void WarnForeignEffect()
+		{
+			static bool bWarned = false;
+			if (!bWarned)
+			{
+				bWarned = true;
+				LogWarning("a font effect that is not one of Folio's was skipped. Effects here are "
+					"resolved from the distance field rather than baked into glyph textures, so an "
+					"effect written against RmlUi's own interface has nothing to draw");
+			}
 		}
 
 		/// Advances have to land on whole pixels, because layout, caret positions and hit testing
@@ -514,11 +554,61 @@ namespace Folio
 		return Impl->Handles[std::size_t(Handle) - 1].get();
 	}
 
-	Rml::FontEffectsHandle FFolioFontEngine::PrepareFontEffects(Rml::FontFaceHandle, const Rml::FontEffectList&)
+	Rml::FontEffectsHandle FFolioFontEngine::PrepareFontEffects(const Rml::FontFaceHandle FaceHandle,
+		const Rml::FontEffectList& FontEffects)
 	{
-		// Effects are resolved in the shader from the field's true-distance channel rather than
-		// baked into extra atlas layers. Until that lands, text draws unadorned.
-		return 0;
+		const FHandle* Resolved = ResolveHandle(FaceHandle);
+		if (Resolved == nullptr || FontEffects.empty())
+		{
+			return 0;
+		}
+
+		// Sizes are written against the font size and the field is indexed in em, so everything
+		// converts once, here, rather than at every glyph.
+		const float ToEm = Resolved->Size > 0 ? 1.0f / float(Resolved->Size) : 0.0f;
+
+		std::vector<FEffectLayer> Layers;
+
+		for (const Rml::SharedPtr<const Rml::FontEffect>& Effect : FontEffects)
+		{
+			const FFolioFontEffect* Folio = AsFolioFontEffect(Effect.get());
+			if (Folio == nullptr)
+			{
+				// Somebody registered an effect of their own. It would want a baked glyph texture,
+				// which this engine does not produce, so it is skipped rather than drawn as a box.
+				WarnForeignEffect();
+				continue;
+			}
+
+			FEffectLayer& Layer = Layers.emplace_back();
+			Layer.Params = Folio->Params;
+			Layer.Params.OffsetEm *= ToEm;
+			Layer.Params.SoftnessEm *= ToEm;
+			// Effect colours are authored straight and the meshes want premultiplied, the same
+			// conversion RmlUi applies to a text colour before it reaches here.
+			Layer.Colour = Folio->GetColour().ToPremultiplied();
+			Layer.OffsetX = Folio->OffsetX;
+			Layer.OffsetY = Folio->OffsetY;
+
+			// The field only describes distance out to half its range, so an effect cannot reach
+			// further than that no matter what the stylesheet asks for. Clamped rather than left to
+			// saturate, which looks like the effect simply stopping at an arbitrary width.
+			const float MaxEm = Impl->Params.MaxEffectEm();
+			if (Layer.Params.OffsetEm > MaxEm || Layer.Params.SoftnessEm > MaxEm)
+			{
+				WarnEffectClamped(MaxEm);
+				Layer.Params.OffsetEm = std::min(Layer.Params.OffsetEm, MaxEm);
+				Layer.Params.SoftnessEm = std::min(Layer.Params.SoftnessEm, MaxEm);
+			}
+		}
+
+		if (Layers.empty())
+		{
+			return 0;
+		}
+
+		Impl->EffectSets.push_back(std::move(Layers));
+		return Rml::FontEffectsHandle(Impl->EffectSets.size());
 	}
 
 	const Rml::FontMetrics& FFolioFontEngine::GetFontMetrics(Rml::FontFaceHandle Handle)
@@ -572,7 +662,7 @@ namespace Folio
 	}
 
 	int FFolioFontEngine::GenerateString(Rml::RenderManager& RenderManager, Rml::FontFaceHandle FaceHandle,
-		Rml::FontEffectsHandle, Rml::StringView String, Rml::Vector2f Position,
+		Rml::FontEffectsHandle EffectsHandle, Rml::StringView String, Rml::Vector2f Position,
 		Rml::ColourbPremultiplied Colour, float, const Rml::TextShapingContext& TextShapingContext,
 		Rml::TexturedMeshList& MeshList)
 	{
@@ -584,13 +674,35 @@ namespace Folio
 			return 0;
 		}
 
-		FFolioFontFace& Face = *Resolved->Face;
-		const float Scale = float(Resolved->Size);
+		MeshList.clear();
+
+		// Effects are extra passes over the same glyphs, drawn first so the text lands on top.
+		// They share the atlas and differ only in which threshold the shader reads it at, so an
+		// outline costs one more quad per glyph and nothing else.
+		if (EffectsHandle != 0 && std::size_t(EffectsHandle) <= Impl->EffectSets.size())
+		{
+			for (const FEffectLayer& Layer : Impl->EffectSets[std::size_t(EffectsHandle) - 1])
+			{
+				AppendPass(RenderManager, *Resolved, String, Position + Rml::Vector2f(Layer.OffsetX, Layer.OffsetY),
+					Layer.Colour, TextShapingContext, &Layer.Params, MeshList);
+			}
+		}
+
+		return AppendPass(RenderManager, *Resolved, String, Position, Colour, TextShapingContext,
+			nullptr, MeshList);
+	}
+
+	int FFolioFontEngine::AppendPass(Rml::RenderManager& RenderManager, FHandle& Resolved,
+		Rml::StringView String, Rml::Vector2f Position, Rml::ColourbPremultiplied Colour,
+		const Rml::TextShapingContext& TextShapingContext, const FMsdfEffectParams* Effect,
+		Rml::TexturedMeshList& MeshList)
+	{
+		FFolioFontFace& Face = *Resolved.Face;
+		const float Scale = float(Resolved.Size);
 		const bool bKerning = TextShapingContext.font_kerning != Rml::Style::FontKerning::None;
 
-		// One mesh per atlas page. A string almost always sits on a single page, so this is
-		// usually one draw; it only splits when a face has outgrown a page.
-		MeshList.clear();
+		// One mesh per atlas page per pass. A string almost always sits on a single page, so this
+		// is usually one draw; it only splits when a face has outgrown a page.
 		std::vector<int> MeshForPage;
 
 		int Width = 0;
@@ -621,7 +733,9 @@ namespace Folio
 				{
 					MeshForPage[Box->Page] = int(MeshList.size());
 					MeshList.emplace_back();
-					MeshList.back().texture = Face.GetPageTexture(RenderManager, Box->Page);
+					MeshList.back().texture = Effect != nullptr
+						? Face.GetEffectTexture(RenderManager, Box->Page, *Effect)
+						: Face.GetPageTexture(RenderManager, Box->Page);
 				}
 
 				Rml::Mesh& Mesh = MeshList[std::size_t(MeshForPage[Box->Page])].mesh;

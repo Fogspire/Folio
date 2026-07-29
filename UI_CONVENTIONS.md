@@ -427,9 +427,10 @@ The rules, all of which come from what a distance field can represent:
   and the parent's height - so a stack sized as a percentage of both squashes whenever the window
   aspect changes. One dimension preserves the intrinsic ratio.
 - The vector sheet is declared `1x`. There is no second resolution to author.
-- **`clip-path` is ignored** by the SVG front end, and the baker warns when it drops one. A
-  clipped path bakes at full extent, which usually shows as a shape crossing in front of
-  something it should be behind. Flatten clips in the drawing program.
+- **`clip-path` is honoured.** nanosvg discards it, so the baker reads the relationship out of the
+  SVG itself and intersects the geometry with Skia's path operations - the same library that
+  unions a glyph's overlapping contours. A clip path's own shape is a stencil and is never drawn,
+  which is what SVG says and what nanosvg gets wrong.
 - **Strokes are outlined into area**, since a field has no notion of a line. Joins (miter with
   its limit, round, bevel) and caps (butt, round, square) are read from the SVG and honoured. A
   stroke costs its own layer, because it is its own colour.

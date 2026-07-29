@@ -8,6 +8,9 @@
 
 #include <msdfgen.h>
 
+#include <skia/core/SkPath.h>
+#include <skia/pathops/SkPathOps.h>
+
 #define NANOSVG_IMPLEMENTATION
 #include <nanosvg.h>
 
@@ -16,6 +19,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -383,24 +387,250 @@ namespace msdfbake
 		/// nanosvg has no clip support at all, and neither does a distance field: a clip is an
 		/// intersection, and a field carries one shape. Detected by reading the file rather than
 		/// asking the parser, because the parser has already discarded it by then.
-		int CountClipPaths(const std::string& Path)
+		/// What `clip-path` says, read from the file, because nanosvg throws it away.
+		///
+		/// A clip is an intersection and a field carries one shape, so it cannot be expressed as
+		/// another layer. It can be applied at bake time though: Skia's path operations are already
+		/// here for unioning a glyph's overlapping contours, and an intersection is the same call
+		/// with a different operator.
+		///
+		/// nanosvg drops the relationship but still emits the clip path's own geometry as an
+		/// ordinary shape, so nothing has to re-parse the SVG's path data. Only the relationship
+		/// does: which shapes make up each clip, and which shapes each clip applies to.
+		struct FClipPlan
+		{
+			/// Shape id to the clip it belongs to. These are geometry, and are never drawn.
+			std::map<std::string, std::string> ClipMembers;
+			/// Shape id to the clip that applies to it.
+			std::map<std::string, std::string> Clipped;
+
+			bool IsEmpty() const { return ClipMembers.empty() && Clipped.empty(); }
+		};
+
+		/// Ids of the `<path id="...">` elements between two offsets.
+		void CollectIds(const std::string& Text, std::size_t From, std::size_t To,
+			const std::string& Owner, std::map<std::string, std::string>& Out)
+		{
+			for (std::size_t At = Text.find("id=\"", From); At != std::string::npos && At < To;
+				At = Text.find("id=\"", At + 1))
+			{
+				const std::size_t Begin = At + 4;
+				const std::size_t End = Text.find('"', Begin);
+				if (End == std::string::npos || End > To)
+				{
+					break;
+				}
+
+				// serif:id and similar carry the same value; the plain one is what nanosvg keeps.
+				if (At >= 6 && Text.compare(At - 6, 6, "serif:") == 0)
+				{
+					continue;
+				}
+
+				Out[Text.substr(Begin, End - Begin)] = Owner;
+			}
+		}
+
+		/// Finds the end of the element opened at Open, counting nested opens of the same tag.
+		std::size_t FindElementEnd(const std::string& Text, const std::string& Tag, std::size_t Open)
+		{
+			const std::string OpenTag = "<" + Tag;
+			const std::string CloseTag = "</" + Tag;
+
+			int Depth = 0;
+			for (std::size_t At = Open; At < Text.size();)
+			{
+				const std::size_t NextOpen = Text.find(OpenTag, At + 1);
+				const std::size_t NextClose = Text.find(CloseTag, At + 1);
+
+				if (NextClose == std::string::npos)
+				{
+					return Text.size();
+				}
+
+				if (NextOpen != std::string::npos && NextOpen < NextClose)
+				{
+					++Depth;
+					At = NextOpen;
+					continue;
+				}
+
+				if (Depth == 0)
+				{
+					return NextClose;
+				}
+
+				--Depth;
+				At = NextClose;
+			}
+
+			return Text.size();
+		}
+
+		bool ReadClipPlan(const std::string& Path, FClipPlan& OutPlan)
 		{
 			std::ifstream File(Path, std::ios::binary);
 			if (!File)
 			{
-				return 0;
+				return false;
 			}
 
 			const std::string Text((std::istreambuf_iterator<char>(File)), std::istreambuf_iterator<char>());
 
-			int Count = 0;
+			// <clipPath id="A"> ... </clipPath>: everything inside is A's geometry.
+			for (std::size_t At = Text.find("<clipPath"); At != std::string::npos;
+				At = Text.find("<clipPath", At + 1))
+			{
+				const std::size_t IdAt = Text.find("id=\"", At);
+				const std::size_t Head = Text.find('>', At);
+				if (IdAt == std::string::npos || Head == std::string::npos || IdAt > Head)
+				{
+					continue;
+				}
+
+				const std::size_t IdEnd = Text.find('"', IdAt + 4);
+				const std::string Id = Text.substr(IdAt + 4, IdEnd - IdAt - 4);
+				const std::size_t Tail = FindElementEnd(Text, "clipPath", At);
+
+				CollectIds(Text, Head, Tail, Id, OutPlan.ClipMembers);
+			}
+
+			// clip-path="url(#A)" on a group: everything inside is clipped by A.
 			for (std::size_t At = Text.find("clip-path"); At != std::string::npos;
 				At = Text.find("clip-path", At + 1))
 			{
-				++Count;
+				const std::size_t Open = Text.rfind('<', At);
+				const std::size_t Head = Text.find('>', At);
+				const std::size_t Hash = Text.find('#', At);
+				if (Open == std::string::npos || Head == std::string::npos || Hash == std::string::npos
+					|| Hash > Head)
+				{
+					continue;
+				}
+
+				const std::size_t Close = Text.find(')', Hash);
+				if (Close == std::string::npos || Close > Head)
+				{
+					continue;
+				}
+
+				const std::string Id = Text.substr(Hash + 1, Close - Hash - 1);
+
+				// Only a group carries a clip over several shapes. On a single element the clip
+				// covers just that element, and the same code handles it: the element is its own
+				// extent between the tag's start and end.
+				const bool bGroup = Text.compare(Open, 3, "<g ") == 0 || Text.compare(Open, 3, "<g>") == 0;
+				const std::size_t Tail = bGroup ? FindElementEnd(Text, "g", Open) : Head;
+
+				CollectIds(Text, Head, Tail, Id, OutPlan.Clipped);
 			}
 
-			return Count;
+			// A shape cannot both be a clip and be clipped by it.
+			for (const auto& Member : OutPlan.ClipMembers)
+			{
+				OutPlan.Clipped.erase(Member.first);
+			}
+
+			return !OutPlan.IsEmpty();
+		}
+
+		SkPoint ToSkia(const msdfgen::Point2 P)
+		{
+			return SkPoint::Make(SkScalar(P.x), SkScalar(P.y));
+		}
+
+		void ToSkiaPath(const msdfgen::Shape& Shape, SkPath& Out)
+		{
+			using namespace msdfgen;
+
+			for (const Contour& Contour : Shape.contours)
+			{
+				if (Contour.edges.empty())
+				{
+					continue;
+				}
+
+				const EdgeSegment* Edge = Contour.edges.back();
+				Out.moveTo(ToSkia(*Edge->controlPoints()));
+
+				for (auto Next = Contour.edges.begin(); Next != Contour.edges.end(); Edge = *Next++)
+				{
+					const Point2* P = Edge->controlPoints();
+					switch (Edge->type())
+					{
+					case (int)LinearSegment::EDGE_TYPE:    Out.lineTo(ToSkia(P[1])); break;
+					case (int)QuadraticSegment::EDGE_TYPE: Out.quadTo(ToSkia(P[1]), ToSkia(P[2])); break;
+					case (int)CubicSegment::EDGE_TYPE:     Out.cubicTo(ToSkia(P[1]), ToSkia(P[2]), ToSkia(P[3])); break;
+					default: break;
+					}
+				}
+			}
+		}
+
+		void FromSkiaPath(const SkPath& Path, msdfgen::Shape& Out)
+		{
+			using namespace msdfgen;
+
+			Out.contours.clear();
+			Contour* Current = &Out.addContour();
+
+			SkPath::Iter Iterator(Path, true);
+			SkPoint Points[4];
+
+			for (SkPath::Verb Op; (Op = Iterator.next(Points)) != SkPath::kDone_Verb;)
+			{
+				const auto At = [&Points](const int Index)
+				{
+					return Point2(double(Points[Index].x()), double(Points[Index].y()));
+				};
+
+				switch (Op)
+				{
+				case SkPath::kMove_Verb:
+					if (!Current->edges.empty())
+					{
+						Current = &Out.addContour();
+					}
+					break;
+				case SkPath::kLine_Verb:  Current->addEdge(EdgeHolder(At(0), At(1))); break;
+				case SkPath::kQuad_Verb:  Current->addEdge(EdgeHolder(At(0), At(1), At(2))); break;
+				case SkPath::kCubic_Verb: Current->addEdge(EdgeHolder(At(0), At(1), At(2), At(3))); break;
+				default: break;
+				}
+			}
+
+			if (Current->edges.empty() && !Out.contours.empty())
+			{
+				Out.contours.pop_back();
+			}
+		}
+
+		/// Keeps only the part of Subject that falls inside Clip.
+		///
+		/// This is what `clip-path` means, and the reason it can be honoured at bake time at all:
+		/// the same library that unions a glyph's overlapping contours will intersect two shapes.
+		bool ClipShape(msdfgen::Shape& Subject, const msdfgen::Shape& Clip)
+		{
+			if (Subject.contours.empty() || Clip.contours.empty())
+			{
+				return false;
+			}
+
+			SkPath SubjectPath, ClipPath, Result;
+			ToSkiaPath(Subject, SubjectPath);
+			ToSkiaPath(Clip, ClipPath);
+
+			// Non-zero, matching how the rest of the pipeline reads a filled outline.
+			SubjectPath.setFillType(SkPathFillType::kWinding);
+			ClipPath.setFillType(SkPathFillType::kWinding);
+
+			if (!Op(SubjectPath, ClipPath, kIntersect_SkPathOp, &Result))
+			{
+				return false;
+			}
+
+			FromSkiaPath(Result, Subject);
+			return true;
 		}
 
 		int CountDistinctFills(const NSVGimage& Image)
@@ -440,6 +670,31 @@ namespace msdfbake
 		OutShape.DistinctFills = CountDistinctFills(*Image);
 		OutShape.StrokedPaths = 0;
 
+		// What clip-path said, which nanosvg has already discarded. The geometry survives as
+		// ordinary shapes, so this is only the relationship: which shapes are a clip, and which
+		// shapes it applies to.
+		FClipPlan Clips;
+		ReadClipPlan(Path, Clips);
+
+		std::map<std::string, msdfgen::Shape> ClipGeometry;
+		if (!Clips.ClipMembers.empty())
+		{
+			for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
+			{
+				const auto Member = Clips.ClipMembers.find(Source->id);
+				if (Member == Clips.ClipMembers.end())
+				{
+					continue;
+				}
+
+				msdfgen::Shape& Clip = ClipGeometry[Member->second];
+				for (const NSVGpath* SubPath = Source->paths; SubPath != nullptr; SubPath = SubPath->next)
+				{
+					AddPath(Clip, *SubPath, OutShape.Height);
+				}
+			}
+		}
+
 		msdfgen::Shape& Shape = OutShape.Shape;
 		Shape = msdfgen::Shape();
 
@@ -450,10 +705,42 @@ namespace msdfbake
 				continue;
 			}
 
+			// A clip path's own geometry is a stencil, not ink. nanosvg does not know that and
+			// emits it as an ordinary shape, which is how it ended up baked as a layer of its own.
+			if (Clips.ClipMembers.count(Source->id) != 0)
+			{
+				continue;
+			}
+
+			const msdfgen::Shape* Clip = nullptr;
+			if (const auto Clipped = Clips.Clipped.find(Source->id); Clipped != Clips.Clipped.end())
+			{
+				if (const auto Found = ClipGeometry.find(Clipped->second); Found != ClipGeometry.end())
+				{
+					Clip = &Found->second;
+				}
+			}
+
+			const auto Emit = [&](msdfgen::Shape&& Built)
+			{
+				msdfgen::Shape Piece = std::move(Built);
+				if (Clip != nullptr && !ClipShape(Piece, *Clip))
+				{
+					return;
+				}
+
+				for (msdfgen::Contour& Contour : Piece.contours)
+				{
+					Shape.contours.push_back(std::move(Contour));
+				}
+			};
+
 			if (Source->stroke.type != NSVG_PAINT_NONE)
 			{
 				++OutShape.StrokedPaths;
-				AddStroke(Shape, *Source, OutShape.Height);
+				msdfgen::Shape Built;
+				AddStroke(Built, *Source, OutShape.Height);
+				Emit(std::move(Built));
 			}
 
 			if (Source->fill.type == NSVG_PAINT_NONE)
@@ -499,6 +786,31 @@ namespace msdfbake
 
 		OutLayers.clear();
 
+		// What clip-path said, which nanosvg has already discarded. The geometry survives as
+		// ordinary shapes, so this is only the relationship: which shapes are a clip, and which
+		// shapes it applies to.
+		FClipPlan Clips;
+		ReadClipPlan(Path, Clips);
+
+		std::map<std::string, msdfgen::Shape> ClipGeometry;
+		if (!Clips.ClipMembers.empty())
+		{
+			for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
+			{
+				const auto Member = Clips.ClipMembers.find(Source->id);
+				if (Member == Clips.ClipMembers.end())
+				{
+					continue;
+				}
+
+				msdfgen::Shape& Clip = ClipGeometry[Member->second];
+				for (const NSVGpath* SubPath = Source->paths; SubPath != nullptr; SubPath = SubPath->next)
+				{
+					AddPath(Clip, *SubPath, Height);
+				}
+			}
+		}
+
 		// Grouped by colour but kept in paint order, so a later shape of a colour already seen
 		// joins that colour's layer. Two layers of the same colour would draw identically anyway,
 		// and merging them keeps the draw count down.
@@ -507,6 +819,22 @@ namespace msdfbake
 			if ((Source->flags & NSVG_FLAGS_VISIBLE) == 0)
 			{
 				continue;
+			}
+
+			// A clip path's own geometry is a stencil, not ink. nanosvg does not know that and
+			// emits it as an ordinary shape, which is how it ended up baked as a layer of its own.
+			if (Clips.ClipMembers.count(Source->id) != 0)
+			{
+				continue;
+			}
+
+			const msdfgen::Shape* Clip = nullptr;
+			if (const auto Clipped = Clips.Clipped.find(Source->id); Clipped != Clips.Clipped.end())
+			{
+				if (const auto Found = ClipGeometry.find(Clipped->second); Found != ClipGeometry.end())
+				{
+					Clip = &Found->second;
+				}
 			}
 
 			// A stroke carries its own colour, so it becomes its own layer rather than joining the
@@ -533,18 +861,37 @@ namespace msdfbake
 				return Added;
 			};
 
+			// A clipped shape is built on its own first, intersected, and only then added to its
+			// layer: intersecting the layer would clip everything already painted into it.
+			const auto Emit = [&](msdfgen::Shape& Target, msdfgen::Shape&& Built)
+			{
+				msdfgen::Shape Piece = std::move(Built);
+				if (Clip != nullptr && !ClipShape(Piece, *Clip))
+				{
+					return;
+				}
+
+				for (msdfgen::Contour& Contour : Piece.contours)
+				{
+					Target.contours.push_back(std::move(Contour));
+				}
+			};
+
 			if (Source->fill.type != NSVG_PAINT_NONE)
 			{
-				FVectorLayer& Layer = LayerFor(Source->fill.color, false);
+				msdfgen::Shape Built;
 				for (const NSVGpath* SubPath = Source->paths; SubPath != nullptr; SubPath = SubPath->next)
 				{
-					AddPath(Layer.Shape.Shape, *SubPath, Height);
+					AddPath(Built, *SubPath, Height);
 				}
+				Emit(LayerFor(Source->fill.color, false).Shape.Shape, std::move(Built));
 			}
 
 			if (Source->stroke.type != NSVG_PAINT_NONE)
 			{
-				AddStroke(LayerFor(Source->stroke.color, true).Shape.Shape, *Source, Height);
+				msdfgen::Shape Built;
+				AddStroke(Built, *Source, Height);
+				Emit(LayerFor(Source->stroke.color, true).Shape.Shape, std::move(Built));
 			}
 		}
 
@@ -790,14 +1137,6 @@ namespace msdfbake
 					++LayerIndex;
 				}
 
-				if (const int Clips = CountClipPaths(Input); Clips > 0)
-				{
-					std::fprintf(stderr,
-						"msdfbake: warning: %s uses clip-path %d time(s), which is ignored. Clipping "
-						"is an intersection and a field holds one shape, so the clipped geometry "
-						"bakes unclipped and will cover things it should not. Apply the clip in the "
-						"drawing program first.\n", SpriteStem.c_str(), Clips);
-				}
 
 				if (LayerIndex > 0)
 				{
@@ -832,14 +1171,6 @@ namespace msdfbake
 
 			// Said plainly rather than left for someone to work out from a bake that looks nothing
 			// like the drawing. Neither is recoverable inside a single field.
-			if (const int Clips = CountClipPaths(Input); Clips > 0)
-			{
-				std::fprintf(stderr,
-					"msdfbake: warning: %s uses clip-path %d time(s), which is ignored. Clipping is "
-					"an intersection and a field holds one shape, so the clipped geometry bakes "
-					"unclipped and will cover things it should not. Apply the clip in the drawing "
-					"program first.\n", SpriteName.c_str(), Clips);
-			}
 
 			if (Drawing.DistinctFills > 1)
 			{

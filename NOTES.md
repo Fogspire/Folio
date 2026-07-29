@@ -815,3 +815,40 @@ brief called unreachable from RCSS, and it turns out to cost one line in the ras
 The trade is that the set is fixed: `additive`, `scanlines`, `sweep`. A name Folio does not know
 warns once and draws nothing, rather than pretending. Adding another is a function in
 `FolioShaderEffects.cpp` and nothing else - no shader, no material, no per-renderer work.
+
+
+## clip-path, honoured rather than dropped
+
+A clip is an intersection and a field carries one silhouette, so the first read was that
+`clip-path` could not be expressed and had to be flattened in the drawing program. That was wrong
+about the bake: Skia's path operations are already vendored for unioning a glyph's overlapping
+contours, and an intersection is the same call with a different operator.
+
+What nanosvg does is the actual obstacle, and it does two things:
+
+- It **discards the relationship**. So the baker reads the SVG itself for `<clipPath id="A">` and
+  `<g clip-path="url(#A)">`, and maps shape ids to the clip that applies to them. Only the
+  relationship - the geometry comes back from nanosvg with every transform already applied.
+- It **emits the clip path's own geometry as an ordinary visible shape**. SVG never renders
+  `<clipPath>` contents. In the test art the exporter had duplicated the cloak into the clip
+  path, so that duplicate baked as a solid black layer on top of everything: the "hard black
+  cape" that looked like a stroke bug for a long time. It is skipped now.
+
+A clipped shape is built on its own, intersected, and only then added to its colour's layer.
+Intersecting the layer would clip everything already painted into it.
+
+## Rendering an SVG for comparison
+
+Reasoning about a bake from layer numbers does not converge. Edge renders SVG properly and is on
+every Windows box:
+
+```
+msedge.exe --headless=new --disable-gpu --screenshot=out.png --window-size=760,800 file:///page.html
+```
+
+with a one-line HTML wrapper holding an `<img src="file:///drawing.svg">`, because the headless
+screenshot of an SVG loaded directly comes out empty.
+
+For finding which layer is at fault, render each one alone: a document with one `<img>` per
+`-ink` class, tinted, laid out in a grid. That is what showed the clip working (the clipped
+layers were correctly confined) while the fills were not.

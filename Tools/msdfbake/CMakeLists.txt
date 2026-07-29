@@ -14,6 +14,8 @@ target_link_libraries(msdfbake PRIVATE
 	folio_core
 	lodepng
 	nanosvg
+	# clip-path is an intersection, and this is the same library msdfgen unions contours with.
+	skia
 )
 
 target_compile_definitions(msdfbake PRIVATE

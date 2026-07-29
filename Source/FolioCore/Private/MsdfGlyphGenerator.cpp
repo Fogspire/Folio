@@ -67,6 +67,25 @@ namespace Folio
 			return false;
 		}
 
+		return GenerateShapeMsdf(&Glyph, UnitsPerEm, Params, OutBitmap);
+	}
+
+	bool GenerateShapeMsdf(void* ShapePointer, const double UnitsPerEm, const FMsdfAtlasParams& Params,
+		FMsdfGlyphBitmap& OutBitmap)
+	{
+		using namespace msdfgen;
+
+		FOLIO_TRACE_SCOPE("Folio/GenerateShape");
+
+		OutBitmap = FMsdfGlyphBitmap();
+
+		if (ShapePointer == nullptr || UnitsPerEm <= 0.0 || Params.PxPerEm <= 0 || Params.PxRange <= 0)
+		{
+			return false;
+		}
+
+		Shape& Glyph = *static_cast<Shape*>(ShapePointer);
+
 		Glyph.normalize();
 
 		// Fonts routinely draw a glyph as overlapping contours - a stem, a bowl and a leg that

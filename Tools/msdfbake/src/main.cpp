@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include "BakeVector.h"
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -32,6 +34,7 @@ namespace
 			"msdfbake - bake distance field atlases for Folio\n"
 			"\n"
 			"Usage: msdfbake font   --in <font.ttf> --out <dir> [options]\n"
+			"       msdfbake vector --in <icon.svg> [--in ...] --out <dir> [--rcss <file>]\n"
 			"       msdfbake decode --in <atlas.png> --out <preview.png> [--scale <F>]\n"
 			"       msdfbake report\n"
 			"\n"
@@ -46,6 +49,16 @@ namespace
 			"  --out <DIR>       Directory to write <stem>.msdf.png and <stem>.msdf into\n"
 			"  --charset <SPEC>  ascii or latin1 (default latin1)\n"
 			"  --face <N>        Face index within a collection (default 0)\n"
+			"\n"
+			"vector\n"
+			"  --in <FILE>       An SVG to bake. Repeat for more than one\n"
+			"  --out <DIR>       Directory to write <name>.msdf.png and <name>.msdf into\n"
+			"  --rcss <FILE>     Stylesheet to write the @spritesheet block into\n"
+			"  --name <NAME>     Atlas stem (default vectors)\n"
+			"\n"
+			"  A distance field carries coverage and nothing else, so an icon is one silhouette\n"
+			"  coloured where it is drawn. More than one fill colour cannot survive the bake, and\n"
+			"  a stroke contributes nothing until it is outlined. Both are reported per file.\n"
 			"\n"
 			"decode\n"
 			"  Resolves a field the way the shader does, so a bake can be checked without a\n"
@@ -375,6 +388,11 @@ int main(int Argc, char** Argv)
 	if (Mode == "font")
 	{
 		return BakeFont(Argc, Argv);
+	}
+
+	if (Mode == "vector")
+	{
+		return msdfbake::BakeVectors(Argc, Argv);
 	}
 
 	if (Mode == "decode")

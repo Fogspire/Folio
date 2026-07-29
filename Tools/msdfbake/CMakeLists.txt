@@ -1,6 +1,13 @@
 add_executable(msdfbake
 	src/main.cpp
 	src/BakeSink.cpp
+	src/BakeVector.cpp
+)
+
+# The shape generator is private to FolioCore. The baking tool drives the identical code rather
+# than a second copy, which is the whole reason a baked icon and a glyph resolve the same way.
+target_include_directories(msdfbake PRIVATE
+	"${CMAKE_SOURCE_DIR}/Source/FolioCore/Private"
 )
 
 target_link_libraries(msdfbake PRIVATE

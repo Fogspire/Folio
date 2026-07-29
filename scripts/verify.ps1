@@ -217,6 +217,59 @@ foreach ($shot in $Shots) {
     if (-not (Test-Path $png)) { Fail "no screenshot for $name" } else { Pass $name }
 }
 
+# --- Input device ---------------------------------------------------------------------------
+
+# Both routes the device reaches markup by, across every combination. The metrics report only
+# lists line boxes for text that was laid out, so an element hidden by a class rule or by data-if
+# has none - which is what makes visibility checkable without comparing images.
+Write-Host 'Input device' -ForegroundColor Cyan
+$DeviceDoc = Join-Path $TestsDir 'input_device.rml'
+if (-not (Test-Path $DeviceDoc)) {
+    Fail 'missing input_device.rml'
+}
+else {
+    foreach ($case in @(
+        @{ Device = 'keyboard'; Confirm = 'south' },
+        @{ Device = 'mouse';    Confirm = 'south' },
+        @{ Device = 'gamepad';  Confirm = 'south' },
+        @{ Device = 'gamepad';  Confirm = 'east' })) {
+
+        $label = "$($case.Device)/$($case.Confirm)"
+        $report = Join-Path $Out "input_device.$($case.Device).$($case.Confirm).json"
+
+        $run = Invoke-Preview @($DeviceDoc, '--strict', '--no-assets-wanted',
+            '--input-device', $case.Device, '--confirm-button', $case.Confirm,
+            '--metrics-report', $report)
+
+        if ($run.ExitCode -ne 0) { Fail "$label exited $($run.ExitCode)"; continue }
+        if (-not (Test-Path $report)) { Fail "$label wrote no report"; continue }
+
+        $laidOut = @((Get-Content -Raw $report | ConvertFrom-Json).text |
+            Where-Object { $_.lines.Count -gt 0 } | ForEach-Object { $_.text })
+
+        $pad = $case.Device -eq 'gamepad'
+        $expected = @(
+            @{ Text = "device=$($case.Device)";                      Want = $true },
+            @{ Text = "gamepad=$(if ($pad) { '1' } else { '0' })";   Want = $true },
+            @{ Text = "confirm=$($case.Confirm)";                    Want = $true },
+            @{ Text = "back=$(if ($case.Confirm -eq 'east') { 'south' } else { 'east' })"; Want = $true },
+            @{ Text = 'the confirm button';                          Want = $pad },
+            @{ Text = 'Enter';                                       Want = -not $pad },
+            @{ Text = 'A / Cross';                                   Want = $case.Confirm -eq 'south' },
+            @{ Text = 'B / Circle';                                  Want = $case.Confirm -eq 'east' },
+            @{ Text = "a sprite name built from it: btn_$($case.Confirm)"; Want = $pad }
+        )
+
+        $wrong = @($expected | Where-Object { $laidOut.Contains($_.Text) -ne $_.Want })
+        if ($wrong.Count -gt 0) {
+            Fail "$label - $(($wrong | ForEach-Object { "'$($_.Text)' should$(if (-not $_.Want) { ' not' }) show" }) -join '; ')"
+        }
+        else {
+            Pass $label
+        }
+    }
+}
+
 # --- Texture reload -------------------------------------------------------------------------
 
 # What a hot reload does, done twice in one process: render, throw every texture away, render

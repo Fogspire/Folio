@@ -8,6 +8,7 @@
 #include "FolioFileInterface.h"
 #include "FolioCoreHost.h"
 #include "FolioFontCache.h"
+#include "FolioNavigation.h"
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
 #include "FolioSystemInterface.h"
@@ -182,6 +183,33 @@ void FFolioModule::RegisterFonts()
 	{
 		UE_LOG(LogFolio, Log, TEXT("registered %d font face(s)"), Loaded);
 	}
+}
+
+void FFolioModule::SetInputDevice(const Folio::EInputDevice Device)
+{
+	if (Device == InputDevice || Device == Folio::EInputDevice::Unknown)
+	{
+		return;
+	}
+
+	InputDevice = Device;
+	UE_LOG(LogFolio, Verbose, TEXT("input device is now %s"), Folio::DescribeDevice(Device));
+	InputDeviceDelegate.Broadcast(Device);
+}
+
+Folio::EConfirmButton FFolioModule::GetConfirmButton() const
+{
+	return Folio::ConfirmButton();
+}
+
+void FFolioModule::SetConfirmButton(const Folio::EConfirmButton Button)
+{
+	Folio::SetConfirmButton(Button);
+}
+
+FSimpleMulticastDelegate& FFolioModule::OnConfirmButtonChanged()
+{
+	return Folio::OnConfirmButtonChanged();
 }
 
 #undef LOCTEXT_NAMESPACE

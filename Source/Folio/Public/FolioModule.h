@@ -2,6 +2,8 @@
 
 #include "FolioUiSounds.h"
 
+#include "FolioCore/FolioInputState.h"
+
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 
@@ -76,6 +78,30 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUiSound, Folio::EUiSound);
 	FOnUiSound& OnUiSound() { return UiSoundDelegate; }
 
+	/**
+	 * What the player last used, across every document in the process.
+	 *
+	 * Global rather than per-canvas because it answers a question about the player, not about a
+	 * screen: a HUD and a pause menu open at once must not disagree about whether to draw a
+	 * keyboard prompt. Set from real input; documents also receive it as body classes and through
+	 * the reserved 'folio' data model, so most UI never needs to call this.
+	 */
+	Folio::EInputDevice GetInputDevice() const { return InputDevice; }
+	void SetInputDevice(Folio::EInputDevice Device);
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnInputDevice, Folio::EInputDevice);
+	FOnInputDevice& OnInputDeviceChanged() { return InputDeviceDelegate; }
+
+	/**
+	 * Which gamepad face button confirms; the other one means back.
+	 *
+	 * A game exposes this to its settings and may also default it per platform. Folio has no
+	 * platform opinion of its own.
+	 */
+	Folio::EConfirmButton GetConfirmButton() const;
+	void SetConfirmButton(Folio::EConfirmButton Button);
+	FSimpleMulticastDelegate& OnConfirmButtonChanged();
+
 private:
 	void RegisterFonts();
 
@@ -89,6 +115,8 @@ private:
 
 	FSimpleMulticastDelegate PreShutdownDelegate;
 	FOnUiSound UiSoundDelegate;
+	FOnInputDevice InputDeviceDelegate;
+	Folio::EInputDevice InputDevice = Folio::EInputDevice::Unknown;
 
 	FString ContentRoot;
 	FString PluginRoot;

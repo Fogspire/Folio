@@ -71,6 +71,11 @@ private:
 	std::string DiscoverDataModelName() const;
 	std::string FindConventionalDataFile(const std::string& model_name) const;
 	void MountDataModel();
+
+	/** Creates the reserved 'folio' model, which reports the pinned device and confirm button. */
+	void MountInputModel();
+	/** Puts the folio-device-*, folio-input-* and folio-confirm-* classes on the document body. */
+	void ApplyInputClasses();
 	void HandleFileChanges(const std::vector<std::string>& changed);
 	void RebuildDocument();
 
@@ -97,6 +102,12 @@ private:
 
 	MissingAssets missing_assets;
 	JsonDataModel data_model {diagnostics};
+
+	// Bound into the reserved model by address, so they outlive it.
+	Rml::String input_device_value;
+	Rml::String input_confirm_value;
+	Rml::String input_back_value;
+	bool input_is_gamepad = false;
 	Localizer localizer {diagnostics};
 
 	/** Ratio Unreal would use for a viewport this size, unless --dp-ratio pinned one. */

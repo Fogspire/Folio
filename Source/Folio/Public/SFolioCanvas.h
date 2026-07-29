@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FolioInputState.h"
 #include "FolioNavigation.h"
 #include "FolioUiSounds.h"
 
@@ -72,13 +73,13 @@ public:
 	virtual void OnFocusLost(const FFocusEvent& FocusEvent) override;
 
 	/** What the player last touched. Documents swap button glyphs on it. */
-	Folio::EInputDevice GetLastInputDevice() const { return LastDevice; }
+	Folio::EInputDevice GetLastInputDevice() const;
 
 private:
 	/** Sends a navigation key both ways, since RmlUi expects a press to be released. */
 	bool SendNavigation(Rml::Input::KeyIdentifier Key, int32 Modifiers);
 
-	/** Records the device and logs when it changes, which is the signal a document listens for. */
+	/** Records the device, which the module then publishes to every document. */
 	void NoteDevice(Folio::EInputDevice Device);
 
 	/** True while a text field has focus, so letters are text rather than directions. */
@@ -86,7 +87,7 @@ private:
 
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;
-	Folio::EInputDevice LastDevice = Folio::EInputDevice::Unknown;
+	FFolioInputModel InputModel;
 
 	/** Screen space to the context's own pixel space. */
 	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;

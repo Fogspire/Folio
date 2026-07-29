@@ -39,6 +39,8 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 		return;
 	}
 
+	InputModel.Create(Context);
+
 	if (!PendingDocumentPath.IsEmpty())
 	{
 		LoadDocument(PendingDocumentPath);
@@ -62,6 +64,7 @@ void SFolioCanvas::DestroyContext()
 	// memory - which surfaces as a crash inside robin_hood's hash table on editor close.
 	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
 	{
+		InputModel.Release();
 		Context = nullptr;
 		Document = nullptr;
 		return;
@@ -70,6 +73,7 @@ void SFolioCanvas::DestroyContext()
 	// Closing a document is deferred until the next Update, so the context has to outlive the
 	// close. Removing the context destroys everything in it outright, which is what we want.
 	Sounds.Detach();
+	InputModel.Release();
 	Document = nullptr;
 	Rml::RemoveContext(Context->GetName());
 	Context = nullptr;
@@ -124,6 +128,7 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 
 	Document->Show();
 	Sounds.Attach(Document);
+	InputModel.SetDocument(Document);
 	UE_LOG(LogFolio, Log, TEXT("loaded '%s'"), *RelativePath);
 }
 
@@ -146,6 +151,13 @@ void SFolioCanvas::MountDataModel(const FString& RelativePath)
 
 	const FString ModelName = FFolioDataModel::DiscoverModelName(Markup);
 	if (ModelName.IsEmpty())
+	{
+		return;
+	}
+
+	// The reserved model is mounted with the context and is not a game model, so it has no mock
+	// file and nothing is missing when there isn't one.
+	if (ModelName == UTF8_TO_TCHAR(Folio::InputModel::Name()))
 	{
 		return;
 	}
@@ -267,6 +279,13 @@ FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEven
 		return FReply::Unhandled();
 	}
 
+	// Only a real move counts. Slate resends the cursor position on its own, and a stationary
+	// mouse would otherwise take the device back from the gamepad every frame.
+	if (!MouseEvent.GetCursorDelta().IsNearlyZero())
+	{
+		NoteDevice(Folio::EInputDevice::Mouse);
+	}
+
 	const FVector2f Local = ToContextSpace(MyGeometry, MouseEvent);
 	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y),
 		Folio::ToRmlModifiers(MouseEvent.GetModifierKeys()));
@@ -281,6 +300,8 @@ FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoint
 	{
 		return FReply::Unhandled();
 	}
+
+	NoteDevice(Folio::EInputDevice::Mouse);
 
 	// RmlUi resolves a click against the element under the cursor, and it only knows where
 	// that is from the last move. A click without a preceding move over the widget - which is
@@ -419,15 +440,16 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 	return bConsumed;
 }
 
+Folio::EInputDevice SFolioCanvas::GetLastInputDevice() const
+{
+	return FFolioModule::Get().GetInputDevice();
+}
+
 void SFolioCanvas::NoteDevice(const Folio::EInputDevice Device)
 {
-	if (Device == LastDevice || Device == Folio::EInputDevice::Unknown)
-	{
-		return;
-	}
-
-	LastDevice = Device;
-	UE_LOG(LogFolio, Verbose, TEXT("input device is now %s"), Folio::DescribeDevice(Device));
+	// Held by the module, not here: two documents open at once must not disagree about whether to
+	// draw a keyboard prompt, and only one of them receives the key that changed it.
+	FFolioModule::Get().SetInputDevice(Device);
 }
 
 /** True while a text field has focus, so letters are text rather than directions. */

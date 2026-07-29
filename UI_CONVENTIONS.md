@@ -494,8 +494,8 @@ learns what produced a direction.
 | Arrow keys, **WASD**, **IJKL** | up, down, left, right |
 | D-pad, and either stick pushed to its extreme | the same four |
 | Either analog stick, held | repeats: 0.5 deadzone, 0.4s before the first repeat, 0.12s after |
-| `Enter`, `Space`, gamepad bottom face button | activate the focused element |
-| `Escape`, gamepad right face button | back |
+| `Enter`, `Space`, gamepad **confirm** face button | activate the focused element |
+| `Escape`, the other face button | back |
 | `Tab`, either shoulder | tab order |
 
 **Letters only navigate when nothing is taking text.** With an `input` or `textarea` focused, W is
@@ -509,6 +509,72 @@ them working inside a text field, where they mean something else.
 **UI sounds** are reported, not played: `FFolioModule::OnUiSound()` fires `Focus`, `Confirm`,
 `Back` or `Invalid`. Folio owns no sound assets. `Invalid` is a click on something carrying
 `.is-disabled`, which is the case worth a different noise.
+
+### Which face button confirms
+
+South (A, Cross) confirms by default and east (B, Circle) goes back. Nintendo hardware and
+Japanese conventions are the other way round, so it is a setting, not a constant:
+
+```cpp
+FFolioModule::Get().SetConfirmButton(Folio::EConfirmButton::East);
+```
+
+or `folio.Nav.SwapConfirmBack 1` from the console or a per-platform `DefaultEngine.ini`. Changing
+it swaps what the two buttons *do* and updates every open document in the same frame. **Folio has
+no platform opinion of its own** — it does not check what it is running on, because the answer
+depends on region as much as hardware. A port decides and calls the setter.
+
+### Telling a document what the player is holding
+
+Folio tracks the last device used — keyboard, mouse or gamepad — process-wide rather than per
+document, so a HUD and a pause menu open together cannot disagree. It reaches markup two ways,
+and most UI only needs the first.
+
+**Body classes**, for anything that is presentation:
+
+| | |
+|---|---|
+| `folio-device-keyboard` `folio-device-mouse` `folio-device-gamepad` | exactly one, the precise device |
+| `folio-input-kbm` `folio-input-gamepad` | exactly one, the coarse question glyph swapping actually asks |
+| `folio-confirm-south` `folio-confirm-east` | exactly one, which button confirms |
+
+```css
+.prompt { display: none; }
+body.folio-input-gamepad .prompt.pad { display: inline-block; }
+body.folio-input-kbm     .prompt.key { display: inline-block; }
+
+/* A focus ring is noise under a mouse and essential without one. */
+body.folio-device-mouse .menu-item:focus-visible { border-color: transparent; }
+```
+
+`folio-input-*` is redundant with `folio-device-*` on purpose: keyboard and mouse are both "not a
+gamepad", and without the coarse pair every rule needs a duplicate selector or `:not()`.
+
+**The reserved `folio` data model**, for the rest — when an expression has to *build* a value:
+
+```html
+<div data-model="folio">
+	<img data-attr-sprite="'btn_' + confirm"/>
+	<span data-if="gamepad">hold to skip</span>
+</div>
+```
+
+| field | |
+|---|---|
+| `device` | `keyboard`, `mouse` or `gamepad` |
+| `gamepad` | bool, the same coarse question |
+| `confirm` | `south` or `east` |
+| `back` | always the other one |
+
+`folio` is **a reserved model name — do not use it for game data.** It is mounted on every context
+whether a document binds it or not, so a game that never touches it pays one unused model. An
+element binds one model at a time, so a screen with its own model reads these from a nested
+subtree, as above, rather than from `<body>`.
+
+Both routes are pinned in the preview with `--input-device keyboard|mouse|gamepad` and
+`--confirm-button south|east`, which is how a gamepad screenshot is taken without a gamepad.
+
+From C++, `FFolioModule::Get().GetInputDevice()` and `OnInputDeviceChanged()`.
 
 ---
 

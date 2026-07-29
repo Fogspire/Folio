@@ -23,6 +23,7 @@
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
+#include "FolioCore/FolioInputState.h"
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Debugger.h>
@@ -240,6 +241,7 @@ bool App::Initialise()
 	if (!localizer.Load(root, options.culture))
 		return false;
 
+	MountInputModel();
 	MountDataModel();
 
 	// Data-bound strings never reach the document pass, so inflate them at the source or
@@ -287,9 +289,39 @@ std::string App::FindConventionalDataFile(const std::string& model_name) const
 	return path;
 }
 
+void App::MountInputModel()
+{
+	// Always mounted, unlike the game's model: it costs one model per context and a document that
+	// never binds it pays nothing, while leaving it out would mean bindings that work in game
+	// render as literal braces here.
+	Rml::DataModelConstructor constructor = context->CreateDataModel(Folio::InputModel::Name());
+	if (!constructor)
+		return;
+
+	input_device_value = Folio::DeviceName(options.input_device);
+	input_confirm_value = Folio::ConfirmName(options.confirm_button);
+	input_back_value = Folio::BackName(options.confirm_button);
+	input_is_gamepad = options.input_device == Folio::EInputDevice::Gamepad;
+
+	constructor.Bind(Folio::InputModel::Device(), &input_device_value);
+	constructor.Bind(Folio::InputModel::Gamepad(), &input_is_gamepad);
+	constructor.Bind(Folio::InputModel::Confirm(), &input_confirm_value);
+	constructor.Bind(Folio::InputModel::Back(), &input_back_value);
+}
+
+void App::ApplyInputClasses()
+{
+	Folio::ApplyInputClasses(document, options.input_device, options.confirm_button);
+}
+
 void App::MountDataModel()
 {
 	const std::string model_name = DiscoverDataModelName();
+
+	// The reserved model is already mounted and is not a game model, so there is no mock file to
+	// look for and nothing missing when there isn't one.
+	if (model_name == Folio::InputModel::Name())
+		return;
 
 	if (model_name.empty())
 	{
@@ -425,6 +457,7 @@ bool App::LoadDocumentFromDisk()
 		return false;
 	}
 	document->Show();
+	ApplyInputClasses();
 	context->Update();
 	localizer.ApplyToDocument(document, options.strict);
 	context->Update();
@@ -819,6 +852,7 @@ void App::RebuildDocument()
 	}
 
 	document->Show();
+	ApplyInputClasses();
 	// Layout has to exist before focus and scroll can be put back.
 	context->Update();
 	localizer.ApplyToDocument(document, options.strict);

@@ -19,6 +19,29 @@ namespace
 	TAutoConsoleVariable<int32> CVarNavGamepad(TEXT("folio.Nav.Gamepad"), 1,
 		TEXT("The gamepad navigates a document: d-pad, sticks, face buttons and shoulders."),
 		ECVF_Default);
+
+	TAutoConsoleVariable<int32> CVarSwapConfirmBack(TEXT("folio.Nav.SwapConfirmBack"), 0,
+		TEXT("The east face button confirms and the south one goes back, rather than the reverse."),
+		ECVF_Default);
+
+	FSimpleMulticastDelegate ConfirmButtonChanged;
+
+	/// Registered once, so the console and a settings screen both reach the same notification.
+	void EnsureConfirmCallback()
+	{
+		static bool bRegistered = false;
+		if (bRegistered)
+		{
+			return;
+		}
+
+		bRegistered = true;
+		CVarSwapConfirmBack->SetOnChangedCallback(
+			FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
+			{
+				ConfirmButtonChanged.Broadcast();
+			}));
+	}
 }
 
 namespace Folio
@@ -50,6 +73,25 @@ namespace Folio
 	bool ArrowsNavigate()
 	{
 		return CVarNavArrows.GetValueOnAnyThread() != 0;
+	}
+
+	EConfirmButton ConfirmButton()
+	{
+		return CVarSwapConfirmBack.GetValueOnAnyThread() != 0
+			? EConfirmButton::East
+			: EConfirmButton::South;
+	}
+
+	void SetConfirmButton(const EConfirmButton Button)
+	{
+		EnsureConfirmCallback();
+		CVarSwapConfirmBack->Set(Button == EConfirmButton::East ? 1 : 0, ECVF_SetByGameSetting);
+	}
+
+	FSimpleMulticastDelegate& OnConfirmButtonChanged()
+	{
+		EnsureConfirmCallback();
+		return ConfirmButtonChanged;
 	}
 
 	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key)
@@ -90,8 +132,15 @@ namespace Folio
 
 		// Confirm and back. RmlUi turns Return on a focused element into a click, and Escape is
 		// what a document listens for to close itself.
-		if (Key == EKeys::Gamepad_FaceButton_Bottom) { return KI_RETURN; }
-		if (Key == EKeys::Gamepad_FaceButton_Right)  { return KI_ESCAPE; }
+		const bool bEastConfirms = ConfirmButton() == EConfirmButton::East;
+		if (Key == EKeys::Gamepad_FaceButton_Bottom)
+		{
+			return bEastConfirms ? KI_ESCAPE : KI_RETURN;
+		}
+		if (Key == EKeys::Gamepad_FaceButton_Right)
+		{
+			return bEastConfirms ? KI_RETURN : KI_ESCAPE;
+		}
 
 		// Shoulders page through a tab bar, which is what Tab does in a document.
 		if (Key == EKeys::Gamepad_LeftShoulder || Key == EKeys::Gamepad_RightShoulder)

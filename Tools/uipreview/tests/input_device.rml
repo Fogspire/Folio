@@ -1,0 +1,43 @@
+<rml>
+<head>
+	<title>input device</title>
+	<style>
+		body { font-family: Roboto; font-size: 18dp; color: #fff; background-color: #202028;
+		       padding: 24dp; }
+		h1 { font-size: 22dp; margin-bottom: 12dp; }
+		p { margin-bottom: 6dp; }
+		section { margin-bottom: 24dp; }
+
+		/* The presentation route. No data model involved, so a game that only swaps glyphs and
+		   hides the focus ring never binds anything. */
+		.prompt { display: none; }
+		body.folio-input-gamepad .prompt.pad { display: inline-block; }
+		body.folio-input-kbm .prompt.key { display: inline-block; }
+
+		.face { display: none; font-weight: bold; }
+		body.folio-confirm-south .face.south { display: inline-block; }
+		body.folio-confirm-east .face.east { display: inline-block; }
+
+		/* A focus ring is noise under a mouse and essential without one. */
+		.ring { border: 2dp #ffcc44; padding: 4dp; }
+		body.folio-device-mouse .ring { border-color: transparent; }
+	</style>
+</head>
+<body data-model="folio">
+	<h1>presentation, from the body classes</h1>
+	<section>
+		<p>press <span class="prompt pad">the confirm button</span><span class="prompt key">Enter</span> to continue</p>
+		<p>confirm is <span class="face south">A / Cross</span><span class="face east">B / Circle</span></p>
+		<p><span class="ring">focus ring, hidden under a mouse</span></p>
+	</section>
+
+	<h1>data, from the reserved model</h1>
+	<section>
+		<p id="device">device={{ device }}</p>
+		<p id="gamepad">gamepad={{ gamepad }}</p>
+		<p id="confirm">confirm={{ confirm }}</p>
+		<p id="back">back={{ back }}</p>
+		<p id="built" data-if="gamepad">a sprite name built from it: btn_{{ confirm }}</p>
+	</section>
+</body>
+</rml>

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FolioCore/FolioInputState.h"
+
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -34,6 +36,13 @@ struct Options {
 	std::string data_path;
 	std::string data_model;
 	std::string culture;
+
+	/** What the document is told the player is holding. In game this follows real input; here it
+	    is pinned, so a screenshot of the gamepad prompts is reproducible. */
+	Folio::EInputDevice input_device = Folio::EInputDevice::Keyboard;
+	/** Which gamepad face button confirms. A game exposes this to its settings and may default it
+	    per platform, so both settings need to be viewable without a build. */
+	Folio::EConfirmButton confirm_button = Folio::EConfirmButton::South;
 
 	std::string keys;
 	std::string shot_each;

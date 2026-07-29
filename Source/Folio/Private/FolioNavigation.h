@@ -2,6 +2,9 @@
 
 #include "FolioRmlUi.h"
 
+#include "FolioCore/FolioInputState.h"
+
+#include "Delegates/Delegate.h"
 #include "InputCoreTypes.h"
 
 /**
@@ -14,15 +17,6 @@
  */
 namespace Folio
 {
-	/** What the player last touched, for swapping button glyphs and hiding the focus ring. */
-	enum class EInputDevice : uint8
-	{
-		Unknown,
-		Keyboard,
-		Mouse,
-		Gamepad,
-	};
-
 	const TCHAR* DescribeDevice(EInputDevice Device);
 
 	/** Which device a key belongs to. */
@@ -49,6 +43,19 @@ namespace Folio
 	 * wants that off; one with no gamepad support wants it gone from the glyph swapping too.
 	 */
 	bool ArrowsNavigate();
+
+	/**
+	 * Which gamepad face button confirms, the other one meaning back.
+	 *
+	 * Backed by folio.Nav.SwapConfirmBack so a platform default can be set from DefaultEngine.ini
+	 * per target, and SetConfirmButton lets a settings screen change it at runtime. Nothing here
+	 * knows about any particular console: a port decides for itself and calls this.
+	 */
+	EConfirmButton ConfirmButton();
+	void SetConfirmButton(EConfirmButton Button);
+
+	/** Fires when it changes, from either the console variable or the setter. */
+	FSimpleMulticastDelegate& OnConfirmButtonChanged();
 
 	/**
 	 * Turns a held analog stick into repeated directional presses.

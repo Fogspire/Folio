@@ -73,6 +73,10 @@ void PrintUsage(std::FILE* stream)
 		"  --data <FILE>         Mount a JSON file as the document's data model\n"
 		"  --data-model <NAME>   Override the data model name\n"
 		"  --culture <CODE>      Load ui/loc/<CODE>.json, or 'pseudo' for pseudo-localization\n"
+		"  --input-device <D>    What the document is told the player holds: keyboard, mouse or\n"
+		"                        gamepad (default keyboard). Sets the folio-device-* body classes\n"
+		"                        and the reserved 'folio' data model\n"
+		"  --confirm-button <B>  Which gamepad face button confirms: south or east (default south)\n"
 		"\n"
 		"Navigation\n"
 		"  --keys <LIST>         Inject a comma separated input sequence, then report focus.\n"
@@ -237,6 +241,35 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		{
 			if (!TakeValue(argc, argv, i, "--culture", o.culture, error))
 				return ParseResult::Error;
+		}
+		else if (arg == "--input-device")
+		{
+			std::string device;
+			if (!TakeValue(argc, argv, i, "--input-device", device, error))
+				return ParseResult::Error;
+
+			if (device == "keyboard")      o.input_device = Folio::EInputDevice::Keyboard;
+			else if (device == "mouse")    o.input_device = Folio::EInputDevice::Mouse;
+			else if (device == "gamepad")  o.input_device = Folio::EInputDevice::Gamepad;
+			else
+			{
+				error = "--input-device expects keyboard, mouse or gamepad";
+				return ParseResult::Error;
+			}
+		}
+		else if (arg == "--confirm-button")
+		{
+			std::string button;
+			if (!TakeValue(argc, argv, i, "--confirm-button", button, error))
+				return ParseResult::Error;
+
+			if (button == "south")     o.confirm_button = Folio::EConfirmButton::South;
+			else if (button == "east") o.confirm_button = Folio::EConfirmButton::East;
+			else
+			{
+				error = "--confirm-button expects south or east";
+				return ParseResult::Error;
+			}
 		}
 		else if (arg == "--keys")
 		{

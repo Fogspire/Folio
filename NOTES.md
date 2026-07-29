@@ -639,3 +639,31 @@ fifth of a percent and cannot exceed a page.
 
 `Tools/uipreview/tests/vector_stack.rml` covers it, with the container behind the art in magenta:
 the drawing's own background layer must cover it exactly at every size.
+
+## backdrop-filter is a pair, and the second half is the one that matters
+
+`outside-blur` inverts a backdrop filter: the element becomes a hole and everything else is
+blurred, which is what a modal scrim wants.
+
+RmlUi issues a backdrop filter as two composites. The first reads what is already on screen,
+runs the filters, and writes the result into a scratch layer. The second puts that layer back,
+clipped to the element. Inverting the first achieves nothing - it only chooses which pixels get
+blurred, and the second still stamps the result inside the element. The inversion belongs to the
+second, which both renderers already defer to for their own reasons.
+
+The first pass still needs changing, just differently: it is clipped to the element, so the
+scratch layer only holds blurred pixels there. The bands the second pass draws are all outside
+that, and would read pixels nothing had written. So the first pass runs unscissored.
+
+Four bands - above, below, left, right - because a scissor is a rectangle and there is no way to
+cut one out of another. Each composites the whole layer again rather than a slice, so every band
+reads the same pixels and they meet without a seam. The corollary is that the hole is a
+rectangle: a rounded dialog cuts a square one.
+
+In Unreal it is four `MakePostProcessBlur` elements instead of one, and the clip has to come off
+the stack first - it is the element's own scissor, and every band is outside it.
+
+The filter is registered through `Factory::RegisterFilterInstancer` from `FolioFilters.h`, which
+is header-inline for the same reason the font effect instancers are: an instancer's constructor
+calls `RegisterProperty`, which resolves parsers through the `StyleSheetSpecification` that only
+one module's `Rml::Initialise` populated.

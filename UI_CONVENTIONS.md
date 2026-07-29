@@ -220,6 +220,18 @@ comma-separated, paint bottom-to-top in source order. `@decorator` names a reusa
 **`filter` and `backdrop-filter`** take: `blur`, `drop-shadow`, `brightness`, `contrast`,
 `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate`.
 
+**`backdrop-filter` additionally takes `outside-blur`, which is Folio's own.** Where `blur`
+softens what is behind an element, `outside-blur` softens everything the element is not - the
+modal scrim, where the screen goes soft and the dialog stays sharp:
+
+```css
+.dialog { backdrop-filter: outside-blur(8dp); }
+```
+
+Two limits. The hole is a rectangle, so a `border-radius` dialog still cuts a square one. And it
+costs four blurred regions rather than one, because a rectangle cannot be cut out of another
+rectangle.
+
 **`font-effect`** takes: `glow`, `outline`, `shadow`, `blur`. These are the only way to get a
 text shadow; `text-shadow` does not exist.
 
@@ -235,6 +247,7 @@ some preview correctly and render as nothing in engine:
 | `border-radius`, borders, `transform`, `opacity` on an element | Works |
 | `box-shadow`, clip masks, render layers, `filter: blur` | Works. Layers are render targets and clip masks are a real stencil, so an inverse mask - which is what stops an outer shadow painting inside its own element - is exact |
 | `backdrop-filter: blur` | Works, and is the one effect that reaches outside the UI: it blurs the backbuffer, so the 3D scene behind a HUD panel blurs with it. The blurred region is a rectangle, so a `border-radius` corner blurs square |
+| `backdrop-filter: outside-blur` | Works. Folio's own; see below |
 | Text, at any size or transform scale | Works. See §6 |
 | `font-effect`, all four | Works, in both renderers, resolved from the field. Bounded in reach - see §6 |
 | **`filter` other than `blur`, `mask-image`, `backdrop-filter` other than `blur`** | **Banned.** The layer machinery is in place and only the shaders are missing, so these parse, log once and render nothing |

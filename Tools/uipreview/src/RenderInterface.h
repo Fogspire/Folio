@@ -32,6 +32,19 @@ public:
 	/** Field pages are ours, not GL texture names, so they must not reach the base class. */
 	void ReleaseTexture(Rml::TextureHandle texture) override;
 
+	/** Recognises Folio's own filter names; everything else goes to the base. */
+	Rml::CompiledFilterHandle CompileFilter(const Rml::String& name, const Rml::Dictionary& parameters) override;
+	void ReleaseFilter(Rml::CompiledFilterHandle filter) override;
+	void CompositeLayers(Rml::LayerHandle source, Rml::LayerHandle destination, Rml::BlendMode blend_mode,
+		Rml::Span<const Rml::CompiledFilterHandle> filters) override;
+
+	/** Recorded on the way past, because outside-blur has to know what it is the outside of. */
+	void EnableScissorRegion(bool enable) override;
+	void SetScissorRegion(Rml::Rectanglei region) override;
+	/** The viewport outside-blur inverts against. Not SetViewport: the base's is not virtual, and
+	    the backend calls it through a base pointer. */
+	void SetContextSize(Rml::Vector2i size) { viewport = size; }
+
 	Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices, Rml::Span<const int> indices) override;
 	void RenderGeometry(Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation, Rml::TextureHandle texture) override;
 	void ReleaseGeometry(Rml::CompiledGeometryHandle geometry) override;
@@ -89,6 +102,21 @@ private:
 	 * second may be torn down when RmlUi releases its textures.
 	 */
 	std::set<Rml::TextureHandle> field_atlases_from_file;
+
+	/**
+	 * Folio's outside-blur, against the ordinary blur it is drawn with.
+	 *
+	 * The inversion is not something a filter can express - a filter runs over a buffer, and this
+	 * one is about where the result lands. So it compiles to a plain blur, and CompositeLayers
+	 * composites that blur in four bands around the element instead of once over it.
+	 */
+	std::map<Rml::CompiledFilterHandle, Rml::CompiledFilterHandle> outside_blurs;
+
+	/** Carried between the two composites backdrop-filter issues, so the second does the work. */
+	bool pending_outside = false;
+
+	Rml::Rectanglei scissor = Rml::Rectanglei::MakeInvalid();
+	Rml::Vector2i viewport;
 
 	MsdfProgram msdf_program;
 	bool msdf_program_ready = false;

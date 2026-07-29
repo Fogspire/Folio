@@ -746,11 +746,13 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	// Filters apply to the layer after it resolves and before it composites, which is the
 	// order that makes a blurred shadow a blurred shadow rather than a blurred everything.
 	float Sigma = 0.0f;
+	bool bOutside = false;
 	for (const Rml::CompiledFilterHandle Handle : AppliedFilters)
 	{
 		if (const FFilter* Filter = Filters.Find(Handle))
 		{
 			Sigma = FMath::Max(Sigma, Filter->Sigma);
+			bOutside = bOutside || Filter->bOutside;
 		}
 	}
 
@@ -767,13 +769,15 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	if (Source < Destination)
 	{
 		PendingBackdropSigma = Sigma;
+		bPendingBackdropOutside = bOutside;
 		return;
 	}
 
 	if (PendingBackdropSigma > 0.0f)
 	{
-		BlurBackdrop(PendingBackdropSigma);
+		BlurBackdrop(PendingBackdropSigma, bPendingBackdropOutside);
 		PendingBackdropSigma = 0.0f;
+		bPendingBackdropOutside = false;
 		return;
 	}
 
@@ -787,7 +791,7 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma);
 }
 
-void FFolioRenderInterface::BlurBackdrop(const float Sigma)
+void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
 {
 	if (!ElementList || Sigma <= 0.0f)
 	{
@@ -825,24 +829,71 @@ void FFolioRenderInterface::BlurBackdrop(const float Sigma)
 	}
 	Kernel = FMath::Clamp(Kernel, 3, 255);
 
-	float Strength = FMath::Max(0.5f, Sigma);
-	FIntPoint Target(FMath::RoundToInt(Size.X), FMath::RoundToInt(Size.Y));
-
-	if (Downsample > 0)
-	{
-		Target = FIntPoint(FMath::DivideAndRoundUp(Target.X, Downsample), FMath::DivideAndRoundUp(Target.Y, Downsample));
-		Strength /= float(Downsample);
-	}
-
+	const float Strength = FMath::Max(0.5f, Sigma);
 	const FSlateRenderTransform Transform = Geometry.GetAccumulatedRenderTransform();
-	const FVector2f TopLeft = TransformPoint(Transform, Origin);
-	const FVector2f BottomRight = TransformPoint(Transform, Origin + Size);
 
-	ApplyClipping();
+	const auto Blur = [&](const FVector2f BandOrigin, const FVector2f BandSize)
+	{
+		if (BandSize.X < 1.0f || BandSize.Y < 1.0f)
+		{
+			return;
+		}
 
-	FSlateDrawElement::MakePostProcessBlur(*ElementList, LayerId,
-		FPaintGeometry(FVector2D(TopLeft), FVector2D(BottomRight - TopLeft), 1.0f),
-		FVector4f(float(Kernel), Strength, float(Target.X), float(Target.Y)), Downsample);
+		// Per band, because the downsampled target is sized from the band and a shared one would
+		// stretch each band differently.
+		FIntPoint Target(FMath::RoundToInt(BandSize.X), FMath::RoundToInt(BandSize.Y));
+		float BandStrength = Strength;
+		if (Downsample > 0)
+		{
+			Target = FIntPoint(FMath::DivideAndRoundUp(Target.X, Downsample),
+				FMath::DivideAndRoundUp(Target.Y, Downsample));
+			BandStrength /= float(Downsample);
+		}
+
+		const FVector2f TopLeft = TransformPoint(Transform, BandOrigin);
+		const FVector2f BottomRight = TransformPoint(Transform, BandOrigin + BandSize);
+
+		FSlateDrawElement::MakePostProcessBlur(*ElementList, LayerId,
+			FPaintGeometry(FVector2D(TopLeft), FVector2D(BottomRight - TopLeft), 1.0f),
+			FVector4f(float(Kernel), BandStrength, float(Target.X), float(Target.Y)), Downsample);
+	};
+
+	if (!bOutside)
+	{
+		ApplyClipping();
+		Blur(Origin, Size);
+	}
+	else
+	{
+		// The scrim case: the element is a hole and everything else is blurred. Four bands around
+		// it, because a post-process element is a rectangle and there is no way to cut one out of
+		// another.
+		//
+		//   +-----------------------+
+		//   |         above         |
+		//   +------+--------+-------+
+		//   | left |  hole  | right |
+		//   +------+--------+-------+
+		//   |         below         |
+		//   +-----------------------+
+		//
+		// No ApplyClipping here, and any clip already on the stack comes off: it is the element's
+		// own scissor, and every band is outside it. Clipped, all four would draw nothing.
+		if (bClipPushed)
+		{
+			ElementList->PopClip();
+			bClipPushed = false;
+		}
+
+		const float Right = Origin.X + Size.X;
+		const float Bottom = Origin.Y + Size.Y;
+		const FVector2f View(float(ContextSize.X), float(ContextSize.Y));
+
+		Blur(FVector2f(0.0f, 0.0f), FVector2f(View.X, Origin.Y));
+		Blur(FVector2f(0.0f, Bottom), FVector2f(View.X, View.Y - Bottom));
+		Blur(FVector2f(0.0f, Origin.Y), FVector2f(Origin.X, Size.Y));
+		Blur(FVector2f(Right, Origin.Y), FVector2f(View.X - Right, Size.Y));
+	}
 
 	// Everything after this has to land in a higher Slate layer, or it is drawn into the same batch
 	// the post-process reads and comes back blurred along with the backdrop - including the panel's
@@ -945,7 +996,7 @@ Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String
 	FFilter Filter;
 	Filter.Name = Name;
 
-	if (Name == "blur")
+	if (Name == "blur" || Name == "outside-blur")
 	{
 		// RmlUi's blur radius is a standard deviation already, in pixels.
 		const auto It = Parameters.find("sigma");
@@ -953,6 +1004,9 @@ Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String
 		{
 			It->second.GetInto(Filter.Sigma);
 		}
+
+		// Folio's own. The element's box becomes a hole rather than the region blurred.
+		Filter.bOutside = Name == "outside-blur";
 	}
 	else
 	{

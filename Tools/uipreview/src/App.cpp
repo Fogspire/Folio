@@ -20,6 +20,7 @@
 
 #include "FolioCore/FolioCoreVersion.h"
 #include "FolioCore/FolioHost.h"
+#include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
 
@@ -64,6 +65,7 @@ App::~App()
 
 	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
 	Folio::ReleaseFolioFontEffects();
+	Folio::ReleaseFolioFilters();
 
 	// Before the backend, which owns the render interface the atlases release their pages
 	// through. Left to member order the engine would outlive its own sink and read a freed
@@ -214,6 +216,7 @@ bool App::Initialise()
 	// creates during it. Markup is unchanged; the effects stop being baked into glyph textures and
 	// start being resolved from the field.
 	Folio::RegisterFolioFontEffects();
+	Folio::RegisterFolioFilters();
 
 	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));
 	if (!context)
@@ -548,6 +551,13 @@ void App::ApplyViewportSize(int width, int height)
 
 	viewport_width = width;
 	viewport_height = height;
+
+	// outside-blur inverts against the viewport, and the render interface has no other way to
+	// learn its size: the backend sets it through a base-class pointer and a non-virtual setter.
+	if (render_interface)
+	{
+		render_interface->SetContextSize(Rml::Vector2i(width, height));
+	}
 }
 
 int App::Run()

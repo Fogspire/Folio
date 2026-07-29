@@ -198,10 +198,12 @@ private:
 	void CompositeLayerToSlate(float BlurSigma);
 
 	/** backdrop-filter: blur, through Slate's post-process element, which reads the backbuffer. */
-	void BlurBackdrop(float Sigma);
+	void BlurBackdrop(float Sigma, bool bOutside);
 
 	/** Carried between the two composites backdrop-filter issues, so the clipped one does the work. */
 	float PendingBackdropSigma = 0.0f;
+	/** Set when that pending blur is outside-blur, whose region is the viewport minus the element. */
+	bool bPendingBackdropOutside = false;
 
 	/** A resolved layer waiting for Slate to read it, which it does at the end of the frame. */
 	struct FLayerComposite
@@ -287,6 +289,8 @@ private:
 	{
 		Rml::String Name;
 		float Sigma = 0.0f;
+		/** Folio's outside-blur: the element's box is a hole, not the region blurred. */
+		bool bOutside = false;
 	};
 
 	TMap<Rml::CompiledFilterHandle, FFilter> Filters;

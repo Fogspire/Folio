@@ -1,5 +1,7 @@
 #include "RenderInterface.h"
 
+#include <cstdio>
+
 #include "FolioCore/MsdfSidecar.h"
 
 #include "Diagnostics.h"
@@ -399,6 +401,119 @@ void PreviewRenderInterface::ReleaseAtlasHandle(Folio::FMsdfHandle handle)
 	}
 
 	glDeleteTextures(1, &texture);
+}
+
+Rml::CompiledFilterHandle PreviewRenderInterface::CompileFilter(const Rml::String& name,
+	const Rml::Dictionary& parameters)
+{
+	if (name != "outside-blur")
+		return RenderInterface_GL3::CompileFilter(name, parameters);
+
+	// Compiled as an ordinary blur. What makes it "outside" happens at composite time, where the
+	// blurred layer is put down in four bands around the element rather than once over it.
+	const Rml::CompiledFilterHandle blur = RenderInterface_GL3::CompileFilter("blur", parameters);
+	if (!blur)
+		return {};
+
+	outside_blurs[blur] = blur;
+	return blur;
+}
+
+void PreviewRenderInterface::ReleaseFilter(Rml::CompiledFilterHandle filter)
+{
+	outside_blurs.erase(filter);
+	RenderInterface_GL3::ReleaseFilter(filter);
+}
+
+void PreviewRenderInterface::EnableScissorRegion(bool enable)
+{
+	if (!enable)
+		scissor = Rml::Rectanglei::MakeInvalid();
+	RenderInterface_GL3::EnableScissorRegion(enable);
+}
+
+void PreviewRenderInterface::SetScissorRegion(Rml::Rectanglei region)
+{
+	scissor = region;
+	RenderInterface_GL3::SetScissorRegion(region);
+}
+
+void PreviewRenderInterface::CompositeLayers(Rml::LayerHandle source, Rml::LayerHandle destination,
+	Rml::BlendMode blend_mode, Rml::Span<const Rml::CompiledFilterHandle> filters)
+{
+	// backdrop-filter arrives as a pair. The first call filters what is already on screen into a
+	// scratch layer; the second puts that layer back, clipped to the element. So the inversion
+	// belongs to the second - inverting the first would only choose which pixels get blurred, and
+	// the second would still stamp the result inside the element.
+	if (source < destination)
+	{
+		bool outside = false;
+		for (const Rml::CompiledFilterHandle handle : filters)
+		{
+			if (outside_blurs.count(handle) != 0)
+				outside = true;
+		}
+
+		pending_outside = outside;
+
+		if (outside && viewport.x > 0 && viewport.y > 0)
+		{
+			// Unscissored, so the scratch layer ends up holding the blurred backdrop everywhere.
+			// RmlUi has clipped this to the element, and the bands the second pass draws are all
+			// outside that: left as it is, they would read pixels nothing had written.
+			const Rml::Rectanglei whole = Rml::Rectanglei::FromPositionSize({0, 0}, viewport);
+			RenderInterface_GL3::SetScissorRegion(whole);
+			RenderInterface_GL3::CompositeLayers(source, destination, blend_mode, filters);
+			RenderInterface_GL3::SetScissorRegion(scissor);
+			return;
+		}
+
+		RenderInterface_GL3::CompositeLayers(source, destination, blend_mode, filters);
+		return;
+	}
+
+	if (!pending_outside || !scissor.Valid() || viewport.x <= 0 || viewport.y <= 0)
+	{
+		pending_outside = false;
+		RenderInterface_GL3::CompositeLayers(source, destination, blend_mode, filters);
+		return;
+	}
+
+	pending_outside = false;
+
+	// The element's rect is the hole; everything else takes the blurred backdrop. Four bands,
+	// because a scissor is a rectangle and there is no way to cut one out of another.
+	//
+	//   +-----------------------+
+	//   |         above         |
+	//   +------+--------+-------+
+	//   | left |  hole  | right |
+	//   +------+--------+-------+
+	//   |         below         |
+	//   +-----------------------+
+	//
+	const Rml::Rectanglei hole = scissor;
+	const int right = hole.Right();
+	const int bottom = hole.Bottom();
+
+	const Rml::Rectanglei bands[4] = {
+		Rml::Rectanglei::FromPositionSize({0, 0}, {viewport.x, hole.Top()}),
+		Rml::Rectanglei::FromPositionSize({0, bottom}, {viewport.x, viewport.y - bottom}),
+		Rml::Rectanglei::FromPositionSize({0, hole.Top()}, {hole.Left(), hole.Height()}),
+		Rml::Rectanglei::FromPositionSize({right, hole.Top()}, {viewport.x - right, hole.Height()}),
+	};
+
+	for (const Rml::Rectanglei& band : bands)
+	{
+		if (band.Width() <= 0 || band.Height() <= 0)
+			continue;
+
+		RenderInterface_GL3::SetScissorRegion(band);
+		RenderInterface_GL3::CompositeLayers(source, destination, blend_mode, filters);
+	}
+
+	// Left as RmlUi set it, so whatever draws next is clipped to what it expects.
+	RenderInterface_GL3::SetScissorRegion(hole);
 }
 
 void PreviewRenderInterface::ClearPlaceholders()

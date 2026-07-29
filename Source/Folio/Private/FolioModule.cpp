@@ -2,6 +2,7 @@
 
 #include "FolioInsights.h"
 
+#include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
 #include "FolioFileInterface.h"
@@ -83,6 +84,7 @@ void FFolioModule::StartupModule()
 	// creates during it. Markup is unchanged; the effects stop being baked into glyph textures and
 	// start being resolved from the field.
 	Folio::RegisterFolioFontEffects();
+	Folio::RegisterFolioFilters();
 
 	RegisterFonts();
 
@@ -109,6 +111,7 @@ void FFolioModule::ShutdownModule()
 
 	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
 	Folio::ReleaseFolioFontEffects();
+	Folio::ReleaseFolioFilters();
 
 	RenderInterface.Reset();
 	Folio::SetHost(nullptr);

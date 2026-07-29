@@ -1,0 +1,58 @@
+<rml>
+<head>
+	<title>outside blur</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			The modal scrim. backdrop-filter: blur softens what is behind an element and nothing
+			else, which is right for a frosted panel and useless for a dialog: the screen behind
+			should go soft and the dialog itself stay sharp.
+
+			outside-blur is Folio's, and inverts the region: the element's border box becomes a
+			hole and everything else is blurred. The hole is a rectangle, so a rounded dialog
+			still cuts a square one.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 16dp;
+			color: #e8e8f0;
+			background-color: #16161c;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		/* Something with detail behind it, so a blur is unmistakable. */
+		.wallpaper
+		{
+			position: absolute;
+			left: 0; top: 0; width: 100%; height: 100%;
+			decorator: repeating-linear-gradient(45deg, #2b6cb0, #2b6cb0 20dp, #f0c674 20dp, #f0c674 40dp);
+		}
+
+		.dialog
+		{
+			position: absolute;
+			left: 25%;
+			top: 25%;
+			width: 50%;
+			height: 50%;
+			padding: 20dp;
+			box-sizing: border-box;
+			background-color: #1f1f28;
+			border: 1dp #f0c674;
+			backdrop-filter: outside-blur(8dp);
+		}
+
+		h1 { font-size: 22dp; color: #f0c674; margin-bottom: 8dp; }
+	</style>
+</head>
+<body>
+	<div class="wallpaper"/>
+	<div class="dialog">
+		<h1>Are you sure?</h1>
+		<p>Everything outside this box is blurred. This box is not.</p>
+	</div>
+</body>
+</rml>

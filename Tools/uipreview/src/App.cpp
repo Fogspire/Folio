@@ -338,9 +338,12 @@ bool App::LoadFonts()
 		}
 		std::sort(found.begin(), found.end());
 
+		// The first one is registered as a fallback, so a document naming a family nobody
+		// registered still renders. Rendering nothing at all is the worse failure: it looks like
+		// a layout bug and says nothing about the cause.
 		for (const fs::path& font : found)
 		{
-			if (Rml::LoadFontFace(ToForwardSlashes(font.string())))
+			if (Rml::LoadFontFace(ToForwardSlashes(font.string()), loaded == 0))
 				++loaded;
 		}
 		if (loaded > 0 && options.verbose)

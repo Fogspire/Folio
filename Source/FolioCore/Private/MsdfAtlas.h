@@ -5,6 +5,10 @@
 
 #include "MsdfGlyphGenerator.h"
 
+#include <RmlUi/Core/CallbackTexture.h>
+#include <RmlUi/Core/Texture.h>
+
+#include <memory>
 #include <vector>
 
 namespace Folio
@@ -33,6 +37,10 @@ namespace Folio
 		int GetPageSize() const { return PageSize; }
 		const FMsdfAtlasParams& GetParams() const { return Params; }
 
+		int GetGlyphCount() const { return PackedGlyphs; }
+		/// Bytes the pages occupy on the GPU, which is what the memory counter reports.
+		std::size_t GetByteSize() const;
+
 	private:
 		/// One horizontal run of the skyline: everything at or right of X, up to the next node, is
 		/// occupied to height Y.
@@ -57,6 +65,39 @@ namespace Folio
 		IMsdfTextureSink& Sink;
 		FMsdfAtlasParams Params;
 		int PageSize = 1024;
+		int PackedGlyphs = 0;
 		std::vector<FPage> Pages;
+	};
+
+	/// The atlas every face shares, plus the RmlUi textures for its pages.
+	///
+	/// Pages are shared rather than owned per face because a page costs its full area the moment
+	/// it exists - a 1024 square RGBA page is four megabytes whether it holds twelve glyphs or a
+	/// thousand. Giving each face its own meant a weight sweep across one family cost tens of
+	/// megabytes to store a few hundred glyphs. Nothing about a field says which face produced
+	/// it, so they pack together happily.
+	class FMsdfAtlasSet
+	{
+	public:
+		FMsdfAtlasSet(IMsdfTextureSink& InSink, const FMsdfAtlasParams& InParams, int InPageSize)
+			: Atlas(InSink, InParams, InPageSize)
+		{
+		}
+
+		FMsdfAtlas& GetAtlas() { return Atlas; }
+		const FMsdfAtlas& GetAtlas() const { return Atlas; }
+
+		Rml::Texture GetPageTexture(Rml::RenderManager& RenderManager, int Page);
+
+		/// Drops the RmlUi-side textures while keeping the pages and the fields in them. RmlUi
+		/// checks at shutdown that no callback texture outlived it, so these cannot simply be left
+		/// to the destructor.
+		void ReleaseTextures() { PageTextures.clear(); }
+
+	private:
+		FMsdfAtlas Atlas;
+		/// One per page. A CallbackTextureSource rather than a CallbackTexture because a process
+		/// can have more than one render manager, and each needs its own resource.
+		std::vector<std::unique_ptr<Rml::CallbackTextureSource>> PageTextures;
 	};
 }

@@ -78,6 +78,8 @@ namespace Folio
 		int PageSize = 1024;
 
 		FT_Library Library = nullptr;
+		/// One atlas for every face. See FMsdfAtlasSet for why they are not per face.
+		std::unique_ptr<FMsdfAtlasSet> Atlas;
 		std::vector<std::unique_ptr<FFaceEntry>> Faces;
 		std::vector<std::unique_ptr<FHandle>> Handles;
 
@@ -155,6 +157,7 @@ namespace Folio
 	{
 		Impl->Params = InParams;
 		Impl->PageSize = InPageSize;
+		Impl->Atlas = std::make_unique<FMsdfAtlasSet>(InSink, InParams, InPageSize);
 
 		if (FT_Init_FreeType(&Impl->Library) != 0)
 		{
@@ -168,6 +171,7 @@ namespace Folio
 		// Faces hold FT_Face objects, so they must go before the library that owns them.
 		Impl->Handles.clear();
 		Impl->Faces.clear();
+		Impl->Atlas.reset();
 
 		if (Impl->Library != nullptr)
 		{
@@ -187,7 +191,7 @@ namespace Folio
 			}
 		}
 
-		auto Face = std::make_unique<FFolioFontFace>(Impl->Library, Impl->Sink, Impl->Params, Impl->PageSize);
+		auto Face = std::make_unique<FFolioFontFace>(Impl->Library, *Impl->Atlas);
 		if (!Face->Load(Entry.Data, Entry.FaceIndex, Coords))
 		{
 			return nullptr;
@@ -331,7 +335,7 @@ namespace Folio
 		// The family and style come from the file when the caller did not name them, which is the
 		// path RmlUi takes for Rml::LoadFontFace. Reading them needs a face, so a throwaway one is
 		// opened before the entry is registered.
-		FFolioFontFace Probe(Impl->Library, Impl->Sink, Impl->Params, Impl->PageSize);
+		FFolioFontFace Probe(Impl->Library, *Impl->Atlas);
 		if (!Probe.Load(Data, FaceIndex, {}))
 		{
 			Rml::Log::Message(Rml::Log::LT_ERROR, "FolioMsdf: %s is not a scalable font face", FileName.c_str());
@@ -655,19 +659,17 @@ Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, Bo
 		// The textures cannot stay, though. Rml::Shutdown calls this and then asserts that no
 		// callback texture survived it, so holding on to them reports a leak and warns about
 		// memory corruption on the way out.
-		for (const auto& Entry : Impl->Faces)
-		{
-			for (const auto& Instance : Entry->Instances)
-			{
-				Instance.second->ReleaseTextures();
-			}
-		}
+		Impl->Atlas->ReleaseTextures();
 	}
 
 	std::string FFolioFontEngine::GetReport() const
 	{
+		const FMsdfAtlas& Atlas = Impl->Atlas->GetAtlas();
 		std::string Report = "engine=FolioMsdf faces=" + std::to_string(Impl->Faces.size())
-			+ " handles=" + std::to_string(Impl->Handles.size());
+			+ " handles=" + std::to_string(Impl->Handles.size())
+			+ " pages=" + std::to_string(Atlas.GetPageCount())
+			+ " atlas=" + std::to_string(Atlas.GetByteSize() / (1024 * 1024)) + "MB"
+			+ " glyphs=" + std::to_string(Atlas.GetGlyphCount());
 
 		for (const auto& Entry : Impl->Faces)
 		{
@@ -678,8 +680,7 @@ Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, Bo
 					+ " style=" + (Entry->Style == Rml::Style::FontStyle::Italic ? "italic" : "normal")
 					+ " variable=" + (Face.IsVariable() ? "yes" : "no")
 					+ " axes=" + (Instance.first.empty() ? Rml::String("default") : Instance.first)
-					+ " glyphs=" + std::to_string(Face.GetGlyphCount())
-					+ " pages=" + std::to_string(Face.GetPageCount());
+					+ " glyphs=" + std::to_string(Face.GetGlyphCount());
 			}
 		}
 

@@ -27,11 +27,9 @@ namespace Folio
 		}
 	}
 
-	FFolioFontFace::FFolioFontFace(FT_Library InLibrary, IMsdfTextureSink& InSink,
-		const FMsdfAtlasParams& InParams, int InPageSize)
+	FFolioFontFace::FFolioFontFace(FT_Library InLibrary, FMsdfAtlasSet& InAtlas)
 		: Library(InLibrary)
-		, Sink(InSink)
-		, Atlas(InSink, InParams, InPageSize)
+		, Atlas(InAtlas)
 	{
 	}
 
@@ -193,13 +191,13 @@ namespace Folio
 		GetGlyphAdvanceEm(Face, GlyphIndex, AdvanceEm);
 
 		FMsdfGlyphBitmap Bitmap;
-		if (!GenerateGlyphMsdf(Face, GlyphIndex, Atlas.GetParams(), Bitmap))
+		if (!GenerateGlyphMsdf(Face, GlyphIndex, Atlas.GetAtlas().GetParams(), Bitmap))
 		{
 			return nullptr;
 		}
 
 		FGlyphBox Box;
-		if (!Atlas.Add(Bitmap, AdvanceEm, Box))
+		if (!Atlas.GetAtlas().Add(Bitmap, AdvanceEm, Box))
 		{
 			return nullptr;
 		}
@@ -226,35 +224,6 @@ namespace Folio
 
 	Rml::Texture FFolioFontFace::GetPageTexture(Rml::RenderManager& RenderManager, int Page)
 	{
-		if (Page < 0 || Page >= Atlas.GetPageCount())
-		{
-			return Rml::Texture();
-		}
-
-		// Built here rather than when the page is allocated, so that ReleaseTextures can drop them
-		// without losing the pages themselves. RmlUi releases font resources during shutdown and
-		// then checks that no callback texture outlived it.
-		while (int(PageTextures.size()) <= Page)
-		{
-			const int Index = int(PageTextures.size());
-			const FMsdfHandle Handle = Atlas.GetPageHandle(Index);
-			const int Size = Atlas.GetPageSize();
-
-			// The handle is the renderer's own texture handle, so handing it straight to RmlUi is
-			// what lets the render interface recognise this as a field rather than an image.
-			PageTextures.push_back(std::make_unique<Rml::CallbackTextureSource>(
-				[Handle, Size](const Rml::CallbackTextureInterface& TextureInterface) -> bool
-				{
-					TextureInterface.SetTextureHandle(Rml::TextureHandle(Handle), Rml::Vector2i(Size, Size));
-					return true;
-				}));
-		}
-
-		return PageTextures[std::size_t(Page)]->GetTexture(RenderManager);
-	}
-
-	void FFolioFontFace::ReleaseTextures()
-	{
-		PageTextures.clear();
+		return Atlas.GetPageTexture(RenderManager, Page);
 	}
 }

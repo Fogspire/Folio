@@ -1,5 +1,7 @@
 #include "MsdfAtlas.h"
 
+#include <RmlUi/Core/RenderManager.h>
+
 namespace Folio
 {
 	namespace
@@ -151,6 +153,7 @@ namespace Folio
 		if (Bitmap.bEmpty || Bitmap.Width <= 0 || Bitmap.Height <= 0)
 		{
 			OutBox.bEmpty = true;
+			++PackedGlyphs;
 			return true;
 		}
 
@@ -206,6 +209,40 @@ namespace Folio
 		OutBox.AtlasBottom = float(Y + Bitmap.Height) - 0.5f;
 
 		OutBox.Page = static_cast<std::uint16_t>(PageIndex);
+		++PackedGlyphs;
 		return true;
+	}
+
+	std::size_t FMsdfAtlas::GetByteSize() const
+	{
+		return Pages.size() * std::size_t(PageSize) * std::size_t(PageSize) * 4;
+	}
+
+	Rml::Texture FMsdfAtlasSet::GetPageTexture(Rml::RenderManager& RenderManager, int Page)
+	{
+		if (Page < 0 || Page >= Atlas.GetPageCount())
+		{
+			return Rml::Texture();
+		}
+
+		// Built here rather than when the page is allocated, so ReleaseTextures can drop them
+		// without losing the pages themselves.
+		while (int(PageTextures.size()) <= Page)
+		{
+			const int Index = int(PageTextures.size());
+			const FMsdfHandle Handle = Atlas.GetPageHandle(Index);
+			const int Size = Atlas.GetPageSize();
+
+			// The handle is the renderer's own texture handle, so handing it straight to RmlUi is
+			// what lets the render interface recognise this as a field rather than an image.
+			PageTextures.push_back(std::make_unique<Rml::CallbackTextureSource>(
+				[Handle, Size](const Rml::CallbackTextureInterface& TextureInterface) -> bool
+				{
+					TextureInterface.SetTextureHandle(Rml::TextureHandle(Handle), Rml::Vector2i(Size, Size));
+					return true;
+				}));
+		}
+
+		return PageTextures[std::size_t(Page)]->GetTexture(RenderManager);
 	}
 }

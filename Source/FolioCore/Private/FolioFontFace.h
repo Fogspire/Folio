@@ -42,7 +42,7 @@ namespace Folio
 	class FFolioFontFace
 	{
 	public:
-		FFolioFontFace(FT_Library Library, IMsdfTextureSink& InSink, const FMsdfAtlasParams& InParams, int InPageSize);
+		FFolioFontFace(FT_Library Library, FMsdfAtlasSet& InAtlas);
 		~FFolioFontFace();
 
 		FFolioFontFace(const FFolioFontFace&) = delete;
@@ -70,18 +70,13 @@ namespace Folio
 
 		Rml::Texture GetPageTexture(Rml::RenderManager& RenderManager, int Page);
 
-		/// Drops the RmlUi-side textures while keeping the pages and the fields in them. RmlUi
-		/// checks at shutdown that no callback texture outlived it, so these cannot simply be left
-		/// to the destructor.
-		void ReleaseTextures();
-
 		/// Bumped whenever a glyph is appended. RmlUi rebuilds cached text geometry when the
 		/// version it generated against no longer matches.
 		int GetVersion() const { return Version; }
 
-		const FMsdfAtlasParams& GetParams() const { return Atlas.GetParams(); }
+		const FMsdfAtlasParams& GetParams() const { return Atlas.GetAtlas().GetParams(); }
+		/// Glyphs this face contributed. The pages themselves are shared with every other face.
 		int GetGlyphCount() const { return int(Glyphs.size()); }
-		int GetPageCount() const { return Atlas.GetPageCount(); }
 
 		/// Face metrics in em, so a handle only has to multiply by its size.
 		float GetAscentEm() const { return AscentEm; }
@@ -106,13 +101,9 @@ namespace Folio
 		std::vector<FVariationAxis> Axes;
 		FVariationCoords Coords;
 
-		IMsdfTextureSink& Sink;
-		FMsdfAtlas Atlas;
+		FMsdfAtlasSet& Atlas;
 
 		std::unordered_map<unsigned int, FGlyphBox> Glyphs;
-		/// One per atlas page. A CallbackTextureSource rather than a CallbackTexture because a
-		/// process can have more than one render manager, and each needs its own resource.
-		std::vector<std::unique_ptr<Rml::CallbackTextureSource>> PageTextures;
 
 		int Version = 0;
 		bool bHasEllipsis = false;

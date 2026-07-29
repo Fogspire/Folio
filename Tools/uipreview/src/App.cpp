@@ -141,7 +141,10 @@ bool App::Initialise()
 	backend_options.window_title = "uipreview";
 	backend_options.width = options.width;
 	backend_options.height = options.height;
-	backend_options.visible = options.screenshot.empty() && options.keys.empty() && !options.dump_tree;
+	// A run that renders a fixed number of frames and exits has nothing to show anyone, and a
+	// window that appears for a moment steals focus from whatever the person running the harness
+	// is actually doing. IsOneShot covers every such mode, so a new one cannot be forgotten here.
+	backend_options.visible = !options.IsOneShot();
 	backend_options.vsync = backend_options.visible;
 	backend_options.resizable = backend_options.visible;
 

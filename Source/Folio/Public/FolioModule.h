@@ -116,7 +116,9 @@ private:
 	FSimpleMulticastDelegate PreShutdownDelegate;
 	FOnUiSound UiSoundDelegate;
 	FOnInputDevice InputDeviceDelegate;
-	Folio::EInputDevice InputDevice = Folio::EInputDevice::Unknown;
+	// Keyboard rather than Unknown: the body classes already say kbm before any input arrives, so
+	// reporting "unknown" through the data model only ever contradicts them.
+	Folio::EInputDevice InputDevice = Folio::EInputDevice::Keyboard;
 
 	FString ContentRoot;
 	FString PluginRoot;

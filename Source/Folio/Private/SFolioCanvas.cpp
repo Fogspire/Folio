@@ -12,11 +12,22 @@
 
 #include <RmlUi/Core/MeshUtilities.h>
 
+namespace
+{
+	TArray<SFolioCanvas*> LiveCanvases;
+}
+
+const TArray<SFolioCanvas*>& SFolioCanvas::GetLiveCanvases()
+{
+	return LiveCanvases;
+}
+
 void SFolioCanvas::Construct(const FArguments& InArgs)
 {
 	DesiredSize = InArgs._DesiredSize;
 	PendingDocumentPath = InArgs._DocumentPath;
 
+	LiveCanvases.AddUnique(this);
 	SetCanTick(true);
 
 	if (!FFolioModule::Get().IsRmlInitialised())
@@ -49,7 +60,23 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 
 SFolioCanvas::~SFolioCanvas()
 {
+	LiveCanvases.RemoveSingleSwap(this);
 	DestroyContext();
+}
+
+bool SFolioCanvas::RouteGamepadKeyDown(const FKeyEvent& KeyEvent)
+{
+	return OnKeyDown(FGeometry(), KeyEvent).IsEventHandled();
+}
+
+bool SFolioCanvas::RouteGamepadKeyUp(const FKeyEvent& KeyEvent)
+{
+	return OnKeyUp(FGeometry(), KeyEvent).IsEventHandled();
+}
+
+bool SFolioCanvas::RouteGamepadAnalog(const FAnalogInputEvent& AnalogEvent)
+{
+	return OnAnalogValueChanged(FGeometry(), AnalogEvent).IsEventHandled();
 }
 
 void SFolioCanvas::DestroyContext()

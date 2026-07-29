@@ -75,6 +75,19 @@ public:
 	/** What the player last touched. Documents swap button glyphs on it. */
 	Folio::EInputDevice GetLastInputDevice() const;
 
+	/** Every live canvas, so the input pre-processor can tell whether the focused widget is one. */
+	static const TArray<SFolioCanvas*>& GetLiveCanvases();
+
+	/**
+	 * Gamepad entry points for the input pre-processor, which has an event but no geometry.
+	 *
+	 * Safe because key and analog handling never consults the geometry: a key means the same thing
+	 * wherever the widget sits. Only the pointer handlers need it, and none of those come this way.
+	 */
+	bool RouteGamepadKeyDown(const FKeyEvent& KeyEvent);
+	bool RouteGamepadKeyUp(const FKeyEvent& KeyEvent);
+	bool RouteGamepadAnalog(const FAnalogInputEvent& AnalogEvent);
+
 private:
 	/** Sends a navigation key both ways, since RmlUi expects a press to be released. */
 	bool SendNavigation(Rml::Input::KeyIdentifier Key, int32 Modifiers);

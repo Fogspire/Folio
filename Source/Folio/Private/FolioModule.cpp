@@ -8,6 +8,7 @@
 #include "FolioFileInterface.h"
 #include "FolioCoreHost.h"
 #include "FolioFontCache.h"
+#include "FolioInputPreprocessor.h"
 #include "FolioNavigation.h"
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
@@ -89,11 +90,16 @@ void FFolioModule::StartupModule()
 
 	RegisterFonts();
 
+	// Ahead of CommonUI's, so a focused document actually receives the gamepad.
+	FFolioInputPreprocessor::Register();
+
 	UE_LOG(LogFolio, Log, TEXT("Folio ready. Content root: %s, plugin root: %s"), *ContentRoot, *PluginRoot);
 }
 
 void FFolioModule::ShutdownModule()
 {
+	FFolioInputPreprocessor::Unregister();
+
 	// Anything holding a context drops it while RmlUi is still alive to be told about it.
 	PreShutdownDelegate.Broadcast();
 	PreShutdownDelegate.Clear();

@@ -1,0 +1,69 @@
+<rml>
+<head>
+	<title>shader decorator</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			decorator: shader("...") - the effects RCSS has no syntax for.
+
+			RmlUi passes the string through untouched, which is where a backend would run a
+			fragment shader of its own. Slate has no seam for that, and none of these needs one:
+			each is a pure function of position over the element's box, so it is evaluated once
+			into a small texture. Both renderers therefore draw the same picture from the same
+			code, which a pair of hand-written shaders would not.
+
+			additive and sweep write zero alpha. RmlUi composites premultiplied - src + dst * (1-a)
+			- so a colour with no alpha adds to what is under it. No blend state to change, and
+			that is the whole reason additive was said to be out of reach.
+
+			Note the order: the shader is listed FIRST and the gradient second. Comma separated
+			decorators paint in reverse source order, so the first named ends up on top, exactly
+			as CSS background-image layers do. Listed the other way round the gradient covers the
+			effect and nothing appears to happen.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 14dp;
+			color: #e8e8f0;
+			background-color: #0d0d12;
+			padding: 20dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		.label { font-size: 12dp; color: #8a8a99; margin-bottom: 4dp; }
+		.row { margin-bottom: 16dp; }
+
+		/* Something with detail underneath, so an additive pass is unmistakable. */
+		.plate
+		{
+			height: 90dp;
+			border-radius: 8dp;
+			decorator: linear-gradient(90deg, #24405e, #6f3b52);
+		}
+
+		.flash   { decorator: shader("additive #ff5028c0"), linear-gradient(90deg, #24405e, #6f3b52); }
+		.crt     { decorator: shader("scanlines #7fe8ff90 0.16 0.5"), linear-gradient(90deg, #24405e, #6f3b52); }
+		.sheen   { decorator: shader("sweep #ffffffb0 0.35 0.3 15"), linear-gradient(90deg, #24405e, #6f3b52); }
+		.cooling { decorator: shader("sweep #40ffa0ff 0.7 0.5 90"), linear-gradient(90deg, #24405e, #6f3b52); }
+	</style>
+</head>
+<body>
+	<div class="label">no shader</div>
+	<div class="row plate"></div>
+
+	<div class="label">shader("additive #ff5028c0") - a hit flash</div>
+	<div class="row plate flash"></div>
+
+	<div class="label">shader("scanlines #7fe8ff90 0.16 0.5")</div>
+	<div class="row plate crt"></div>
+
+	<div class="label">shader("sweep #ffffffb0 0.35 0.3 15") - sheen</div>
+	<div class="row plate sheen"></div>
+
+	<div class="label">shader("sweep #40ffa0ff 0.7 0.5 90") - a vertical band</div>
+	<div class="row plate cooling"></div>
+</body>
+</rml>

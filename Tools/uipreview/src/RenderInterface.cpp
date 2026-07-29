@@ -520,6 +520,82 @@ void PreviewRenderInterface::CompositeLayers(Rml::LayerHandle source, Rml::Layer
 	RenderInterface_GL3::SetScissorRegion(hole);
 }
 
+Rml::CompiledShaderHandle PreviewRenderInterface::CompileShader(const Rml::String& name,
+	const Rml::Dictionary& parameters)
+{
+	// `decorator: shader("...")` - the effects RCSS has no syntax for. Rasterised rather than
+	// shaded, so both renderers produce the same picture from the same code.
+	if (name != "shader")
+		return RenderInterface_GL3::CompileShader(name, parameters);
+
+	Rml::String value;
+	if (const auto it = parameters.find("value"); it != parameters.end())
+		it->second.GetInto(value);
+
+	Rml::Vector2f dimensions(1.0f, 1.0f);
+	if (const auto it = parameters.find("dimensions"); it != parameters.end())
+		it->second.GetInto(dimensions);
+
+	Folio::FShaderEffect effect;
+	if (!Folio::ParseShaderEffect(value, effect))
+	{
+		diagnostics.Report(Severity::Warning, "W-SHADER-UNKNOWN",
+			"shader('" + value + "') is not one Folio knows; it renders as nothing. Try additive, "
+			"scanlines or sweep.");
+		return {};
+	}
+
+	int width = 1, height = 1;
+	Folio::SuggestShaderEffectSize(effect, int(dimensions.x), int(dimensions.y), width, height);
+
+	std::vector<unsigned char> rgba;
+	Folio::RasterizeShaderEffect(effect, width, height, rgba);
+
+	const Rml::TextureHandle texture = RenderInterface_GL3::GenerateTexture(
+		Rml::Span<const Rml::byte>(rgba.data(), rgba.size()), Rml::Vector2i(width, height));
+	if (!texture)
+		return {};
+
+	// Scanlines are one column stretched across the box, so the horizontal wrap has to repeat or
+	// the single texel smears; the vertical is the pattern itself and must tile.
+	glBindTexture(GL_TEXTURE_2D, (unsigned int)texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	const Rml::CompiledShaderHandle handle = next_shader_effect++;
+	shader_effects[handle] = ShaderEffect{effect, texture};
+	return handle;
+}
+
+void PreviewRenderInterface::RenderShader(Rml::CompiledShaderHandle shader,
+	Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation, Rml::TextureHandle texture)
+{
+	const auto found = shader_effects.find(shader);
+	if (found == shader_effects.end())
+	{
+		RenderInterface_GL3::RenderShader(shader, geometry, translation, texture);
+		return;
+	}
+
+	// The decorator's geometry carries normalised coordinates, so the baked texture stretches
+	// over the element and this is an ordinary textured draw.
+	RenderGeometry(geometry, translation, found->second.texture);
+}
+
+void PreviewRenderInterface::ReleaseShader(Rml::CompiledShaderHandle shader)
+{
+	const auto found = shader_effects.find(shader);
+	if (found == shader_effects.end())
+	{
+		RenderInterface_GL3::ReleaseShader(shader);
+		return;
+	}
+
+	RenderInterface_GL3::ReleaseTexture(found->second.texture);
+	shader_effects.erase(found);
+}
+
 unsigned int PreviewRenderInterface::ResolveFill(const std::string& path)
 {
 	const auto found = fill_textures.find(path);

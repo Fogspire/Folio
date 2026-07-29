@@ -6,6 +6,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioBlurShader.h"
 #include "FolioCore/MsdfSidecar.h"
+#include "FolioCore/FolioShaderEffects.h"
 #include "FolioFileInterface.h"
 #include "FolioModule.h"
 #include "HAL/PlatformFileManager.h"
@@ -1075,6 +1076,41 @@ void FFolioRenderInterface::ReleaseFilter(const Rml::CompiledFilterHandle Filter
 Rml::CompiledShaderHandle FFolioRenderInterface::CompileShader(const Rml::String& Name,
 	const Rml::Dictionary& Parameters)
 {
+	TUniquePtr<FShader> Shader = MakeUnique<FShader>();
+
+	// `decorator: shader("...")` - the effects RCSS has no syntax for. RmlUi hands the whole
+	// string through untouched, which is the seam a backend would run its own fragment shader in;
+	// these are rasterised instead, so both renderers produce the same picture.
+	if (Name == "shader")
+	{
+		Rml::String Value;
+		if (const auto It = Parameters.find("value"); It != Parameters.end())
+		{
+			It->second.GetInto(Value);
+		}
+
+		Rml::Vector2f Dimensions(1.0f, 1.0f);
+		if (const auto It = Parameters.find("dimensions"); It != Parameters.end())
+		{
+			It->second.GetInto(Dimensions);
+		}
+
+		if (!Folio::ParseShaderEffect(Value, Shader->Effect))
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("shader('%s') is not one Folio knows; it renders as nothing. Try additive, "
+					"scanlines or sweep."), *Folio::ToFString(Value));
+			return 0;
+		}
+
+		Shader->Dimensions = FIntPoint(FMath::Max(1, FMath::RoundToInt(Dimensions.x)),
+			FMath::Max(1, FMath::RoundToInt(Dimensions.y)));
+
+		const Rml::CompiledShaderHandle EffectHandle = NextHandle++;
+		Shaders.Add(EffectHandle, MoveTemp(Shader));
+		return EffectHandle;
+	}
+
 	Folio::FGradient Gradient;
 	if (!Folio::ParseGradient(Name, Parameters, Gradient))
 	{
@@ -1082,7 +1118,6 @@ Rml::CompiledShaderHandle FFolioRenderInterface::CompileShader(const Rml::String
 		return 0;
 	}
 
-	TUniquePtr<FShader> Shader = MakeUnique<FShader>();
 	Shader->Gradient = MoveTemp(Gradient);
 
 	const Rml::CompiledShaderHandle Handle = NextHandle++;
@@ -1130,6 +1165,51 @@ const FSlateResourceHandle* FFolioRenderInterface::GetGradientResource(const Rml
 	return Texture ? &Texture->Handle : nullptr;
 }
 
+const FSlateResourceHandle* FFolioRenderInterface::GetEffectResource(const Rml::CompiledShaderHandle Handle)
+{
+	const TUniquePtr<FShader>* Found = Shaders.Find(Handle);
+	if (!Found || !Found->IsValid())
+	{
+		return nullptr;
+	}
+
+	FShader& Shader = **Found;
+
+	int Width = 1, Height = 1;
+	Folio::SuggestShaderEffectSize(Shader.Effect, Shader.Dimensions.X, Shader.Dimensions.Y, Width, Height);
+	const FIntPoint Size(Width, Height);
+
+	if (const Rml::TextureHandle* Cached = Shader.Baked.Find(Size))
+	{
+		const FTexture* Entry = FindTexture(*Cached);
+		return Entry ? &Entry->Handle : nullptr;
+	}
+
+	std::vector<unsigned char> Rgba;
+	Folio::RasterizeShaderEffect(Shader.Effect, Width, Height, Rgba);
+
+	// The rasteriser writes RGBA and Slate wants BGRA. Both are premultiplied already.
+	TArray<uint8> Bgra;
+	Bgra.SetNumUninitialized(int32(Rgba.size()));
+	for (int32 Index = 0; Index + 3 < Bgra.Num(); Index += 4)
+	{
+		Bgra[Index + 0] = Rgba[std::size_t(Index) + 2];
+		Bgra[Index + 1] = Rgba[std::size_t(Index) + 1];
+		Bgra[Index + 2] = Rgba[std::size_t(Index) + 0];
+		Bgra[Index + 3] = Rgba[std::size_t(Index) + 3];
+	}
+
+	const Rml::TextureHandle Texture = RegisterPixels(Bgra.GetData(), Size);
+	if (!Texture)
+	{
+		return nullptr;
+	}
+
+	Shader.Baked.Add(Size, Texture);
+	const FTexture* Entry = FindTexture(Texture);
+	return Entry ? &Entry->Handle : nullptr;
+}
+
 void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation, Rml::TextureHandle)
 {
@@ -1140,6 +1220,19 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	}
 
 	const FCompiledGeometry& Compiled = **Found;
+
+	// A shader effect's geometry carries normalised coordinates rather than the gradient path's
+	// pixel offsets, so the texture stretches over the box and needs no rescaling.
+	if (const TUniquePtr<FShader>* Shading = Shaders.Find(Shader);
+		Shading && Shading->IsValid() && (*Shading)->Effect.IsValid())
+	{
+		if (const FSlateResourceHandle* Resource = GetEffectResource(Shader))
+		{
+			ApplyClipping();
+			DrawGeometry(Compiled, Translation, *Resource, FVector2f(1.0f, 1.0f));
+		}
+		return;
+	}
 
 	// The gradient's parameters are expressed in the element box's pixel space, and so are
 	// the geometry's texture coordinates. The box size is therefore the extent of those

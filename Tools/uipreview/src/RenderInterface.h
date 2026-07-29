@@ -2,6 +2,7 @@
 
 #include "MsdfProgram.h"
 
+#include "FolioCore/FolioShaderEffects.h"
 #include "FolioCore/MsdfTextureSink.h"
 
 #include "RmlUi_Renderer_GL3.h"
@@ -34,6 +35,12 @@ public:
 
 	/** Recognises Folio's own filter names; everything else goes to the base. */
 	Rml::CompiledFilterHandle CompileFilter(const Rml::String& name, const Rml::Dictionary& parameters) override;
+
+	/** Folio's own named effects; anything else is the base class's gradients. */
+	Rml::CompiledShaderHandle CompileShader(const Rml::String& name, const Rml::Dictionary& parameters) override;
+	void RenderShader(Rml::CompiledShaderHandle shader, Rml::CompiledGeometryHandle geometry,
+		Rml::Vector2f translation, Rml::TextureHandle texture) override;
+	void ReleaseShader(Rml::CompiledShaderHandle shader) override;
 	void ReleaseFilter(Rml::CompiledFilterHandle filter) override;
 	void CompositeLayers(Rml::LayerHandle source, Rml::LayerHandle destination, Rml::BlendMode blend_mode,
 		Rml::Span<const Rml::CompiledFilterHandle> filters) override;
@@ -121,6 +128,16 @@ private:
 
 	/** The GL texture for a fill pattern path, loaded on first use. Zero if it will not load. */
 	unsigned int ResolveFill(const std::string& path);
+
+	/** A rasterised shader effect, against the texture it was baked into. */
+	struct ShaderEffect {
+		Folio::FShaderEffect effect;
+		Rml::TextureHandle texture = {};
+	};
+
+	std::map<Rml::CompiledShaderHandle, ShaderEffect> shader_effects;
+	/** Well clear of the base class's handles, which are pointers into its own shader list. */
+	Rml::CompiledShaderHandle next_shader_effect = Rml::CompiledShaderHandle(1) << 48;
 
 	Rml::Rectanglei scissor = Rml::Rectanglei::MakeInvalid();
 	Rml::Vector2i viewport;

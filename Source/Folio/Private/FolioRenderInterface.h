@@ -1,6 +1,8 @@
 #pragma once
 
 #include "FolioGradient.h"
+
+#include "FolioCore/FolioShaderEffects.h"
 #include "FolioLayerStack.h"
 #include "FolioRmlUi.h"
 
@@ -240,9 +242,16 @@ private:
 	struct FShader
 	{
 		Folio::FGradient Gradient;
+		/** Set instead of the gradient for `decorator: shader(...)`. */
+		Folio::FShaderEffect Effect;
+		/** The element box, in pixels, as RmlUi reported it when the shader was compiled. */
+		FIntPoint Dimensions = FIntPoint(1, 1);
 		/** One baked texture per box size the gradient is asked for. */
 		TMap<FIntPoint, Rml::TextureHandle> Baked;
 	};
+
+	/** The texture for a shader effect, generated on first use. */
+	const FSlateResourceHandle* GetEffectResource(Rml::CompiledShaderHandle Shader);
 
 	/**
 	 * One distance-field page, and the material instance that resolves it.

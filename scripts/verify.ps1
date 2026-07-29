@@ -201,7 +201,8 @@ $Shots = @(
     @{ Doc = 'vector_stack.rml'; Size = '600x400';   Ratio = 1.0 },
     @{ Doc = 'outside_blur.rml'; Size = '700x460';   Ratio = 1.0 },
     @{ Doc = 'vector_strokes.rml'; Size = '620x700'; Ratio = 1.0 },
-    @{ Doc = 'textured_text.rml'; Size = '620x480';  Ratio = 1.0 }
+    @{ Doc = 'textured_text.rml'; Size = '620x480';  Ratio = 1.0 },
+    @{ Doc = 'shader_decorator.rml'; Size = '640x620'; Ratio = 1.0 }
 )
 
 foreach ($shot in $Shots) {

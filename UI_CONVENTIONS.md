@@ -214,8 +214,12 @@ produces no output.
 **`decorator` and `mask-image`** take: `image`, `ninepatch`, `tiled-horizontal`,
 `tiled-vertical`, `tiled-box`, `text`, `shader`, `gradient`, `horizontal-gradient`,
 `vertical-gradient`, `linear-gradient`, `repeating-linear-gradient`, `radial-gradient`,
-`repeating-radial-gradient`, `conic-gradient`, `repeating-conic-gradient`. Multiple,
-comma-separated, paint bottom-to-top in source order. `@decorator` names a reusable one.
+`repeating-radial-gradient`, `conic-gradient`, `repeating-conic-gradient`. `@decorator` names a
+reusable one.
+
+**Multiple decorators paint in reverse source order** - the first named is on top, exactly like
+CSS `background-image` layers. Written the intuitive way round, an effect listed after an opaque
+background is painted underneath it and appears to do nothing.
 
 **`filter` and `backdrop-filter`** take: `blur`, `drop-shadow`, `brightness`, `contrast`,
 `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate`.
@@ -234,6 +238,29 @@ rectangle.
 
 **`font-effect`** takes: `glow`, `outline`, `shadow`, `blur`, and Folio's own `fill-image`.
 These are the only way to get a text shadow; `text-shadow` does not exist.
+
+### The shader decorator
+
+`decorator: shader("...")` reaches the effects RCSS has no syntax for, additive blending first
+among them:
+
+```css
+.hit    { decorator: shader("additive #ff5028c0"), image(panel); }
+.crt    { decorator: shader("scanlines #7fe8ff90 0.16 0.5"), image(panel); }
+.sheen  { decorator: shader("sweep #ffffffb0 0.35 0.3 15"), image(panel); }
+```
+
+- `additive <colour>` - a flat wash that adds instead of covering. Hit flashes, charge glows.
+- `scanlines <colour> <period> <thickness>` - period and thickness as fractions of the box.
+- `sweep <colour> <position> <width> <angle>` - a soft band across the box, angle in degrees.
+
+`additive` and `sweep` add rather than cover. There is no blend state involved: RmlUi composites
+premultiplied, so a colour written with zero alpha adds to what is under it, and that works
+identically in both renderers.
+
+Each is evaluated into a small texture rather than run as a fragment shader, because Slate has no
+seam for one through `MakeCustomVerts` and none of these needs it. The consequence is that the
+set is fixed - a name Folio does not know warns once and draws nothing.
 
 ### Renderer support
 
@@ -256,9 +283,7 @@ A surface drawn through a layer lands about 3/255 darker than the same colour dr
 from the 8-bit sRGB round trip through the render target. Visible only side by side, and not
 worth a wider target format.
 
-A custom shader decorator for effects RCSS cannot reach — additive and screen blending, sweeps,
-dissolves, scanlines — is **planned but not implemented**. `CompileShader` currently serves the
-gradient decorators and nothing else. Do not author against it.
+`decorator: shader(...)` reaches additive blending, scanlines and sweeps. See §6.
 
 ### `@media` features
 

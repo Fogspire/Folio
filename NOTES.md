@@ -78,7 +78,7 @@ mask paths, so it comes with them.
 | `box-shadow` | Done |
 | Text, font effects, vector sprites | Done. Distance fields through a UI-domain material |
 | Other filters, `mask-image` | Accepted and ignored. The layer machinery is there; only the shaders are missing |
-| Custom shader decorator | Not started |
+| `decorator: shader(...)` | Done. additive, scanlines and sweep, rasterised rather than shaded |
 
 ### box-shadow, and why the layer path draws with RHI rather than FCanvas
 
@@ -786,3 +786,32 @@ document a few seconds to load its stylesheet, generate its glyphs and draw.
 
 Verified with `ui/examples/panel.rml`: borders, radii, drop shadows, a vertical gradient, a
 button and distance-field text, all in a running game, composited in the right place.
+
+
+## Decorators paint in reverse source order
+
+`decorator: linear-gradient(...), shader("additive #ff5028")` draws nothing you can see. Swap the
+two and the effect appears. Comma separated decorators are painted **last to first**, so the one
+named first ends up on top - the same way CSS `background-image` layers stack, and the opposite
+of the reading that feels natural.
+
+It cost a while on the shader decorator, because "an effect listed after the background does
+nothing" looks exactly like "the effect is not implemented". `UI_CONVENTIONS.md` said the wrong
+thing about this and now says the right one.
+
+## The shader decorator, and why nothing is shaded
+
+`decorator: shader("...")` is RmlUi's seam for a backend's own fragment shader: the string is
+passed through untouched to `CompileShader`. Slate has no equivalent seam through
+`MakeCustomVerts`, and none of the effects wanted here needs one - each is a pure function of
+position over the element's box. So they are evaluated once into a small texture, in FolioCore,
+and both renderers draw the same picture from the same code. A pair of hand-written shaders would
+have drifted.
+
+**Additive blending needs no blend state at all.** RmlUi composites premultiplied, `src + dst *
+(1 - a)`, so a colour written with zero alpha adds to what is underneath. That was the thing the
+brief called unreachable from RCSS, and it turns out to cost one line in the rasteriser.
+
+The trade is that the set is fixed: `additive`, `scanlines`, `sweep`. A name Folio does not know
+warns once and draws nothing, rather than pretending. Adding another is a function in
+`FolioShaderEffects.cpp` and nothing else - no shader, no material, no per-renderer work.

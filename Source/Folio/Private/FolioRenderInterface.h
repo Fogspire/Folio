@@ -141,6 +141,26 @@ private:
 	/** Hands a saved layer to RmlUi as an ordinary texture. */
 	Rml::TextureHandle RegisterRenderTarget(class UTextureRenderTarget2D* Target);
 
+	/**
+	 * Draws the bottom layer into Slate, which is what sits below it.
+	 *
+	 * RmlUi's stack always has one more layer than the backend pushes: the one it composites the
+	 * first PushLayer into is the screen. Without this a filter at the top of a document resolves
+	 * correctly and is then dropped, so the element and everything inside it renders as nothing.
+	 */
+	void CompositeLayerToSlate(float BlurSigma);
+
+	/** A resolved layer waiting for Slate to read it, which it does at the end of the frame. */
+	struct FLayerComposite
+	{
+		TStrongObjectPtr<class UTextureRenderTarget2D> Target;
+		FSlateBrush Brush;
+		FSlateResourceHandle Handle;
+	};
+
+	/** Held for the frame, because Slate reads the textures after the last draw call is issued. */
+	TArray<FLayerComposite> LayerComposites;
+
 	/** The 1x1 white texture itself, for the layer path, which draws without Slate. */
 	UTexture2D* GetWhiteTexture();
 
@@ -187,9 +207,15 @@ private:
 		FSlateResourceHandle Handle;
 	};
 
+	/** The binding for a handle, with no material built. Null if the handle is not a field page. */
+	FMsdfBinding* FindMsdfBinding(Rml::TextureHandle Handle);
+
 	/** Builds the material instance for a binding on first draw, so a page that is never drawn
 	    costs nothing. Null if the material asset is missing. */
 	FMsdfBinding* ResolveMsdfBinding(Rml::TextureHandle Handle);
+
+	/** Packs a binding into the layer shader's MsdfField and MsdfEffect. */
+	static void PackMsdfParameters(const FMsdfBinding& Binding, FVector4f& OutField, FVector4f& OutEffect);
 
 	TMap<Rml::TextureHandle, TUniquePtr<FMsdfBinding>> MsdfBindings;
 	/** Loaded once on the first field page. */

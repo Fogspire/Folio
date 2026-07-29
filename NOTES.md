@@ -80,7 +80,26 @@ mask paths, so it comes with them.
 
 ### box-shadow, and why the layer path draws with RHI rather than FCanvas
 
-It works. Getting there turned on one thing: **an outer box-shadow must not paint inside the
+**It does not work in Unreal, and the claim here that it did was wrong.** Measured 2026-07-29:
+a layer records its draws correctly - a filtered element hands the stack one geometry draw, two
+field draws and 224 vertices - and `ReadPixels` on the resolved target then returns 702000
+pixels of zero. The replay pass writes nothing at all, silently, with no RHI validation error.
+So every effect built on a layer (outer box-shadow, `filter`, `backdrop-filter`, `mask-image`)
+renders as nothing: a dialog with `box-shadow: #000000a5 0dp 14dp 40dp` measures flat
+`(12,12,16)` background right up to its own edge.
+
+`ERDGPassFlags::NeverCull` was the obvious suspect and is not the cause - it changes nothing.
+Next candidates, untested: the vertex declaration global not being initialised when the PSO is
+built, the volatile vertex/index buffers, and `RegisterExternalTexture` against
+`GetRenderTargetTexture()` rather than an extracted pooled target.
+
+The evidence that this "worked" was a panel measuring its correct colour after the inverse clip
+mask went in. That reading is equally consistent with the shadow not drawing at all, which is
+what was actually happening. **A number that matches the expectation is not proof the feature
+works when "draws nothing" produces the same number.** The uipreview GL path is unaffected and
+does render these correctly, which is why the two renderers disagree.
+
+The design below is still the right one, and the reasoning that led to it stands: **an outer box-shadow must not paint inside the
 element it belongs to**, and RmlUi says so with `ClipMaskOperation::SetInverse` - "everywhere
 except this shape". A clipping rectangle cannot express a complement, and `FCanvas` exposes no
 stencil state, so the layer path draws with RHI: recorded on the game thread as RmlUi issues
@@ -402,3 +421,21 @@ links, so `freetype.lib` arrives with 27 unresolved `png_*` and `inflate*` symbo
 `RMLUI_FONT_ENGINE` is kept as a build parameter rather than hardcoded, because Phase 3 may
 have to set it to `none` and supply a UE-backed font engine to avoid colliding with UE's own
 copy of FreeType (`Engine/Source/ThirdParty/FreeType2`).
+
+## Live Coding cannot introduce a global shader type
+
+Adding `FFolioUIMsdfPS` and hot-patching it in killed the editor on the spot:
+
+```
+Assertion failed: !AreShaderTypesInitialized() [Shader.cpp:315]
+Shader type was loaded too late, use ELoadingPhase::PostConfigInit on your module
+```
+
+The patch DLL links fine and the process dies while loading it, so there is nothing to read
+except the assert. Global shader types are registered from static initialisers and the engine
+seals that list long before a patch arrives; the advice in the message does not apply, because
+the module already loads early enough on a normal start.
+
+Editing the body of an existing shader is fine - shaders compile at runtime and the editor
+picks up a changed `.usf` on its own. Adding, removing or renaming a `IMPLEMENT_GLOBAL_SHADER`
+needs the editor closed and a full build.

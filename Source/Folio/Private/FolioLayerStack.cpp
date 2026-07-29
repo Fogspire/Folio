@@ -106,15 +106,29 @@ void FFolioLayerStack::Pop()
 }
 
 void FFolioLayerStack::Convert(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-	const FVector2f Offset, FDraw& OutDraw)
+	const FVector2f Offset, const bool bUnpremultiply, FDraw& OutDraw)
 {
 	OutDraw.Vertices.Reserve(Vertices.Num());
 	for (const FSlateVertex& Vertex : Vertices)
 	{
+		FColor Color = Vertex.Color;
+
+		// ToLinear decodes sRGB, which is only meaningful for a straight colour: a premultiplied
+		// one raises the product to a power rather than the colour, and every partially covered
+		// pixel comes out too dark. Harmless for an image, which is opaque wherever it matters,
+		// and a dark rim around every glyph where it does not.
+		if (bUnpremultiply && Color.A != 0 && Color.A != 255)
+		{
+			const float Alpha = float(Color.A) / 255.0f;
+			Color.R = uint8(FMath::Clamp(FMath::RoundToInt(float(Color.R) / Alpha), 0, 255));
+			Color.G = uint8(FMath::Clamp(FMath::RoundToInt(float(Color.G) / Alpha), 0, 255));
+			Color.B = uint8(FMath::Clamp(FMath::RoundToInt(float(Color.B) / Alpha), 0, 255));
+		}
+
 		FFolioUIVertex& Out = OutDraw.Vertices.AddDefaulted_GetRef();
 		Out.Position = FVector2f(Vertex.Position) + Offset;
 		Out.UV = FVector2f(Vertex.TexCoords[0], Vertex.TexCoords[1]);
-		Out.Color = ToLinear(Vertex.Color);
+		Out.Color = ToLinear(Color);
 	}
 
 	OutDraw.Indices.Reserve(Indices.Num());
@@ -147,7 +161,29 @@ void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const
 	Draw.Texture.Reset(Texture);
 	Draw.bMasked = Layer.bClipMaskEnabled;
 	Draw.bMaskInverted = Layer.bClipMaskInverted;
-	Convert(Vertices, Indices, Offset, Draw);
+	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, Draw);
+
+	Record(MoveTemp(Draw));
+}
+
+void FFolioLayerStack::DrawField(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+	UTexture* Texture, const FVector2f Offset, const FVector4f Field, const FVector4f Effect)
+{
+	if (Stack.IsEmpty() || Indices.Num() < 3 || !Texture)
+	{
+		return;
+	}
+
+	const FLayer& Layer = Stack.Last();
+
+	FDraw Draw;
+	Draw.Kind = FDraw::EKind::Field;
+	Draw.Texture.Reset(Texture);
+	Draw.bMasked = Layer.bClipMaskEnabled;
+	Draw.bMaskInverted = Layer.bClipMaskInverted;
+	Draw.Field = Field;
+	Draw.Effect = Effect;
+	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ true, Draw);
 
 	Record(MoveTemp(Draw));
 }
@@ -183,7 +219,7 @@ void FFolioLayerStack::SetClipMask(const Rml::ClipMaskOperation Operation, const
 	}
 
 	Layer.bClipMaskEnabled = true;
-	Convert(Vertices, Indices, Offset, Draw);
+	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, Draw);
 	Record(MoveTemp(Draw));
 }
 
@@ -199,7 +235,7 @@ void FFolioLayerStack::EnableClipMask(const bool bEnable)
 	}
 }
 
-UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent()
+UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma)
 {
 	if (Stack.IsEmpty())
 	{
@@ -208,6 +244,11 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent()
 
 	FLayer& Layer = Stack.Last();
 	Resolve(Layer);
+
+	if (BlurSigma > 0.0f)
+	{
+		Folio::BlurRenderTarget(Layer.Target.Get(), BlurSigma);
+	}
 
 	UTextureRenderTarget2D* Detached = Layer.Target.Get();
 
@@ -315,13 +356,15 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 					const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 					TShaderMapRef<FFolioUIVS> VertexShader(ShaderMap);
 					TShaderMapRef<FFolioUIPS> PixelShader(ShaderMap);
+					TShaderMapRef<FFolioUIMsdfPS> FieldShader(ShaderMap);
 					TShaderMapRef<FFolioUIMaskPS> MaskShader(ShaderMap);
 
 					RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
 
 					for (const FDraw& Draw : Draws)
 					{
-						const bool bMaskPass = Draw.Kind != FDraw::EKind::Geometry;
+						const bool bField = Draw.Kind == FDraw::EKind::Field;
+						const bool bMaskPass = Draw.Kind != FDraw::EKind::Geometry && !bField;
 
 						FGraphicsPipelineStateInitializer State;
 						RHICmdList.ApplyCachedRenderTargets(State);
@@ -330,7 +373,9 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 						State.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 						State.BoundShaderState.PixelShaderRHI = bMaskPass
 							? static_cast<FRHIPixelShader*>(MaskShader.GetPixelShader())
-							: static_cast<FRHIPixelShader*>(PixelShader.GetPixelShader());
+							: bField
+								? static_cast<FRHIPixelShader*>(FieldShader.GetPixelShader())
+								: static_cast<FRHIPixelShader*>(PixelShader.GetPixelShader());
 						State.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
 
 						if (bMaskPass)
@@ -366,6 +411,8 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 						RHICmdList.SetStencilRef(MaskStencilRef);
 
 						FFolioUIParameters PassParameters = *Parameters;
+						PassParameters.MsdfField = Draw.Field;
+						PassParameters.MsdfEffect = Draw.Effect;
 						if (Draw.Texture.IsValid() && Draw.Texture->GetResource())
 						{
 							if (FRHITexture* Bound = Draw.Texture->GetResource()->GetTexture2DRHI())
@@ -375,7 +422,11 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 						}
 
 						SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters);
-						if (!bMaskPass)
+						if (bField)
+						{
+							SetShaderParameters(RHICmdList, FieldShader, FieldShader.GetPixelShader(), PassParameters);
+						}
+						else if (!bMaskPass)
 						{
 							SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters);
 						}

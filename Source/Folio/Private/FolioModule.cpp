@@ -63,7 +63,8 @@ void FFolioModule::StartupModule()
 			TEXT("FreeType would not start, so no font face can load and no text will render"));
 	}
 
-	FontCache = MakeUnique<FFolioFontCache>(FPaths::ProjectSavedDir() / TEXT("Folio") / TEXT("Fields"));
+	FontCacheDir = FPaths::ProjectSavedDir() / TEXT("Folio") / TEXT("Fields");
+	FontCache = MakeUnique<FFolioFontCache>(FontCacheDir);
 	FontEngine->SetCacheStore(FontCache.Get());
 
 	// RmlUi is built with RMLUI_FONT_ENGINE=none, so a missing font engine fails Initialise

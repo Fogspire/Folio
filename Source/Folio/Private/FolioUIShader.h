@@ -27,6 +27,10 @@ BEGIN_SHADER_PARAMETER_STRUCT(FFolioUIParameters, )
 	SHADER_PARAMETER_TEXTURE(Texture2D, UITexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, UISampler)
 	SHADER_PARAMETER(FVector4f, ClipTransform)
+	/** xy: the field's range in texture coordinates. z: threshold. w: sharpen. */
+	SHADER_PARAMETER(FVector4f, MsdfField)
+	/** x: effect mode. y: offset. z: softness. */
+	SHADER_PARAMETER(FVector4f, MsdfEffect)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
@@ -48,6 +52,26 @@ class FFolioUIPS : public FGlobalShader
 public:
 	DECLARE_GLOBAL_SHADER(FFolioUIPS);
 	SHADER_USE_PARAMETER_STRUCT(FFolioUIPS, FGlobalShader);
+	using FParameters = FFolioUIParameters;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::ES3_1);
+	}
+};
+
+/**
+ * Resolves a glyph atlas to coverage, so text keeps working inside a box-shadow or a filter.
+ *
+ * Slate's path gets this from a material. A layer cannot: it draws with its own pipelines and
+ * has no material to bind, so the same maths is compiled here as a global shader from the same
+ * .ush include.
+ */
+class FFolioUIMsdfPS : public FGlobalShader
+{
+public:
+	DECLARE_GLOBAL_SHADER(FFolioUIMsdfPS);
+	SHADER_USE_PARAMETER_STRUCT(FFolioUIMsdfPS, FGlobalShader);
 	using FParameters = FFolioUIParameters;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)

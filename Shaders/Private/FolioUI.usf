@@ -8,12 +8,19 @@
 // Everything is premultiplied alpha, matching RmlUi 6.x.
 
 #include "/Engine/Public/Platform.ush"
+#include "/Folio/FolioMsdf.ush"
 
 Texture2D UITexture;
 SamplerState UISampler;
 
 // Maps layer pixels to clip space: xy scale, zw offset.
 float4 ClipTransform;
+
+// xy: the field's range in texture coordinates. z: threshold. w: sharpen.
+float4 MsdfField;
+
+// x: effect mode. y: offset. z: softness.
+float4 MsdfEffect;
 
 void MainVS(
 	in float2 InPosition : ATTRIBUTE0,
@@ -33,6 +40,17 @@ float4 MainPS(
 	in float4 Color : TEXCOORD1) : SV_Target0
 {
 	return UITexture.Sample(UISampler, UV) * Color;
+}
+
+// Text, inside a layer. Colour arrives straight so the sRGB decode on the way in operates on a
+// colour rather than on a colour already scaled by its own alpha, and is premultiplied here.
+float4 MsdfPS(
+	in float2 UV : TEXCOORD0,
+	in float4 Color : TEXCOORD1) : SV_Target0
+{
+	float4 Premultiplied = float4(Color.rgb * Color.a, Color.a);
+	return FolioMsdfShade(UITexture, UISampler, UV, MsdfField.xy, MsdfField.z,
+		MsdfEffect.x, MsdfEffect.y, MsdfEffect.z, MsdfField.w, Premultiplied);
 }
 
 // Colour writes are disabled for a mask pass, so the stencil is the only output that matters.

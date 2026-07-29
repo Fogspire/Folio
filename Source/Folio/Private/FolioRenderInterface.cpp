@@ -84,6 +84,9 @@ void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, c
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
 	RmlTransform = FSlateRenderTransform();
+
+	// Released now rather than at EndFrame: Slate reads them after the last draw is issued.
+	LayerComposites.Reset();
 }
 
 void FFolioRenderInterface::EndFrame()
@@ -163,20 +166,29 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		return;
 	}
 
-	// A field page resolves through its material rather than as an image. Everything else about
-	// the draw is unchanged: this is a resource handle swap, not a second path.
-	if (FMsdfBinding* Msdf = ResolveMsdfBinding(Texture))
+	// A field page resolves through a shader rather than as an image: through the material on
+	// Slate's path, and through FFolioUIMsdfPS on the layer path, both compiled from FolioMsdf.ush.
+	if (FMsdfBinding* Field = FindMsdfBinding(Texture))
 	{
-		// The layer path draws with its own pipelines and knows nothing about materials, so a
-		// field inside a layer would come out as raw distance channels. Skipped rather than drawn
-		// wrong until the layer shader gains a field permutation.
 		if (!Layers.IsEmpty())
 		{
+			FVector4f FieldParams, EffectParams;
+			PackMsdfParameters(*Field, FieldParams, EffectParams);
+
+			Layers.DrawField(Compiled.Vertices, Compiled.Indices, Field->Page->Texture.Get(),
+				FVector2f(Translation.x - LayerOrigin.X, Translation.y - LayerOrigin.Y),
+				FieldParams, EffectParams);
 			return;
 		}
 
-		ApplyClipping();
-		DrawGeometry(Compiled, Translation, Msdf->Handle, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ true);
+		// Everything else about the Slate draw is unchanged: this is a resource handle swap, not
+		// a second path.
+		if (const FMsdfBinding* Resolved = ResolveMsdfBinding(Texture))
+		{
+			ApplyClipping();
+			DrawGeometry(Compiled, Translation, Resolved->Handle, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ true);
+		}
+
 		return;
 	}
 
@@ -621,7 +633,70 @@ void FFolioRenderInterface::CompositeLayers(Rml::LayerHandle, Rml::LayerHandle, 
 		}
 	}
 
+	// Below the bottom layer is Slate, not another target.
+	if (Layers.Num() <= 1)
+	{
+		CompositeLayerToSlate(Sigma);
+		return;
+	}
+
 	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma);
+}
+
+void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma)
+{
+	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma);
+	if (!Target || !ElementList || !FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+
+	FLayerComposite& Composite = LayerComposites.AddDefaulted_GetRef();
+	Composite.Target.Reset(Target);
+	Composite.Brush.SetResourceObject(Target);
+	Composite.Brush.ImageSize = FVector2f(Target->SizeX, Target->SizeY);
+	Composite.Brush.DrawAs = ESlateBrushDrawType::Image;
+	Composite.Handle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(Composite.Brush);
+
+	if (!Composite.Handle.IsValid())
+	{
+		return;
+	}
+
+	const FVector2f Origin(LayerOrigin.X, LayerOrigin.Y);
+	const FVector2f Size(Target->SizeX, Target->SizeY);
+
+	FCompiledGeometry Quad;
+	Quad.Vertices.Reserve(4);
+
+	auto AddCorner = [&Quad](const FVector2f Position, const FVector2f Uv)
+	{
+		FSlateVertex& Out = Quad.Vertices.AddDefaulted_GetRef();
+		Out.Position = Position;
+		Out.TexCoords[0] = Uv.X;
+		Out.TexCoords[1] = Uv.Y;
+		Out.TexCoords[2] = 1.0f;
+		Out.TexCoords[3] = 1.0f;
+		Out.MaterialTexCoords = Uv;
+		Out.Color = FColor::White;
+	};
+
+	AddCorner(Origin, FVector2f(0.0f, 0.0f));
+	AddCorner(FVector2f(Origin.X + Size.X, Origin.Y), FVector2f(1.0f, 0.0f));
+	AddCorner(Origin + Size, FVector2f(1.0f, 1.0f));
+	AddCorner(FVector2f(Origin.X, Origin.Y + Size.Y), FVector2f(0.0f, 1.0f));
+
+	Quad.Indices = { 0, 1, 2, 0, 2, 3 };
+
+	// The layer's contents already carry whatever transform RmlUi had when they were recorded,
+	// so this quad must not have it applied a second time.
+	const bool bSavedTransform = bHasTransform;
+	bHasTransform = false;
+
+	ApplyClipping();
+	DrawGeometry(Quad, Rml::Vector2f(0.0f, 0.0f), Composite.Handle, FVector2f(1.0f, 1.0f));
+
+	bHasTransform = bSavedTransform;
 }
 
 void FFolioRenderInterface::PopLayer()
@@ -931,7 +1006,7 @@ void FFolioRenderInterface::ReleaseAtlasHandle(const Folio::FMsdfHandle Handle)
 	MsdfBindings.Remove(Rml::TextureHandle(Handle));
 }
 
-FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::ResolveMsdfBinding(const Rml::TextureHandle Handle)
+FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::FindMsdfBinding(const Rml::TextureHandle Handle)
 {
 	const TUniquePtr<FMsdfBinding>* Found = MsdfBindings.Find(Handle);
 	if (!Found || !Found->IsValid())
@@ -940,6 +1015,39 @@ FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::ResolveMsdfBinding(c
 	}
 
 	FMsdfBinding& Binding = **Found;
+	return Binding.Page.IsValid() && Binding.Page->Texture.IsValid() ? &Binding : nullptr;
+}
+
+void FFolioRenderInterface::PackMsdfParameters(const FMsdfBinding& Binding, FVector4f& OutField,
+	FVector4f& OutEffect)
+{
+	const UTexture2D* Texture = Binding.Page->Texture.Get();
+	const float Range = static_cast<float>(Binding.Page->Params.PxRange);
+
+	// Unhalved: FolioMsdf.ush applies the half itself. Halving it here as well doubles the
+	// coverage ramp and text goes soft.
+	OutField = FVector4f(
+		Range / static_cast<float>(Texture->GetSizeX()),
+		Range / static_cast<float>(Texture->GetSizeY()),
+		0.5f,
+		1.0f);
+
+	OutEffect = FVector4f(
+		static_cast<float>(static_cast<int32>(Binding.Effect.Effect)),
+		Binding.Effect.OffsetEm,
+		Binding.Effect.SoftnessEm,
+		0.0f);
+}
+
+FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::ResolveMsdfBinding(const Rml::TextureHandle Handle)
+{
+	FMsdfBinding* Existing = FindMsdfBinding(Handle);
+	if (!Existing)
+	{
+		return nullptr;
+	}
+
+	FMsdfBinding& Binding = *Existing;
 	if (Binding.Handle.IsValid())
 	{
 		return &Binding;
@@ -958,8 +1066,7 @@ FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::ResolveMsdfBinding(c
 		}
 	}
 
-	if (!MsdfMaterial.IsValid() || !Binding.Page.IsValid() || !Binding.Page->Texture.IsValid()
-		|| !FSlateApplication::IsInitialized())
+	if (!MsdfMaterial.IsValid() || !FSlateApplication::IsInitialized())
 	{
 		return nullptr;
 	}
@@ -971,18 +1078,18 @@ FFolioRenderInterface::FMsdfBinding* FFolioRenderInterface::ResolveMsdfBinding(c
 	}
 
 	const UTexture2D* Texture = Binding.Page->Texture.Get();
-	const float Range = static_cast<float>(Binding.Page->Params.PxRange);
 	const FVector2f PageSize(static_cast<float>(Texture->GetSizeX()), static_cast<float>(Texture->GetSizeY()));
 
+	FVector4f Field, Effect;
+	PackMsdfParameters(Binding, Field, Effect);
+
 	Instance->SetTextureParameterValue(TEXT("Atlas"), Binding.Page->Texture.Get());
-	// Unhalved: FolioMsdf.ush applies the half itself. Halving it here as well doubles the
-	// coverage ramp and text goes soft.
-	Instance->SetScalarParameterValue(TEXT("UnitRangeX"), Range / PageSize.X);
-	Instance->SetScalarParameterValue(TEXT("UnitRangeY"), Range / PageSize.Y);
-	Instance->SetScalarParameterValue(TEXT("Threshold"), 0.5f);
-	Instance->SetScalarParameterValue(TEXT("EffectMode"), static_cast<float>(static_cast<int32>(Binding.Effect.Effect)));
-	Instance->SetScalarParameterValue(TEXT("EffectOffset"), Binding.Effect.OffsetEm);
-	Instance->SetScalarParameterValue(TEXT("EffectSoftness"), Binding.Effect.SoftnessEm);
+	Instance->SetScalarParameterValue(TEXT("UnitRangeX"), Field.X);
+	Instance->SetScalarParameterValue(TEXT("UnitRangeY"), Field.Y);
+	Instance->SetScalarParameterValue(TEXT("Threshold"), Field.Z);
+	Instance->SetScalarParameterValue(TEXT("EffectMode"), Effect.X);
+	Instance->SetScalarParameterValue(TEXT("EffectOffset"), Effect.Y);
+	Instance->SetScalarParameterValue(TEXT("EffectSoftness"), Effect.Z);
 
 	Binding.Material = TStrongObjectPtr<UMaterialInstanceDynamic>(Instance);
 	Binding.Brush.SetResourceObject(Instance);

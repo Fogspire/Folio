@@ -45,6 +45,15 @@ public:
 	void DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
 		UTexture* Texture, FVector2f Offset);
 
+	/**
+	 * Records text, whose texture is a distance field rather than an image.
+	 *
+	 * Field and Effect are the shader's MsdfField and MsdfEffect, packed by the caller so the
+	 * layer stack does not have to know what a glyph atlas is.
+	 */
+	void DrawField(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+		UTexture* Texture, FVector2f Offset, FVector4f Field, FVector4f Effect);
+
 	/** Records a clip mask operation, which every later draw in this layer tests against. */
 	void SetClipMask(Rml::ClipMaskOperation Operation, const TArray<FSlateVertex>& Vertices,
 		const TArray<SlateIndex>& Indices, FVector2f Offset);
@@ -59,8 +68,12 @@ public:
 	 *
 	 * SaveLayerAsTexture needs this: RmlUi keeps the result as a texture with its own
 	 * lifetime, so the target cannot return to the pool while the layer is still in use.
+	 *
+	 * So does compositing the bottom layer, whose destination is Slate rather than another
+	 * target: Slate reads the texture at the end of the frame, long after the pool would have
+	 * handed it to the next layer and cleared it.
 	 */
-	UTextureRenderTarget2D* DetachCurrent();
+	UTextureRenderTarget2D* DetachCurrent(float BlurSigma = 0.0f);
 
 	void Reset();
 
@@ -68,7 +81,7 @@ private:
 	/** One recorded draw. Vertex data is copied: RmlUi may release its own at any point. */
 	struct FDraw
 	{
-		enum class EKind : uint8 { Geometry, MaskSet, MaskSetInverse, MaskIntersect };
+		enum class EKind : uint8 { Geometry, Field, MaskSet, MaskSetInverse, MaskIntersect };
 
 		EKind Kind = EKind::Geometry;
 		TArray<FFolioUIVertex> Vertices;
@@ -78,6 +91,9 @@ private:
 		/** Whether this geometry tests the stencil, and on which side. */
 		bool bMasked = false;
 		bool bMaskInverted = false;
+
+		FVector4f Field = FVector4f::Zero();
+		FVector4f Effect = FVector4f::Zero();
 	};
 
 	struct FLayer
@@ -99,7 +115,7 @@ private:
 	void Record(FDraw&& Draw);
 
 	static void Convert(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-		FVector2f Offset, FDraw& OutDraw);
+		FVector2f Offset, bool bUnpremultiply, FDraw& OutDraw);
 
 	TArray<FLayer> Stack;
 	TMultiMap<FIntPoint, TStrongObjectPtr<UTextureRenderTarget2D>> Pool;

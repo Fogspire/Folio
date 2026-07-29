@@ -49,6 +49,12 @@ public:
 	 */
 	FFolioRenderInterface* GetRenderInterface() const { return RenderInterface.Get(); }
 
+	/** The text engine, or null if RmlUi failed to start. */
+	Folio::FFolioFontEngine* GetFontEngine() const { return FontEngine.Get(); }
+
+	/** Where generated fields are kept between runs. */
+	const FString& GetFontCacheDir() const { return FontCacheDir; }
+
 	/**
 	 * Fires before RmlUi is torn down, so anything holding a context can drop it first.
 	 *
@@ -73,5 +79,6 @@ private:
 
 	FString ContentRoot;
 	FString PluginRoot;
+	FString FontCacheDir;
 	bool bRmlInitialised = false;
 };

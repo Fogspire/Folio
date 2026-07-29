@@ -2,6 +2,7 @@
 
 IMPLEMENT_GLOBAL_SHADER(FFolioUIVS, "/Folio/FolioUI.usf", "MainVS", SF_Vertex);
 IMPLEMENT_GLOBAL_SHADER(FFolioUIPS, "/Folio/FolioUI.usf", "MainPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FFolioUIMsdfPS, "/Folio/FolioUI.usf", "MsdfPS", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(FFolioUIMaskPS, "/Folio/FolioUI.usf", "MaskPS", SF_Pixel);
 
 void FFolioUIVertexDeclaration::InitRHI(FRHICommandListBase& RHICmdList)

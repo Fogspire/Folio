@@ -205,6 +205,40 @@ foreach ($shot in $Shots) {
     if (-not (Test-Path $png)) { Fail "no screenshot for $name" } else { Pass $name }
 }
 
+# --- Texture reload -------------------------------------------------------------------------
+
+# What a hot reload does, done twice in one process: render, throw every texture away, render
+# again. The two images must be identical. They are not, if something releases a texture it does
+# not own - which is easy to do, because a glyph atlas and a baked sprite sheet reach the render
+# interface through the same call and only one of them belongs to RmlUi.
+Write-Host 'Texture reload' -ForegroundColor Cyan
+foreach ($name in @('typography', 'effects', 'menu')) {
+    $doc = Join-Path $TestsDir "$name.rml"
+    if (-not (Test-Path $doc)) { continue }
+
+    $plain = Join-Path $Out "$name.reload-before.png"
+    $after = Join-Path $Out "$name.reload-after.png"
+
+    $extra = @()
+    $setup = $DocumentSetup[$name]
+    if ($setup -and $setup.ContainsKey('Args')) { $extra = $setup.Args }
+
+    $null = Invoke-Preview (@($doc, '--size', '1920x1080', '--dp-ratio', 1.0, '--no-assets-wanted',
+        '--screenshot', $plain) + $extra)
+    $null = Invoke-Preview (@($doc, '--size', '1920x1080', '--dp-ratio', 1.0, '--no-assets-wanted',
+        '--reload-textures', '--screenshot', $after) + $extra)
+
+    if (-not (Test-Path $plain) -or -not (Test-Path $after)) {
+        Fail "${name}: reload comparison produced no image"
+        continue
+    }
+
+    $a = (Get-FileHash -Algorithm SHA256 $plain).Hash
+    $b = (Get-FileHash -Algorithm SHA256 $after).Hash
+    if ($a -ne $b) { Fail "$name renders differently after releasing its textures" }
+    else { Pass "$name survives a texture reload" }
+}
+
 # --- Summary --------------------------------------------------------------------------------
 
 Write-Host ''

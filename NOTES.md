@@ -573,3 +573,23 @@ Things that read engine internals and would fail quietly rather than loudly if t
 - **msdfgen is vendored by SlateCore too.** Both copies link into a monolithic build, so ours
   compiles under `MSDFGEN_PARENT_NAMESPACE` and the macro must match between the library build
   and `MsdfgenLibrary.Build.cs`. Mismatched, it links in the editor and fails at packaging.
+
+## Releasing a texture can delete a live glyph atlas
+
+`Rml::ReleaseTextures()` releases **callback** textures as well as file ones
+(`TextureDatabase.cpp`), and a distance-field page is handed to RmlUi as a callback texture. So
+a hot reload, which calls it to pick up changed art, arrives at `ReleaseTexture` holding the
+font engine's own atlas page.
+
+Freeing it there deletes a texture the font engine still owns and still writes new glyphs into.
+RmlUi then re-runs the callback and gets the same handle back, now naming nothing. In the
+preview tool that made every glyph disappear on the next `.rcss` edit; the screenshot went from
+82 KB to 3.4 KB.
+
+Both renderers now track which field pages came from a file, and release only those. A glyph
+atlas belongs to the font engine and goes at shutdown through `ReleaseAtlasHandle`.
+
+`uipreview --reload-textures` renders, releases everything, renders again and captures.
+`verify.ps1` compares that against an ordinary capture and fails on any difference, which is the
+only cheap way to catch this class of bug: it needs a reload to happen, and a reload is
+something you normally only do by hand.

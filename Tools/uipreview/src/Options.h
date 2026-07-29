@@ -66,6 +66,9 @@ struct Options {
 	/** Report the text engine. Alone it prints what the binary was built against; with a
 	    document it also reports the faces and the atlases they cost. */
 	bool font_report = false;
+	/** Release every cached texture between two renders, then capture. Proves a hot reload does
+	    not lose a texture it still needs, which is otherwise only visible by watching. */
+	bool reload_textures = false;
 	/** Read and write generated fields under <root>/.folio-cache. */
 	bool font_cache = true;
 

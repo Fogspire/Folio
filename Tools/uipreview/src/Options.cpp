@@ -87,6 +87,8 @@ void PrintUsage(std::FILE* stream)
 		"  --json-report <FILE>  Write a machine readable report\n"
 		"  --metrics-report <FILE>  Write where every piece of text laid out, for diffing a\n"
 		"                        change to the text engine against a known good run\n"
+		"  --reload-textures     Release every texture between two renders before capturing,\n"
+		"                        which is what a hot reload does. The image must not change\n"
 		"  --no-assets-wanted    Do not update ASSETS_WANTED.md\n"
 		"  --no-watch            Do not watch for file changes\n"
 		"  -v, --verbose         Show informational messages\n"
@@ -128,6 +130,8 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			o.font_cache = false;
 		else if (arg == "--no-assets-wanted")
 			o.write_assets_wanted = false;
+		else if (arg == "--reload-textures")
+			o.reload_textures = true;
 		else if (arg == "--dump-tree")
 			o.dump_tree = true;
 		else if (arg == "--size")

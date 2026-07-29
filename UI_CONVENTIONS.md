@@ -352,8 +352,13 @@ The rules, all of which come from what a distance field can represent:
   closed shapes and open paths are correct. Until the stroker is rewritten, convert strokes to
   fills in the drawing program - which also resolves `clip-path` in the same pass.
 
-**Baking is not automatic.** Re-run `msdfbake vector` after changing an SVG. RmlUi caches
-textures by path, so a re-baked atlas at the same path renders stale until the editor restarts.
+**Baking is not automatic.** Re-run `msdfbake vector` after changing an SVG.
+
+RmlUi caches a texture by its path and never looks at the file again, so a re-baked atlas would
+otherwise keep rendering as it was. Reopening a document picks up anything whose timestamp has
+moved; `folio.ReloadTextures` does it without reopening, and `folio.ReloadTextures all` releases
+every texture whether or not it looks changed. `uipreview` handles it through its file watcher
+and needs nothing.
 
 ---
 

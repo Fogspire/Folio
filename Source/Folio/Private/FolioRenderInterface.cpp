@@ -6,7 +6,9 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioBlurShader.h"
 #include "FolioCore/MsdfSidecar.h"
+#include "FolioFileInterface.h"
 #include "FolioModule.h"
+#include "HAL/PlatformFileManager.h"
 #include "Brushes/SlateDynamicImageBrush.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IImageWrapper.h"
@@ -455,6 +457,8 @@ Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensio
 
 	OutDimensions = Rml::Vector2i(Size.X, Size.Y);
 
+	LoadedTextureTimes.Add(Folio::ToFString(Source), TextureFileTime(Source));
+
 	// A sheet baked by msdfbake carries a sidecar naming its field parameters. With it the image
 	// is distance rather than colour, and a sprite cut from it scales like text does.
 	//
@@ -496,13 +500,64 @@ Rml::TextureHandle FFolioRenderInterface::GenerateTexture(const Rml::Span<const 
 	return RegisterPixels(Bgra.GetData(), Size);
 }
 
+FDateTime FFolioRenderInterface::TextureFileTime(const Rml::String& Source)
+{
+	FFolioFileInterface* Files = static_cast<FFolioFileInterface*>(Rml::GetFileInterface());
+	if (!Files)
+	{
+		return FDateTime();
+	}
+
+	IPlatformFile& Platform = FPlatformFileManager::Get().GetPlatformFile();
+
+	FDateTime Newest = Platform.GetTimeStamp(*Files->Resolve(Source));
+
+	const std::string Sidecar = Folio::MsdfSidecarPathFor(Source);
+	if (!Sidecar.empty())
+	{
+		const FDateTime SidecarTime = Platform.GetTimeStamp(*Files->Resolve(Sidecar));
+		if (SidecarTime > Newest)
+		{
+			Newest = SidecarTime;
+		}
+	}
+
+	return Newest;
+}
+
+int32 FFolioRenderInterface::ReloadChangedTextures(const bool bForce)
+{
+	TArray<FString> Stale;
+	for (const TPair<FString, FDateTime>& Loaded : LoadedTextureTimes)
+	{
+		if (bForce || TextureFileTime(Folio::ToRmlString(Loaded.Key)) != Loaded.Value)
+		{
+			Stale.Add(Loaded.Key);
+		}
+	}
+
+	for (const FString& Source : Stale)
+	{
+		// Through RmlUi, so its own cache lets go and the document's decorators re-request a
+		// handle. Dropping our entry alone would leave every one of them holding the old one.
+		Rml::ReleaseTexture(Folio::ToRmlString(Source), this);
+		LoadedTextureTimes.Remove(Source);
+	}
+
+	return Stale.Num();
+}
+
 void FFolioRenderInterface::ReleaseTexture(const Rml::TextureHandle Handle)
 {
-	// A dynamic resource is keyed by name in Slate's manager, so dropping our entry is not enough
-	// to free it. A field page is not in this map at all - it releases through ReleaseAtlasHandle.
-	// A dynamic brush releases its own resource once the last reference to it goes. A field page is
-	// not in this map at all - it releases through ReleaseAtlasHandle.
+	// A dynamic brush releases its own Slate resource once the last reference to it goes.
 	Textures.Remove(Handle);
+
+	// A glyph atlas is not in either map: the font engine owns it and releases it through
+	// ReleaseAtlasHandle. A baked sheet loaded from a file is RmlUi's, and arrives here.
+	if (FieldAtlasesFromFile.Remove(Handle) > 0)
+	{
+		MsdfBindings.Remove(Handle);
+	}
 }
 
 //
@@ -1088,6 +1143,8 @@ Rml::TextureHandle FFolioRenderInterface::LoadFieldAtlas(const Rml::String& Sour
 	}
 
 	UploadAtlasRegion(Page, Folio::FMsdfRect{ 0, 0, Size.X, Size.Y }, Rgba.GetData(), Size.X * 4);
+
+	FieldAtlasesFromFile.Add(Rml::TextureHandle(Page));
 	return Rml::TextureHandle(Page);
 }
 

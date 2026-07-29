@@ -649,6 +649,15 @@ int App::RunOneShot()
 
 	PumpFrames(options.frames);
 
+	// Renders, throws every cached texture away, and renders again. What is captured must be
+	// identical to what a run without this produced: a texture that does not come back, or comes
+	// back wrong, is a lifetime bug in the reload path rather than in anything a document did.
+	if (options.reload_textures)
+	{
+		Rml::ReleaseTextures();
+		PumpFrames(options.frames);
+	}
+
 	if (!options.keys.empty())
 	{
 		std::vector<InputStep> steps;

@@ -96,6 +96,20 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 		return;
 	}
 
+	// Reopening a document is what anyone does after editing its art, so this is the moment to
+	// notice that a file on disk has moved on. RmlUi caches a texture by path forever otherwise,
+	// and a re-baked atlas keeps rendering as it was until the editor restarts.
+	if (FFolioModule::IsAvailable())
+	{
+		if (FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface())
+		{
+			if (const int32 Reloaded = Renderer->ReloadChangedTextures())
+			{
+				UE_LOG(LogFolio, Log, TEXT("reloaded %d changed texture(s)"), Reloaded);
+			}
+		}
+	}
+
 	MountDataModel(RelativePath);
 
 	Document = Context->LoadDocument(Folio::ToRmlString(RelativePath));

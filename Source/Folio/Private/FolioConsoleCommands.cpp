@@ -1,6 +1,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "FolioModule.h"
+#include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWeakWidget.h"
@@ -110,6 +111,34 @@ namespace
 	}
 
 	/**
+	 * Picks up art edited since it was loaded, without reopening the document.
+	 *
+	 * Reopening already does this for files whose timestamp moved. The command exists for the
+	 * case that does not: a file rewritten with the same timestamp, or a texture that came out
+	 * wrong and needs re-reading to be sure of what is on disk.
+	 */
+	void ReloadTextures(const TArray<FString>& Args)
+	{
+		if (!FFolioModule::IsAvailable())
+		{
+			return;
+		}
+
+		FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
+		if (!Renderer)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("no render interface; Folio has not started"));
+			return;
+		}
+
+		const bool bForce = Args.Num() > 0 && Args[0].Equals(TEXT("all"), ESearchCase::IgnoreCase);
+		const int32 Reloaded = Renderer->ReloadChangedTextures(bForce);
+
+		UE_LOG(LogFolio, Log, TEXT("released %d texture(s)%s"), Reloaded,
+			bForce ? TEXT("") : TEXT("; pass 'all' to release every one"));
+	}
+
+	/**
 	 * Tears both down before RmlUi does. These are statics, so without this they are destroyed
 	 * during DLL unload, long after the module has shut RmlUi down.
 	 */
@@ -149,6 +178,11 @@ namespace
 		TEXT("folio.Hide"),
 		TEXT("Removes the document shown by folio.Show."),
 		FConsoleCommandDelegate::CreateStatic(&HideDocument));
+
+	FAutoConsoleCommand ReloadTexturesCommand(
+		TEXT("folio.ReloadTextures"),
+		TEXT("Releases cached textures whose file has changed, so re-baked art appears. 'all' releases every one."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ReloadTextures));
 
 	FShutdownHook ShutdownHook;
 }

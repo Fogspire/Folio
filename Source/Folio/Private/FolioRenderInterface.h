@@ -38,6 +38,20 @@ public:
 	/** Highest Slate layer used this frame, so the caller can continue above the document. */
 	int32 GetMaxLayerId() const { return MaxLayerId; }
 
+	/**
+	 * Drops cached textures whose file has changed since it was read, so a re-baked atlas or a
+	 * repainted sprite appears without restarting the editor.
+	 *
+	 * RmlUi caches a texture by its source path and never looks at the file again, which is
+	 * right for a game and wrong for authoring. Releasing through RmlUi rather than dropping our
+	 * own entry is what matters: the document's decorators hold Rml::Texture references, and
+	 * those re-request a handle on next use only if RmlUi's own cache let go of it.
+	 *
+	 * @param bForce Release everything, changed or not.
+	 * @return How many were released.
+	 */
+	int32 ReloadChangedTextures(bool bForce = false);
+
 	//
 	// Geometry.
 	//
@@ -150,6 +164,26 @@ private:
 
 	/** Registers a baked sheet as a field page if it has a sidecar. Zero if it is ordinary art. */
 	Rml::TextureHandle LoadFieldAtlas(const Rml::String& Source, const TArray64<uint8>& Bgra, FIntPoint Size);
+
+	/**
+	 * Field pages that came from a file rather than from the font engine.
+	 *
+	 * A glyph atlas is owned by the font engine and released through ReleaseAtlasHandle. A baked
+	 * vector sheet arrives through LoadTexture, so RmlUi owns it and releases it through
+	 * ReleaseTexture - which has to know to look somewhere other than the ordinary texture map.
+	 */
+	TSet<Rml::TextureHandle> FieldAtlasesFromFile;
+
+	/** Every source LoadTexture has read, against the file's timestamp when it read it. */
+	TMap<FString, FDateTime> LoadedTextureTimes;
+
+	/**
+	 * When a texture source was last written, or a zero time if it cannot be told.
+	 *
+	 * A field atlas is two files, so the sidecar's time counts as the atlas's: re-baking writes
+	 * both, and reading only the image would miss a change to the field parameters.
+	 */
+	static FDateTime TextureFileTime(const Rml::String& Source);
 
 	/** Hands a saved layer to RmlUi as an ordinary texture. */
 	Rml::TextureHandle RegisterRenderTarget(class UTextureRenderTarget2D* Target);

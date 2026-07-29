@@ -175,7 +175,14 @@ void PreviewRenderInterface::ReleaseTexture(Rml::TextureHandle texture)
 	// share the number - which reads as random geometry losing its texture much later.
 	if (msdf_bindings.find(texture) != msdf_bindings.end())
 	{
-		ReleaseAtlasHandle(Folio::FMsdfHandle(texture));
+		// Only a page RmlUi loaded may be torn down here. A glyph atlas reaches this function too,
+		// because it is handed over as a callback texture and Rml::ReleaseTextures releases those
+		// as well - but the font engine still owns it and keeps writing new glyphs into it. Freeing
+		// it on a hot reload would delete the live atlas and leave every later glyph drawing from a
+		// deleted texture. RmlUi re-runs the callback and gets the same handle back, which is
+		// exactly what should happen.
+		if (field_atlases_from_file.erase(texture) > 0)
+			ReleaseAtlasHandle(Folio::FMsdfHandle(texture));
 		return;
 	}
 
@@ -310,6 +317,8 @@ Rml::TextureHandle PreviewRenderInterface::LoadFieldAtlas(const Rml::String& sou
 		return {};
 
 	UploadAtlasRegion(page, Folio::FMsdfRect{0, 0, size.x, size.y}, pixels.data(), size.x * 4);
+
+	field_atlases_from_file.insert(Rml::TextureHandle(page));
 	return Rml::TextureHandle(page);
 }
 

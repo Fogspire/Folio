@@ -7,6 +7,7 @@
 #include "RmlUi_Renderer_GL3.h"
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -79,6 +80,15 @@ private:
 
 	std::map<Rml::TextureHandle, MsdfBinding> msdf_bindings;
 	Rml::TextureHandle next_msdf_handle = Rml::TextureHandle(1) << 48;
+
+	/**
+	 * Field pages that came from a file rather than from the font engine.
+	 *
+	 * A glyph atlas belongs to the font engine, which keeps writing new glyphs into it for the
+	 * life of the process. A baked vector sheet belongs to RmlUi, which loaded it. Only the
+	 * second may be torn down when RmlUi releases its textures.
+	 */
+	std::set<Rml::TextureHandle> field_atlases_from_file;
 
 	MsdfProgram msdf_program;
 	bool msdf_program_ready = false;

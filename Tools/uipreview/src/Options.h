@@ -39,6 +39,9 @@ struct Options {
 	std::string shot_each;
 	std::string screenshot;
 	std::string json_report;
+	/** Where every text element laid out. Written after the frames settle, so it describes the
+	    same state a screenshot taken with the same arguments would. */
+	std::string metrics_report;
 
 	/** Field resolution per em, and the field's width in texels. A field resolves best near 1:1,
 	    so this trades small-text clarity against magnification headroom. */
@@ -67,7 +70,7 @@ struct Options {
 	bool font_cache = true;
 
 	/** True when the run renders a fixed number of frames and exits. */
-	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree; }
+	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty(); }
 };
 
 enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };

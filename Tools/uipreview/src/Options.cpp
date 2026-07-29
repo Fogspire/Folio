@@ -85,6 +85,8 @@ void PrintUsage(std::FILE* stream)
 		"Reporting\n"
 		"  --strict              Warnings fail the run, and enable the markup lint checks\n"
 		"  --json-report <FILE>  Write a machine readable report\n"
+		"  --metrics-report <FILE>  Write where every piece of text laid out, for diffing a\n"
+		"                        change to the text engine against a known good run\n"
 		"  --no-assets-wanted    Do not update ASSETS_WANTED.md\n"
 		"  --no-watch            Do not watch for file changes\n"
 		"  -v, --verbose         Show informational messages\n"
@@ -250,6 +252,11 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		else if (arg == "--json-report")
 		{
 			if (!TakeValue(argc, argv, i, "--json-report", o.json_report, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--metrics-report")
+		{
+			if (!TakeValue(argc, argv, i, "--metrics-report", o.metrics_report, error))
 				return ParseResult::Error;
 		}
 		else if (!arg.empty() && arg[0] == '-')

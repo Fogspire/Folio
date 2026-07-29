@@ -473,3 +473,26 @@ that mattered.
 
 The first face registered becomes the fallback. Without one, a document naming a family nobody
 registered renders nothing at all, which reads as a layout bug and says nothing about the cause.
+
+## The font engine must be released before the render interface
+
+`uipreview` segfaulted roughly one cold-cache run in thirty, always after the screenshot was
+already on disk, never in the same document twice. `App::~App` shut RmlUi down, then called
+`Backend::Shutdown()`, which destroys the render interface. The font engine is a member, so it
+was destroyed *after* the destructor body - and `FMsdfAtlas::~FMsdfAtlas` releases every atlas
+page through `IMsdfTextureSink`, which is that render interface. A use-after-free on the sink's
+vtable, on every single run, that happened to survive most of the time because freed memory
+usually still holds what it held before.
+
+`font_engine.reset()` now runs in the destructor body, after `Rml::Shutdown` (which still reads
+through the engine while releasing font resources) and before the backend goes.
+
+The general rule this is an instance of: **anything holding an `IMsdfTextureSink` has to die
+before the object implementing it.** Member declaration order will not arrange that on its own
+when part of the teardown is explicit calls in a destructor body.
+
+**Use `build.ps1 -Asan` for any intermittent crash here.** It named this one on the first run,
+with both stacks - the free and the later read - after an afternoon of bisecting had only
+established that it needed a cold cache. It builds into `build/win64-asan` but writes its
+binaries to the same `bin/win64`, so rebuild without the flag afterwards, and run it from a
+shell with the MSVC environment imported or the sanitizer runtime will not resolve.

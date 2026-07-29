@@ -3,6 +3,7 @@
   "score": 4200,
   "alive": true,
   "player": { "name": "Kaede", "health": { "current": 72, "max": 100 } },
+  "nested": { "deep": { "value": "three levels down" } },
   "items": [
     { "name": "Shuriken", "count": 3 },
     { "name": "Kunai", "count": 7 },

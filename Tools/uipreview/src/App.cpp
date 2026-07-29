@@ -64,6 +64,12 @@ App::~App()
 
 	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
 	Folio::ReleaseFolioFontEffects();
+
+	// Before the backend, which owns the render interface the atlases release their pages
+	// through. Left to member order the engine would outlive its own sink and read a freed
+	// vtable, which usually survives and occasionally does not.
+	font_engine.reset();
+
 	if (backend_initialised)
 		Backend::Shutdown();
 }

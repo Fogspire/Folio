@@ -10,6 +10,7 @@ add_executable(uipreview
 	src/FontCache.cpp
 	src/InputScript.cpp
 	src/JsonReport.cpp
+	src/MetricsReport.cpp
 	src/Localization.cpp
 	src/MissingAssets.cpp
 	src/MsdfProgram.cpp

@@ -11,8 +11,7 @@
 	<p id="alive">alive={{ alive }}</p>
 	<p id="deep">deep={{ nested.deep.value }}</p>
 	<div id="items">
-		<p data-for="item : items">{{ item.name }} x{{ item.count }}</p>
+		<p data-for="item : items">{{ it_index }}. {{ item.name }} x{{ item.count }}</p>
 	</div>
-	<p id="count">n={{ items | size }}</p>
 </body>
 </rml>

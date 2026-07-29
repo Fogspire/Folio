@@ -1,0 +1,93 @@
+<rml>
+<head>
+	<title>typography</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			The metrics reference: the document --metrics-report is run against before and after
+			anything that touches the text engine, comparing the two reports at the same size and
+			dp ratio. Advances here are unhinted and scaled from design units, which is what lets
+			one atlas serve every size, so they differ from a hinted rasteriser's by fractions of
+			a pixel. Those fractions accumulate across a line until a word falls to the next one,
+			and the wrapping paragraphs below are sized to make that happen often.
+
+			Breaks do not survive a change of dp ratio, and are not meant to: an advance is a
+			whole number of pixels at each size, so doubling the ratio halves the relative
+			rounding error and words move. Compare like for like.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 16dp;
+			color: #e8e8f0;
+			background-color: #16161c;
+			padding: 32dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			display: flex;
+			flex-direction: row;
+		}
+
+		.column { flex: 1 1 0; padding-right: 32dp; }
+
+		h1 { font-size: 22dp; font-weight: 600; color: #f0c674; margin-bottom: 12dp; }
+		h2 { font-size: 13dp; font-weight: 600; color: #6a6a7a; margin: 16dp 0 6dp 0; }
+
+		/* The sizes the plan sweeps, one per line, so a report entry exists for each. */
+		.s10 { font-size: 10dp; }
+		.s12 { font-size: 12dp; }
+		.s14 { font-size: 14dp; }
+		.s16 { font-size: 16dp; }
+		.s20 { font-size: 20dp; }
+		.s28 { font-size: 28dp; }
+		.s40 { font-size: 40dp; }
+		.s64 { font-size: 64dp; }
+		.s96 { font-size: 96dp; }
+
+		/* Narrow on purpose: wrapping only tells you anything when it happens often. */
+		.prose { width: 340dp; color: #c8c8d4; margin-bottom: 12dp; }
+		.tight { letter-spacing: 1dp; }
+		.loose { line-height: 1.8; }
+		.mono { font-family: RobotoMono; font-size: 14dp; color: #9ad0a0; }
+	</style>
+</head>
+<body>
+	<div class="column">
+		<h1>Size sweep</h1>
+		<div class="s10">10dp Hamburgefonstiv 0123</div>
+		<div class="s12">12dp Hamburgefonstiv 0123</div>
+		<div class="s14">14dp Hamburgefonstiv 0123</div>
+		<div class="s16">16dp Hamburgefonstiv 0123</div>
+		<div class="s20">20dp Hamburgefonstiv 0123</div>
+		<div class="s28">28dp Hamburgefonstiv</div>
+		<div class="s40">40dp Hamburge</div>
+		<div class="s64">64dp Ham</div>
+		<div class="s96">96dp Ha</div>
+
+		<h2>Monospace</h2>
+		<div class="mono">folio.Font.Report --strict 0123456789</div>
+	</div>
+
+	<div class="column">
+		<h1>Wrapping</h1>
+
+		<h2>Body</h2>
+		<p class="prose">The quick brown fox jumps over the lazy dog while a distance field holds
+		only one silhouette, and the median of three channels puts the corners back where a single
+		channel would have rounded them off.</p>
+
+		<h2>Letter spacing</h2>
+		<p class="prose tight">The quick brown fox jumps over the lazy dog while a distance field
+		holds only one silhouette, and the median of three channels puts the corners back.</p>
+
+		<h2>Line height</h2>
+		<p class="prose loose">The quick brown fox jumps over the lazy dog while a distance field
+		holds only one silhouette, and the median of three channels puts the corners back.</p>
+
+		<h2>Long words</h2>
+		<p class="prose">Antidisestablishmentarianism pneumonoultramicroscopicsilicovolcanoconiosis
+		supercalifragilisticexpialidocious</p>
+	</div>
+</body>
+</rml>

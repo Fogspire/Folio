@@ -83,6 +83,8 @@ namespace Folio
 		std::vector<std::unique_ptr<FFaceEntry>> Faces;
 		std::vector<std::unique_ptr<FHandle>> Handles;
 
+		IMsdfCacheStore* CacheStore = nullptr;
+
 		Rml::FontMetrics EmptyMetrics{};
 
 		explicit FImpl(IMsdfTextureSink& InSink) : Sink(InSink) {}
@@ -166,6 +168,11 @@ namespace Folio
 		}
 	}
 
+	void FFolioFontEngine::SetCacheStore(IMsdfCacheStore* Store)
+	{
+		Impl->CacheStore = Store;
+	}
+
 	FFolioFontEngine::~FFolioFontEngine()
 	{
 		// Faces hold FT_Face objects, so they must go before the library that owns them.
@@ -195,6 +202,12 @@ namespace Folio
 		if (!Face->Load(Entry.Data, Entry.FaceIndex, Coords))
 		{
 			return nullptr;
+		}
+
+		if (Impl->CacheStore != nullptr && Entry.Data)
+		{
+			Face->SetCache(Impl->CacheStore,
+				MakeGlyphCacheKey(*Entry.Data, Entry.FaceIndex, Coords, Impl->Params));
 		}
 
 		FFolioFontFace* Raw = Face.get();
@@ -656,6 +669,16 @@ Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, Bo
 		// worth keeping.
 		Impl->Handles.clear();
 
+		// Write the fields back before anything is torn down, so a run that generated glyphs is
+		// the last one that has to.
+		for (const auto& Entry : Impl->Faces)
+		{
+			for (const auto& Instance : Entry->Instances)
+			{
+				Instance.second->FlushCache();
+			}
+		}
+
 		// The textures cannot stay, though. Rml::Shutdown calls this and then asserts that no
 		// callback texture survived it, so holding on to them reports a leak and warns about
 		// memory corruption on the way out.
@@ -680,7 +703,9 @@ Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, Bo
 					+ " style=" + (Entry->Style == Rml::Style::FontStyle::Italic ? "italic" : "normal")
 					+ " variable=" + (Face.IsVariable() ? "yes" : "no")
 					+ " axes=" + (Instance.first.empty() ? Rml::String("default") : Instance.first)
-					+ " glyphs=" + std::to_string(Face.GetGlyphCount());
+					+ " glyphs=" + std::to_string(Face.GetGlyphCount())
+					+ " cached=" + std::to_string(Face.GetCacheHits())
+					+ " generated=" + std::to_string(Face.GetCacheMisses());
 			}
 		}
 

@@ -3,6 +3,7 @@
 #include "DataModel.h"
 #include "InputScript.h"
 #include "Localization.h"
+#include "FontCache.h"
 #include "MissingAssets.h"
 #include "Options.h"
 
@@ -88,6 +89,7 @@ private:
 	std::unique_ptr<RootedFileInterface> file_interface;
 	/** Outlives Rml::Shutdown, which still reads through it while releasing font resources. */
 	std::unique_ptr<Folio::FFolioFontEngine> font_engine;
+	std::unique_ptr<FileFontCache> font_cache;
 	/** Owned by the backend, which constructs them once the GL context exists. */
 	PreviewSystemInterface* system_interface = nullptr;
 	PreviewRenderInterface* render_interface = nullptr;

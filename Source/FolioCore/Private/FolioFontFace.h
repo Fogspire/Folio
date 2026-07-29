@@ -3,6 +3,8 @@
 #include "FolioCore/MsdfTextureSink.h"
 #include "FolioCore/MsdfTypes.h"
 
+#include "FolioCore/MsdfCache.h"
+
 #include "MsdfAtlas.h"
 
 #include <memory>
@@ -59,6 +61,15 @@ namespace Folio
 		bool IsVariable() const { return !Axes.empty(); }
 		const FVariationCoords& GetCoords() const { return Coords; }
 
+		/// Attaches this instance to the store. Cached fields are read on the first glyph request
+		/// rather than here, so a face that is registered but never drawn costs nothing.
+		void SetCache(IMsdfCacheStore* InStore, std::string InKey);
+		/// Writes back anything generated this run. Nothing happens if the cache was complete.
+		void FlushCache();
+
+		int GetCacheHits() const { return CacheHits; }
+		int GetCacheMisses() const { return CacheMisses; }
+
 		unsigned int GetGlyphIndex(char32_t Codepoint) const;
 
 		/// Generates the field on first request. Null only if the glyph cannot be rendered at all.
@@ -93,6 +104,9 @@ namespace Folio
 		void ReadAxes();
 		bool ApplyCoords(const FVariationCoords& InCoords);
 		void ReadMetrics();
+		void LoadCache();
+		/// Packs a field into the shared atlas and records the box.
+		const FGlyphBox* Insert(const FCachedGlyph& Glyph);
 
 		FT_Library Library = nullptr;
 		FT_Face Face = nullptr;
@@ -104,6 +118,17 @@ namespace Folio
 		FMsdfAtlasSet& Atlas;
 
 		std::unordered_map<unsigned int, FGlyphBox> Glyphs;
+
+		IMsdfCacheStore* CacheStore = nullptr;
+		std::string CacheKey;
+		bool bCacheLoaded = false;
+		/// Every field this instance holds, loaded or generated, kept so a flush can rewrite the
+		/// whole blob. It is the atlas contents a second time, so a face costs roughly twice what
+		/// its glyphs occupy on the GPU.
+		std::vector<FCachedGlyph> CacheGlyphs;
+		bool bCacheDirty = false;
+		int CacheHits = 0;
+		int CacheMisses = 0;
 
 		int Version = 0;
 		bool bHasEllipsis = false;

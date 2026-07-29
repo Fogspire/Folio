@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "FolioCore/MsdfCache.h"
+
 #include <RmlUi/Core/FontEngineInterface.h>
 
 namespace Folio
@@ -26,6 +28,11 @@ namespace Folio
 	{
 	public:
 		explicit FFolioFontEngine(IMsdfTextureSink& InSink, const FMsdfAtlasParams& InParams = {}, int InPageSize = 1024);
+
+		/// Installs the field cache. Fields survive between runs, which matters because generating
+		/// one costs a few milliseconds and a screen can want hundreds. Set it before loading any
+		/// face; the store must outlive the engine.
+		void SetCacheStore(IMsdfCacheStore* Store);
 		~FFolioFontEngine() override;
 
 		FFolioFontEngine(const FFolioFontEngine&) = delete;

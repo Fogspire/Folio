@@ -63,6 +63,8 @@ struct Options {
 	/** Report the text engine. Alone it prints what the binary was built against; with a
 	    document it also reports the faces and the atlases they cost. */
 	bool font_report = false;
+	/** Read and write generated fields under <root>/.folio-cache. */
+	bool font_cache = true;
 
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree; }

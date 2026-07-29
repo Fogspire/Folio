@@ -175,8 +175,87 @@ namespace Folio
 		return Face != nullptr ? FT_Get_Char_Index(Face, FT_ULong(Codepoint)) : 0;
 	}
 
+	void FFolioFontFace::SetCache(IMsdfCacheStore* InStore, std::string InKey)
+	{
+		CacheStore = InStore;
+		CacheKey = std::move(InKey);
+	}
+
+	void FFolioFontFace::LoadCache()
+	{
+		bCacheLoaded = true;
+		if (CacheStore == nullptr || CacheKey.empty())
+		{
+			return;
+		}
+
+		std::vector<unsigned char> Data;
+		if (!CacheStore->Read(CacheKey, Data))
+		{
+			return;
+		}
+
+		std::vector<FCachedGlyph> Cached;
+		if (!DeserializeGlyphCache(Data, Atlas.GetAtlas().GetParams(), Cached))
+		{
+			return;
+		}
+
+		// Everything the cache holds goes in at once. It was all drawn last run, so it is very
+		// likely wanted again, and packing is cheap next to generating.
+		for (FCachedGlyph& Glyph : Cached)
+		{
+			if (Insert(Glyph) != nullptr)
+			{
+				++CacheHits;
+				// Kept so a flush rewrites the whole instance. The file is one blob, so writing
+				// only what is new would drop everything the cache already held.
+				CacheGlyphs.push_back(std::move(Glyph));
+			}
+		}
+	}
+
+	void FFolioFontFace::FlushCache()
+	{
+		// Nothing new means the file on disk already says exactly this.
+		if (CacheStore == nullptr || CacheKey.empty() || !bCacheDirty || CacheGlyphs.empty())
+		{
+			return;
+		}
+
+		CacheStore->Write(CacheKey, SerializeGlyphCache(CacheGlyphs, Atlas.GetAtlas().GetParams()));
+		bCacheDirty = false;
+	}
+
+	const FGlyphBox* FFolioFontFace::Insert(const FCachedGlyph& Glyph)
+	{
+		FMsdfGlyphBitmap Bitmap;
+		Bitmap.Width = Glyph.Width;
+		Bitmap.Height = Glyph.Height;
+		Bitmap.Rgba = Glyph.Rgba;
+		Bitmap.PlaneLeft = Glyph.PlaneLeft;
+		Bitmap.PlaneBottom = Glyph.PlaneBottom;
+		Bitmap.PlaneRight = Glyph.PlaneRight;
+		Bitmap.PlaneTop = Glyph.PlaneTop;
+		Bitmap.bEmpty = Glyph.bEmpty;
+
+		FGlyphBox Box;
+		if (!Atlas.GetAtlas().Add(Bitmap, Glyph.AdvanceEm, Box))
+		{
+			return nullptr;
+		}
+
+		++Version;
+		return &Glyphs.emplace(Glyph.GlyphIndex, Box).first->second;
+	}
+
 	const FGlyphBox* FFolioFontFace::GetOrAppendGlyph(unsigned int GlyphIndex)
 	{
+		if (!bCacheLoaded)
+		{
+			LoadCache();
+		}
+
 		if (const auto Found = Glyphs.find(GlyphIndex); Found != Glyphs.end())
 		{
 			return &Found->second;
@@ -187,8 +266,9 @@ namespace Folio
 			return nullptr;
 		}
 
-		float AdvanceEm = 0.0f;
-		GetGlyphAdvanceEm(Face, GlyphIndex, AdvanceEm);
+		FCachedGlyph Generated;
+		Generated.GlyphIndex = GlyphIndex;
+		GetGlyphAdvanceEm(Face, GlyphIndex, Generated.AdvanceEm);
 
 		FMsdfGlyphBitmap Bitmap;
 		if (!GenerateGlyphMsdf(Face, GlyphIndex, Atlas.GetAtlas().GetParams(), Bitmap))
@@ -196,14 +276,23 @@ namespace Folio
 			return nullptr;
 		}
 
-		FGlyphBox Box;
-		if (!Atlas.GetAtlas().Add(Bitmap, AdvanceEm, Box))
-		{
-			return nullptr;
-		}
+		Generated.PlaneLeft = Bitmap.PlaneLeft;
+		Generated.PlaneBottom = Bitmap.PlaneBottom;
+		Generated.PlaneRight = Bitmap.PlaneRight;
+		Generated.PlaneTop = Bitmap.PlaneTop;
+		Generated.Width = Bitmap.Width;
+		Generated.Height = Bitmap.Height;
+		Generated.bEmpty = Bitmap.bEmpty;
+		Generated.Rgba = Bitmap.Rgba;
 
-		++Version;
-		return &Glyphs.emplace(GlyphIndex, Box).first->second;
+		const FGlyphBox* Box = Insert(Generated);
+		if (Box != nullptr)
+		{
+			++CacheMisses;
+			CacheGlyphs.push_back(std::move(Generated));
+			bCacheDirty = true;
+		}
+		return Box;
 	}
 
 	float FFolioFontFace::GetKerningEm(unsigned int LeftGlyph, unsigned int RightGlyph) const

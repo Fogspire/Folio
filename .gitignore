@@ -29,6 +29,9 @@ compile_commands.json
 # SkiaSimplify's source IS committed; only the staged library output is generated.
 /bin/
 
+# Generated glyph fields. Derived data keyed by font contents, disposable.
+/**/.folio-cache/
+
 # uipreview outputs
 /shots/
 /reports/

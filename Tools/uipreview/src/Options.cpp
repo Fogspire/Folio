@@ -122,6 +122,8 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			o.strict = true;
 		else if (arg == "--no-watch")
 			o.watch = false;
+		else if (arg == "--no-font-cache")
+			o.font_cache = false;
 		else if (arg == "--no-assets-wanted")
 			o.write_assets_wanted = false;
 		else if (arg == "--dump-tree")

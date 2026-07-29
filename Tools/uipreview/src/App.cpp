@@ -173,6 +173,12 @@ bool App::Initialise()
 	msdf_params.PxRange = options.msdf_px_range;
 	render_interface->SetMsdfSharpen(options.msdf_sharpen);
 	font_engine = std::make_unique<Folio::FFolioFontEngine>(*render_interface, msdf_params);
+
+	if (options.font_cache)
+	{
+		font_cache = std::make_unique<FileFontCache>(root);
+		font_engine->SetCacheStore(font_cache.get());
+	}
 	Rml::SetFontEngineInterface(font_engine.get());
 
 	if (!Rml::Initialise())

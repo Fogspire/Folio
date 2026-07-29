@@ -1,5 +1,7 @@
 #include "FolioCore/FolioFontEngine.h"
 
+#include "FolioCore/FolioTrace.h"
+
 #include "FolioFontFace.h"
 
 #include <algorithm>
@@ -212,6 +214,7 @@ namespace Folio
 
 		FFolioFontFace* Raw = Face.get();
 		Entry.Instances.emplace_back(Key, std::move(Face));
+		FOLIO_TRACE_COUNTER_ADD("Folio/FaceInstances", 1);
 		return Raw;
 	}
 
@@ -528,6 +531,8 @@ namespace Folio
 	int FFolioFontEngine::GetStringWidth(Rml::FontFaceHandle Handle, Rml::StringView String,
 		const Rml::TextShapingContext& TextShapingContext, Rml::Character PriorCharacter)
 	{
+		FOLIO_TRACE_SCOPE("Folio/GetStringWidth");
+
 		FHandle* Resolved = ResolveHandle(Handle);
 		if (Resolved == nullptr)
 		{
@@ -572,6 +577,8 @@ namespace Folio
 		Rml::ColourbPremultiplied Colour, float, const Rml::TextShapingContext& TextShapingContext,
 		Rml::TexturedMeshList& MeshList)
 	{
+		FOLIO_TRACE_SCOPE("Folio/GenerateString");
+
 		FHandle* Resolved = ResolveHandle(FaceHandle);
 		if (Resolved == nullptr)
 		{

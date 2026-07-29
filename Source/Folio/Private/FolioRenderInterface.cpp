@@ -1,5 +1,7 @@
 #include "FolioRenderInterface.h"
 
+#include "FolioInsights.h"
+
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioBlurShader.h"
@@ -109,6 +111,9 @@ void FFolioRenderInterface::EndFrame()
 Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Span<const Rml::Vertex> Vertices,
 	const Rml::Span<const int> Indices)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_CompileGeometry);
+	SCOPE_CYCLE_COUNTER(STAT_FolioCompileGeometry);
+
 	TUniquePtr<FCompiledGeometry> Compiled = MakeUnique<FCompiledGeometry>();
 
 	Compiled->Vertices.Reserve(Vertices.size());
@@ -180,6 +185,10 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, const Rml::Vector2f Translation,
 	const FSlateResourceHandle& Resource, const FVector2f UvScale)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_DrawGeometry);
+	SCOPE_CYCLE_COUNTER(STAT_FolioDrawGeometry);
+	INC_DWORD_STAT(STAT_FolioDraws);
+
 	// Slate dereferences the resource handle's proxy without checking it, so an invalid one
 	// is a crash rather than a missing texture. Untextured geometry is most of a document -
 	// every background and border arrives with none - so this is not an edge case.
@@ -311,6 +320,10 @@ Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, con
 
 Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensions, const Rml::String& Source)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_LoadTexture);
+	SCOPE_CYCLE_COUNTER(STAT_FolioLoadTexture);
+	LLM_SCOPE_BYTAG(Folio);
+
 	Rml::FileInterface* Files = Rml::GetFileInterface();
 	const Rml::FileHandle File = Files ? Files->Open(Source) : Rml::FileHandle();
 	if (!File)

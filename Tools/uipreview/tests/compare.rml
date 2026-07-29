@@ -1,0 +1,70 @@
+<rml>
+<head>
+	<title>compare</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			The two text engines against each other, in one window.
+
+			The top half is live: fields resolved by the shader every frame, so it re-resolves at
+			whatever size the window is. The bottom half is a picture of the same document
+			rendered by the old FreeType engine, scaled by the same ratio.
+
+			Open it with --dp-reference matching the window height and the two sit at 1:1, where
+			the comparison is fair: same font file, same sizes, same ground. Resize from there and
+			they stop being comparable, which is the other half of the point - one is re-resolved
+			and the other is magnified.
+		*/
+		body
+		{
+			font-family: "Inter 18pt";
+			color: #e8e8f0;
+			background-color: #16161c;
+			padding: 12dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+		}
+
+		div { display: block; }
+
+		.label
+		{
+			font-size: 12dp;
+			color: #f0c674;
+			margin-bottom: 6dp;
+		}
+
+		.note { font-size: 12dp; color: #6a6a7a; margin-bottom: 14dp; }
+
+		.line { margin-bottom: 6dp; }
+		.s10 { font-size: 10dp; }
+		.s13 { font-size: 13dp; }
+		.s16 { font-size: 16dp; }
+		.s20 { font-size: 20dp; }
+		.s28 { font-size: 28dp; }
+
+		/* Sized in dp so the picture scales with the window exactly as the live text does. */
+		.reference
+		{
+			display: block;
+			width: 620dp;
+			height: 170dp;
+		}
+	</style>
+</head>
+<body>
+	<div class="label">Distance fields, live</div>
+
+	<div class="line s10">Handgloves 10 — illiminating quick brown foxes</div>
+	<div class="line s13">Handgloves 13 — illiminating quick brown foxes</div>
+	<div class="line s16">Handgloves 16 — illiminating quick brown foxes</div>
+	<div class="line s20">Handgloves 20 — illiminating quick brown foxes</div>
+	<div class="line s28">Handgloves 28 — illiminating quick</div>
+
+	<div class="label">FreeType raster, a picture of the same document</div>
+	<div class="note">Sharp only at the default window size. Everything past that is magnification.</div>
+
+	<img class="reference" src="freetype_reference.png"/>
+</body>
+</rml>

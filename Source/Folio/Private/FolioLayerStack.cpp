@@ -1,5 +1,7 @@
 #include "FolioLayerStack.h"
 
+#include "FolioInsights.h"
+
 #include "CommonRenderResources.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioBlurShader.h"
@@ -261,6 +263,9 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma)
 
 void FFolioLayerStack::Resolve(FLayer& Layer)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ResolveLayers);
+	SCOPE_CYCLE_COUNTER(STAT_FolioResolveLayers);
+
 	if (Layer.Draws.IsEmpty() || !Layer.Target.IsValid())
 	{
 		Layer.Draws.Reset();

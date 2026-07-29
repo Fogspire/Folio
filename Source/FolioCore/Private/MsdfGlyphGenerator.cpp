@@ -1,5 +1,7 @@
 #include "MsdfGlyphGenerator.h"
 
+#include "FolioCore/FolioTrace.h"
+
 #include <msdfgen.h>
 #include <msdfgen-ext.h>
 
@@ -43,6 +45,8 @@ namespace Folio
 	{
 		using namespace msdfgen;
 
+		FOLIO_TRACE_SCOPE("Folio/GenerateGlyph");
+
 		OutBitmap = FMsdfGlyphBitmap();
 
 		if (Face == nullptr || Face->units_per_EM == 0 || Params.PxPerEm <= 0 || Params.PxRange <= 0)
@@ -74,7 +78,12 @@ namespace Folio
 		// Resolving the geometry unions the contours into one outline, which removes the
 		// inconsistency at the source. It needs Skia's path operations, which is why the amalgam
 		// is vendored.
-		resolveShapeGeometry(Glyph);
+		{
+			// Usually the dominant cost, so it is timed on its own rather than folded into the
+			// glyph total.
+			FOLIO_TRACE_SCOPE("Folio/ResolveOverlaps");
+			resolveShapeGeometry(Glyph);
+		}
 
 		// Deliberately no orientContours() here. readFreetypeOutline keeps the outline's own
 		// winding, which TrueType already gets right for non-zero fill; re-deriving it from a
@@ -118,7 +127,10 @@ namespace Folio
 			Range(double(Params.PxRange) * UnitsPerPixel));
 
 		Bitmap<float, 4> Field(Width, Height);
-		generateMTSDF(Field, Glyph, Transformation);
+		{
+			FOLIO_TRACE_SCOPE("Folio/GenerateField");
+			generateMTSDF(Field, Glyph, Transformation);
+		}
 
 		OutBitmap.Width = Width;
 		OutBitmap.Height = Height;

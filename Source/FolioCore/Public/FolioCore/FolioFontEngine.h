@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FolioCore/FolioCoreAPI.h"
+
 #include "FolioCore/MsdfTextureSink.h"
 #include "FolioCore/MsdfTypes.h"
 
@@ -24,7 +26,7 @@ namespace Folio
 	/// Install it with Rml::SetFontEngineInterface before Rml::Initialise. Both builds set
 	/// RMLUI_FONT_ENGINE to none, which makes Initialise fail loudly if that is forgotten rather
 	/// than falling back to something that silently draws nothing.
-	class FFolioFontEngine final : public Rml::FontEngineInterface
+	class FOLIOCORE_API FFolioFontEngine final : public Rml::FontEngineInterface
 	{
 	public:
 		explicit FFolioFontEngine(IMsdfTextureSink& InSink, const FMsdfAtlasParams& InParams = {}, int InPageSize = 1024);

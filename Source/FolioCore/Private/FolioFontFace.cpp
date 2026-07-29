@@ -2,6 +2,8 @@
 
 #include "MsdfGlyphGenerator.h"
 
+#include "FolioCore/FolioTrace.h"
+
 #include <cstring>
 
 #include <RmlUi/Core/RenderManager.h>
@@ -43,6 +45,8 @@ namespace Folio
 
 	bool FFolioFontFace::Load(FFontData InData, int FaceIndex, const FVariationCoords& InCoords)
 	{
+		FOLIO_TRACE_SCOPE("Folio/LoadFaceInstance");
+
 		Data = std::move(InData);
 		if (!Data || Data->empty())
 		{
@@ -183,6 +187,8 @@ namespace Folio
 
 	void FFolioFontFace::LoadCache()
 	{
+		FOLIO_TRACE_SCOPE("Folio/ReadGlyphCache");
+
 		bCacheLoaded = true;
 		if (CacheStore == nullptr || CacheKey.empty())
 		{
@@ -208,6 +214,7 @@ namespace Folio
 			if (Insert(Glyph) != nullptr)
 			{
 				++CacheHits;
+				FOLIO_TRACE_COUNTER_ADD("Folio/GlyphsFromCache", 1);
 				// Kept so a flush rewrites the whole instance. The file is one blob, so writing
 				// only what is new would drop everything the cache already held.
 				CacheGlyphs.push_back(std::move(Glyph));
@@ -223,6 +230,7 @@ namespace Folio
 			return;
 		}
 
+		FOLIO_TRACE_SCOPE("Folio/WriteGlyphCache");
 		CacheStore->Write(CacheKey, SerializeGlyphCache(CacheGlyphs, Atlas.GetAtlas().GetParams()));
 		bCacheDirty = false;
 	}
@@ -289,6 +297,7 @@ namespace Folio
 		if (Box != nullptr)
 		{
 			++CacheMisses;
+			FOLIO_TRACE_COUNTER_ADD("Folio/GlyphsGenerated", 1);
 			CacheGlyphs.push_back(std::move(Generated));
 			bCacheDirty = true;
 		}

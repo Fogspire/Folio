@@ -1,5 +1,7 @@
 #include "FolioModule.h"
 
+#include "FolioInsights.h"
+
 #include "FolioFileInterface.h"
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
@@ -15,6 +17,9 @@ DEFINE_LOG_CATEGORY(LogFolio);
 
 void FFolioModule::StartupModule()
 {
+	// Before any face is loaded, so the core's generation scopes are captured from the start.
+	FolioInsights::Install();
+
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Folio"));
 	PluginRoot = Plugin.IsValid() ? FPaths::ConvertRelativePathToFull(Plugin->GetBaseDir()) : FString();
 

@@ -14,6 +14,7 @@
 #include "RenderInterface.h"
 #include "Screenshot.h"
 #include "SystemInterface.h"
+#include "TraceReport.h"
 #include "backend/UipreviewBackendGLFW.h"
 
 #include "FolioCore/FolioCoreVersion.h"
@@ -168,6 +169,9 @@ bool App::Initialise()
 	// RmlUi is built with RMLUI_FONT_ENGINE=none, so this is not an upgrade over the built-in
 	// engine, it is the only one. Rml::Initialise fails outright if it is missing rather than
 	// quietly rendering no text.
+	if (options.font_report)
+		TraceReport::Install();
+
 	Folio::FMsdfAtlasParams msdf_params;
 	msdf_params.PxPerEm = options.msdf_px_em;
 	msdf_params.PxRange = options.msdf_px_range;
@@ -528,6 +532,14 @@ int App::Run()
 	{
 		std::printf("%s\n  %s\n  msdf-draws=%d\n", Folio::GetCoreVersionString().c_str(),
 			font_engine->GetReport().c_str(), render_interface->MsdfDrawCount());
+
+		// The same scopes Insights shows in an engine build, totalled, so the numbers mean the
+		// same thing in the tool where most of the iteration happens.
+		const std::string trace = TraceReport::Format();
+		if (!trace.empty())
+		{
+			std::printf("%s", trace.c_str());
+		}
 	}
 
 	return result;

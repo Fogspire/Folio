@@ -26,6 +26,7 @@ public class Folio : ModuleRules
 			"RenderCore",
 			"RHI",
 			"Projects",
+			"TraceLog",
 			"ApplicationCore",
 			"RmlUiLibrary",
 			"FolioCore",

@@ -18,6 +18,7 @@ add_executable(uipreview
 	src/RenderInterface.cpp
 	src/Screenshot.cpp
 	src/SystemInterface.cpp
+	src/TraceReport.cpp
 
 	# Forked from RmlUi's Backends/RmlUi_Backend_GLFW_GL3.cpp. See the header for why.
 	src/backend/UipreviewBackendGLFW.cpp

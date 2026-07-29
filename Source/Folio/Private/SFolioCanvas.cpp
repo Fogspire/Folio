@@ -1,5 +1,7 @@
 #include "SFolioCanvas.h"
 
+#include "FolioInsights.h"
+
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
@@ -116,6 +118,9 @@ void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 
 void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Update);
+	SCOPE_CYCLE_COUNTER(STAT_FolioUpdate);
+
 	SLeafWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
 	if (!Context)
@@ -141,6 +146,9 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 	FSlateWindowElementList& OutDrawElements, const int32 LayerId, const FWidgetStyle& InWidgetStyle,
 	const bool bParentEnabled) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Render);
+	SCOPE_CYCLE_COUNTER(STAT_FolioRender);
+
 	if (!Context)
 	{
 		return LayerId;

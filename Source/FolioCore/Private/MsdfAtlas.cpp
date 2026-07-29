@@ -1,5 +1,7 @@
 #include "MsdfAtlas.h"
 
+#include "FolioCore/FolioTrace.h"
+
 #include <RmlUi/Core/RenderManager.h>
 
 namespace Folio
@@ -41,6 +43,8 @@ namespace Folio
 
 	bool FMsdfAtlas::AddPage()
 	{
+		FOLIO_TRACE_SCOPE("Folio/CreateAtlasPage");
+
 		const FMsdfHandle Handle = Sink.CreateAtlasPage(FMsdfPoint{ PageSize, PageSize }, Params);
 		if (Handle == InvalidMsdfHandle)
 		{
@@ -51,6 +55,9 @@ namespace Folio
 		Page.Handle = Handle;
 		Page.Skyline.push_back(FSkylineNode{ 0, 0, PageSize });
 		Pages.push_back(std::move(Page));
+
+		FOLIO_TRACE_COUNTER_SET("Folio/AtlasPages", std::int64_t(Pages.size()));
+		FOLIO_TRACE_MEMORY_SET("Folio/AtlasMemory", std::int64_t(GetByteSize()));
 		return true;
 	}
 
@@ -147,6 +154,8 @@ namespace Folio
 
 	bool FMsdfAtlas::Add(const FMsdfGlyphBitmap& Bitmap, float AdvanceEm, FGlyphBox& OutBox)
 	{
+		FOLIO_TRACE_SCOPE("Folio/PackGlyph");
+
 		OutBox = FGlyphBox();
 		OutBox.AdvanceEm = AdvanceEm;
 
@@ -188,8 +197,11 @@ namespace Folio
 		FPage& Page = Pages[std::size_t(PageIndex)];
 		Occupy(Page, NodeIndex, X, Y, NeededWidth, NeededHeight);
 
-		Sink.UploadAtlasRegion(Page.Handle, FMsdfRect{ X, Y, Bitmap.Width, Bitmap.Height },
-			Bitmap.Rgba.data(), Bitmap.Width * 4);
+		{
+			FOLIO_TRACE_SCOPE("Folio/UploadGlyph");
+			Sink.UploadAtlasRegion(Page.Handle, FMsdfRect{ X, Y, Bitmap.Width, Bitmap.Height },
+				Bitmap.Rgba.data(), Bitmap.Width * 4);
+		}
 
 		// Both rects are inset by half a texel. A quad that reaches the outermost texel centre
 		// samples exactly on the boundary, where bilinear filtering mixes in the gutter beside it
@@ -210,6 +222,7 @@ namespace Folio
 
 		OutBox.Page = static_cast<std::uint16_t>(PageIndex);
 		++PackedGlyphs;
+		FOLIO_TRACE_COUNTER_SET("Folio/AtlasGlyphs", std::int64_t(PackedGlyphs));
 		return true;
 	}
 

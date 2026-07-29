@@ -317,6 +317,47 @@ filter. Folio bundles no art or fonts, so nothing needs it yet. Before a repo st
 accumulating atlases, run `git lfs install` and switch those lines to
 `filter=lfs diff=lfs merge=lfs -text`.
 
+## Profiling
+
+Folio reports to Unreal Insights, `stat folio`, and CSV captures. Capture with:
+
+```
+UnrealEditor.exe <project> -trace=default,counters,folio -statnamedevents
+```
+
+`folio` is a channel of its own so a capture can ask for it without everything else. In the
+editor, `stat folio` shows the same timings live.
+
+The scopes worth knowing, in the order they cost:
+
+| Scope | What it covers |
+| --- | --- |
+| `Folio/GenerateGlyph` | One glyph's field, cold. Everything below is inside it. |
+| `Folio/GenerateField` | msdfgen itself. **This is the expense**, around 2.8ms a glyph. |
+| `Folio/ResolveOverlaps` | Skia unioning the outline. Around 0.04ms - 1.5% of the glyph. |
+| `Folio/ReadGlyphCache` | Reading an instance's fields back from disk. |
+| `Folio/PackGlyph`, `Folio/UploadGlyph` | Placing it in the atlas and sending it to the GPU. |
+| `Folio/GenerateString`, `Folio/GetStringWidth` | What RmlUi calls per text element. Cold, these contain the generation above. |
+| `Folio_Render`, `Folio_Update` | The canvas widget's paint and tick. |
+| `Folio_CompileGeometry`, `Folio_DrawGeometry` | Per draw, on the game thread. |
+| `Folio_ResolveLayers` | The layer stack's replay, on the render thread. |
+
+Counters: `Folio/AtlasPages`, `Folio/AtlasMemory`, `Folio/AtlasGlyphs`, `Folio/FaceInstances`,
+`Folio/GlyphsGenerated`, `Folio/GlyphsFromCache`. Memory is tagged for `-llm` under `Folio`.
+
+**Do not read the generation cost as Skia's.** It is msdfgen's field generation; resolving
+overlaps is a rounding error beside it. An earlier commit message says otherwise and is wrong.
+
+FolioCore cannot use Unreal's profiling macros - it compiles into the preview tool too - so it
+names scopes through a hook table in `FolioCore/FolioTrace.h` that the Unreal module forwards to
+Insights. The preview tool implements the same hooks and totals them:
+
+```
+uipreview <doc> --font-report
+```
+
+Numbers there are inclusive, so a parent scope contains its children.
+
 ## Toolchain
 
 **The MSVC toolset must match whatever UnrealBuildTool picks, and guessing it was wrong.**

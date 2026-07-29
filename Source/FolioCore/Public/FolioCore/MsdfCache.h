@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FolioCore/FolioCoreAPI.h"
+
 #include "FolioCore/MsdfTypes.h"
 
 #include <cstdint>
@@ -50,17 +52,17 @@ namespace Folio
 	/// a previous version is discarded rather than migrated.
 	inline constexpr std::uint32_t MsdfCacheVersion = 1;
 
-	std::vector<unsigned char> SerializeGlyphCache(const std::vector<FCachedGlyph>& Glyphs,
+	FOLIOCORE_API std::vector<unsigned char> SerializeGlyphCache(const std::vector<FCachedGlyph>& Glyphs,
 		const FMsdfAtlasParams& Params);
 
 	/// Returns false if the blob is truncated, from another version, or was generated with
 	/// different atlas parameters.
-	bool DeserializeGlyphCache(const std::vector<unsigned char>& Data, const FMsdfAtlasParams& Params,
+	FOLIOCORE_API bool DeserializeGlyphCache(const std::vector<unsigned char>& Data, const FMsdfAtlasParams& Params,
 		std::vector<FCachedGlyph>& OutGlyphs);
 
 	/// Identifies one face instance: the file's contents, which face within it, the variation
 	/// coordinates and the field parameters. Contents rather than path, so moving or renaming a
 	/// font reuses the cache and editing one does not.
-	std::string MakeGlyphCacheKey(const std::vector<unsigned char>& FontData, int FaceIndex,
+	FOLIOCORE_API std::string MakeGlyphCacheKey(const std::vector<unsigned char>& FontData, int FaceIndex,
 		const FVariationCoords& Coords, const FMsdfAtlasParams& Params);
 }

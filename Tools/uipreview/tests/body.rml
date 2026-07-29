@@ -1,0 +1,21 @@
+<rml>
+<head>
+	<title>body</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* Body copy at the sizes a UI actually uses, for comparing text engines. */
+		body { font-family: "Inter 18pt"; color: #e8e8f0; background-color: #16161c;
+		       padding: 12dp; width: 100%; height: 100%; box-sizing: border-box; }
+		div { display: block; margin-bottom: 6dp; }
+		.s10 { font-size: 10dp; } .s13 { font-size: 13dp; } .s16 { font-size: 16dp; }
+		.s20 { font-size: 20dp; } .s28 { font-size: 28dp; }
+	</style>
+</head>
+<body>
+	<div class="s10">Handgloves 10 — illiminating quick brown foxes</div>
+	<div class="s13">Handgloves 13 — illiminating quick brown foxes</div>
+	<div class="s16">Handgloves 16 — illiminating quick brown foxes</div>
+	<div class="s20">Handgloves 20 — illiminating quick brown foxes</div>
+	<div class="s28">Handgloves 28 — illiminating quick</div>
+</body>
+</rml>

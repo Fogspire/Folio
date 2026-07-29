@@ -191,6 +191,17 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 
 	UpdateContextSize(AllottedGeometry);
 
+	// A held stick becomes repeated presses here, where there is a clock. Suppressed while a text
+	// field has focus, for the same reason letters are not directions there.
+	if (!IsTakingText())
+	{
+		if (const Rml::Input::KeyIdentifier Nav = Analog.Advance(InDeltaTime);
+			Nav != Rml::Input::KI_UNKNOWN)
+		{
+			SendNavigation(Nav, 0);
+		}
+	}
+
 	// Slate's layout scale is Unreal's UI scaling; RmlUi expresses the same thing as a
 	// density independent pixel ratio, which is what dp units resolve against.
 	Context->SetDensityIndependentPixelRatio(AllottedGeometry.Scale);
@@ -324,15 +335,105 @@ void SFolioCanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
 
 FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
 {
-	const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
-	if (!Context || Key == Rml::Input::KI_UNKNOWN)
+	if (!Context)
 	{
 		return FReply::Unhandled();
 	}
 
-	// RmlUi returns false when it consumed the key, which is the opposite convention to Slate.
-	const bool bConsumed = !Context->ProcessKeyDown(Key, Folio::ToRmlModifiers(KeyEvent.GetModifierKeys()));
-	return bConsumed ? FReply::Handled() : FReply::Unhandled();
+	NoteDevice(Folio::DeviceForKey(KeyEvent.GetKey()));
+
+	const int32 Modifiers = Folio::ToRmlModifiers(KeyEvent.GetModifierKeys());
+
+	// The literal key first, so a text field still receives W as a letter. Only when nothing is
+	// taking text does a letter get to mean a direction, which is what lets the arrows, WASD and
+	// IJKL all navigate at once without any of them breaking typing.
+	if (const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
+		Key != Rml::Input::KI_UNKNOWN)
+	{
+		return !Context->ProcessKeyDown(Key, Modifiers) ? FReply::Handled() : FReply::Unhandled();
+	}
+
+	if (IsTakingText())
+	{
+		return FReply::Unhandled();
+	}
+
+	if (const Rml::Input::KeyIdentifier Nav = Folio::ToNavigationKey(KeyEvent.GetKey());
+		Nav != Rml::Input::KI_UNKNOWN)
+	{
+		return SendNavigation(Nav, Modifiers) ? FReply::Handled() : FReply::Unhandled();
+	}
+
+	return FReply::Unhandled();
+}
+
+FReply SFolioCanvas::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& AnalogEvent)
+{
+	if (!Context)
+	{
+		return FReply::Unhandled();
+	}
+
+	// Only recorded here. A stick reports a position every frame, so turning it into presses is
+	// Tick's job, where there is a clock to measure the repeat against.
+	Analog.SetAxis(AnalogEvent.GetKey(), AnalogEvent.GetAnalogValue());
+
+	if (FMath::Abs(AnalogEvent.GetAnalogValue()) >= Folio::FAnalogNavigator::Deadzone)
+	{
+		NoteDevice(Folio::EInputDevice::Gamepad);
+	}
+
+	return FReply::Unhandled();
+}
+
+void SFolioCanvas::OnFocusLost(const FFocusEvent& FocusEvent)
+{
+	// A stick held while focus moves elsewhere would otherwise keep repeating into this document.
+	Analog.Reset();
+	SLeafWidget::OnFocusLost(FocusEvent);
+}
+
+bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int32 Modifiers)
+{
+	if (!Context)
+	{
+		return false;
+	}
+
+	// Down and up together. RmlUi navigates on the press, but an element left thinking a key is
+	// still held misbehaves the next time the same key arrives.
+	const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+	Context->ProcessKeyUp(Key, Modifiers);
+	return bConsumed;
+}
+
+void SFolioCanvas::NoteDevice(const Folio::EInputDevice Device)
+{
+	if (Device == LastDevice || Device == Folio::EInputDevice::Unknown)
+	{
+		return;
+	}
+
+	LastDevice = Device;
+	UE_LOG(LogFolio, Verbose, TEXT("input device is now %s"), Folio::DescribeDevice(Device));
+}
+
+/** True while a text field has focus, so letters are text rather than directions. */
+bool SFolioCanvas::IsTakingText() const
+{
+	if (!Context)
+	{
+		return false;
+	}
+
+	const Rml::Element* Focus = Context->GetFocusElement();
+	if (Focus == nullptr)
+	{
+		return false;
+	}
+
+	const Rml::String FocusTag = Focus->GetTagName();
+	return FocusTag == "input" || FocusTag == "textarea";
 }
 
 FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)

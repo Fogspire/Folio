@@ -484,6 +484,23 @@ The rest:
 Style the focus state with `:focus-visible`, never `:focus`. `:focus-visible` is set by
 navigation actions specifically, so the focus ring correctly stays hidden during mouse use.
 
+### What counts as a direction
+
+Everything below arrives as the same four keys, and all of it is live at once. A document never
+learns what produced a direction.
+
+| | |
+|---|---|
+| Arrow keys, **WASD**, **IJKL** | up, down, left, right |
+| D-pad, and either stick pushed to its extreme | the same four |
+| Either analog stick, held | repeats: 0.5 deadzone, 0.4s before the first repeat, 0.12s after |
+| `Enter`, `Space`, gamepad bottom face button | activate the focused element |
+| `Escape`, gamepad right face button | back |
+| `Tab`, either shoulder | tab order |
+
+**Letters only navigate when nothing is taking text.** With an `input` or `textarea` focused, W is
+a W. That is what lets three keyboard schemes coexist without any of them breaking typing.
+
 ---
 
 ## 9. Data binding

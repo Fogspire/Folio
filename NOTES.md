@@ -852,3 +852,35 @@ screenshot of an SVG loaded directly comes out empty.
 For finding which layer is at fault, render each one alone: a document with one `<img>` per
 `-ink` class, tinted, laid out in a grid. That is what showed the clip working (the clipped
 layers were correctly confined) while the fills were not.
+
+
+## Three keyboard schemes at once, without breaking typing
+
+The phase gate asks for a menu navigable by arrows, WASD and IJKL simultaneously. The catch is
+that W is also a letter, and a text field has to keep receiving it.
+
+The order settles it. `OnKeyDown` asks for the *literal* key first - `ToRmlKey`, which knows
+arrows, Enter, Escape, Tab and the editing keys - and only if that comes back unknown does it ask
+`ToNavigationKey`, which knows the gamepad and the letter schemes. That second question is skipped
+entirely while an `input` or `textarea` has focus.
+
+So the two maps are deliberately separate. Folding the letters into `ToRmlKey` would make them
+directions everywhere, including inside a text field.
+
+## A stick is a position, not an event
+
+Slate reports an analog axis every frame it is off centre, so forwarding it directly either does
+nothing or navigates every frame. `FAnalogNavigator` records the axes in the input handler and
+turns them into presses in `Tick`, where there is a clock: past a 0.5 deadzone it emits once,
+waits 0.4s, then repeats every 0.12s - a keyboard's auto-repeat shape, and the timings the brief
+names.
+
+Two details worth keeping. The larger axis wins, so a diagonal push means one direction rather
+than two, and which one no longer depends on frame timing. And changing direction without
+returning to centre counts as a new press, because that is what it feels like to the player.
+
+The navigator is reset on focus loss: a stick held while focus moves elsewhere would otherwise
+keep repeating into a document that is no longer in front.
+
+Navigation keys are sent down **and up** together. RmlUi navigates on the press, but an element
+left believing a key is still held misbehaves the next time that key arrives.

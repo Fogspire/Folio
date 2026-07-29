@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FolioNavigation.h"
+
 #include "CoreMinimal.h"
 #include "Widgets/SLeafWidget.h"
 
@@ -65,8 +67,25 @@ public:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent) override;
 	virtual FReply OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent) override;
 	virtual FReply OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& CharacterEvent) override;
+	virtual FReply OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& AnalogEvent) override;
+	virtual void OnFocusLost(const FFocusEvent& FocusEvent) override;
+
+	/** What the player last touched. Documents swap button glyphs on it. */
+	Folio::EInputDevice GetLastInputDevice() const { return LastDevice; }
 
 private:
+	/** Sends a navigation key both ways, since RmlUi expects a press to be released. */
+	bool SendNavigation(Rml::Input::KeyIdentifier Key, int32 Modifiers);
+
+	/** Records the device and logs when it changes, which is the signal a document listens for. */
+	void NoteDevice(Folio::EInputDevice Device);
+
+	/** True while a text field has focus, so letters are text rather than directions. */
+	bool IsTakingText() const;
+
+	Folio::FAnalogNavigator Analog;
+	Folio::EInputDevice LastDevice = Folio::EInputDevice::Unknown;
+
 	/** Screen space to the context's own pixel space. */
 	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;
 

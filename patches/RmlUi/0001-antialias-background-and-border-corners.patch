@@ -16,7 +16,7 @@ index 4785fd1e..d94665ad 100644
  	MeshUtilities() = delete;
  };
 diff --git a/Source/Core/GeometryBackgroundBorder.cpp b/Source/Core/GeometryBackgroundBorder.cpp
-index 6106b49b..e47da258 100644
+index 6106b49b..6ea3ec5a 100644
 --- a/Source/Core/GeometryBackgroundBorder.cpp
 +++ b/Source/Core/GeometryBackgroundBorder.cpp
 @@ -1,4 +1,5 @@
@@ -41,20 +41,53 @@ index 6106b49b..e47da258 100644
  GeometryBackgroundBorder::GeometryBackgroundBorder(Vector<Vertex>& vertices, Vector<int>& indices) : vertices(vertices), indices(indices) {}
  
  BorderMetrics GeometryBackgroundBorder::ComputeBorderMetrics(Vector2f outer_position, EdgeSizes edge_sizes, Vector2f inner_size,
-@@ -81,6 +91,8 @@ void GeometryBackgroundBorder::DrawBackground(const BorderMetrics& metrics, Colo
+@@ -81,6 +91,14 @@ void GeometryBackgroundBorder::DrawBackground(const BorderMetrics& metrics, Colo
  			metrics.inner_radii[corner], color);
  
  	FillBackground(offset_vertices);
 +
-+	AntialiasRing(offset_vertices);
++	{
++		Vector<int> ring((size_t)vertices.size() - offset_vertices);
++		for (size_t i = 0; i < ring.size(); i++)
++			ring[i] = offset_vertices + (int)i;
++
++		AntialiasRing(ring);
++	}
  }
  
  void GeometryBackgroundBorder::DrawBorder(const BorderMetrics& metrics, EdgeSizes edge_sizes, const ColourbPremultiplied border_colors[4])
-@@ -190,6 +202,72 @@ void GeometryBackgroundBorder::FillBackground(int index_start)
+@@ -123,6 +141,26 @@ void GeometryBackgroundBorder::DrawBorder(const BorderMetrics& metrics, EdgeSize
+ 			FillEdge(edge1 == LEFT ? offset_vertices : (int)vertices.size());
+ 		}
+ 	}
++
++	// Only when every corner is present and every edge is the same colour. The ring is then two
++	// vertices per point, inner first, so the outer boundary is every odd one. A corner between
++	// two differently coloured edges emits four instead, and the stride stops being predictable.
++	const bool uniform = (border_colors[0] == border_colors[1] && border_colors[1] == border_colors[2] &&
++		border_colors[2] == border_colors[3]);
++	const bool closed = draw_corner[0] && draw_corner[1] && draw_corner[2] && draw_corner[3];
++
++	if (uniform && closed)
++	{
++		const int count = ((int)vertices.size() - offset_vertices) / 2;
++		if (count >= 3)
++		{
++			Vector<int> ring((size_t)count);
++			for (int i = 0; i < count; i++)
++				ring[i] = offset_vertices + 2 * i + 1;
++
++			AntialiasRing(ring);
++		}
++	}
+ }
+ 
+ void GeometryBackgroundBorder::DrawBackgroundCorner(Corner corner, Vector2f pos_inner, Vector2f pos_circle_center, float R, Vector2f r,
+@@ -190,6 +228,72 @@ void GeometryBackgroundBorder::FillBackground(int index_start)
  	}
  }
  
-+void GeometryBackgroundBorder::AntialiasRing(int index_start)
++void GeometryBackgroundBorder::AntialiasRing(const Vector<int>& ring)
 +{
 +	// Corners are a fan of hard-edged triangles, so without this they alias unless the whole
 +	// surface is multisampled. A renderer drawing UI straight into a composited swapchain has no
@@ -67,14 +100,14 @@ index 6106b49b..e47da258 100644
 +	// half-lit pixels wherever there is no multisampling to hide it.
 +
 +	const float width = g_background_antialias_width;
-+	const int count = (int)vertices.size() - index_start;
++	const int count = (int)ring.size();
 +
 +	if (width <= 0.f || count < 3)
 +		return;
 +
 +	Vector<Vector2f> outer(count);
 +	for (int i = 0; i < count; i++)
-+		outer[i] = vertices[index_start + i].position;
++		outer[i] = vertices[ring[i]].position;
 +
 +	// The ring runs clockwise in screen space, y down, so (dy, -dx) points out of the shape.
 +	auto edge_normal = [](Vector2f from, Vector2f to) -> Vector2f {
@@ -110,12 +143,12 @@ index 6106b49b..e47da258 100644
 +		const int next = (i + 1) % count;
 +		int* triangle = &indices[offset_indices + 6 * i];
 +
-+		triangle[0] = index_start + i;
++		triangle[0] = ring[i];
 +		triangle[1] = offset_skirt + next;
 +		triangle[2] = offset_skirt + i;
 +
-+		triangle[3] = index_start + i;
-+		triangle[4] = index_start + next;
++		triangle[3] = ring[i];
++		triangle[4] = ring[next];
 +		triangle[5] = offset_skirt + next;
 +	}
 +}
@@ -124,15 +157,16 @@ index 6106b49b..e47da258 100644
  	Vector2f r, ColourbPremultiplied color0, ColourbPremultiplied color1)
  {
 diff --git a/Source/Core/GeometryBackgroundBorder.h b/Source/Core/GeometryBackgroundBorder.h
-index a0808439..06ed5bf5 100644
+index a0808439..faec7f82 100644
 --- a/Source/Core/GeometryBackgroundBorder.h
 +++ b/Source/Core/GeometryBackgroundBorder.h
-@@ -71,6 +71,9 @@ private:
+@@ -71,6 +71,10 @@ private:
  	// Generates triangles by connecting the added vertices.
  	void FillBackground(int index_start);
  
-+	/// Softens the outer boundary of a filled ring so it does not depend on renderer multisampling.
-+	void AntialiasRing(int index_start);
++	/// Softens a closed boundary so it does not depend on renderer multisampling. The ring is given
++	/// as indices into the vertex list, in order around the shape.
++	void AntialiasRing(const Vector<int>& ring);
 +
  	// -- Border --
  	// All draw operations place the first and last vertices in the following manner.

@@ -44,7 +44,9 @@
 		}
 
 		.row { display: flex; flex-direction: row; }
-		.col { margin-right: 22dp; }
+		/* Without flex-shrink: 0 a column is squashed below its content's own width and the content
+		   overflows across the next one. A flex item shrinks by default. */
+		.col { margin-right: 22dp; flex-shrink: 0; }
 
 		/* Marked, because an axis-locked list is indistinguishable from a broken one otherwise. */
 		.list {
@@ -118,8 +120,8 @@
 		<div class="col">
 			<h2 class="locked">
 				<code>nav: vertical</code> - up and down only, on purpose.<br/>
-				Left and right are filtered out, so focus cannot leave sideways either.
-				Go down to the field to escape.
+				Left and right are filtered, so focus cannot leave<br/>
+				sideways either. Go down to the field to escape.
 			</h2>
 			<div class="list">
 				<div class="item" id="i1">first</div>

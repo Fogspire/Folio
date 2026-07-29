@@ -1,5 +1,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
@@ -307,6 +309,13 @@ namespace
 	TSharedPtr<SWidget> NavContainer;
 	FTSTicker::FDelegateHandle NavTicker;
 
+	APlayerController* FirstPlayer()
+	{
+		UGameViewportClient* Viewport = FindViewport();
+		UWorld* World = Viewport ? Viewport->GetWorld() : nullptr;
+		return World ? World->GetFirstPlayerController() : nullptr;
+	}
+
 	void HideNavTest()
 	{
 		if (NavTicker.IsValid())
@@ -320,8 +329,13 @@ namespace
 		{
 			Viewport->RemoveViewportWidgetContent(NavContainer.ToSharedRef());
 
-			// Focus goes back to the game, or the session is left taking no input at all.
-			if (FSlateApplication::IsInitialized())
+			// The game gets its input back, or the session is left taking none at all.
+			if (APlayerController* Player = FirstPlayer())
+			{
+				Player->SetInputMode(FInputModeGameOnly());
+				Player->SetShowMouseCursor(false);
+			}
+			else if (FSlateApplication::IsInitialized())
 			{
 				if (const TSharedPtr<SWidget> GameWidget = Viewport->GetGameViewportWidget())
 				{
@@ -381,6 +395,19 @@ namespace
 				// Every user, not just user 0: a gamepad in PIE is often a second Slate user, and
 				// focusing only the keyboard's user leaves the sticks going to the game.
 				FSlateApplication::Get().SetAllUserFocus(NavCanvas, EFocusCause::SetDirectly);
+
+				// The input mode is what makes the mouse usable and stops the pawn reading the same
+				// input the menu is reading. Slate focus alone does neither: the viewport keeps the
+				// cursor captured and hidden, so there is nothing to click with.
+				if (APlayerController* Player = FirstPlayer())
+				{
+					FInputModeGameAndUI Mode;
+					Mode.SetWidgetToFocus(NavCanvas);
+					Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+					Mode.SetHideCursorDuringCapture(false);
+					Player->SetInputMode(Mode);
+					Player->SetShowMouseCursor(true);
+				}
 
 				UE_LOG(LogFolio, Display,
 					TEXT("folio.NavTest: '%s' has focus. Arrows, WASD, IJKL, d-pad and the sticks all ")

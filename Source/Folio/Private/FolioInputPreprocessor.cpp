@@ -36,16 +36,25 @@ namespace
 		return Found ? *Found : nullptr;
 	}
 
-	void Trace(const FInputEvent& Event, const FKey& Key, const SFolioCanvas* Canvas, const bool bConsumed)
+	bool Tracing()
 	{
-		if (CVarInputTrace.GetValueOnAnyThread() == 0)
+		return CVarInputTrace.GetValueOnAnyThread() != 0;
+	}
+
+	void Trace(const TCHAR* What, const FInputEvent& Event, const FKey& Key,
+		const SFolioCanvas* Canvas, const bool bConsumed)
+	{
+		if (!Tracing())
 		{
 			return;
 		}
 
-		UE_LOG(LogFolio, Display, TEXT("input trace: %s user=%d focus=%s consumed=%s"),
-			*Key.ToString(), Event.GetUserIndex(),
-			Canvas ? TEXT("a Folio document") : TEXT("something else"),
+		// Every device, not just gamepads: an absence of gamepad lines only means something when
+		// keyboard lines are arriving to prove the trace itself is live.
+		UE_LOG(LogFolio, Display, TEXT("input trace: %s %s gamepad=%s user=%d focus=%s consumed=%s"),
+			What, *Key.ToString(), Key.IsGamepadKey() ? TEXT("yes") : TEXT("no"),
+			Event.GetUserIndex(),
+			Canvas ? TEXT("folio") : TEXT("elsewhere"),
 			bConsumed ? TEXT("yes") : TEXT("no"));
 	}
 }
@@ -78,12 +87,15 @@ bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, co
 {
 	if (!InKeyEvent.GetKey().IsGamepadKey())
 	{
+		// Traced but never touched. Keyboard routing is Slate's business.
+		Trace(TEXT("key down"), InKeyEvent, InKeyEvent.GetKey(),
+			FocusedCanvas(SlateApp, InKeyEvent), false);
 		return false;
 	}
 
 	SFolioCanvas* Canvas = FocusedCanvas(SlateApp, InKeyEvent);
 	const bool bConsumed = Canvas && Canvas->RouteGamepadKeyDown(InKeyEvent);
-	Trace(InKeyEvent, InKeyEvent.GetKey(), Canvas, bConsumed);
+	Trace(TEXT("key down"), InKeyEvent, InKeyEvent.GetKey(), Canvas, bConsumed);
 
 	// Consumed whenever a document was focused, handled or not. A pad press that a document chose
 	// to ignore must not fall through and drive the player character behind it.
@@ -116,13 +128,19 @@ bool FFolioInputPreprocessor::HandleAnalogInputEvent(FSlateApplication& SlateApp
 	}
 
 	SFolioCanvas* Canvas = FocusedCanvas(SlateApp, InAnalogInputEvent);
+
+	// Only past the deadzone, or a resting stick fills the log at sixty lines a second.
+	if (Tracing() && FMath::Abs(InAnalogInputEvent.GetAnalogValue()) >= 0.2f)
+	{
+		Trace(TEXT("analog"), InAnalogInputEvent, InAnalogInputEvent.GetKey(), Canvas, Canvas != nullptr);
+	}
+
 	if (!Canvas)
 	{
 		return false;
 	}
 
 	Canvas->RouteGamepadAnalog(InAnalogInputEvent);
-	Trace(InAnalogInputEvent, InAnalogInputEvent.GetKey(), Canvas, true);
 
 	// A stick at rest reports zero every frame. Consuming those too would be correct but noisy;
 	// what matters is that a pushed stick does not also walk the character.

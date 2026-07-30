@@ -117,10 +117,19 @@ bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, co
 {
 	// A world document holds focus through its own sink, which is not a canvas. It is checked first
 	// because a screen document and a document on a monitor are never both driving the pad.
-	if (InKeyEvent.GetKey().IsGamepadKey() && SFolioWorldFocus::IsActive())
+	if (SFolioWorldFocus::IsActive())
 	{
-		SFolioWorldFocus::RouteGamepadKeyDown(InKeyEvent);
-		return true;
+		SFolioWorldFocus::ReclaimFocus(SlateApp, InKeyEvent.GetUserIndex());
+
+		if (InKeyEvent.GetKey().IsGamepadKey())
+		{
+			SFolioWorldFocus::RouteGamepadKeyDown(InKeyEvent);
+			return true;
+		}
+
+		// Slate reads the focus path after the pre-processors run, so a keyboard event refocused here
+		// reaches the sink on its own and must not be consumed.
+		return false;
 	}
 
 	// Called for every device, because reclaiming focus is what keyboard input needs too. Slate
@@ -151,6 +160,7 @@ bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, cons
 
 	if (SFolioWorldFocus::IsActive())
 	{
+		// Paired with the press, or RmlUi keeps thinking the button is held.
 		SFolioWorldFocus::RouteGamepadKeyUp(InKeyEvent);
 		return true;
 	}

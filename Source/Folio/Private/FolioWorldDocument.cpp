@@ -475,9 +475,15 @@ void UFolioWorldDocument::DrawDebugSurface() const
 
 	if (GEngine)
 	{
+		const FIntPoint Size = Host->GetSize();
+		const FString Where = Pointer.IsSet()
+			? FString::Printf(TEXT(" at %d,%d of %dx%d"),
+				Pointer.GetValue().X, Pointer.GetValue().Y, Size.X, Size.Y)
+			: FString();
+
 		GEngine->AddOnScreenDebugMessage(int32(GetUniqueID()), 0.0f,
 			LastMiss == EPointerMiss::Landed ? FColor::Green : FColor::Orange,
-			FString::Printf(TEXT("Folio '%s': %s"), *DocumentPath, Why));
+			FString::Printf(TEXT("Folio '%s': %s%s"), *DocumentPath, Why, *Where));
 	}
 
 	const FColor Colour = Pointer.IsSet() ? FColor::Green : FColor::Red;

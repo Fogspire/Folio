@@ -80,6 +80,21 @@ bool SFolioWorldFocus::IsActive()
 	return Sink.IsValid();
 }
 
+void SFolioWorldFocus::ReclaimFocus(FSlateApplication& SlateApp, const int32 UserIndex)
+{
+	if (!Sink.IsValid())
+	{
+		return;
+	}
+
+	if (SlateApp.GetUserFocusedWidget(UserIndex) == Sink)
+	{
+		return;
+	}
+
+	SlateApp.SetUserFocus(UserIndex, Sink, EFocusCause::SetDirectly);
+}
+
 bool SFolioWorldFocus::RouteGamepadKeyDown(const FKeyEvent& KeyEvent)
 {
 	return Sink.IsValid() && Sink->OnKeyDown(FGeometry(), KeyEvent).IsEventHandled();

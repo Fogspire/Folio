@@ -44,6 +44,16 @@ public:
 	/** Whether a world document is currently holding focus at all. */
 	static bool IsActive();
 
+	/**
+	 * Takes focus back if something else has it while the sink is up.
+	 *
+	 * The game viewport reassigns focus to itself on its own, and CommonUI's action router does the same
+	 * whenever it reapplies its input config, so a document that asked for focus can lose it with nothing
+	 * going wrong that a log would show. The symptom is a field that accepts some keys while the rest walk
+	 * the player. Taken back when input arrives rather than every frame, which settles in one event.
+	 */
+	static void ReclaimFocus(FSlateApplication& SlateApp, int32 UserIndex);
+
 	//~ Begin SWidget
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 	virtual void Tick(const FGeometry& Geometry, double CurrentTime, float DeltaTime) override;

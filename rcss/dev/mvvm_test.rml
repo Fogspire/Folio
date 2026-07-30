@@ -16,7 +16,7 @@
 	</style>
 </head>
 <body data-model="test">
-	<h2>bound straight off a UObject's properties</h2>
+	<h2>bound off a UObject that reports its own field changes</h2>
 	<p>Ticks <span class="v">{{ Ticks }}</span></p>
 	<p>Health <span class="v">{{ Health }}</span></p>
 	<p>bAlive <span class="v">{{ bAlive }}</span></p>
@@ -30,6 +30,9 @@
 	<p class="note">Hidden is a UPROPERTY with no BlueprintReadOnly or EditAnywhere, so it must not be
 	bound. Staying as literal braces is the pass, and the "could not add data-text view" warnings that
 	go with it are expected here: <span class="v">{{ Hidden }}</span></p>
+	<p class="note">The source implements INotifyFieldValueChanged, the same interface
+	UMVVMViewModelBase does, so these update by notification rather than polling. The log says which:
+	look for "updating by notification".</p>
 	<p class="note">folio.MvvmTest off to close.</p>
 </body>
 </rml>

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FolioDrawList.h"
 #include "FolioRmlUi.h"
 #include "FolioUIShader.h"
 #include "Rendering/RenderingCommon.h"
@@ -78,29 +79,11 @@ public:
 	void Reset();
 
 private:
-	/** One recorded draw. Vertex data is copied: RmlUi may release its own at any point. */
-	struct FDraw
-	{
-		enum class EKind : uint8 { Geometry, Field, MaskSet, MaskSetInverse, MaskIntersect };
-
-		EKind Kind = EKind::Geometry;
-		TArray<FFolioUIVertex> Vertices;
-		TArray<uint32> Indices;
-		TStrongObjectPtr<UTexture> Texture;
-
-		/** Whether this geometry tests the stencil, and on which side. */
-		bool bMasked = false;
-		bool bMaskInverted = false;
-
-		FVector4f Field = FVector4f::Zero();
-		FVector4f Effect = FVector4f::Zero();
-	};
-
 	struct FLayer
 	{
 		TStrongObjectPtr<UTextureRenderTarget2D> Target;
 		FIntPoint Size = FIntPoint::ZeroValue;
-		TArray<FDraw> Draws;
+		FFolioDrawList Draws;
 
 		bool bClipMaskEnabled = false;
 		bool bClipMaskInverted = false;
@@ -111,11 +94,6 @@ private:
 
 	/** Replays a layer's recorded draws into its target, then clears the recording. */
 	void Resolve(FLayer& Layer);
-
-	void Record(FDraw&& Draw);
-
-	static void Convert(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-		FVector2f Offset, bool bUnpremultiply, FDraw& OutDraw);
 
 	TArray<FLayer> Stack;
 	TMultiMap<FIntPoint, TStrongObjectPtr<UTextureRenderTarget2D>> Pool;

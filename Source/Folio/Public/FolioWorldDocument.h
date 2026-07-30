@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components/SceneComponent.h"
+#include "FolioDrawList.h"
 #include "CoreMinimal.h"
 
 #include "FolioWorldDocument.generated.h"
@@ -118,6 +119,14 @@ public:
 
 	FFolioDocumentHost* GetHost() const { return Host.Get(); }
 
+	/**
+	 * The document's geometry as of the last update, in document space.
+	 *
+	 * Recorded rather than drawn, because where it lands depends on which pass picks it up. Empty until
+	 * the first update produces something.
+	 */
+	const FFolioDrawList& GetDrawList() const { return DrawList; }
+
 	/** Every live world document, so a render pass can find them without walking the world. */
 	static const TArray<UFolioWorldDocument*>& GetLive();
 
@@ -147,6 +156,14 @@ private:
 	TUniquePtr<FFolioDocumentHost> Host;
 
 	TArray<FPendingBinding> Bindings;
+
+	/**
+	 * Re-recorded only when the document actually updated.
+	 *
+	 * A settled document keeps the recording it already has, which is the same reason the screen path
+	 * lets Slate keep its cached draw elements.
+	 */
+	FFolioDrawList DrawList;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> BoundSources;

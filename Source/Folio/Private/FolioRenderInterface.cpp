@@ -92,6 +92,30 @@ void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, c
 	LayerComposites.Reset();
 }
 
+void FFolioRenderInterface::BeginRecording(FFolioDrawList& InDrawList, const FIntPoint InContextSize)
+{
+	DrawList = &InDrawList;
+	DrawList->Reset();
+
+	ElementList = nullptr;
+	ContextSize = InContextSize;
+	LayerId = 0;
+	MaxLayerId = 0;
+
+	// The recording has no geometry of its own: positions stay in document space and whoever replays it
+	// decides where that lands. An identity geometry keeps the shared paths from having to care.
+	Geometry = FGeometry::MakeRoot(FVector2D(InContextSize.X, InContextSize.Y), FSlateLayoutTransform());
+
+	bScissorEnabled = false;
+	bClipPushed = false;
+	bHasTransform = false;
+	ClipMaskRect.Reset();
+	LayerDepth = 0;
+	RmlTransform = FSlateRenderTransform();
+	PendingBackdropSigma = 0.0f;
+	LayerComposites.Reset();
+}
+
 void FFolioRenderInterface::EndFrame()
 {
 	// A document that leaves clipping enabled would otherwise leak its clip zone into
@@ -111,6 +135,7 @@ void FFolioRenderInterface::EndFrame()
 	LayerDepth = 0;
 
 	ElementList = nullptr;
+	DrawList = nullptr;
 }
 
 //
@@ -152,7 +177,7 @@ Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Sp
 void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Handle,
 	const Rml::Vector2f Translation, const Rml::TextureHandle Texture)
 {
-	if (!ElementList)
+	if (!ElementList && !DrawList)
 	{
 		return;
 	}
@@ -170,9 +195,23 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 	}
 
 	// A field page resolves through a shader rather than as an image: through the material on
-	// Slate's path, and through FFolioUIMsdfPS on the layer path, both compiled from FolioMsdf.ush.
+	// Slate's path, and through FFolioUIMsdfPS on the layer and recording paths, all compiled from
+	// FolioMsdf.ush.
 	if (FMsdfBinding* Field = FindMsdfBinding(Texture))
 	{
+		if (DrawList)
+		{
+			FVector4f FieldParams, EffectParams;
+			PackMsdfParameters(*Field, FieldParams, EffectParams);
+
+			// Unmasked: a recording has no stencil, because a clip mask is a layer's mechanism and a
+			// recording has no layer. Clipping a world-space document is the mesh's job.
+			DrawList->AddField(Compiled.Vertices, Compiled.Indices, Field->Page->Texture.Get(),
+				FVector2f(Translation.x, Translation.y), FieldParams, EffectParams,
+				/*bMasked*/ false, /*bMaskInverted*/ false);
+			return;
+		}
+
 		if (!Layers.IsEmpty())
 		{
 			FVector4f FieldParams, EffectParams;
@@ -196,6 +235,17 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 	}
 
 	const FTexture* Bound = FindTexture(Texture);
+
+	if (DrawList)
+	{
+		UTexture* Recorded = Bound && Bound->Texture.IsValid()
+			? static_cast<UTexture*>(Bound->Texture.Get())
+			: GetWhiteTexture();
+
+		DrawList->AddTriangles(Compiled.Vertices, Compiled.Indices, Recorded,
+			FVector2f(Translation.x, Translation.y), /*bMasked*/ false, /*bMaskInverted*/ false);
+		return;
+	}
 
 	// While a layer is open every draw belongs to it, not to Slate: the layer is what
 	// box-shadow and the filters read back, and geometry that leaked past it would appear
@@ -690,6 +740,13 @@ void FFolioRenderInterface::SetTransform(const Rml::Matrix4f* Transform)
 
 void FFolioRenderInterface::EnableClipMask(const bool bEnable)
 {
+	// A stencil belongs to a layer, and a recording has none. Clipping a world-space document is the
+	// surface's business rather than the document's.
+	if (DrawList)
+	{
+		return;
+	}
+
 	if (!Layers.IsEmpty())
 	{
 		Layers.EnableClipMask(bEnable);
@@ -705,6 +762,11 @@ void FFolioRenderInterface::EnableClipMask(const bool bEnable)
 void FFolioRenderInterface::RenderToClipMask(const Rml::ClipMaskOperation Operation,
 	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation)
 {
+	if (DrawList)
+	{
+		return;
+	}
+
 	const TUniquePtr<FCompiledGeometry>* Found = Geometries.Find(GeometryHandle);
 	if (!Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
 	{
@@ -753,6 +815,25 @@ void FFolioRenderInterface::RenderToClipMask(const Rml::ClipMaskOperation Operat
 
 Rml::LayerHandle FFolioRenderInterface::PushLayer()
 {
+	// A layer is an offscreen target composited back into whatever is below it, and a recording has
+	// nothing below it. Refusing the layer means the effect that wanted it draws nothing rather than
+	// drawing into a target nobody reads - and the geometry inside it still reaches the recording,
+	// because every draw path falls through to the recording when no layer is open.
+	if (DrawList)
+	{
+		static bool bWarned = false;
+		if (!bWarned)
+		{
+			bWarned = true;
+			UE_LOG(LogFolio, Warning,
+				TEXT("a world-space document used a layer effect - box-shadow, filter, backdrop-filter or "
+					"mask-image - which needs an offscreen target this path does not have. The effect is "
+					"skipped and the element still draws. Use a render-target surface for a document that "
+					"needs them."));
+		}
+		return 0;
+	}
+
 	// A layer covers the current scissor region, which is what RmlUi has already clamped to
 	// the window. Allocating the whole context instead would make a small shadow cost a
 	// full-screen target.
@@ -781,6 +862,11 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const Rml::LayerHandle Destination,
 	const Rml::BlendMode BlendMode, const Rml::Span<const Rml::CompiledFilterHandle> AppliedFilters)
 {
+	if (DrawList)
+	{
+		return;
+	}
+
 	// Filters apply to the layer after it resolves and before it composites, which is the
 	// order that makes a blurred shadow a blurred shadow rather than a blurred everything.
 	float Sigma = 0.0f;
@@ -998,6 +1084,11 @@ void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma)
 
 void FFolioRenderInterface::PopLayer()
 {
+	if (DrawList)
+	{
+		return;
+	}
+
 	Layers.Pop();
 	LayerDepth = FMath::Max(0, LayerDepth - 1);
 }
@@ -1125,8 +1216,8 @@ Rml::CompiledShaderHandle FFolioRenderInterface::CompileShader(const Rml::String
 	return Handle;
 }
 
-const FSlateResourceHandle* FFolioRenderInterface::GetGradientResource(const Rml::CompiledShaderHandle Handle,
-	const FVector2f BoxSize)
+const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetGradientTexture(
+	const Rml::CompiledShaderHandle Handle, const FVector2f BoxSize)
 {
 	const TUniquePtr<FShader>* Found = Shaders.Find(Handle);
 	if (!Found || !Found->IsValid())
@@ -1146,8 +1237,7 @@ const FSlateResourceHandle* FFolioRenderInterface::GetGradientResource(const Rml
 
 	if (const Rml::TextureHandle* Cached = Shader.Baked.Find(TextureSize))
 	{
-		const FTexture* Texture = FindTexture(*Cached);
-		return Texture ? &Texture->Handle : nullptr;
+		return FindTexture(*Cached);
 	}
 
 	TArray<uint8> Bgra;
@@ -1160,12 +1250,11 @@ const FSlateResourceHandle* FFolioRenderInterface::GetGradientResource(const Rml
 	}
 
 	Shader.Baked.Add(TextureSize, Baked);
-
-	const FTexture* Texture = FindTexture(Baked);
-	return Texture ? &Texture->Handle : nullptr;
+	return FindTexture(Baked);
 }
 
-const FSlateResourceHandle* FFolioRenderInterface::GetEffectResource(const Rml::CompiledShaderHandle Handle)
+const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetEffectTexture(
+	const Rml::CompiledShaderHandle Handle)
 {
 	const TUniquePtr<FShader>* Found = Shaders.Find(Handle);
 	if (!Found || !Found->IsValid())
@@ -1181,8 +1270,7 @@ const FSlateResourceHandle* FFolioRenderInterface::GetEffectResource(const Rml::
 
 	if (const Rml::TextureHandle* Cached = Shader.Baked.Find(Size))
 	{
-		const FTexture* Entry = FindTexture(*Cached);
-		return Entry ? &Entry->Handle : nullptr;
+		return FindTexture(*Cached);
 	}
 
 	std::vector<unsigned char> Rgba;
@@ -1206,15 +1294,14 @@ const FSlateResourceHandle* FFolioRenderInterface::GetEffectResource(const Rml::
 	}
 
 	Shader.Baked.Add(Size, Texture);
-	const FTexture* Entry = FindTexture(Texture);
-	return Entry ? &Entry->Handle : nullptr;
+	return FindTexture(Texture);
 }
 
 void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation, Rml::TextureHandle)
 {
 	const TUniquePtr<FCompiledGeometry>* Found = Geometries.Find(GeometryHandle);
-	if (!ElementList || !Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
+	if ((!ElementList && !DrawList) || !Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
 	{
 		return;
 	}
@@ -1226,10 +1313,18 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	if (const TUniquePtr<FShader>* Shading = Shaders.Find(Shader);
 		Shading && Shading->IsValid() && (*Shading)->Effect.IsValid())
 	{
-		if (const FSlateResourceHandle* Resource = GetEffectResource(Shader))
+		if (const FTexture* Entry = GetEffectTexture(Shader))
 		{
+			if (DrawList)
+			{
+				DrawList->AddTriangles(Compiled.Vertices, Compiled.Indices,
+					static_cast<UTexture*>(Entry->Texture.Get()), FVector2f(Translation.x, Translation.y),
+					/*bMasked*/ false, /*bMaskInverted*/ false);
+				return;
+			}
+
 			ApplyClipping();
-			DrawGeometry(Compiled, Translation, *Resource, FVector2f(1.0f, 1.0f));
+			DrawGeometry(Compiled, Translation, Entry->Handle, FVector2f(1.0f, 1.0f));
 		}
 		return;
 	}
@@ -1245,14 +1340,34 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 
 	const FVector2f BoxSize(FMath::Max(Extent.X, 1.0f), FMath::Max(Extent.Y, 1.0f));
 
-	const FSlateResourceHandle* Resource = GetGradientResource(Shader, BoxSize);
-	if (!Resource)
+	const FTexture* Entry = GetGradientTexture(Shader, BoxSize);
+	if (!Entry)
 	{
 		return;
 	}
 
+	if (DrawList)
+	{
+		// The gradient's texture coordinates are pixel offsets in the element box, so they need scaling
+		// into the 0..1 the recording's sampler expects. The Slate path does the same thing through its
+		// UV scale argument.
+		FFolioDraw Draw;
+		Draw.Kind = FFolioDraw::EKind::Geometry;
+		Draw.Texture.Reset(static_cast<UTexture*>(Entry->Texture.Get()));
+		FFolioDrawList::Convert(Compiled.Vertices, Compiled.Indices,
+			FVector2f(Translation.x, Translation.y), /*bUnpremultiply*/ false, Draw);
+
+		for (FFolioUIVertex& Vertex : Draw.Vertices)
+		{
+			Vertex.UV /= BoxSize;
+		}
+
+		DrawList->GetDraws().Add(MoveTemp(Draw));
+		return;
+	}
+
 	ApplyClipping();
-	DrawGeometry(Compiled, Translation, *Resource, FVector2f(1.0f / BoxSize.X, 1.0f / BoxSize.Y));
+	DrawGeometry(Compiled, Translation, Entry->Handle, FVector2f(1.0f / BoxSize.X, 1.0f / BoxSize.Y));
 }
 
 void FFolioRenderInterface::ReleaseShader(const Rml::CompiledShaderHandle Shader)

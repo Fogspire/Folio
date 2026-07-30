@@ -1278,3 +1278,40 @@ forever would pass a check that only tested idling, and a frozen document is far
 Measured: static 2 updates in 20 s reporting "never"; animated 1777 updates reporting `0.000s`; a focused
 caret 19 updates on a 0.698 s timer. It drives a real editor, because what it measures exists only on the
 Unreal side - uipreview has its own frame loop and would prove nothing.
+
+## Recording a document instead of drawing it
+
+`FFolioRenderInterface::BeginRecording` installs an `FFolioDrawList` where the Slate element list would
+be, and every draw path falls into it instead. RmlUi does not know the difference: it is the same
+`Context::Render()` over the same markup.
+
+`FFolioDrawList` and `FFolioDraw` were extracted from the layer stack rather than written fresh, because
+the layer path already recorded on the game thread and replayed with RHI. So there is **one**
+representation of a recorded draw, and the two replays differ only in their transform and destination -
+a layer uses an orthographic one into an offscreen target, a world document a world-view-projection one.
+
+**Layer effects are refused while recording, deliberately and loudly.** A layer is an offscreen target
+composited back into whatever is below it, and a recording has nothing below it. `PushLayer` returns 0
+with a one-time warning naming `box-shadow`, `filter`, `backdrop-filter` and `mask-image`; `PopLayer`,
+`CompositeLayers`, `EnableClipMask` and `RenderToClipMask` are no-ops. The geometry *inside* the effect
+still reaches the recording, because every draw path falls through to it when no layer is open - so an
+element with a box-shadow draws without its shadow rather than not at all. `settings.rml` triggers this,
+which is a useful reminder that it is the common case rather than an edge one.
+
+Clip masks are refused for the same reason: a stencil belongs to a layer. Clipping a world-space
+document is the surface's business, not the document's.
+
+**Gradients and shader decorators needed real work, not a gate.** Both rasterise to a texture and were
+reachable only through `FSlateResourceHandle`, which a recording cannot use. `GetGradientResource` and
+`GetEffectResource` became `GetGradientTexture` and `GetEffectTexture`, returning the texture record so
+the Slate path takes `->Handle` and the recording takes the `UTexture`. The gradient path also has to
+scale its UVs by the box size in the recording, because Slate did that through `DrawGeometry`'s UV scale
+argument and there is no equivalent step here.
+
+**The recording is only rebuilt when the document actually updated.** `FFolioDocumentHost::Update`
+returns whether it did, which is what makes a settled world document cost nothing - the same reason the
+screen path lets Slate keep its cached draw elements.
+
+Verified with `folio.WorldTest ui/screens/settings.rml` then `folio.WorldTest report`: 48 draws, 1916
+triangles at 1000x600, from the project's real settings screen. Note the report has to wait for the
+component's first tick, or it reports zero and means nothing.

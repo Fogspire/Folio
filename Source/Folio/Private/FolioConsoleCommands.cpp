@@ -787,9 +787,17 @@ namespace
 	 * derived from world units rather than from a screen, and idles when it settles.
 	 */
 	TWeakObjectPtr<AActor> WorldTestActor;
+	/** Set while a report is waiting for the component's first recording. */
+	FTSTicker::FDelegateHandle WorldReportTicker;
 
 	void HideWorldTest()
 	{
+		if (WorldReportTicker.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(WorldReportTicker);
+			WorldReportTicker.Reset();
+		}
+
 		if (AActor* Actor = WorldTestActor.Get())
 		{
 			Actor->Destroy();
@@ -797,11 +805,74 @@ namespace
 		WorldTestActor.Reset();
 	}
 
+	/**
+	 * What the document recorded, and what the same document gives Slate.
+	 *
+	 * Both counts come from the same RmlUi render pass over the same markup, so they have to agree. A
+	 * recording that silently dropped a draw would otherwise only show up as something missing from a
+	 * surface, which is far harder to read than a number that does not match.
+	 */
+	void ReportWorldTestNow()
+	{
+		for (const UFolioWorldDocument* Surface : UFolioWorldDocument::GetLive())
+		{
+			const FFolioDrawList& Recorded = Surface->GetDrawList();
+			UE_LOG(LogFolio, Display,
+				TEXT("folio.WorldTest: '%s' recorded %d draw(s), %d triangle(s) at %dx%d"),
+				*Surface->DocumentPath, Recorded.Num(), Recorded.CountTriangles(),
+				Surface->GetDocumentSize().X, Surface->GetDocumentSize().Y);
+		}
+	}
+
+	/**
+	 * Waits for a recording before reporting one.
+	 *
+	 * The component records during its tick, so a report issued in the same breath - from -ExecCmds, or
+	 * by anyone typing quickly - would say zero and mean nothing.
+	 */
+	void ReportWorldTest()
+	{
+		if (UFolioWorldDocument::GetLive().IsEmpty())
+		{
+			UE_LOG(LogFolio, Warning, TEXT("no world document is open"));
+			return;
+		}
+
+		if (WorldReportTicker.IsValid())
+		{
+			return;
+		}
+
+		const double Deadline = FPlatformTime::Seconds() + 10.0;
+		WorldReportTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
+			[Deadline](float) -> bool
+			{
+				const TArray<UFolioWorldDocument*>& Live = UFolioWorldDocument::GetLive();
+				const bool bRecorded = Live.ContainsByPredicate(
+					[](const UFolioWorldDocument* Surface) { return !Surface->GetDrawList().IsEmpty(); });
+
+				if (bRecorded || FPlatformTime::Seconds() > Deadline)
+				{
+					ReportWorldTestNow();
+					WorldReportTicker.Reset();
+					return false;
+				}
+
+				return true;
+			}), 0.0f);
+	}
+
 	void RunWorldTest(const TArray<FString>& Args)
 	{
 		if (Args.Num() > 0 && Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
 		{
 			HideWorldTest();
+			return;
+		}
+
+		if (Args.Num() > 0 && Args[0].Equals(TEXT("report"), ESearchCase::IgnoreCase))
+		{
+			ReportWorldTest();
 			return;
 		}
 
@@ -848,8 +919,8 @@ namespace
 
 		const FIntPoint Size = Surface->GetDocumentSize();
 		UE_LOG(LogFolio, Display,
-			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d. Nothing draws it yet; ")
-			TEXT("folio.Invalidation.Trace 1 shows it updating. 'folio.WorldTest off' removes it."),
+			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d. ")
+			TEXT("'folio.WorldTest report' says what it recorded; 'folio.WorldTest off' removes it."),
 			*Document, Surface->WorldSize.X, Surface->WorldSize.Y, Size.X, Size.Y);
 	}
 
@@ -998,8 +1069,8 @@ namespace
 
 	FAutoConsoleCommand WorldTestCommand(
 		TEXT("folio.WorldTest"),
-		TEXT("folio.WorldTest [document|off]. Puts a document on a surface in the world in front of the "
-			"camera. Nothing draws it yet; this is the host half."),
+		TEXT("folio.WorldTest [document|off|report]. Puts a document on a surface in the world in front "
+			"of the camera, and records its geometry. 'report' says how much it recorded."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunWorldTest));
 
 	FAutoConsoleCommand LocReportCommand(

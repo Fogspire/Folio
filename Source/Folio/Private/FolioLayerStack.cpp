@@ -17,24 +17,6 @@ namespace
 	/** The value written into the stencil where a mask covers. */
 	constexpr uint32 MaskStencilRef = 1;
 
-	FLinearColor ToLinear(const FColor& Color)
-	{
-		// The layer target is sRGB, so the shader's output is encoded on write. Passing the
-		// byte values through as though they were linear encodes them a second time, which
-		// turns a #1f1f28 panel into (98,98,110) - exactly LinearToSRGB(31/255) * 255.
-		// Decoding first makes the round trip land back on the original value.
-		//
-		// Alpha is not a colour and must not be decoded, which is why this is written out
-		// rather than using FLinearColor's FColor constructor.
-		// The real sRGB curve, not a pow(2.2) approximation: the curve has a linear toe, and
-		// approximating it lands a #1f1f28 panel on (22,22,34) instead of (31,31,40). UI
-		// colours are dark, which is precisely where the two disagree most.
-		FLinearColor Linear = FLinearColor::FromSRGBColor(Color);
-
-		// Alpha is coverage, not a colour, and must not be decoded.
-		Linear.A = Color.A / 255.0f;
-		return Linear;
-	}
 }
 
 FFolioLayerStack::FFolioLayerStack() = default;
@@ -105,47 +87,6 @@ void FFolioLayerStack::Pop()
 	Release(Layer.Target.Get());
 }
 
-void FFolioLayerStack::Convert(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-	const FVector2f Offset, const bool bUnpremultiply, FDraw& OutDraw)
-{
-	OutDraw.Vertices.Reserve(Vertices.Num());
-	for (const FSlateVertex& Vertex : Vertices)
-	{
-		FColor Color = Vertex.Color;
-
-		// ToLinear decodes sRGB, which is only meaningful for a straight colour: a premultiplied
-		// one raises the product to a power rather than the colour, and every partially covered
-		// pixel comes out too dark. Harmless for an image, which is opaque wherever it matters,
-		// and a dark rim around every glyph where it does not.
-		if (bUnpremultiply && Color.A != 0 && Color.A != 255)
-		{
-			const float Alpha = float(Color.A) / 255.0f;
-			Color.R = uint8(FMath::Clamp(FMath::RoundToInt(float(Color.R) / Alpha), 0, 255));
-			Color.G = uint8(FMath::Clamp(FMath::RoundToInt(float(Color.G) / Alpha), 0, 255));
-			Color.B = uint8(FMath::Clamp(FMath::RoundToInt(float(Color.B) / Alpha), 0, 255));
-		}
-
-		FFolioUIVertex& Out = OutDraw.Vertices.AddDefaulted_GetRef();
-		Out.Position = FVector2f(Vertex.Position) + Offset;
-		Out.UV = FVector2f(Vertex.TexCoords[0], Vertex.TexCoords[1]);
-		Out.Color = ToLinear(Color);
-	}
-
-	OutDraw.Indices.Reserve(Indices.Num());
-	for (const SlateIndex Index : Indices)
-	{
-		OutDraw.Indices.Add(static_cast<uint32>(Index));
-	}
-}
-
-void FFolioLayerStack::Record(FDraw&& Draw)
-{
-	if (!Stack.IsEmpty())
-	{
-		Stack.Last().Draws.Add(MoveTemp(Draw));
-	}
-}
-
 void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
 	UTexture* Texture, const FVector2f Offset)
 {
@@ -154,16 +95,9 @@ void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const
 		return;
 	}
 
-	const FLayer& Layer = Stack.Last();
-
-	FDraw Draw;
-	Draw.Kind = FDraw::EKind::Geometry;
-	Draw.Texture.Reset(Texture);
-	Draw.bMasked = Layer.bClipMaskEnabled;
-	Draw.bMaskInverted = Layer.bClipMaskInverted;
-	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, Draw);
-
-	Record(MoveTemp(Draw));
+	FLayer& Layer = Stack.Last();
+	Layer.Draws.AddTriangles(Vertices, Indices, Texture, Offset,
+		Layer.bClipMaskEnabled, Layer.bClipMaskInverted);
 }
 
 void FFolioLayerStack::DrawField(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
@@ -174,18 +108,9 @@ void FFolioLayerStack::DrawField(const TArray<FSlateVertex>& Vertices, const TAr
 		return;
 	}
 
-	const FLayer& Layer = Stack.Last();
-
-	FDraw Draw;
-	Draw.Kind = FDraw::EKind::Field;
-	Draw.Texture.Reset(Texture);
-	Draw.bMasked = Layer.bClipMaskEnabled;
-	Draw.bMaskInverted = Layer.bClipMaskInverted;
-	Draw.Field = Field;
-	Draw.Effect = Effect;
-	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ true, Draw);
-
-	Record(MoveTemp(Draw));
+	FLayer& Layer = Stack.Last();
+	Layer.Draws.AddField(Vertices, Indices, Texture, Offset, Field, Effect,
+		Layer.bClipMaskEnabled, Layer.bClipMaskInverted);
 }
 
 void FFolioLayerStack::SetClipMask(const Rml::ClipMaskOperation Operation, const TArray<FSlateVertex>& Vertices,
@@ -198,29 +123,17 @@ void FFolioLayerStack::SetClipMask(const Rml::ClipMaskOperation Operation, const
 
 	FLayer& Layer = Stack.Last();
 
-	FDraw Draw;
+	// Which side of the stencil later draws test is the layer's state, not the mask's, so it is tracked
+	// here rather than inside the recording.
 	switch (Operation)
 	{
-	case Rml::ClipMaskOperation::Set:
-		Draw.Kind = FDraw::EKind::MaskSet;
-		Layer.bClipMaskInverted = false;
-		break;
-
-	case Rml::ClipMaskOperation::SetInverse:
-		// The whole reason this path draws with RHI. An outer box-shadow masks its own
-		// element out of itself, and only a stencil can express the complement of a shape.
-		Draw.Kind = FDraw::EKind::MaskSetInverse;
-		Layer.bClipMaskInverted = true;
-		break;
-
-	case Rml::ClipMaskOperation::Intersect:
-		Draw.Kind = FDraw::EKind::MaskIntersect;
-		break;
+	case Rml::ClipMaskOperation::Set:        Layer.bClipMaskInverted = false; break;
+	case Rml::ClipMaskOperation::SetInverse: Layer.bClipMaskInverted = true; break;
+	case Rml::ClipMaskOperation::Intersect:  break;
 	}
 
 	Layer.bClipMaskEnabled = true;
-	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, Draw);
-	Record(MoveTemp(Draw));
+	Layer.Draws.AddClipMask(Operation, Vertices, Indices, Offset);
 }
 
 void FFolioLayerStack::EnableClipMask(const bool bEnable)
@@ -285,8 +198,8 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma)
 	// draw so it stays ordered with the geometry around it.
 	FLayer& Destination = Stack[Stack.Num() - 2];
 
-	FDraw Draw;
-	Draw.Kind = FDraw::EKind::Geometry;
+	FFolioDraw Draw;
+	Draw.Kind = FFolioDraw::EKind::Geometry;
 	Draw.Texture.Reset(Source.Target.Get());
 	Draw.bMasked = false;
 
@@ -299,7 +212,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma)
 	Draw.Vertices.Add({ FVector2f(0.0f, Size.Y),   FVector2f(0.0f, 1.0f), White });
 	Draw.Indices = { 0, 1, 2, 0, 2, 3 };
 
-	Destination.Draws.Add(MoveTemp(Draw));
+	Destination.Draws.GetDraws().Add(MoveTemp(Draw));
 }
 
 void FFolioLayerStack::Resolve(FLayer& Layer)
@@ -320,7 +233,7 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 		return;
 	}
 
-	TArray<FDraw> Draws = MoveTemp(Layer.Draws);
+	TArray<FFolioDraw> Draws = MoveTemp(Layer.Draws.GetDraws());
 	Layer.Draws.Reset();
 
 	const FIntPoint Size = Layer.Size;
@@ -361,10 +274,10 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 
 					RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
 
-					for (const FDraw& Draw : Draws)
+					for (const FFolioDraw& Draw : Draws)
 					{
-						const bool bField = Draw.Kind == FDraw::EKind::Field;
-						const bool bMaskPass = Draw.Kind != FDraw::EKind::Geometry && !bField;
+						const bool bField = Draw.Kind == FFolioDraw::EKind::Field;
+						const bool bMaskPass = Draw.Kind != FFolioDraw::EKind::Geometry && !bField;
 
 						FGraphicsPipelineStateInitializer State;
 						RHICmdList.ApplyCachedRenderTargets(State);

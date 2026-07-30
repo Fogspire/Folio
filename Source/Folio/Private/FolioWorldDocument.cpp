@@ -2,6 +2,9 @@
 
 #include "FolioDocumentHost.h"
 #include "FolioModule.h"
+#include "FolioRenderInterface.h"
+
+#include <RmlUi/Core/Context.h>
 
 namespace
 {
@@ -101,7 +104,25 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 	//
 	// The render scale is one document pixel expressed in document units, which is 1 here for the same
 	// reason. It only affects background antialiasing width, and the fields carry their own edges.
-	Host->Update(DeltaTime, 1.0f, 1.0f);
+	if (!Host->Update(DeltaTime, 1.0f, 1.0f))
+	{
+		// Nothing changed, so the recording from last time still describes the document. Re-recording it
+		// would be the same work the invalidation path exists to avoid.
+		return;
+	}
+
+	Rml::Context* Context = Host->GetContext();
+	FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
+	if (!Context || !Renderer)
+	{
+		return;
+	}
+
+	// The same Render call the screen path makes, with the recording installed instead of Slate. RmlUi
+	// does not know the difference, which is the point.
+	Renderer->BeginRecording(DrawList, GetDocumentSize());
+	Context->Render();
+	Renderer->EndFrame();
 }
 
 void UFolioWorldDocument::LoadDocument(const FString& InDocumentPath)

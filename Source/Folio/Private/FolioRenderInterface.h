@@ -3,6 +3,7 @@
 #include "FolioGradient.h"
 
 #include "FolioCore/FolioShaderEffects.h"
+#include "FolioDrawList.h"
 #include "FolioLayerStack.h"
 #include "FolioRmlUi.h"
 
@@ -35,7 +36,25 @@ public:
 	/** Installs the Slate state that the following RmlUi render calls draw into. */
 	void BeginFrame(FSlateWindowElementList& InElementList, const FGeometry& InGeometry, int32 InLayerId,
 		FIntPoint InContextSize);
+
+	/**
+	 * Records the following render calls into a draw list instead of drawing them.
+	 *
+	 * What a world-space document needs: the same geometry, in the same neutral form the layer path
+	 * already replays with RHI, but with no Slate to emit into and no screen to emit onto. The transform
+	 * and the destination are the recorder's business, not this interface's.
+	 *
+	 * Layer effects are unavailable while recording. A layer is an offscreen target composited back into
+	 * whatever is below it, and there is nothing below a recording - so box-shadow, filter and
+	 * backdrop-filter are dropped rather than silently producing something wrong. That is the trade the
+	 * direct paths make, and it is why a document needing them uses a render target instead.
+	 */
+	void BeginRecording(FFolioDrawList& InDrawList, FIntPoint InContextSize);
+
 	void EndFrame();
+
+	/** True while render calls are being recorded rather than drawn. */
+	bool IsRecording() const { return DrawList != nullptr; }
 
 	/** Highest Slate layer used this frame, so the caller can continue above the document. */
 	int32 GetMaxLayerId() const { return MaxLayerId; }
@@ -235,7 +254,9 @@ private:
 		const FSlateResourceHandle& Resource, const FVector2f UvScale, bool bStraightAlpha = false);
 
 	/** The texture for a gradient at this size, generated on first use and cached. */
-	const FSlateResourceHandle* GetGradientResource(Rml::CompiledShaderHandle Shader, FVector2f BoxSize);
+	/** The baked gradient for a box size. Returns the record rather than the Slate handle alone, because
+	 *  the recording path needs the UTexture and the Slate path needs the handle. */
+	const FTexture* GetGradientTexture(Rml::CompiledShaderHandle Shader, FVector2f BoxSize);
 
 	Rml::TextureHandle GetTransparentTexture();
 
@@ -251,7 +272,7 @@ private:
 	};
 
 	/** The texture for a shader effect, generated on first use. */
-	const FSlateResourceHandle* GetEffectResource(Rml::CompiledShaderHandle Shader);
+	const FTexture* GetEffectTexture(Rml::CompiledShaderHandle Shader);
 
 	/**
 	 * One distance-field page, and the material instance that resolves it.
@@ -337,6 +358,13 @@ private:
 	FSlateResourceHandle WhiteHandle;
 
 	FSlateWindowElementList* ElementList = nullptr;
+
+	/**
+	 * Where render calls go when there is no Slate to draw into.
+	 *
+	 * Non-null exactly while recording, which is what every draw path tests to decide where it belongs.
+	 */
+	FFolioDrawList* DrawList = nullptr;
 	FGeometry Geometry;
 
 	/** Needed to size a layer when nothing has set a scissor region. */

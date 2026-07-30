@@ -884,3 +884,18 @@ keep repeating into a document that is no longer in front.
 
 Navigation keys are sent down **and up** together. RmlUi navigates on the press, but an element
 left believing a key is still held misbehaves the next time that key arrives.
+
+## A document is updated and rendered every frame, changed or not
+
+`SFolioCanvas::Tick` calls `Context::Update()` and `OnPaint` calls `Context::Render()` unconditionally,
+so an idle document costs a full layout traversal, a full render traversal and a fresh set of Slate
+draw elements every frame. UMG under an invalidation panel skips all of it. This is the one known
+structural disadvantage against UMG and it is written up in `docs/FOLIO_BRIEF.md` Phase 6.
+
+The reason it has not been fixed casually: RmlUi exposes no dirty signal. There is no context-level
+flag, `ElementDocument::IsLayoutDirty()` is private, and active animations are private per-element. So
+skipping work needs either a patch that exposes a query or conservative tracking on our side, and the
+failure mode - a document that stops updating - is worse than the cost.
+
+Do not "optimise" this by only updating on input. Caret blink, `transition`, `animation`, `:hover`
+settling, data model updates from gameplay and `@media` re-evaluation all change with no input.

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FolioInputState.h"
+#include "FolioDocumentHost.h"
 #include "FolioNavigation.h"
 #include "FolioUiSounds.h"
 
@@ -65,11 +65,14 @@ public:
 	 */
 	void MarkDirty(const TCHAR* Reason = TEXT("game code"));
 
-	Rml::Context* GetContext() const { return Context; }
-	Rml::ElementDocument* GetDocument() const { return Document; }
+	Rml::Context* GetContext() const { return Host.GetContext(); }
+	Rml::ElementDocument* GetDocument() const { return Host.GetDocument(); }
 
 	/** The path the document was loaded from, which is also what its gather namespace derives from. */
-	const FString& GetDocumentPath() const { return PendingDocumentPath; }
+	const FString& GetDocumentPath() const { return Host.GetDocumentPath(); }
+
+	/** The document and its context, shared with the world-space host. */
+	FFolioDocumentHost& GetHost() { return Host; }
 
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& CullingRect,
 		FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle,
@@ -116,7 +119,7 @@ public:
 	 * already has, so the order matters: bind before loading, and design-time mock data stays out of
 	 * the way of anything real.
 	 */
-	bool HasObjectModel(const FString& ModelName) const;
+	bool HasObjectModel(const FString& ModelName) const { return Host.HasObjectModel(ModelName); }
 
 	/** Every live canvas, so the input pre-processor can tell whether the focused widget is one. */
 	static const TArray<SFolioCanvas*>& GetLiveCanvases();
@@ -155,66 +158,33 @@ private:
 	void NoteDevice(Folio::EInputDevice Device);
 
 	/** True while a text field has focus, so letters are text rather than directions. */
-	bool IsTakingText() const;
+	bool IsTakingText() const { return Host.IsTakingText(); }
 
 	/** Whether this key belongs to the focused document, and so must not reach the game behind it. */
 	bool ClaimsKey(const FKey& Key) const;
 
+	FFolioDocumentHost Host;
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;
-	FFolioInputModel InputModel;
 	bool bKeepFocus = false;
-
-	/** Bound UObject sources. Held by the canvas because a data model belongs to its context. */
-	TArray<TUniquePtr<class FFolioObjectModel>> ObjectModels;
 
 	/** Screen space to the context's own pixel space. */
 	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;
 
-	void DestroyContext();
-
-	/** Mounts ui/mock/<model>.json if the document declares a model, so bindings resolve. */
-	void MountDataModel(const FString& RelativePath);
-
 	/** RmlUi sizes in whole pixels, so a fractional widget size has to be resolved somewhere. */
 	void UpdateContextSize(const FGeometry& AllottedGeometry);
 
-	Rml::Context* Context = nullptr;
-	Rml::ElementDocument* Document = nullptr;
-
-	FString PendingDocumentPath;
-	/** Rebuilt with the context: a model cannot be added once a document is loaded. */
-	TUniquePtr<class FFolioDataModel> DataModel;
 	FVector2D DesiredSize = FVector2D(1920.0, 1080.0);
 
 	/** Mutable: Slate's paint is const, and RmlUi's render pass is not. */
 	mutable FIntPoint ContextSize = FIntPoint::ZeroValue;
 
-	//
-	// Idle cost. A document that has not changed should not be laid out or re-rendered, which is the
-	// one structural disadvantage against UMG under an invalidation panel.
-	//
-
-	/**
-	 * Seconds until RmlUi says it must be updated again.
-	 *
-	 * Straight from `Context::GetNextUpdateDelay()`, which exists for exactly this. Infinity means
-	 * nothing will change without input; zero means something is animating and every frame counts.
-	 * Upstream requests it for the cases that are easy to forget - a running transition, a blinking
-	 * caret, a held scroll arrow, a smooth scroll - so those are not ours to track.
-	 */
-	double NextUpdateIn = 0.0;
-
 	/**
 	 * Where the cursor last was, in the coordinates RmlUi received.
 	 *
 	 * A captured viewport sends a mouse move every frame whether the cursor moved or not, so without
-	 * this a document is never idle and the invalidation above never engages.
+	 * this a document is never idle and the invalidation never engages.
 	 */
 	TOptional<FIntPoint> LastMousePosition;
 	int32 LastMouseModifiers = 0;
-
-	/** Something changed on our side of the boundary: input, a load, a resize, a data model write. */
-	bool bDirty = true;
-	const TCHAR* DirtyReason = TEXT("first frame");
 };

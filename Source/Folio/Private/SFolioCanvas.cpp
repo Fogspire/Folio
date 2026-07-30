@@ -2,22 +2,15 @@
 
 #include "FolioInsights.h"
 
-#include "FolioDataModel.h"
-#include "FolioObjectModel.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
-#include "FolioInvalidation.h"
-#include "FolioLocalization.h"
-#include "FolioReload.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
 #include "GameFramework/InputSettings.h"
-#include "Misc/FileHelper.h"
 
-#include <RmlUi/Core/Core.h>
-#include <RmlUi/Core/Factory.h>
-#include <RmlUi/Core/MeshUtilities.h>
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/ElementDocument.h>
 
 namespace
 {
@@ -32,44 +25,68 @@ const TArray<SFolioCanvas*>& SFolioCanvas::GetLiveCanvases()
 void SFolioCanvas::Construct(const FArguments& InArgs)
 {
 	DesiredSize = InArgs._DesiredSize;
-	PendingDocumentPath = InArgs._DocumentPath;
 
 	LiveCanvases.AddUnique(this);
 	SetCanTick(true);
 
-	if (!FFolioModule::Get().IsRmlInitialised())
-	{
-		return;
-	}
-
-	// A context needs a size before it will lay anything out, and the real one only arrives
-	// with the first geometry. Starting at the requested desired size means a document loaded
-	// now is laid out sensibly rather than into a zero-sized viewport.
+	// A context needs a size before it will lay anything out, and the real one only arrives with the
+	// first geometry. Starting at the requested desired size means a document loaded now is laid out
+	// sensibly rather than into a zero-sized viewport.
 	ContextSize = FIntPoint(FMath::RoundToInt(DesiredSize.X), FMath::RoundToInt(DesiredSize.Y));
 
-	static int32 ContextCounter = 0;
-	const Rml::String Name = Folio::ToRmlString(FString::Printf(TEXT("folio_%d"), ContextCounter++));
-
-	Context = Rml::CreateContext(Name, Rml::Vector2i(ContextSize.X, ContextSize.Y));
-	if (!Context)
+	if (!Host.Create(TEXT("screen"), ContextSize))
 	{
-		UE_LOG(LogFolio, Error, TEXT("could not create an RmlUi context"));
 		return;
 	}
 
-	InputModel.OnChanged = [this] { MarkDirty(TEXT("input device or confirm button")); };
-	InputModel.Create(Context);
-
-	if (!PendingDocumentPath.IsEmpty())
+	// Sounds are the canvas's rather than the host's: a world-space document has no UI audio of its own
+	// and would not want the same events.
+	Host.OnDocumentLoaded = [this](Rml::ElementDocument* Loaded)
 	{
-		LoadDocument(PendingDocumentPath);
+		Sounds.Detach();
+		Sounds.Attach(Loaded);
+	};
+
+	// Slate caches draw elements for a non-volatile widget inside an invalidation root, so a paint has
+	// to be asked for rather than assumed. Outside one this costs nothing and Slate paints regardless.
+	Host.OnDirty = [this] { Invalidate(EInvalidateWidgetReason::Paint); };
+
+	if (!InArgs._DocumentPath.IsEmpty())
+	{
+		Host.LoadDocument(InArgs._DocumentPath);
 	}
 }
 
 SFolioCanvas::~SFolioCanvas()
 {
 	LiveCanvases.RemoveSingleSwap(this);
-	DestroyContext();
+	Sounds.Detach();
+	Host.Destroy();
+}
+
+void SFolioCanvas::LoadDocument(const FString& RelativePath)
+{
+	Host.LoadDocument(RelativePath);
+}
+
+void SFolioCanvas::ReloadDocument()
+{
+	Host.ReloadDocument();
+}
+
+void SFolioCanvas::ReloadStyleSheets()
+{
+	Host.ReloadStyleSheets();
+}
+
+void SFolioCanvas::MarkDirty(const TCHAR* Reason)
+{
+	Host.MarkDirty(Reason);
+}
+
+bool SFolioCanvas::BindObjectModel(const FString& ModelName, UObject* Source, const bool bPollEveryFrame)
+{
+	return Host.BindObjectModel(ModelName, Source, bPollEveryFrame);
 }
 
 bool SFolioCanvas::RouteGamepadKeyDown(const FKeyEvent& KeyEvent)
@@ -87,251 +104,36 @@ bool SFolioCanvas::RouteGamepadAnalog(const FAnalogInputEvent& AnalogEvent)
 	return OnAnalogValueChanged(FGeometry(), AnalogEvent).IsEventHandled();
 }
 
-void SFolioCanvas::DestroyContext()
-{
-	if (!Context)
-	{
-		return;
-	}
 
-	// A widget can outlive the module. Once Rml::Shutdown has run, every context is already
-	// destroyed and its name is no longer in RmlUi's map, so looking one up walks freed
-	// memory - which surfaces as a crash inside robin_hood's hash table on editor close.
-	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
-	{
-		InputModel.Release();
-		ObjectModels.Empty();
-		Context = nullptr;
-		Document = nullptr;
-		return;
-	}
 
-	// Closing a document is deferred until the next Update, so the context has to outlive the
-	// close. Removing the context destroys everything in it outright, which is what we want.
-	Sounds.Detach();
-	InputModel.Release();
-	ObjectModels.Empty();
-	Document = nullptr;
-	Rml::RemoveContext(Context->GetName());
-	Context = nullptr;
-	DataModel.Reset();
-}
 
-void SFolioCanvas::LoadDocument(const FString& RelativePath)
-{
-	if (!Context)
-	{
-		return;
-	}
 
-	if (Document)
-	{
-		Sounds.Detach();
-		Document->Close();
-		// Close is deferred to the next update; without this the old document is still alive
-		// when the new one loads and both would render.
-		Context->Update();
-		Document = nullptr;
-	}
 
-	PendingDocumentPath = RelativePath;
-	if (RelativePath.IsEmpty())
-	{
-		return;
-	}
-
-	// Reopening a document is what anyone does after editing its art, so this is the moment to
-	// notice that a file on disk has moved on. RmlUi caches a texture by path forever otherwise,
-	// and a re-baked atlas keeps rendering as it was until the editor restarts.
-	if (FFolioModule::IsAvailable())
-	{
-		if (FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface())
-		{
-			if (const int32 Reloaded = Renderer->ReloadChangedTextures())
-			{
-				UE_LOG(LogFolio, Log, TEXT("reloaded %d changed texture(s)"), Reloaded);
-			}
-		}
-	}
-
-	MountDataModel(RelativePath);
-
-	Document = Context->LoadDocument(Folio::ToRmlString(RelativePath));
-	if (!Document)
-	{
-		UE_LOG(LogFolio, Error, TEXT("could not load document '%s'"), *RelativePath);
-		return;
-	}
-
-	// Before the first update, so translated text is laid out rather than reflowed a frame later.
-	// Data views already exist by now - they are built as the markup is parsed - which is what lets
-	// the pass recognise a bound element and leave it alone.
-	Folio::Loc::ApplyToDocument(Document, RelativePath);
-
-	Document->Show();
-	Sounds.Attach(Document);
-	InputModel.SetDocument(Document);
-	MarkDirty(TEXT("document loaded"));
-	UE_LOG(LogFolio, Log, TEXT("loaded '%s'"), *RelativePath);
-}
-
-void SFolioCanvas::ReloadDocument()
-{
-	if (!Context || PendingDocumentPath.IsEmpty())
-	{
-		return;
-	}
-
-	const Folio::Reload::FDocumentState State = Folio::Reload::CaptureDocumentState(Context, Document);
-
-	// Without clearing these, an edited stylesheet reached through @import is served from cache and
-	// the reload appears to do nothing at all.
-	Rml::Factory::ClearStyleSheetCache();
-	Rml::Factory::ClearTemplateCache();
-	Rml::ReleaseTextures();
-	Rml::ReleaseCompiledGeometry();
-
-	LoadDocument(PendingDocumentPath);
-	if (!Document)
-	{
-		return;
-	}
-
-	// Layout has to exist before focus and scroll can be put back, and the restore itself changes
-	// both, so the state lands one update later.
-	Context->Update();
-	Folio::Reload::RestoreDocumentState(Document, State);
-	Context->Update();
-}
-
-void SFolioCanvas::ReloadStyleSheets()
-{
-	Folio::Reload::ReloadStyleSheets(Context);
-	MarkDirty(TEXT("stylesheets reloaded"));
-}
-
-bool SFolioCanvas::HasObjectModel(const FString& ModelName) const
-{
-	return ObjectModels.ContainsByPredicate(
-		[&ModelName](const TUniquePtr<FFolioObjectModel>& Model)
-		{
-			return Model.IsValid() && Model->GetModelName() == ModelName;
-		});
-}
-
-void SFolioCanvas::MountDataModel(const FString& RelativePath)
-{
-	// Mock data is a design-time stand-in and has no business in a retail build. Left in, a screen
-	// whose model the game forgot to bind would silently render invented values instead of failing
-	// visibly, and the mock would occupy the name the real view model wanted.
-#if !UE_BUILD_SHIPPING
-	if (!Folio::MockDataEnabled())
-	{
-		return;
-	}
-
-	// Once per context. A model cannot be added to a context that already has one under the same
-	// name, and a document reload keeps the values it was mounted with.
-	if (DataModel.IsValid())
-	{
-		return;
-	}
-
-	const FString& ContentRoot = FFolioModule::Get().GetContentRoot();
-
-	FString Markup;
-	if (!FFileHelper::LoadFileToString(Markup, *(ContentRoot / RelativePath)))
-	{
-		return;
-	}
-
-	const FString ModelName = FFolioDataModel::DiscoverModelName(Markup);
-	if (ModelName.IsEmpty())
-	{
-		return;
-	}
-
-	// The reserved model is mounted with the context and is not a game model, so it has no mock
-	// file and nothing is missing when there isn't one.
-	if (ModelName == UTF8_TO_TCHAR(Folio::InputModel::Name()))
-	{
-		return;
-	}
-
-	// Game code got there first, and it wins. RmlUi refuses a second model under the same name, so
-	// mounting a mock here is what would make BindObjectModel fail rather than the other way round.
-	if (HasObjectModel(ModelName))
-	{
-		return;
-	}
-
-	const FString MockPath = FFolioDataModel::FindMockFile(ContentRoot, ModelName);
-	if (MockPath.IsEmpty())
-	{
-		UE_LOG(LogFolio, Warning,
-			TEXT("'%s' declares data-model=\"%s\" and nothing is bound, so its bindings render as literal ")
-			TEXT("{{ }}. Provide the model from game code, or put mock values in ui/mock/%s.json."),
-			*RelativePath, *ModelName, *ModelName);
-		return;
-	}
-
-	DataModel = MakeUnique<FFolioDataModel>();
-	if (!DataModel->Mount(Context, ModelName, MockPath))
-	{
-		DataModel.Reset();
-	}
-#endif
-}
 
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 {
 	const FVector2f Local = AllottedGeometry.GetLocalSize();
-	const FIntPoint Size(FMath::Max(1, FMath::RoundToInt(Local.X)), FMath::Max(1, FMath::RoundToInt(Local.Y)));
-
-	if (Size == ContextSize || !Context)
-	{
-		return;
-	}
-
-	ContextSize = Size;
-	Context->SetDimensions(Rml::Vector2i(Size.X, Size.Y));
-
-	// A resize re-evaluates @media and every vw/vh unit, so it is a change even though nothing in the
-	// document moved on its own.
-	MarkDirty(TEXT("resized"));
+	ContextSize = FIntPoint(FMath::Max(1, FMath::RoundToInt(Local.X)),
+		FMath::Max(1, FMath::RoundToInt(Local.Y)));
+	Host.SetSize(ContextSize);
 }
 
 void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Update);
-	SCOPE_CYCLE_COUNTER(STAT_FolioUpdate);
-
 	SLeafWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
-	if (!Context)
+	if (!Host.IsValid())
 	{
 		return;
 	}
 
 	UpdateContextSize(AllottedGeometry);
 
-	// Before the context update, so a value read this frame lays out this frame. Only sources with
-	// no change notification do any work here, and a model whose source was collected stops on its
-	// own rather than being removed - RmlUi owns it, and a document is still bound to its last values.
-	//
-	// Always, even when the rest of the frame is skipped: polling is how a source without change
-	// notification is noticed at all, so skipping it would freeze exactly the bindings that have no
-	// other way to report themselves.
-	for (const TUniquePtr<FFolioObjectModel>& Model : ObjectModels)
-	{
-		if (Model->Tick())
-		{
-			MarkDirty(TEXT("data model"));
-		}
-	}
+	// Before the context update, so a value read this frame lays out this frame.
+	Host.TickDataModels();
 
-	// A held stick becomes repeated presses here, where there is a clock. Suppressed while a text
-	// field has focus, for the same reason letters are not directions there.
+	// A held stick becomes repeated presses here, where there is a clock. Suppressed while a text field
+	// has focus, for the same reason letters are not directions there.
 	if (!IsTakingText())
 	{
 		if (const Rml::Input::KeyIdentifier Nav = Analog.Advance(InDeltaTime);
@@ -341,61 +143,14 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 		}
 	}
 
-	// Nothing on our side changed and RmlUi asked not to be updated yet, so the frame is skipped
-	// entirely. The clock still runs, because what RmlUi asked for is a delay rather than a signal.
-	if (Folio::InvalidationEnabled() && !bDirty && NextUpdateIn > 0.0)
-	{
-		NextUpdateIn -= InDeltaTime;
-		if (NextUpdateIn > 0.0)
-		{
-			return;
-		}
-	}
+	// Slate's layout scale is Unreal's UI scaling, which is what dp units resolve against. The render
+	// scale is separate: it is how much one rendered pixel is worth in document units.
+	const float RenderScale =
+		AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
 
-	// Slate's layout scale is Unreal's UI scaling; RmlUi expresses the same thing as a
-	// density independent pixel ratio, which is what dp units resolve against.
-	Context->SetDensityIndependentPixelRatio(AllottedGeometry.Scale);
-
-	// Backgrounds carry their own antialiasing because Slate composites straight into the
-	// swapchain with no multisampling to soften a rounded corner. The generator works in
-	// document units, so it needs one rendered pixel expressed in them.
-	const float RenderScale = AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
-	Rml::MeshUtilities::SetBackgroundAntialiasWidth(RenderScale > KINDA_SMALL_NUMBER ? 1.0f / RenderScale : 1.0f);
-
-	const TCHAR* const Reason = bDirty ? DirtyReason : TEXT("RmlUi asked");
-
-	Context->Update();
-
-	// Read after the update, not before: RmlUi resets the request to infinity as Update starts and
-	// fills it in as elements ask, so before the call it says nothing about this frame.
-	NextUpdateIn = Context->GetNextUpdateDelay();
-	bDirty = false;
-
-	// Slate caches draw elements for a non-volatile widget inside an invalidation root, so a paint has
-	// to be asked for rather than assumed. Outside one this costs nothing and Slate paints regardless.
-	Invalidate(EInvalidateWidgetReason::Paint);
-
-	if (Folio::InvalidationTracing())
-	{
-		UE_LOG(LogFolio, Display, TEXT("folio invalidation: updated because '%s', next update in %s"),
-			Reason,
-			FMath::IsFinite(NextUpdateIn)
-				? *FString::Printf(TEXT("%.3fs"), NextUpdateIn)
-				: TEXT("never, until input"));
-	}
+	Host.Update(InDeltaTime, AllottedGeometry.Scale, RenderScale);
 }
 
-void SFolioCanvas::MarkDirty(const TCHAR* Reason)
-{
-	// First reason of the frame wins, since it is the one that actually caused the update.
-	if (!bDirty)
-	{
-		DirtyReason = Reason;
-	}
-
-	bDirty = true;
-	Invalidate(EInvalidateWidgetReason::Paint);
-}
 
 FVector2D SFolioCanvas::ComputeDesiredSize(float) const
 {
@@ -409,6 +164,7 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Render);
 	SCOPE_CYCLE_COUNTER(STAT_FolioRender);
 
+	Rml::Context* Context = Host.GetContext();
 	if (!Context)
 	{
 		return LayerId;
@@ -440,6 +196,7 @@ FVector2f SFolioCanvas::ToContextSpace(const FGeometry& MyGeometry, const FPoint
 
 FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
+	Rml::Context* Context = Host.GetContext();
 	if (!Context)
 	{
 		return FReply::Unhandled();
@@ -483,6 +240,7 @@ FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoint
 	MarkDirty(TEXT("mouse down"));
 
 	const int32 Button = Folio::ToRmlMouseButton(MouseEvent.GetEffectingButton());
+	Rml::Context* Context = Host.GetContext();
 	if (!Context || Button < 0)
 	{
 		return FReply::Unhandled();
@@ -512,6 +270,7 @@ FReply SFolioCanvas::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointer
 	MarkDirty(TEXT("mouse up"));
 
 	const int32 Button = Folio::ToRmlMouseButton(MouseEvent.GetEffectingButton());
+	Rml::Context* Context = Host.GetContext();
 	if (!Context || Button < 0)
 	{
 		return FReply::Unhandled();
@@ -532,6 +291,7 @@ FReply SFolioCanvas::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEve
 	// added later cannot forget.
 	MarkDirty(TEXT("mouse wheel"));
 
+	Rml::Context* Context = Host.GetContext();
 	if (!Context)
 	{
 		return FReply::Unhandled();
@@ -551,7 +311,7 @@ void SFolioCanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
 	// added later cannot forget.
 	MarkDirty(TEXT("mouse leave"));
 
-	if (Context)
+	if (Rml::Context* Context = Host.GetContext())
 	{
 		// Without this the last hovered element keeps :hover indefinitely.
 		Context->ProcessMouseLeave();
@@ -567,6 +327,7 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	// added later cannot forget.
 	MarkDirty(TEXT("key down"));
 
+	Rml::Context* Context = Host.GetContext();
 	if (!Context)
 	{
 		return FReply::Unhandled();
@@ -650,6 +411,7 @@ FReply SFolioCanvas::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAn
 	// added later cannot forget.
 	MarkDirty(TEXT("analog"));
 
+	Rml::Context* Context = Host.GetContext();
 	if (!Context)
 	{
 		return FReply::Unhandled();
@@ -681,6 +443,7 @@ void SFolioCanvas::OnFocusLost(const FFocusEvent& FocusEvent)
 
 bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int32 Modifiers)
 {
+	Rml::Context* Context = Host.GetContext();
 	if (!Context)
 	{
 		return false;
@@ -693,23 +456,6 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 	return bConsumed;
 }
 
-bool SFolioCanvas::BindObjectModel(const FString& ModelName, UObject* Source, const bool bPollEveryFrame)
-{
-	if (!Context)
-	{
-		return false;
-	}
-
-	TUniquePtr<FFolioObjectModel> Model = MakeUnique<FFolioObjectModel>();
-	if (!Model->Mount(Context, ModelName, Source, bPollEveryFrame))
-	{
-		return false;
-	}
-
-	ObjectModels.Add(MoveTemp(Model));
-	MarkDirty(TEXT("model bound"));
-	return true;
-}
 
 Folio::EInputDevice SFolioCanvas::GetLastInputDevice() const
 {
@@ -723,37 +469,6 @@ void SFolioCanvas::NoteDevice(const Folio::EInputDevice Device)
 	FFolioModule::Get().SetInputDevice(Device);
 }
 
-/** True while a text field has focus, so letters are text rather than directions. */
-bool SFolioCanvas::IsTakingText() const
-{
-	if (!Context)
-	{
-		return false;
-	}
-
-	const Rml::Element* Focus = Context->GetFocusElement();
-	if (Focus == nullptr)
-	{
-		return false;
-	}
-
-	const Rml::String FocusTag = Focus->GetTagName();
-	if (FocusTag == "textarea")
-	{
-		return true;
-	}
-
-	if (FocusTag != "input")
-	{
-		return false;
-	}
-
-	// The tag alone is not enough: a checkbox, radio or range slider is an input that takes no
-	// text, and treating it as one blocks WASD and IJKL for as long as it has focus. RmlUi defaults
-	// a type-less input to text.
-	const Rml::String Type = Focus->GetAttribute<Rml::String>("type", "text");
-	return Type == "text" || Type == "password";
-}
 
 FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
 {
@@ -762,6 +477,7 @@ FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEv
 	// added later cannot forget.
 	MarkDirty(TEXT("key up"));
 
+	Rml::Context* Context = Host.GetContext();
 	const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
 	if (!Context || Key == Rml::Input::KI_UNKNOWN)
 	{
@@ -781,6 +497,7 @@ FReply SFolioCanvas::OnKeyChar(const FGeometry& MyGeometry, const FCharacterEven
 	// added later cannot forget.
 	MarkDirty(TEXT("text input"));
 
+	Rml::Context* Context = Host.GetContext();
 	if (!Context)
 	{
 		return FReply::Unhandled();

@@ -197,22 +197,19 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 	const FIntPoint Document = GetDocumentSize();
 	const FIntPoint TargetSize = bSurface ? DesiredSurfaceSize() : Document;
 
-	if (bSurface && TargetSize != SurfaceSize)
-	{
-		// Otherwise an idle document keeps whatever resolution it was first rendered at, and walking up to
-		// it would never sharpen it - which is the one thing this mode exists to do.
-		Host->MarkDirty(TEXT("surface resolution"));
-	}
-
-	// A world document has no host scaling to inherit: `dp` resolves against 1, so a dp is a document
-	// pixel and PixelsPerUnit is the only thing deciding how large text is on the surface.
+	// The context is the size of what is being drawn into, always. A surface renders at whatever
+	// resolution it currently deserves, so the document is laid out there rather than in its own space
+	// and scaled: geometry and glyphs are size-independent, so laying out again costs nothing and every
+	// edge lands on a target pixel.
 	//
-	// The render scale is one document pixel expressed in target pixels, which is 1 for the direct routes
-	// and the ratio for a surface. It only affects background antialiasing width; the fields carry their own
-	// edges and need no telling.
-	const float RenderScale = float(Document.Y) / float(FMath::Max(1, TargetSize.Y));
+	// `dp` carries the difference. It resolves against the ratio between the target and the document's
+	// authored size, so a 32dp box is the same size on the surface whatever resolution it is rendered at,
+	// and PixelsPerUnit stays the only thing deciding how much fits.
+	Host->SetSize(TargetSize);
 
-	if (!Host->Update(DeltaTime, 1.0f, RenderScale))
+	const float DpRatio = float(TargetSize.Y) / float(FMath::Max(1, Document.Y));
+
+	if (!Host->Update(DeltaTime, DpRatio, 1.0f))
 	{
 		// Nothing changed, so the recording from last time still describes the document. Re-recording it
 		// would be the same work the invalidation path exists to avoid.

@@ -895,7 +895,10 @@ structural disadvantage against UMG and it is written up in `docs/FOLIO_BRIEF.md
 The reason it has not been fixed casually: RmlUi exposes no dirty signal. There is no context-level
 flag, `ElementDocument::IsLayoutDirty()` is private, and active animations are private per-element. So
 skipping work needs either a patch that exposes a query or conservative tracking on our side, and the
-failure mode - a document that stops updating - is worse than the cost.
+failure mode - a document that stops updating - is worse than the cost. The patch is the expected
+route: we pin upstream `mikke89/RmlUi` and patch at fetch time rather than maintaining a fork, and one
+patch is already carried, so widening `IsLayoutDirty` costs a re-base across an RmlUi bump and nothing
+else.
 
 Do not "optimise" this by only updating on input. Caret blink, `transition`, `animation`, `:hover`
 settling, data model updates from gameplay and `@media` re-evaluation all change with no input.

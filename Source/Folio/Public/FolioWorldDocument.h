@@ -447,6 +447,14 @@ private:
 	/** Whether PointerKey was down last tick, so the auto pointer sends edges rather than a state. */
 	bool bPointerKeyHeld = false;
 
+	/**
+	 * Which buttons are down, by RmlUi's index. A drag lasts from a press to its release.
+	 *
+	 * A pointer that wanders off the surface mid-drag must not take the drag with it, which is the same
+	 * reason the screen canvas captures the mouse on a press.
+	 */
+	int32 HeldButtons = 0;
+
 	/** Whether this document is the one currently holding Slate's keyboard focus. */
 	bool bHoldingFocus = false;
 

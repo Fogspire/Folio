@@ -383,6 +383,15 @@ bool UFolioWorldDocument::MovePointerToHit(const FHitResult& Hit)
 
 void UFolioWorldDocument::ClearPointer()
 {
+	// A held button means a drag is in progress, and leaving tells RmlUi the mouse is gone: it stops
+	// tracking what is under the pointer, so the release lands on nothing and the drop never happens.
+	// Aim wanders off a screen constantly, so this is the difference between a drop that works and one
+	// that works only when the player is careful.
+	if (HeldButtons != 0)
+	{
+		return;
+	}
+
 	if (!Pointer.IsSet())
 	{
 		return;
@@ -416,6 +425,8 @@ void UFolioWorldDocument::PressPointer(const FKey Button)
 			*DescribeHover());
 	}
 
+	HeldButtons |= 1 << Index;
+
 	Host->MarkDirty(TEXT("pointer down"));
 	Context->ProcessMouseButtonDown(Index, CurrentModifiers());
 }
@@ -427,6 +438,13 @@ void UFolioWorldDocument::ReleasePointer(const FKey Button)
 	if (!Context || Index < 0)
 	{
 		return;
+	}
+
+	HeldButtons &= ~(1 << Index);
+
+	if (CVarShowSurface.GetValueOnGameThread())
+	{
+		UE_LOG(LogFolio, Display, TEXT("world release on '%s', over %s"), *DocumentPath, *DescribeHover());
 	}
 
 	// Sent even with the pointer off the surface, so a press that ends elsewhere still completes rather

@@ -251,6 +251,9 @@ Markup and stylesheet edits hot reload in the world the same as anywhere else â€
   call `Move Pointer Along` yourself, and check `Pointer Reach` covers how far away you are standing.
   `folio.World.ShowSurface 1` says which of those it is.
 - **The cursor moves the wrong way.** `Invert Pointer V`. See above.
+- **A drag works but the drop does nothing.** The pointer left the surface during the drag. Folio
+  keeps the drag alive while a button is held, but check `Pointer Reach` covers where you stand and
+  that nothing passes between you and the screen.
 - **Hover and clicks land near what you aimed at, but not on it.** Usually the aiming rather than the
   mapping: rows a few percent of the screen tall are hard to hit from across a room with no cursor.
   Check the cursor is on, then make the targets bigger. A document authored for reading is rarely one

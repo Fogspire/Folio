@@ -35,6 +35,11 @@ the first thing a reader will want after this.
   it is a dead link twice over until written). `UFolioWidget` in an existing widget tree, and the CommonUI focus-target
   override. The failure it prevents (gamepad silently doing nothing) is worth naming, since the
   symptom points nowhere near the cause.
+- ~~**Localization.**~~ Written: `localization.md`. Every claim in it was run: the gather produces 35
+  strings under `UI.Settings` in the same manifest as the C++ and asset text, `folio.Loc.Report` shows
+  them resolving, a patched translation displays, and `--culture pseudo --strict` behaves as described
+  including leaving bound values unaccented. The `Config/Localization/Game.ini` it tells readers to copy
+  ships at `templates/Config/Localization/Game.ini`.
 - **Input and navigation.** Which keys navigate, the per-scheme switches, rebinding, and the
   confirm/back swap. `UI_CONVENTIONS.md` §8 has the material; it needs reordering around what a
   reader wants to achieve.

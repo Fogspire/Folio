@@ -184,6 +184,7 @@ a console or a Steam Deck. It does not exist in Shipping.
   close enough to CSS to mislead.
 - **Hosting a document** — `UFolioWidget`, focus, and fitting into an existing widget tree.
 - **Data binding** — showing values from your game, and whether a view model is worth it.
+- **[Localization](localization.md)** — keying your text, and getting it into Unreal's gather.
 
 ## If nothing appears
 

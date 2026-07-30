@@ -1392,3 +1392,25 @@ by the console readout wastes an afternoon.
 
 Emulated stereo (`-emulatestereo` on a standalone launch) exercises the two-view path without a
 headset, and is how the world pass was verified in both plain and instanced stereo.
+
+## Never hold an RmlUi element across frames as a raw pointer
+
+`FFolioBehaviours` kept the element being dragged in a raw `Rml::Element*` between the `dragstart`
+that began the move and the `dragend` that would end it. Three things free that element inside that
+window, and all three happen in ordinary use: a document reload frees everything in it,
+`folio-drop="remove"` frees one outright, and a drag interrupted by either never delivers the
+`dragend` that would have cleared the pointer. The next mouse move then writes `left` and `top` into
+freed memory, which surfaces as a crash inside `std::vector` under `Element::SetProperty` and reads
+as an RmlUi bug rather than a lifetime one.
+
+`Rml::ObserverPtr<T>` exists for exactly this: `Element` derives from `EnableObserverPtr<Element>`, so
+`element->GetObserverPtr()` gives a pointer that goes null when the element is destroyed. Anything
+held across frames - or across an event dispatch that might reload the document - has to be one.
+
+`GetObserverPtr()` returns `ObserverPtr<Element>` even on an `ElementDocument`, because the observable
+base is `Element`. There is no covariant version: store `ObserverPtr<Element>` and reach for
+`GetOwnerDocument()` when a document-only method is needed.
+
+The same rule covers listeners in the other direction. RmlUi calls `OnDetach` on every listener an
+element still holds when it is destroyed, so a listener that is freed while still registered crashes
+inside the document's destructor. `FFolioBehaviours` detaches from its own destructor for that reason.

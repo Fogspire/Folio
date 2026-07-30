@@ -4,6 +4,7 @@
 
 #include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/ID.h>
+#include <RmlUi/Core/ObserverPtr.h>
 #include <RmlUi/Core/Types.h>
 
 namespace Rml
@@ -32,6 +33,14 @@ namespace Rml
 class FOLIOCORE_API FFolioBehaviours final : public Rml::EventListener
 {
 public:
+	/**
+	 * Detaches, because a listener that outlives its own registration is a use-after-free.
+	 *
+	 * RmlUi calls OnDetach on every listener an element still holds when it is destroyed, so leaving one
+	 * registered past its own lifetime crashes inside the document's destructor rather than here.
+	 */
+	~FFolioBehaviours();
+
 	/** Listens on the document. Safe to call with the same document twice. */
 	void Attach(Rml::ElementDocument* InDocument);
 
@@ -48,10 +57,17 @@ private:
 	void Drop(Rml::Element& Zone, Rml::Event& Event);
 	void Close(Rml::Element& Button);
 
-	Rml::ElementDocument* Document = nullptr;
+	/**
+	 * Observed rather than held, both of them, because either can be destroyed without telling us.
+	 *
+	 * A document reload frees every element in it, and `folio-drop="remove"` frees one outright, while a
+	 * drag that is interrupted never delivers the `dragend` that would have cleared this. A raw pointer
+	 * survives all three and writes into freed memory on the next pointer move. An observer goes null.
+	 */
+	Rml::ObserverPtr<Rml::Element> Document;
 
 	/** What is being moved, with what it takes to work out where to put it. Null when nothing is. */
-	Rml::Element* Moving = nullptr;
+	Rml::ObserverPtr<Rml::Element> Moving;
 	Rml::Vector2f MoveStart;
 	Rml::Vector2f PointerStart;
 };

@@ -49,20 +49,26 @@ namespace
 	}
 }
 
+FFolioBehaviours::~FFolioBehaviours()
+{
+	Detach();
+}
+
 void FFolioBehaviours::Attach(Rml::ElementDocument* InDocument)
 {
-	if (Document == InDocument)
+	if (Document.get() == InDocument)
 	{
 		return;
 	}
 
 	Detach();
 
-	Document = InDocument;
-	if (!Document)
+	if (!InDocument)
 	{
 		return;
 	}
+
+	Document = InDocument->GetObserverPtr();
 
 	// Bubbling rather than capture: the target is what each event is about - the dragged element for
 	// the drag itself, the zone under the pointer for a drop - and capture would report the document.
@@ -74,19 +80,19 @@ void FFolioBehaviours::Attach(Rml::ElementDocument* InDocument)
 
 void FFolioBehaviours::Detach()
 {
-	Moving = nullptr;
+	Moving.reset();
 
-	if (!Document)
+	// Null once the document has been destroyed, which is the case this exists to survive: unregistering
+	// from a freed element is the crash, not the fix.
+	if (Document)
 	{
-		return;
+		for (const Rml::EventId Id : Watched)
+		{
+			Document->RemoveEventListener(Id, this);
+		}
 	}
 
-	for (const Rml::EventId Id : Watched)
-	{
-		Document->RemoveEventListener(Id, this);
-	}
-
-	Document = nullptr;
+	Document.reset();
 }
 
 void FFolioBehaviours::BeginDrag(Rml::Element& Element, Rml::Event& Event)
@@ -110,7 +116,7 @@ void FFolioBehaviours::BeginDrag(Rml::Element& Element, Rml::Event& Event)
 		return;
 	}
 
-	Moving = &Element;
+	Moving = Element.GetObserverPtr();
 	PointerStart = PointerAt(Event);
 
 	// Taken from the laid-out box rather than from the `left` property, which may be a percentage, a
@@ -126,8 +132,8 @@ void FFolioBehaviours::ContinueDrag(Rml::Event& Event)
 	}
 
 	const Rml::Vector2f Delta = PointerAt(Event) - PointerStart;
-	SetPixels(*Moving, Rml::PropertyId::Left, MoveStart.x + Delta.x);
-	SetPixels(*Moving, Rml::PropertyId::Top, MoveStart.y + Delta.y);
+	SetPixels(*Moving.get(), Rml::PropertyId::Left, MoveStart.x + Delta.x);
+	SetPixels(*Moving.get(), Rml::PropertyId::Top, MoveStart.y + Delta.y);
 }
 
 void FFolioBehaviours::Drop(Rml::Element& Zone, Rml::Event& Event)
@@ -149,9 +155,9 @@ void FFolioBehaviours::Drop(Rml::Element& Zone, Rml::Event& Event)
 	{
 		if (Rml::Element* Parent = Dragged->GetParentNode())
 		{
-			if (Moving == Dragged)
+			if (Moving.get() == Dragged)
 			{
-				Moving = nullptr;
+				Moving.reset();
 			}
 
 			Parent->RemoveChild(Dragged);
@@ -186,9 +192,9 @@ void FFolioBehaviours::Close(Rml::Element& Button)
 	// Adding a class only marks the element's definition dirty - the rules behind it are not resolved
 	// until the next update, and reading the animation before then reports whatever was true a moment
 	// ago. Which would mean every animated close read as un-animated and vanished instantly.
-	if (Document)
+	if (Rml::ElementDocument* Owner = Target->GetOwnerDocument())
 	{
-		Document->UpdateDocument();
+		Owner->UpdateDocument();
 	}
 
 	if (!HasAnimation(*Target))
@@ -217,7 +223,7 @@ void FFolioBehaviours::ProcessEvent(Rml::Event& Event)
 
 	case Rml::EventId::Dragend:
 		Target->SetClass(DraggingClass, false);
-		Moving = nullptr;
+		Moving.reset();
 		break;
 
 	case Rml::EventId::Dragover:

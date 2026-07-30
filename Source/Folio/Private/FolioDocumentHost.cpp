@@ -60,6 +60,10 @@ void FFolioDocumentHost::Destroy()
 	// as a crash inside robin_hood's hash table on editor close.
 	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
 	{
+		// Safe with RmlUi already down: the document is observed, so this drops a null rather than
+		// unregistering from a freed element.
+		Behaviours.Detach();
+
 		InputModel.Release();
 		ObjectModels.Empty();
 		Context = nullptr;

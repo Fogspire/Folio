@@ -5,7 +5,12 @@
 *.json  text eol=lf
 *.md    text eol=lf
 
-*.ps1   text eol=crlf
+# Non-negotiable: a shell script checked out with CRLF fails on Linux, because bash reads the carriage
+# return as part of the command and reports something that names neither the character nor the cause.
+# Same for python, where a \r in a line continuation is a syntax error.
+*.sh    text eol=lf
+*.py    text eol=lf
+
 *.cmd   text eol=crlf
 
 *.png   binary

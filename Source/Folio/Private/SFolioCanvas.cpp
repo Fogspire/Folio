@@ -10,6 +10,7 @@
 #include "FolioReload.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
+#include "GameFramework/InputSettings.h"
 #include "Misc/FileHelper.h"
 
 #include <RmlUi/Core/Core.h>
@@ -443,7 +444,7 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	NoteDevice(Folio::DeviceForKey(KeyEvent.GetKey()));
 
 	const int32 Modifiers = Folio::ToRmlModifiers(KeyEvent.GetModifierKeys());
-	const bool bNavigates = Navigates(KeyEvent.GetKey());
+	const bool bClaimed = ClaimsKey(KeyEvent.GetKey());
 
 	// The literal key first, so a text field still receives W as a letter. Only when nothing is
 	// taking text does a letter get to mean a direction, which is what lets the arrows, WASD and
@@ -460,7 +461,7 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		}
 
 		const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
-		return bConsumed || bNavigates ? FReply::Handled() : FReply::Unhandled();
+		return bConsumed || bClaimed ? FReply::Handled() : FReply::Unhandled();
 	}
 
 	if (IsTakingText())
@@ -476,20 +477,39 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		return FReply::Handled();
 	}
 
-	return bNavigates ? FReply::Handled() : FReply::Unhandled();
+	return bClaimed ? FReply::Handled() : FReply::Unhandled();
 }
 
-bool SFolioCanvas::Navigates(const FKey& Key) const
+bool SFolioCanvas::ClaimsKey(const FKey& Key) const
 {
-	// A key that means navigation belongs to the focused document whether or not anything moved.
-	// RmlUi reports a direction it could not act on - already at the edge of a list - as unconsumed,
-	// and letting that fall through means the pawn turns while a menu is open. Worse, in a CommonUI
-	// project the game receiving input makes the action router reapply its input config, which
-	// reassigns focus away from the document, and then no further input arrives at all.
-	//
-	// Only navigation, not every key: swallowing the whole keyboard would take the console key with
-	// it, and that is the way out of a document that has gone wrong.
-	return !IsTakingText() && Folio::ActionForKey(Key) != EFolioNavAction::None;
+	// Two keys always escape, whatever has focus. The console is how a document that has gone wrong
+	// gets closed, and Escape is how PIE gets stopped when the console cannot be opened.
+	if (Key == EKeys::Escape)
+	{
+		return false;
+	}
+
+	if (const UInputSettings* Settings = UInputSettings::GetInputSettings())
+	{
+		if (Settings->ConsoleKeys.Contains(Key))
+		{
+			return false;
+		}
+	}
+
+	// A focused text field owns the keyboard outright: a letter is a letter, not a movement key.
+	// RmlUi delivers characters through ProcessTextInput rather than ProcessKeyDown, so the press
+	// itself reads as unconsumed and would otherwise walk the character while a name is typed.
+	if (IsTakingText())
+	{
+		return true;
+	}
+
+	// Otherwise only navigation. RmlUi reports a direction it could not act on - already at the edge
+	// of a list - as unconsumed, and letting that through turns the pawn behind the menu. Worse, in a
+	// CommonUI project the game receiving input makes the action router reapply its input config,
+	// which reassigns focus away from the document, and then no further input arrives at all.
+	return Folio::ActionForKey(Key) != EFolioNavAction::None;
 }
 
 FReply SFolioCanvas::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& AnalogEvent)
@@ -600,7 +620,7 @@ FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEv
 	{
 		// Paired with the press: a release reaching the game after its press did not leaves
 		// Enhanced Input holding an action down that nothing will ever complete.
-		return Navigates(KeyEvent.GetKey()) ? FReply::Handled() : FReply::Unhandled();
+		return ClaimsKey(KeyEvent.GetKey()) ? FReply::Handled() : FReply::Unhandled();
 	}
 
 	Context->ProcessKeyUp(Key, Folio::ToRmlModifiers(KeyEvent.GetModifierKeys()));

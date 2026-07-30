@@ -134,8 +134,8 @@ private:
 	/** True while a text field has focus, so letters are text rather than directions. */
 	bool IsTakingText() const;
 
-	/** Whether this key means navigation here, and so must not reach the game behind the document. */
-	bool Navigates(const FKey& Key) const;
+	/** Whether this key belongs to the focused document, and so must not reach the game behind it. */
+	bool ClaimsKey(const FKey& Key) const;
 
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;

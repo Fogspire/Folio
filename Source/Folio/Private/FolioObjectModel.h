@@ -12,7 +12,7 @@ namespace Rml
 }
 
 /**
- * Binds a UObject's properties into an RmlUi data model.
+ * Binds a UObject's properties and commands into an RmlUi data model.
  *
  * This is the view model bridge, and it deliberately knows nothing about MVVM. A
  * `UMVVMViewModelBase` is a UObject whose properties are UPROPERTYs and which implements
@@ -29,6 +29,11 @@ namespace Rml
  * Updates arrive by notification when the source supports it, which is the whole point of a view
  * model. Sources that do not are polled once a frame instead, which is correct but does work
  * proportional to the number of fields, so it is opt-in.
+ *
+ * Commands go the other way. Every BlueprintCallable function with no return value and parameters a
+ * data expression can supply becomes an event callback, so `data-event-click="Confirm"` reaches game
+ * code from markup. That is what makes the Blueprint authoring path work at all, and it is the same
+ * mechanism a C++ view model uses.
  */
 class FFolioObjectModel
 {
@@ -65,6 +70,18 @@ public:
 
 private:
 
+	/**
+	 * Binds a BlueprintCallable function as a data event callback, so markup can invoke it.
+	 *
+	 * `data-event-click="Confirm"` and `data-event-change="SetVolume(1.5)"` both come through here.
+	 * Rejected rather than half-bound if the signature is not callable from a data expression, so a
+	 * mistake is a warning at mount rather than a crash on click.
+	 */
+	bool BindCommand(Rml::DataModelConstructor& Constructor, UFunction* Function);
+
+	/** Calls the function with whatever the expression supplied, defaulting anything it did not. */
+	void Invoke(UFunction* Function, const Rml::VariantList& Arguments) const;
+
 	/** Reads the property into the mirror. Returns true when the value actually moved. */
 	bool Refresh(FField& Field);
 
@@ -77,5 +94,6 @@ private:
 	// Held by pointer so the mirrors keep their addresses as the array grows.
 	TArray<TUniquePtr<FField>> Fields;
 
+	int32 Commands = 0;
 	bool bPolling = false;
 };

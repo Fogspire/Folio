@@ -1,5 +1,7 @@
 #include "FolioBindTest.h"
 
+#include "FolioModule.h"
+
 UE_FIELD_NOTIFICATION_IMPLEMENT_CLASS_DESCRIPTOR_FourFields(UFolioBindTest, Ticks, Health, bAlive, Status);
 
 // The BASE descriptor declares this but leaves it to the class, since there is no parent descriptor
@@ -104,4 +106,34 @@ void UFolioBindTest::Advance()
 		Status = bAlive ? TEXT("alive") : TEXT("down");
 		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Status);
 	}
+}
+
+void UFolioBindTest::Revive()
+{
+	++CommandCount;
+
+	Health = 1.0f;
+	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Health);
+
+	bAlive = true;
+	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::bAlive);
+
+	Status = TEXT("revived from markup");
+	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Status);
+
+	UE_LOG(LogFolio, Display, TEXT("folio.MvvmTest: Revive() was called from markup"));
+}
+
+void UFolioBindTest::Damage(const float Amount, const FString& Cause)
+{
+	++CommandCount;
+
+	Health = FMath::Clamp(Health - Amount, 0.0f, 1.0f);
+	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Health);
+
+	Status = FString::Printf(TEXT("%.2f from %s"), Amount, *Cause);
+	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Status);
+
+	UE_LOG(LogFolio, Display,
+		TEXT("folio.MvvmTest: Damage(%.3f, '%s') was called from markup"), Amount, *Cause);
 }

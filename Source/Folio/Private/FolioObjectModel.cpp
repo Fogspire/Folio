@@ -41,6 +41,47 @@ namespace
 		return !Property.IsA<FArrayProperty>() && !Property.IsA<FMapProperty>()
 			&& !Property.IsA<FSetProperty>();
 	}
+
+	/** Whether a data expression can supply this parameter at all. */
+	bool IsCallableParameter(const FProperty& Property)
+	{
+		// An out parameter has nowhere to go: RmlUi passes values by variant and reads nothing back.
+		if (Property.HasAnyPropertyFlags(CPF_OutParm | CPF_ReferenceParm))
+		{
+			return false;
+		}
+
+		return Property.IsA<FBoolProperty>() || Property.IsA<FNumericProperty>()
+			|| Property.IsA<FStrProperty>() || Property.IsA<FNameProperty>();
+	}
+
+	/** Writes one variant into one parameter slot of a call frame. */
+	void WriteParameter(const FProperty& Property, void* Slot, const Rml::Variant& Value)
+	{
+		if (const FBoolProperty* Bool = CastField<FBoolProperty>(&Property))
+		{
+			Bool->SetPropertyValue(Slot, Value.Get<bool>());
+		}
+		else if (const FNumericProperty* Numeric = CastField<FNumericProperty>(&Property))
+		{
+			if (Numeric->IsFloatingPoint())
+			{
+				Numeric->SetFloatingPointPropertyValue(Slot, Value.Get<float>());
+			}
+			else
+			{
+				Numeric->SetIntPropertyValue(Slot, static_cast<int64>(Value.Get<int>()));
+			}
+		}
+		else if (Property.IsA<FStrProperty>())
+		{
+			*static_cast<FString*>(Slot) = Folio::ToFString(Value.Get<Rml::String>());
+		}
+		else if (Property.IsA<FNameProperty>())
+		{
+			*static_cast<FName*>(Slot) = FName(*Folio::ToFString(Value.Get<Rml::String>()));
+		}
+	}
 }
 
 FFolioObjectModel::~FFolioObjectModel()
@@ -101,6 +142,30 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 		Fields.Add(MoveTemp(Field));
 	}
 
+	// Commands, so markup can reach game code rather than only read from it. Bound before the handle
+	// is taken, like everything else on a constructor.
+	TArray<FString> Rejected;
+	for (TFieldIterator<UFunction> It(InSource->GetClass()); It; ++It)
+	{
+		UFunction* Function = *It;
+		if (!Function->HasAnyFunctionFlags(FUNC_BlueprintCallable))
+		{
+			continue;
+		}
+
+		if (BindCommand(Constructor, Function))
+		{
+			continue;
+		}
+
+		// Only the source's own functions are worth reporting. Every base class contributes callable
+		// functions nobody meant as UI commands, and naming those would bury the one that matters.
+		if (Function->GetOwnerClass() == InSource->GetClass())
+		{
+			Rejected.Add(Function->GetName());
+		}
+	}
+
 	Handle = Constructor.GetModelHandle();
 
 	// Notification per field where the source supports it. A view model that reports its own changes
@@ -136,8 +201,8 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 	bPolling = bPollEveryFrame && Notifier == nullptr;
 
 	UE_LOG(LogFolio, Log,
-		TEXT("bound %d property(s) of '%s' as data model '%s'%s%s"),
-		Fields.Num(), *InSource->GetName(), *ModelName,
+		TEXT("bound %d property(s) and %d command(s) of '%s' as data model '%s'%s%s"),
+		Fields.Num(), Commands, *InSource->GetName(), *ModelName,
 		Notifier ? TEXT(", updating by notification") : TEXT(""),
 		bPolling ? TEXT(", polled every frame") : TEXT(""));
 
@@ -149,7 +214,90 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 			*InSource->GetName(), Skipped);
 	}
 
+	if (Rejected.Num() > 0)
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("'%s' cannot expose %s to markup. A command needs no return value and only bool, "
+				"number, string or name parameters, passed by value."),
+			*InSource->GetName(), *FString::Join(Rejected, TEXT(", ")));
+	}
+
 	return true;
+}
+
+bool FFolioObjectModel::BindCommand(Rml::DataModelConstructor& Constructor, UFunction* Function)
+{
+	if (Function->GetReturnProperty() != nullptr)
+	{
+		// A data expression discards whatever a callback returns, so a function with a result is
+		// almost certainly a query someone meant to bind as a value.
+		return false;
+	}
+
+	for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+	{
+		if (!IsCallableParameter(**It))
+		{
+			return false;
+		}
+	}
+
+	// Weak, because the model outlives nothing but the function belongs to a class that a live coding
+	// pass can replace underneath it.
+	const TWeakObjectPtr<UFunction> Weak(Function);
+
+	if (!Constructor.BindEventCallback(Folio::ToRmlString(Function->GetName()),
+		[this, Weak](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList& Arguments)
+		{
+			if (UFunction* Target = Weak.Get())
+			{
+				Invoke(Target, Arguments);
+			}
+		}))
+	{
+		return false;
+	}
+
+	++Commands;
+	return true;
+}
+
+void FFolioObjectModel::Invoke(UFunction* Function, const Rml::VariantList& Arguments) const
+{
+	UObject* Object = Source.Get();
+	if (!Object)
+	{
+		return;
+	}
+
+	// ProcessEvent wants one contiguous frame holding every parameter at its reflected offset. The
+	// frame has to be constructed and destroyed by the properties themselves, not memset: an FString
+	// parameter left as zeroed memory is a string that frees a pointer it never owned.
+	void* Frame = FMemory_Alloca_Aligned(FMath::Max<int32>(Function->ParmsSize, 1), Function->MinAlignment);
+	FMemory::Memzero(Frame, Function->ParmsSize);
+
+	for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+	{
+		It->InitializeValue_InContainer(Frame);
+	}
+
+	int32 Index = 0;
+	for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It, ++Index)
+	{
+		// Anything the expression did not supply keeps the value the property initialised to, so
+		// data-event-click="Confirm" works on a function that happens to take an optional argument.
+		if (Index < static_cast<int32>(Arguments.size()))
+		{
+			WriteParameter(**It, It->ContainerPtrToValuePtr<void>(Frame), Arguments[Index]);
+		}
+	}
+
+	Object->ProcessEvent(Function, Frame);
+
+	for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+	{
+		It->DestroyValue_InContainer(Frame);
+	}
 }
 
 void FFolioObjectModel::Tick()

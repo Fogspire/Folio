@@ -47,6 +47,21 @@ public:
 	/** How many notifications have been broadcast, so a test can prove they happened. */
 	int32 GetBroadcastCount() const { return BroadcastCount; }
 
+	/** Reachable from markup as data-event-click="Revive". Proves the no-argument case. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	void Revive();
+
+	/** Reachable as data-event-click="Damage(0.25)". Proves arguments arrive in order and typed. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	void Damage(float Amount, const FString& Cause);
+
+	/** Rejected by the bridge: a command cannot return anything. Its absence is the assertion. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	int32 CountCommands() const { return CommandCount; }
+
+	/** How many times markup has called in, so a test can prove the callback fired. */
+	int32 GetCommandCount() const { return CommandCount; }
+
 	UE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_BASE_BEGIN(FOLIO_API)
 		UE_FIELD_NOTIFICATION_DECLARE_FIELD(Ticks, FOLIO_API)
 		UE_FIELD_NOTIFICATION_DECLARE_FIELD(Health, FOLIO_API)
@@ -74,4 +89,5 @@ private:
 	UE::FieldNotification::FFieldMulticastDelegate Delegates;
 	TBitArray<> EnabledFields;
 	int32 BroadcastCount = 0;
+	int32 CommandCount = 0;
 };

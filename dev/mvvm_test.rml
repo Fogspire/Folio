@@ -13,6 +13,11 @@
 		.fill { height: 14dp; background-color: #4ec9a0; border-radius: 3dp; }
 		.down .fill { background-color: #e06c75; }
 		.note { color: #8a8a99; font-size: 13dp; margin-top: 12dp; }
+		.row { display: flex; margin: 4dp 0 8dp 0; }
+		button { padding: 6dp 14dp; margin-right: 8dp; border-radius: 3dp;
+		         background-color: #2b2b36; color: #e8e8f0; font-size: 15dp; nav: auto; }
+		button:hover { background-color: #3a3a48; }
+		button:focus-visible { background-color: #4ec9a0; color: #14141a; }
 	</style>
 </head>
 <body data-model="test">
@@ -26,6 +31,16 @@
 	<div class="bar" data-class-down="!bAlive">
 		<div class="fill" data-style-width="Health * 300 + 'dp'"></div>
 	</div>
+
+	<h2>commands: markup calling back into the UObject</h2>
+	<div class="row">
+		<button data-event-click="Revive">Revive</button>
+		<button data-event-click="Damage(0.25, 'a button')">Damage(0.25)</button>
+		<button data-event-click="Damage(0.6, 'the other button')">Damage(0.6)</button>
+	</div>
+	<p class="note">These are UFUNCTION(BlueprintCallable) on the source, bound by reflection like the
+	properties. Health and Status must move, and the log names the call and its arguments. CountCommands
+	returns a value, so the bridge must refuse it: the warning naming it is the pass.</p>
 
 	<p class="note">Hidden is a UPROPERTY with no BlueprintReadOnly or EditAnywhere, so it must not be
 	bound. Staying as literal braces is the pass, and the "could not add data-text view" warnings that

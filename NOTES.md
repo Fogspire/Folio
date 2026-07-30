@@ -1051,3 +1051,29 @@ anyone would think to drop files.
 
 The override is logged as a **warning** at startup on purpose. A stale file there presents as the game
 ignoring an edit, and nothing in that symptom points at an override directory.
+
+## Commands out of a document: BindEventCallback over reflection
+
+`data-event-click="Confirm"` reaches game code because `FFolioObjectModel` binds every
+`UFUNCTION(BlueprintCallable)` on the bound source as an RmlUi data event callback, the mirror image of
+how it binds properties as values. `data-event-click="Damage(0.25, 'a button')"` works too: RmlUi hands
+the callback a `VariantList` and the arguments are written into the call frame in declaration order.
+
+Rules for a function to be reachable, and they are checked at mount rather than at click:
+
+- `BlueprintCallable`, which is the same "the author marked this as a surface" test the properties use
+  with `CPF_BlueprintVisible | CPF_Edit`.
+- **No return value.** A data expression discards it, so a function with a result is almost always a
+  query that was meant to be bound as a value.
+- Parameters are `bool`, a number, `FString` or `FName`, **by value**. An out or reference parameter has
+  nowhere to go: RmlUi passes variants in and reads nothing back.
+
+Anything rejected is logged by name, but **only if the function is declared on the source's own class**.
+Every base class contributes callable functions nobody meant as UI commands, and naming those would bury
+the one that matters.
+
+`ProcessEvent` needs one contiguous frame holding every parameter at its reflected offset, and the frame
+must be constructed and destroyed by the properties themselves rather than memset. An `FString`
+parameter left as zeroed memory is a string that frees a pointer it never owned. Arguments the
+expression did not supply keep whatever the property initialised to, so a command with an optional
+argument still works from `data-event-click="Name"`.

@@ -352,6 +352,43 @@ comes first.
 **Gate:** a document open in VSCode, re-rendering on save, matching an Unreal screenshot of the
 same document to within the harness's tolerance.
 
+#### Direct manipulation, and why it is designed for now rather than bolted on later
+
+The preview is read-only above. It should not stay that way: selecting an element in the render,
+seeing its box, and dragging it should edit the source. That is worth having for its own sake -
+repositioning by eye is faster than editing numbers - and it is the only realistic route to a
+designer-driven workflow if one is ever wanted, since a visual authoring tool is otherwise the one
+thing a commercial UI middleware sells that Folio has no answer to.
+
+**Barebones first, then grown.** Select, show the box, drag to reposition, edit one property. Every
+later feature is an addition to that loop rather than a rework of it, *provided* the seams below
+exist from the start. Retrofitting them is the expensive version.
+
+**What has to be right early, because changing it later is disruptive:**
+
+- **The preview must report geometry, identity and provenance, not just pixels.** `--metrics-report`
+  already dumps laid-out boxes; extend it to carry, per element, the `ComputeElementPath`-style
+  selector that survives a reload, and **the source file and line of the rule that set each property
+  that matters**. Without provenance, a drag has no idea which rule to rewrite, and guessing produces
+  inline styles nobody wants to maintain. RmlUi knows this - `Rml::Debugger`'s own element info panel
+  shows which rule won - so it is a question of exposing it, possibly via one more patch.
+- **Edits are a protocol, not a file rewrite.** The extension sends "set this property on this
+  selector to this value"; something that understands RCSS applies it in place, preserving comments
+  and formatting. Deciding this at the start is what keeps the tool from being a source mangler.
+- **Selection must round-trip both ways.** Click in the render, highlight the source line; put the
+  caret in a rule, highlight the elements it matches. This falls out of provenance and is most of
+  what makes the tool feel like an editor rather than a viewer.
+- **A rule, not an element, is usually the right target.** Dragging one button should be able to
+  move every button. The tool has to make that choice visible and let the author pick, because
+  silently choosing either one is wrong half the time.
+
+**Explicitly not the goal:** a component palette, a timeline, an animation editor, or a layout
+canvas that generates markup from scratch. Documents stay hand-authored text that a tool can adjust.
+Anything that would make the generated markup unpleasant to read is out of scope by definition.
+
+**Gate:** dragging an element in the extension moves it in Unreal after a save, and the diff on the
+source is one property on one rule, formatted as a person would have written it.
+
 ---
 
 ## How I want you to work
@@ -398,6 +435,32 @@ module can include `SFolioCanvas.h`. Either move those headers to `Public/` or s
 public headers.
 
 Do this after the phases, not during: it touches the header layout everything else builds on.
+
+### Accessibility: expose the document to assistive technology
+
+**Today a Folio document is invisible to a screen reader.** `SFolioCanvas` is a single
+`SLeafWidget`, so Slate's accessibility layer offers one opaque rectangle: none of the document's
+structure, text, roles or focus state reaches NVDA, JAWS, or a console's platform narrator. Nothing
+warns about it, because from Slate's point of view nothing is wrong.
+
+This is a shipping concern rather than a nicety. Xbox certification asks about accessibility support,
+and storefronts increasingly want a features declaration, so it is the kind of gap that surfaces at
+submission rather than during development.
+
+The work is additive and needs no change to how documents are authored:
+
+- Walk the RmlUi DOM and expose it through Slate's accessibility interfaces, so the canvas presents a
+  tree rather than a rectangle. The DOM already carries almost everything needed - text content,
+  hierarchy, and which element has focus.
+- **Roles have to come from markup**, because a `div` that behaves as a button is indistinguishable
+  from one that does not. That means honouring `aria-role`-style attributes, or a Folio equivalent, and
+  adding them to `UI_CONVENTIONS.md` as a requirement on interactive components rather than an option.
+  Doing this while the component library is small is much cheaper than retrofitting it across finished
+  screens.
+- Announce focus changes. The focus events the UI sound hooks already fire are the same signal.
+
+Not in scope here: text scaling and colour choices are design decisions the component library makes,
+not plumbing this provides.
 
 ### Gradient fills for vector sprites
 

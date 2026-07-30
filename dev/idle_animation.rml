@@ -6,10 +6,10 @@
 		body { background-color: #14141ae8; color: #e8e8f0; font-size: 16dp; padding: 16dp;
 		       width: 100%; height: 100%; box-sizing: border-box; }
 		@keyframes pulse {
-			from { opacity: 0.2; }
+			from { opacity: 0.5; }
 			to   { opacity: 1.0; }
 		}
-		.pulsing { animation: 1.4s pulse infinite alternate; background-color: #4ec9a0;
+		.pulsing { animation: 1.4s pulse infinite alternate; background-color: #ff7a18;
 		           width: 180dp; height: 32dp; border-radius: 3dp; }
 	</style>
 </head>

@@ -898,7 +898,15 @@ namespace
 
 		const FVector Forward = Rotation.Vector();
 
-		const FTransform SpawnAt(FRotator::ZeroRotator, Location + Forward * 200.0);
+		// The surface lies in local XY facing local Z, so facing the camera means aiming local Z back
+		// along the view direction. MakeFromZ builds exactly that; a Rotator from the vector would aim
+		// local X instead and leave the document lying flat.
+		//
+		// The rotation goes on the spawn transform rather than onto the component afterwards: setting it
+		// on a component that is neither registered nor the root does not survive being made the root.
+		const FTransform SpawnAt(FRotationMatrix::MakeFromZ(-Forward).Rotator(),
+			Location + Forward * 200.0);
+
 		AActor* Actor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnAt);
 		if (!Actor)
 		{
@@ -908,10 +916,6 @@ namespace
 
 		UFolioWorldDocument* Surface = NewObject<UFolioWorldDocument>(Actor);
 		Surface->DocumentPath = Document;
-
-		// The surface lies in local XY facing local Z, so facing the camera means pointing local Z back
-		// along the view direction.
-		Surface->SetWorldRotation((-Forward).Rotation() + FRotator(0.0, 0.0, 0.0));
 		Actor->SetRootComponent(Surface);
 		Surface->RegisterComponent();
 

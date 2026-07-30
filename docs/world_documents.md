@@ -140,14 +140,56 @@ touch, or a hand in VR, leave it off and call the same path with your own ray:
 | Call | Does |
 | --- | --- |
 | `Move Pointer Along (Origin, Direction, Distance)` | Puts the pointer where the line crosses the surface. Returns false and changes nothing if it misses, so one call answers both *is it being pointed at* and *where*. |
-| `Move Pointer (UV)` | The primitive underneath, in 0-1 from the top left. Use it when the UV comes from somewhere Folio cannot work out, such as `Find Collision UV` against a curved mesh. |
+| `Move Pointer To Hit (Hit)` | Uses the mesh's own UVs from a line trace. See below. |
+| `Move Pointer (UV)` | The primitive underneath, in 0-1 from the top left. Use it when the UV comes from somewhere Folio cannot work out. |
 | `Clear Pointer` | Takes the pointer off, so nothing is left hovered. |
 | `Press Pointer` / `Release Pointer` | A click at wherever the pointer is. |
 | `Scroll Pointer (Lines)` | Positive scrolls down. |
 
 `Move Pointer Along` uses the **component's own rectangle**, not the mesh, so it works whatever you
 modelled: place the component over the screen face with `World Size` matching it, and a bezel, a curve
-or an oval cutout costs nothing. Only `Move Pointer` needs real UVs.
+or an oval cutout costs nothing.
+
+### Getting the cursor to line up
+
+There is a cursor drawn on the surface, on by default (**Show Cursor**). Nothing else tells you where
+a click will land: the player is aiming a camera at a target a few percent of the screen across, and
+hover alone is too late to aim by. Turn it off for a screen nobody points at.
+
+Watch the cursor and fix what you see:
+
+- **It moves the wrong way vertically** — tick **Invert Pointer V**. Your mesh's V runs up while a
+  document's runs down. There is an `Invert Pointer U` for the same reason horizontally. This is the
+  common one, and it is easy to miss because the *picture* looks perfect either way: a flipped V that
+  the material corrects leaves the pointer reading the uncorrected one.
+- **It drifts further off towards the edges** — the component's rectangle is not where the glass is.
+  Check `World Size` and that the component sits centred on the screen face.
+- **It does not move at all** — nothing is calling into the component. See the troubleshooting list.
+
+`folio.World.ShowSurface 1` draws the rectangle the pointer resolves against and logs, per document,
+the reason a ray missed, the pointer's position in document pixels, and the element under it as
+`tag#id`. That last one settles a mis-click in one line: aim at a button, click, and the log says what
+RmlUi thought you hit.
+
+### Pointing by the mesh's UVs
+
+**Pointer Uses Mesh UV** line traces the mesh and reads the UV of the triangle actually hit, rather
+than intersecting the component's rectangle. More accurate, and correct by construction on a curved or
+inset screen, where a flat rectangle only approximates the glass.
+
+It costs a trace per frame and needs three things, so it is not the default:
+
+1. **Support UV From Hit Results** on, in Project Settings > Physics (needs a restart)
+2. Complex collision on the mesh, `Use Complex Collision As Simple` being the easiest
+3. A `Pointer Trace Channel` the mesh blocks
+
+If any is missing the log says so rather than pointing somewhere wrong.
+
+**Pointer UV Channel** picks which UV set to read, for a mesh with more than one. Reading a different
+channel than the material samples points somewhere else entirely.
+
+The rectangle route is not a fallback — it is exact for a flat screen and needs no physics setup at
+all. Reach for mesh UVs when the screen is genuinely curved, or when you want the extra precision.
 
 ### Navigating it like a menu
 
@@ -206,10 +248,20 @@ Markup and stylesheet edits hot reload in the world the same as anywhere else �
 - **It is behind the wall it is mounted on.** Nudge it off the surface. `folio.World.Occlusion 0`
   confirms that is what is happening in one command.
 - **Nothing hovers or clicks.** Nothing is driving the pointer. Tick `Pointer From Player View` or
-  call `Move Pointer Along` yourself. Check `World Size` covers the screen face: the pointer is
-  resolved against the component's rectangle, not the mesh.
+  call `Move Pointer Along` yourself, and check `Pointer Reach` covers how far away you are standing.
+  `folio.World.ShowSurface 1` says which of those it is.
+- **The cursor moves the wrong way.** `Invert Pointer V`. See above.
+- **Hover and clicks land near what you aimed at, but not on it.** Usually the aiming rather than the
+  mapping: rows a few percent of the screen tall are hard to hit from across a room with no cursor.
+  Check the cursor is on, then make the targets bigger. A document authored for reading is rarely one
+  that can be aimed at.
+- **Nothing hovers, and the document has a full-screen overlay.** An element covering the content
+  takes the pointer even when it is only decorative. `pointer-events: none` on scanlines, vignettes
+  and any other overlay.
 - **Typing goes to the game instead of the field.** The field does not have focus. Clicking it is what
   gives it focus, so the pointer has to be working first.
+- **Movement keys walk the player while a menu is up.** Call `Focus Document`. With only a text field
+  focused, unclaimed keys deliberately fall through so the player can walk away mid-word.
 - **Nothing at all, any mode.** `folio.WorldTest report` says whether the document recorded any
   geometry. Nothing recorded is a document problem — check the path and the log — rather than a
   rendering one.

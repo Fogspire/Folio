@@ -13,7 +13,7 @@
 			background-color: #14141ae8;
 			color: #e8e8f0;
 			font-size: 15dp;
-			padding: 14dp;
+			padding: 140dp;
 			width: 100%;
 			height: 100%;
 			box-sizing: border-box;

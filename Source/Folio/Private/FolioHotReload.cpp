@@ -107,6 +107,11 @@ void FFolioHotReload::Start()
 	if (!Folio.GetPluginRoot().IsEmpty())
 	{
 		Roots.Add(Folio.GetPluginRoot() / TEXT("rcss"));
+
+		// Folio's own dev documents. They live outside rcss/ because rcss/ is what a packaged build
+		// stages, and watching only the staged tree left the one set of documents most likely to be
+		// edited while a session is running unable to hot reload at all.
+		Roots.Add(Folio.GetPluginRoot() / TEXT("dev"));
 	}
 
 	for (const FString& Root : Roots)

@@ -3,6 +3,7 @@
 #include "FolioRmlUi.h"
 
 #include "FolioCore/FolioInputState.h"
+#include "FolioNavBindings.h"
 
 #include "Delegates/Delegate.h"
 #include "InputCoreTypes.h"
@@ -30,6 +31,20 @@ namespace Folio
 	 * S and D also navigate.
 	 */
 	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key);
+
+	/**
+	 * As above, plus any modifier the action implies.
+	 *
+	 * Only reverse tabbing needs one: paging backwards through a tab bar is shift and Tab, and the
+	 * key identifier alone cannot say so.
+	 */
+	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key, int32& OutExtraModifiers);
+
+	/** What a key means, bindings first and then the built-in schemes. */
+	EFolioNavAction ActionForKey(const FKey& Key);
+
+	/** The built-in keys for an action, respecting the folio.Nav.* switches. */
+	TArray<FKey> DefaultKeysForAction(EFolioNavAction Action);
 
 	/**
 	 * Whether the arrow keys navigate.

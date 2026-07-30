@@ -506,6 +506,35 @@ rebuild: `folio.Nav.Arrows`, `folio.Nav.WASD`, `folio.Nav.IJKL`, `folio.Nav.Game
 binds WASD to movement while a HUD is up wants that one off. Turning the arrows off still leaves
 them working inside a text field, where they mean something else.
 
+### Binding your own keys
+
+Nothing has to be bound for a document to navigate — the schemes above cover keyboard and pad out of
+the box. For a game that wants its own, or a rebinding screen, keys map to **actions**:
+`Up`, `Down`, `Left`, `Right`, `Confirm`, `Back`, `NextTab`, `PreviousTab`.
+
+A `UDataTable` of `FFolioNavBinding` rows (`Key`, `Action`) is the authored form:
+
+```cpp
+UFolioNavLibrary::LoadNavBindings(Table, /*bReplaceDefaults*/ true);
+```
+
+With `bReplaceDefaults` the table becomes the **entire** mapping and no built-in scheme applies.
+Without it the rows are additions, so arrows and the pad keep working alongside them.
+
+One key at a time, which is what a rebinding screen does:
+
+```cpp
+UFolioNavLibrary::SetNavBinding(EKeys::Q, EFolioNavAction::Left);
+UFolioNavLibrary::GetKeysForNavAction(EFolioNavAction::Left);  // to show the player
+```
+
+**A binding wins over the built-in schemes and ignores the `folio.Nav.*` switches** — a project that
+bound a key meant it. The confirm/back swap applies only to the *default* gamepad face buttons; a
+table naming `Confirm` has already said which button it means.
+
+All of it is reachable from Blueprint, and from the console for trying one out:
+`folio.Nav.Bind Q Left`, `folio.Nav.Bindings`, `folio.Nav.ResetBindings`.
+
 **UI sounds** are reported, not played: `FFolioModule::OnUiSound()` fires `Focus`, `Confirm`,
 `Back` or `Invalid`. Folio owns no sound assets. `Invalid` is a click on something carrying
 `.is-disabled`, which is the case worth a different noise.

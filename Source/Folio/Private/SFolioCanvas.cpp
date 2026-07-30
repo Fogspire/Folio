@@ -418,10 +418,11 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		return FReply::Unhandled();
 	}
 
-	if (const Rml::Input::KeyIdentifier Nav = Folio::ToNavigationKey(KeyEvent.GetKey());
+	int32 Extra = 0;
+	if (const Rml::Input::KeyIdentifier Nav = Folio::ToNavigationKey(KeyEvent.GetKey(), Extra);
 		Nav != Rml::Input::KI_UNKNOWN)
 	{
-		return SendNavigation(Nav, Modifiers) ? FReply::Handled() : FReply::Unhandled();
+		return SendNavigation(Nav, Modifiers | Extra) ? FReply::Handled() : FReply::Unhandled();
 	}
 
 	return FReply::Unhandled();

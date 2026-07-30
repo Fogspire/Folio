@@ -3,6 +3,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "FolioModule.h"
+#include "FolioNavBindings.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
 #include "Framework/Application/SlateApplication.h"
@@ -432,6 +433,70 @@ namespace
 	}
 
 	/**
+	 * Rebinding by hand, so a binding table is not needed to try one.
+	 *
+	 *   folio.Nav.Bind Q Left
+	 *   folio.Nav.Bind Q None      unbinds it
+	 *   folio.Nav.Bindings         what every action currently answers to
+	 *   folio.Nav.ResetBindings
+	 */
+	void BindNavKey(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 2)
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("usage: folio.Nav.Bind <key> <Up|Down|Left|Right|Confirm|Back|NextTab|PreviousTab|None>"));
+			return;
+		}
+
+		const FKey Key(*Args[0]);
+		if (!Key.IsValid())
+		{
+			UE_LOG(LogFolio, Warning, TEXT("'%s' is not a key name"), *Args[0]);
+			return;
+		}
+
+		const UEnum* Enum = StaticEnum<EFolioNavAction>();
+		const int64 Value = Enum->GetValueByNameString(Args[1]);
+		if (Value == INDEX_NONE)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("'%s' is not a navigation action"), *Args[1]);
+			return;
+		}
+
+		const EFolioNavAction Action = static_cast<EFolioNavAction>(Value);
+		UFolioNavLibrary::SetNavBinding(Key, Action);
+
+		UE_LOG(LogFolio, Display, TEXT("%s now means %s"), *Key.ToString(),
+			*Enum->GetNameStringByValue(Value));
+	}
+
+	void ListNavBindings()
+	{
+		const UEnum* Enum = StaticEnum<EFolioNavAction>();
+
+		for (int32 Index = 1; Index < Enum->NumEnums() - 1; ++Index)
+		{
+			const EFolioNavAction Action = static_cast<EFolioNavAction>(Enum->GetValueByIndex(Index));
+
+			TArray<FString> Names;
+			for (const FKey& Key : UFolioNavLibrary::GetKeysForNavAction(Action))
+			{
+				Names.Add(Key.ToString());
+			}
+
+			UE_LOG(LogFolio, Display, TEXT("%-12s %s"), *Enum->GetNameStringByIndex(Index),
+				Names.Num() > 0 ? *FString::Join(Names, TEXT(", ")) : TEXT("nothing"));
+		}
+	}
+
+	void ResetNavBindings()
+	{
+		UFolioNavLibrary::ResetNavBindings();
+		UE_LOG(LogFolio, Display, TEXT("navigation bindings cleared; the built-in schemes apply"));
+	}
+
+	/**
 	 * Tears both down before RmlUi does. These are statics, so without this they are destroyed
 	 * during DLL unload, long after the module has shut RmlUi down.
 	 */
@@ -485,6 +550,22 @@ namespace
 		TEXT("folio.NavTest [document|off]. Opens a boxed document in PIE and gives it keyboard focus, "
 			"so arrows, WASD, IJKL and the gamepad can be tried by hand."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunNavTest));
+
+	FAutoConsoleCommand BindNavCommand(
+		TEXT("folio.Nav.Bind"),
+		TEXT("folio.Nav.Bind <key> <action>. Binds a key to a navigation action at runtime. "
+			"Actions: Up Down Left Right Confirm Back NextTab PreviousTab None."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&BindNavKey));
+
+	FAutoConsoleCommand ListNavCommand(
+		TEXT("folio.Nav.Bindings"),
+		TEXT("Lists the keys every navigation action currently answers to, built-in schemes included."),
+		FConsoleCommandDelegate::CreateStatic(&ListNavBindings));
+
+	FAutoConsoleCommand ResetNavCommand(
+		TEXT("folio.Nav.ResetBindings"),
+		TEXT("Forgets every runtime navigation binding, leaving the built-in schemes."),
+		FConsoleCommandDelegate::CreateStatic(&ResetNavBindings));
 
 	FAutoConsoleCommand ReloadTexturesCommand(
 		TEXT("folio.ReloadTextures"),

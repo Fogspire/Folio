@@ -94,81 +94,163 @@ namespace Folio
 		return ConfirmButtonChanged;
 	}
 
-	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key)
+	/** The built-in schemes, which a binding overrides and folio.Nav.* can switch off. */
+	EFolioNavAction DefaultActionForKey(const FKey& Key)
 	{
-		using namespace Rml::Input;
-
 		const bool bGamepad = CVarNavGamepad.GetValueOnAnyThread() != 0;
-		const bool bWASD = CVarNavWASD.GetValueOnAnyThread() != 0;
-		const bool bIJKL = CVarNavIJKL.GetValueOnAnyThread() != 0;
 
-		if (Key.IsGamepadKey() && !bGamepad)
+		if (Key.IsGamepadKey())
 		{
-			return KI_UNKNOWN;
-		}
+			if (!bGamepad)
+			{
+				return EFolioNavAction::None;
+			}
 
-		// The gamepad. Both sticks' digital equivalents come through as d-pad keys, so a stick
-		// pushed to its extreme navigates even before FAnalogNavigator sees it.
-		if (Key == EKeys::Gamepad_DPad_Up || Key == EKeys::Gamepad_LeftStick_Up
-			|| Key == EKeys::Gamepad_RightStick_Up)
-		{
-			return KI_UP;
-		}
-		if (Key == EKeys::Gamepad_DPad_Down || Key == EKeys::Gamepad_LeftStick_Down
-			|| Key == EKeys::Gamepad_RightStick_Down)
-		{
-			return KI_DOWN;
-		}
-		if (Key == EKeys::Gamepad_DPad_Left || Key == EKeys::Gamepad_LeftStick_Left
-			|| Key == EKeys::Gamepad_RightStick_Left)
-		{
-			return KI_LEFT;
-		}
-		if (Key == EKeys::Gamepad_DPad_Right || Key == EKeys::Gamepad_LeftStick_Right
-			|| Key == EKeys::Gamepad_RightStick_Right)
-		{
-			return KI_RIGHT;
-		}
+			// Both sticks' digital equivalents arrive as d-pad keys, so a stick pushed to its
+			// extreme navigates even before FAnalogNavigator sees it.
+			if (Key == EKeys::Gamepad_DPad_Up || Key == EKeys::Gamepad_LeftStick_Up
+				|| Key == EKeys::Gamepad_RightStick_Up)
+			{
+				return EFolioNavAction::Up;
+			}
+			if (Key == EKeys::Gamepad_DPad_Down || Key == EKeys::Gamepad_LeftStick_Down
+				|| Key == EKeys::Gamepad_RightStick_Down)
+			{
+				return EFolioNavAction::Down;
+			}
+			if (Key == EKeys::Gamepad_DPad_Left || Key == EKeys::Gamepad_LeftStick_Left
+				|| Key == EKeys::Gamepad_RightStick_Left)
+			{
+				return EFolioNavAction::Left;
+			}
+			if (Key == EKeys::Gamepad_DPad_Right || Key == EKeys::Gamepad_LeftStick_Right
+				|| Key == EKeys::Gamepad_RightStick_Right)
+			{
+				return EFolioNavAction::Right;
+			}
 
-		// Confirm and back. RmlUi turns Return on a focused element into a click, and Escape is
-		// what a document listens for to close itself.
-		const bool bEastConfirms = ConfirmButton() == EConfirmButton::East;
-		if (Key == EKeys::Gamepad_FaceButton_Bottom)
-		{
-			return bEastConfirms ? KI_ESCAPE : KI_RETURN;
-		}
-		if (Key == EKeys::Gamepad_FaceButton_Right)
-		{
-			return bEastConfirms ? KI_RETURN : KI_ESCAPE;
-		}
+			// The swap belongs here and not to an explicit binding: a table naming Confirm has
+			// already said which button it means.
+			const bool bEastConfirms = ConfirmButton() == EConfirmButton::East;
+			if (Key == EKeys::Gamepad_FaceButton_Bottom)
+			{
+				return bEastConfirms ? EFolioNavAction::Back : EFolioNavAction::Confirm;
+			}
+			if (Key == EKeys::Gamepad_FaceButton_Right)
+			{
+				return bEastConfirms ? EFolioNavAction::Confirm : EFolioNavAction::Back;
+			}
 
-		// Shoulders page through a tab bar, which is what Tab does in a document.
-		if (Key == EKeys::Gamepad_LeftShoulder || Key == EKeys::Gamepad_RightShoulder)
-		{
-			return KI_TAB;
+			// Shoulders page through a tab bar.
+			if (Key == EKeys::Gamepad_LeftShoulder)  { return EFolioNavAction::PreviousTab; }
+			if (Key == EKeys::Gamepad_RightShoulder) { return EFolioNavAction::NextTab; }
+
+			return EFolioNavAction::None;
 		}
 
 		// WASD and IJKL, live at the same time as the arrows.
 		//
-		// Not folded into ToRmlKey: those letters still have to reach a text field as letters.
-		// The canvas asks for a navigation meaning only when nothing is being typed into.
-		if (bWASD)
+		// Not folded into ToRmlKey: those letters still have to reach a text field as letters. The
+		// canvas asks for a navigation meaning only when nothing is being typed into.
+		if (CVarNavWASD.GetValueOnAnyThread() != 0)
 		{
-			if (Key == EKeys::W) { return KI_UP; }
-			if (Key == EKeys::S) { return KI_DOWN; }
-			if (Key == EKeys::A) { return KI_LEFT; }
-			if (Key == EKeys::D) { return KI_RIGHT; }
+			if (Key == EKeys::W) { return EFolioNavAction::Up; }
+			if (Key == EKeys::S) { return EFolioNavAction::Down; }
+			if (Key == EKeys::A) { return EFolioNavAction::Left; }
+			if (Key == EKeys::D) { return EFolioNavAction::Right; }
 		}
 
-		if (bIJKL)
+		if (CVarNavIJKL.GetValueOnAnyThread() != 0)
 		{
-			if (Key == EKeys::I) { return KI_UP; }
-			if (Key == EKeys::K) { return KI_DOWN; }
-			if (Key == EKeys::J) { return KI_LEFT; }
-			if (Key == EKeys::L) { return KI_RIGHT; }
+			if (Key == EKeys::I) { return EFolioNavAction::Up; }
+			if (Key == EKeys::K) { return EFolioNavAction::Down; }
+			if (Key == EKeys::J) { return EFolioNavAction::Left; }
+			if (Key == EKeys::L) { return EFolioNavAction::Right; }
 		}
 
-		return KI_UNKNOWN;
+		return EFolioNavAction::None;
+	}
+
+	EFolioNavAction ActionForKey(const FKey& Key)
+	{
+		// A binding wins, and is not subject to the scheme switches: a project that bound a key
+		// meant it.
+		if (const EFolioNavAction Bound = FindBoundAction(Key); Bound != EFolioNavAction::None)
+		{
+			return Bound;
+		}
+
+		return DefaultsReplaced() ? EFolioNavAction::None : DefaultActionForKey(Key);
+	}
+
+	TArray<FKey> DefaultKeysForAction(const EFolioNavAction Action)
+	{
+		// Derived from DefaultActionForKey rather than listed again, so the two cannot disagree
+		// about what a scheme switch does.
+		static const TArray<FKey> Candidates = {
+			EKeys::W, EKeys::A, EKeys::S, EKeys::D,
+			EKeys::I, EKeys::J, EKeys::K, EKeys::L,
+			EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Down,
+			EKeys::Gamepad_DPad_Left, EKeys::Gamepad_DPad_Right,
+			EKeys::Gamepad_FaceButton_Bottom, EKeys::Gamepad_FaceButton_Right,
+			EKeys::Gamepad_LeftShoulder, EKeys::Gamepad_RightShoulder,
+		};
+
+		TArray<FKey> Keys;
+		for (const FKey& Key : Candidates)
+		{
+			if (DefaultActionForKey(Key) == Action)
+			{
+				Keys.Add(Key);
+			}
+		}
+
+		// The arrows reach RmlUi through ToRmlKey rather than through an action, so they are not in
+		// the candidate list, but a settings screen still has to show them.
+		if (ArrowsNavigate())
+		{
+			switch (Action)
+			{
+			case EFolioNavAction::Up:    Keys.Add(EKeys::Up); break;
+			case EFolioNavAction::Down:  Keys.Add(EKeys::Down); break;
+			case EFolioNavAction::Left:  Keys.Add(EKeys::Left); break;
+			case EFolioNavAction::Right: Keys.Add(EKeys::Right); break;
+			default: break;
+			}
+		}
+
+		return Keys;
+	}
+
+	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key)
+	{
+		int32 Ignored = 0;
+		return ToNavigationKey(Key, Ignored);
+	}
+
+	Rml::Input::KeyIdentifier ToNavigationKey(const FKey& Key, int32& OutExtraModifiers)
+	{
+		using namespace Rml::Input;
+
+		const EFolioNavAction Action = ActionForKey(Key);
+		if (Action == EFolioNavAction::PreviousTab)
+		{
+			// Reverse tabbing is shift and Tab. RmlUi reads the direction off the modifier.
+			OutExtraModifiers |= KM_SHIFT;
+		}
+
+		switch (Action)
+		{
+		case EFolioNavAction::Up:          return KI_UP;
+		case EFolioNavAction::Down:        return KI_DOWN;
+		case EFolioNavAction::Left:        return KI_LEFT;
+		case EFolioNavAction::Right:       return KI_RIGHT;
+		case EFolioNavAction::Confirm:     return KI_RETURN;
+		case EFolioNavAction::Back:        return KI_ESCAPE;
+		case EFolioNavAction::NextTab:     return KI_TAB;
+		case EFolioNavAction::PreviousTab: return KI_TAB;
+		default:                           return KI_UNKNOWN;
+		}
 	}
 
 	void FAnalogNavigator::SetAxis(const FKey& Key, const float Value)

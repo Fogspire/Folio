@@ -354,21 +354,26 @@ bool UFolioWorldDocument::MovePointerAlong(const FVector Origin, const FVector D
 	LastMiss = EPointerMiss::Landed;
 
 	// Document space runs down from the top left, and the surface's up axis runs the other way.
-	MovePointer(FVector2D(U * 0.5 + 0.5, 0.5 - V * 0.5));
+	MovePointer(ApplyPointerFlips(FVector2D(U * 0.5 + 0.5, 0.5 - V * 0.5)));
 	return true;
+}
+
+FVector2D UFolioWorldDocument::ApplyPointerFlips(const FVector2D UV) const
+{
+	return FVector2D(bInvertPointerU ? 1.0 - UV.X : UV.X, bInvertPointerV ? 1.0 - UV.Y : UV.Y);
 }
 
 bool UFolioWorldDocument::MovePointerToHit(const FHitResult& Hit)
 {
 	FVector2D UV = FVector2D::ZeroVector;
-	if (!UGameplayStatics::FindCollisionUV(Hit, 0, UV))
+	if (!UGameplayStatics::FindCollisionUV(Hit, FMath::Max(0, PointerUVChannel), UV))
 	{
 		LastMiss = EPointerMiss::NoMeshUv;
 		return false;
 	}
 
 	LastMiss = EPointerMiss::Landed;
-	MovePointer(UV);
+	MovePointer(ApplyPointerFlips(UV));
 	return true;
 }
 

@@ -150,6 +150,29 @@ public:
 		meta = (EditCondition = "bPointerFromPlayerView && bPointerUsesMeshUV"))
 	TEnumAsByte<ECollisionChannel> PointerTraceChannel = ECC_Visibility;
 
+	/**
+	 * Which UV channel the screen is mapped on.
+	 *
+	 * Only matters when pointing by mesh UVs, and only when the mesh has more than one: the material
+	 * samples a channel of its own choosing, and reading a different one here points somewhere else.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
+		meta = (EditCondition = "bPointerUsesMeshUV", ClampMin = "0"))
+	int32 PointerUVChannel = 0;
+
+	/**
+	 * Flips the axes the pointer is derived on, for a mesh whose UVs run the other way.
+	 *
+	 * The symptom is a cursor that moves the wrong way while the picture looks right, which happens when
+	 * the mesh was authored with V running up or the material corrects a flip the pointer does not see.
+	 * Applies to the derived routes, not to Move Pointer, which is given a UV outright.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input")
+	bool bInvertPointerV = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input")
+	bool bInvertPointerU = false;
+
 	/** How far the player can be from the surface and still point at it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
 		meta = (EditCondition = "bPointerFromPlayerView", ClampMin = "1.0"))
@@ -364,6 +387,9 @@ private:
 
 	/** Line traces the owner's mesh and points at the UV that was hit. */
 	bool TracePointerToMesh(FVector Origin, FVector Direction);
+
+	/** The invert switches, applied to a UV this worked out rather than to one it was given. */
+	FVector2D ApplyPointerFlips(FVector2D UV) const;
 
 	/** Draws the rectangle the pointer resolves against, for folio.World.ShowSurface. */
 	void DrawDebugSurface() const;

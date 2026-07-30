@@ -3,6 +3,8 @@
 #include "FolioModule.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Misc/Paths.h"
 
 namespace
@@ -24,8 +26,44 @@ FFolioFileInterface::FFolioFileInterface(FString InContentRoot, FString InPlugin
 
 FString FFolioFileInterface::Resolve(const Rml::String& Path) const
 {
+	const FString Absolute = ResolveInPackage(Path);
+
+#if !UE_BUILD_SHIPPING
+	// The override directory mirrors the project, which is also the staged layout, so
+	// ui/screens/x.rml overrides as <override>/ui/screens/x.rml and the plugin's own stylesheet as
+	// <override>/Plugins/Folio/rcss/folio.rcss. A file that is not there falls through to the pak,
+	// so an override directory holding one document is enough.
+	if (!OverrideRoot.IsEmpty())
+	{
+		FString Relative = Absolute;
+		if (FPaths::MakePathRelativeTo(Relative, *(ContentRoot / TEXT(""))) && !Relative.StartsWith(TEXT("..")))
+		{
+			const FString Candidate = FPaths::Combine(OverrideRoot, Relative);
+			if (FPaths::FileExists(Candidate))
+			{
+				return Candidate;
+			}
+		}
+	}
+#endif
+
+	return Absolute;
+}
+
+FString FFolioFileInterface::ResolveInPackage(const Rml::String& Path) const
+{
 	FString Relative = Folio::ToFString(Path);
 	FPaths::NormalizeFilename(Relative);
+
+	// Dev documents live outside rcss/ because rcss/ is what a packaged build stages, and a test
+	// document is not something to ship. The mount hides that: /folio/dev/ reads the same either way.
+	for (const TCHAR* Prefix : { TEXT("/folio/dev/"), TEXT("folio/dev/") })
+	{
+		if (Relative.StartsWith(Prefix))
+		{
+			return FPaths::Combine(PluginRoot, TEXT("dev"), Relative.RightChop(FCString::Strlen(Prefix)));
+		}
+	}
 
 	// /folio/ is the plugin's own mount, so folio.rcss is reachable from any content root.
 	// It has to be checked before the content root, or a game with a ui/folio directory
@@ -60,6 +98,34 @@ FString FFolioFileInterface::Resolve(const Rml::String& Path) const
 
 	return Relative;
 }
+
+#if !UE_BUILD_SHIPPING
+void FFolioFileInterface::SetOverrideRoot(FString Directory)
+{
+	OverrideRoot = MoveTemp(Directory);
+	FPaths::NormalizeDirectoryName(OverrideRoot);
+}
+
+FString FFolioFileInterface::OverrideRootFromCommandLine()
+{
+	const TCHAR* CommandLine = FCommandLine::Get();
+
+	// -uidev=<path> for anywhere, bare -uidev for a uidev directory beside the executable, which is
+	// what a build dropped onto a device has.
+	FString Directory;
+	if (FParse::Value(CommandLine, TEXT("uidev="), Directory) && !Directory.IsEmpty())
+	{
+		return FPaths::ConvertRelativePathToFull(Directory);
+	}
+
+	if (FParse::Param(CommandLine, TEXT("uidev")))
+	{
+		return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPlatformProcess::BaseDir(), TEXT("uidev")));
+	}
+
+	return FString();
+}
+#endif
 
 FString FFolioFileInterface::NormalisePath(const FString& Path)
 {

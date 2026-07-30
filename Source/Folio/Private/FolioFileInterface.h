@@ -46,8 +46,28 @@ public:
 	/** Lowercased, forward slashed, absolute: the form GetOpened holds and compares against. */
 	static FString NormalisePath(const FString& Path);
 
+#if !UE_BUILD_SHIPPING
+	/**
+	 * A directory searched ahead of the package, so UI can be iterated on against a real build.
+	 *
+	 * This is what makes it possible to change a document on the target device - a console, a Steam
+	 * Deck - without cooking again. Set from -uidev, and absent in Shipping.
+	 */
+	void SetOverrideRoot(FString Directory);
+	const FString& GetOverrideRoot() const { return OverrideRoot; }
+
+	/** Where -uidev points, or empty if it was not given. Called before the interface exists. */
+	static FString OverrideRootFromCommandLine();
+#endif
+
 private:
+	/** Resolution without the override, which is the ordinary content root and /folio/ mounts. */
+	FString ResolveInPackage(const Rml::String& Path) const;
+
 	FString ContentRoot;
 	FString PluginRoot;
 	TSet<FString> Opened;
+#if !UE_BUILD_SHIPPING
+	FString OverrideRoot;
+#endif
 };

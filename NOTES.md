@@ -979,3 +979,51 @@ file interface, so it is not in the dependency list and a change is ignored. Mak
 change to `FFolioDataModel`: it binds the address of the parsed `FJsonValue` node, so a re-parse would
 leave RmlUi holding a freed pointer. The fix is to bind a stable slot that the definitions dereference,
 which is what the preview tool does. Reopen the document for now.
+
+## Staging: DirectoriesToAlwaysStageAsUFS is relative to Content, not the project
+
+Folio's files are not assets, so they reach a package only by being staged, and getting the path base
+wrong is silent: the entry is accepted, UAT logs `Unable to find directory ... for staging` as a
+warning nobody reads, and every screen is empty in a build that worked in the editor.
+
+`StageAdditionalDirectoriesFromConfig` in `CopyBuildToStagingDirectory.Automation.cs` combines each
+`(Path=...)` against **`ProjectContentRoot`** and stages into `StageContentRoot`
+(`<RelativeProjectRootForStage>/Content`). Folio resolves against `FPaths::ProjectDir()`, which is one
+level up. So every entry starts with `../`:
+
+```ini
++DirectoriesToAlwaysStageAsUFS=(Path="../ui")
++DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/rcss")
++DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/fonts")
+```
+
+`..` is safe here: `StagedFileSystemReference`'s constructor **collapses** parent references rather
+than rejecting them, and only throws if the result escapes the staging root. `Kaboom/Content/../ui`
+becomes `Kaboom/ui`, which is what `FPaths::ProjectDir()` resolves to at runtime.
+
+**There is no way to exclude a subdirectory of one you have staged.** `FindFilesToStage` recurses
+everything except `RestrictedFolderNames` (NoRedist and friends) and drops only `.uasset`, `.umap`,
+`.po` and `.archive` by extension. That is why Folio's dev documents were moved from `rcss/dev/` to
+`dev/`, with `/folio/dev/` mounted onto it in `FFolioFileInterface::Resolve` so every existing path
+still reads the same.
+
+Verify from the manifest rather than by launching:
+`Engine/Programs/AutomationTool/Saved/Logs/FinalCopyWin64_UFSFiles.txt`, or
+`UnrealPak.exe <pak> -List`. Restaging alone is fast - `BuildCookRun -skipbuild -skipcook -stage -pak`
+took 3 seconds against an existing cook, so there is no reason to package fully to check this.
+
+**Generated font fields are not staged.** `FontCacheDir` is `<Project>/Saved/Folio/Fields`, and Saved
+is not part of a package, so a packaged build regenerates fields on first use. That is the Latin-1
+prewarm cost per face at startup, not per glyph, but a prebaked read-only cache staged alongside the
+faces is the obvious improvement.
+
+## -uidev: loose files ahead of the pak
+
+`-uidev` (or `-uidev=<path>`) makes `FFolioFileInterface` check an override directory before the
+package, so UI can be changed on a device - a console, a Steam Deck - without cooking again. The
+directory mirrors the project, which is also the staged layout, so `uidev/ui/screens/hud.rml` overrides
+`ui/screens/hud.rml`. A file that is not there falls through, so a directory holding one document
+works. Compiled out of Shipping.
+
+The override is logged as a **warning** at startup on purpose. A stale file there presents as the game
+ignoring an edit, and nothing in that symptom points at an override directory.

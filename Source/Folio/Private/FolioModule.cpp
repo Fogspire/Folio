@@ -44,6 +44,16 @@ void FFolioModule::StartupModule()
 
 	SystemInterface = MakeUnique<FFolioSystemInterface>();
 	FileInterface = MakeUnique<FFolioFileInterface>(ContentRoot, PluginRoot);
+
+#if !UE_BUILD_SHIPPING
+	// Logged loudly rather than quietly: a stale file in the override directory presents as the game
+	// ignoring an edit, and there is nothing in the symptom pointing at an override.
+	if (const FString Override = FFolioFileInterface::OverrideRootFromCommandLine(); !Override.IsEmpty())
+	{
+		FileInterface->SetOverrideRoot(Override);
+		UE_LOG(LogFolio, Warning, TEXT("-uidev: reading UI from '%s' ahead of the package"), *Override);
+	}
+#endif
 	RenderInterface = MakeUnique<FFolioRenderInterface>();
 
 	// The system and file interfaces go in first, before anything that might log or read: the

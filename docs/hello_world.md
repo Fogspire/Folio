@@ -137,6 +137,42 @@ Run with `--strict` before you commit a document. It catches unreachable focus, 
 properties that parse but do nothing — the class of mistake that otherwise shows up as a screen that
 looks *almost* right.
 
+## 7. Make it survive packaging
+
+Documents, stylesheets, fonts and images are **files, not assets**. The cooker knows nothing about
+them, so unless you say otherwise they are simply absent from a package and every screen comes up
+empty in a build that worked in the editor. Add this to `Config/DefaultGame.ini` before you package
+anything:
+
+```ini
+[/Script/UnrealEd.ProjectPackagingSettings]
++DirectoriesToAlwaysStageAsUFS=(Path="../ui")
++DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/rcss")
++DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/fonts")
+```
+
+The `../` is not a mistake. These paths are resolved against `Content`, not the project root, and the
+staged path collapses back to the project root — which is exactly where Folio looks at runtime. Drop
+the `fonts` line if you ship your own faces in `ui/fonts`.
+
+List your own subdirectories rather than `ui` wholesale if the tree holds things a player should not
+receive. There is no way to exclude a subdirectory of one you have staged, which is why Folio's own
+test documents live in `Plugins/Folio/dev` rather than under `rcss`.
+
+To check it worked, look for your files in the staging manifest rather than launching the build:
+
+```powershell
+Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\AutomationTool\Saved\Logs\FinalCopyWin64_UFSFiles.txt" -Pattern "/ui/"
+```
+
+### Changing UI on a device without cooking again
+
+Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` directory beside the
+executable before it reads the package. `-uidev=<path>` points somewhere else. The directory mirrors
+the project, so `uidev/ui/screens/hud.rml` overrides `ui/screens/hud.rml`, and anything absent falls
+through to the package — a directory holding one document is enough. This is how UI gets iterated on
+a console or a Steam Deck. It does not exist in Shipping.
+
 ## Where to go next
 
 - **[What RCSS actually supports](../UI_CONVENTIONS.md).** The authoritative list of what works, what
@@ -153,5 +189,8 @@ looks *almost* right.
   `ui/mock/<model>.json` for a design-time stand-in.
 - **The window opens empty.** Check the path: `folio.ShowWindow` resolves relative to the project
   directory, so `ui/hello.rml`, not `Content/ui/hello.rml` and not an absolute path.
+- **Fine in the editor, empty in a packaged build.** The files were not staged. See step 7.
+- **An edit is ignored in a packaged build.** A stale copy in the `-uidev` override directory. Folio
+  logs a warning naming the directory at startup for exactly this reason.
 - **Anything surprising.** `NOTES.md` at the plugin root is a ledger of things that have already
   caught someone out.

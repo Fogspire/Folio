@@ -38,7 +38,9 @@ the first thing a reader will want after this.
 - **Text and fonts.** Variable weights, the font-effect size cap, and the small-text trade-off, which
   a reader should hear about before choosing a body size rather than after.
 - **Vector art and sprites.** What to hand an artist, and the constraints that actually bite
-  (single-colour silhouettes, no ninepatch on the vector atlas).
+  (single-colour silhouettes, no gradients yet, no embedded rasters, no ninepatch on the vector
+  atlas). Gradients are on the backlog in `FOLIO_BRIEF.md`, so word this so it does not need
+  rewriting when they land.
 - **Testing a document.** `uipreview`, `--strict`, and the screenshot and metrics reports. Cheap to
   write and the thing most likely to be skipped.
 

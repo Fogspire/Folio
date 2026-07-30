@@ -90,7 +90,7 @@ public:
 	EFolioWorldDrawMode DrawMode = EFolioWorldDrawMode::AfterTonemap;
 
 	/** Whether the document updates and draws in the level viewport, rather than only in play. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio", meta=(Keywords="tick"))
 	bool bUpdateInEditor = true;
 
 	/** Loads a different document, replacing whatever is up. */

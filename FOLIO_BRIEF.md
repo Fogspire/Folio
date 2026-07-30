@@ -475,6 +475,59 @@ public headers.
 
 Do this after the phases, not during: it touches the header layout everything else builds on.
 
+### Drag and drop
+
+RmlUi has the mechanism already, so this is smaller than it sounds. `drag: drag | drag-drop | clone |
+block` is an RCSS property, and the events are `dragstart`, `drag`, `dragover`, `dragout`, `dragdrop`
+and `dragend`, with `drag-clone` styling the ghost that follows the cursor. An inventory grid is
+therefore mostly markup plus a handler, and none of it needs a Folio feature.
+
+`UI_CONVENTIONS.md` already lists the `drag` property and the `handle` element, so the capability is
+declared. What it does not list is **the drag events**, which is the gap: an author can make something
+draggable and has nothing telling them how to hear about the drop.
+
+What Folio has to supply:
+
+- **The event names in `UI_CONVENTIONS.md`**: `dragstart`, `drag`, `dragover`, `dragout`, `dragdrop`,
+  `dragend`, and `drag-clone` for styling the ghost. Declaring the property without the events is the
+  half-documented case that reads as "supported" and then leaves someone stuck.
+- **A dragged item has to be reachable from game code**, which after the command work means
+  `data-event-dragdrop="MoveItem(...)"` reaching a `BlueprintCallable` function. The awkward part is
+  identity: the handler needs to know *which* item was dropped on *which* slot, and a data expression
+  can pass literals but not element references. The likely shape is that each slot carries its index as
+  an attribute and the markup passes those, so the function takes two integers rather than two elements.
+- **Gamepad drag and drop is not the same feature.** A pad has no cursor to drag with, so the
+  interaction is pick-up-then-place: confirm on an item, move focus, confirm again. That is a component
+  in the library rather than anything in the renderer, but it has to be designed alongside the mouse
+  path or the two end up with different rules about what may go where.
+- **Scrolling while dragging**, which every real inventory needs and which RmlUi does not do for you.
+
+Worth doing after the component library exists (Phase 8), because a drag source and a drop target are
+components, and doing it earlier means writing them twice.
+
+### UI scale, and resizable windows
+
+Two different asks with very different costs.
+
+**A global UI scale is nearly free and should exist.** Folio already resolves `dp` against
+`Context::SetDensityIndependentPixelRatio`, which the canvas sets from Slate's layout scale every frame.
+A user-facing scale is that value multiplied by a setting, so it is a line of code plus a place to put
+the number. Two things to get right: distance field text stays sharp at any scale, which is exactly what
+the field pipeline bought, so scaling should look correct rather than soft; and a screen authored without
+room to grow will clip, which is what `--culture pseudo` already exists to catch, so the scale sweep
+belongs in the same check.
+
+**Per-element resizing by dragging is possible but is a component, not a feature.** RmlUi ships a
+`handle` element for exactly this - it is in the tag table already - so a resizable panel is a `handle`
+in its corner plus a handler writing `width` and `height`. Two caveats decide whether it is worth it:
+inline sizes
+override the stylesheet, so a resized panel stops responding to token changes and to the global scale
+above; and the size has to be persisted per user or it resets every launch, which means a settings
+object and a decision about what happens when the screen resolution changes underneath a saved size.
+
+Reasonable to build for a specific screen that wants it - a debug console, a map, an inventory someone
+lives in - and not something to make general. The global scale is the one that matters for shipping.
+
 ### Helmet HUDs: drift is free, curvature is not
 
 The Metroid Prime visor is two separate things, and Folio's answer differs for each.

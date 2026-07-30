@@ -89,6 +89,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
 	EFolioWorldDrawMode DrawMode = EFolioWorldDrawMode::AfterTonemap;
 
+	/** Whether the document updates and draws in the level viewport, rather than only in play. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	bool bUpdateInEditor = true;
+
 	/** Loads a different document, replacing whatever is up. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void LoadDocument(const FString& InDocumentPath);
@@ -161,6 +165,14 @@ private:
 	};
 
 	void ApplyBindings();
+
+	/**
+	 * Drops the recordings, waiting first if a frame is still reading one.
+	 *
+	 * The wait is the point: a recorded draw holds a TStrongObjectPtr, and letting a render worker release
+	 * the last reference would touch the garbage collector's reference set from the wrong thread.
+	 */
+	void ReleaseRecordings();
 
 	/** Held by pointer so the host stays private to the module while this header is public. */
 	TUniquePtr<FFolioDocumentHost> Host;

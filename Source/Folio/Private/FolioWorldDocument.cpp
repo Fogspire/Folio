@@ -22,7 +22,7 @@ UFolioWorldDocument::UFolioWorldDocument()
 	PrimaryComponentTick.bStartWithTickEnabled = true;
 
 	// Authoring a surface means seeing it in the level viewport, and the recording only happens on tick, so
-	// without this a placed document draws nothing until play begins.
+	// without this a placed document draws nothing until play begins. Follows bUpdateInEditor from here on.
 	bTickInEditor = true;
 
 	// The document updates itself, which has nothing to do with whether the surface is on screen. A
@@ -64,6 +64,8 @@ void UFolioWorldDocument::OnRegister()
 
 	// A component is registered in the editor as well as in play, and a document that renders in the
 	// level viewport is the point of authoring one, so this is not gated on a game world.
+	bTickInEditor = bUpdateInEditor;
+
 	Host = MakeUnique<FFolioDocumentHost>();
 	if (!Host->Create(TEXT("world"), GetDocumentSize()))
 	{
@@ -87,21 +89,7 @@ void UFolioWorldDocument::OnUnregister()
 {
 	LiveDocuments.RemoveSingleSwap(this);
 	Host.Reset();
-
-	// A frame still reading one of these would otherwise release the last reference itself, on a render
-	// worker, which is the one thread a recorded draw's TStrongObjectPtr must not be freed from.
-	const auto StillInFlight = [](const TSharedPtr<const FFolioDrawList>& List)
-	{
-		return List.IsValid() && !List.IsUnique();
-	};
-
-	if (StillInFlight(Published) || Retired.ContainsByPredicate(StillInFlight))
-	{
-		FlushRenderingCommands();
-	}
-
-	Published.Reset();
-	Retired.Empty();
+	ReleaseRecordings();
 
 	Super::OnUnregister();
 }
@@ -161,6 +149,22 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 		Retired.Add(Published);
 	}
 	Published = Next;
+}
+
+void UFolioWorldDocument::ReleaseRecordings()
+{
+	const auto StillInFlight = [](const TSharedPtr<const FFolioDrawList>& List)
+	{
+		return List.IsValid() && !List.IsUnique();
+	};
+
+	if (StillInFlight(Published) || Retired.ContainsByPredicate(StillInFlight))
+	{
+		FlushRenderingCommands();
+	}
+
+	Published.Reset();
+	Retired.Empty();
 }
 
 void UFolioWorldDocument::LoadDocument(const FString& InDocumentPath)
@@ -281,6 +285,20 @@ void UFolioWorldDocument::PostEditChangeProperty(FPropertyChangedEvent& Property
 	if (Property == GET_MEMBER_NAME_CHECKED(UFolioWorldDocument, DocumentPath))
 	{
 		Host->LoadDocument(DocumentPath);
+	}
+	else if (Property == GET_MEMBER_NAME_CHECKED(UFolioWorldDocument, bUpdateInEditor))
+	{
+		// Read when the tick function is registered, so toggling it has no effect until it is re-registered.
+		bTickInEditor = bUpdateInEditor;
+		PrimaryComponentTick.UnRegisterTickFunction();
+		PrimaryComponentTick.RegisterTickFunction(GetComponentLevel());
+
+		const UWorld* World = GetWorld();
+		if (!bUpdateInEditor && World && !World->IsGameWorld())
+		{
+			// Otherwise the last recording stays on screen and reads as the document still being live.
+			ReleaseRecordings();
+		}
 	}
 	else if (Property == GET_MEMBER_NAME_CHECKED(UFolioWorldDocument, WorldSize)
 		|| Property == GET_MEMBER_NAME_CHECKED(UFolioWorldDocument, PixelsPerUnit))

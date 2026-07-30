@@ -29,6 +29,10 @@ public class Folio : ModuleRules
 		{
 			"RenderCore",
 			"RHI",
+			// For the screen-pass helpers the after-tonemap pass uses: FScreenPassTexture,
+			// AddDrawTexturePass and the system textures. RDG and RHI alone are enough for the layer
+			// path, which is why this only became necessary with world-space documents.
+			"Renderer",
 			"Projects",
 			"TraceLog",
 			"ApplicationCore",

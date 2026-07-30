@@ -1,0 +1,102 @@
+// A document drawn in world space, after the tonemapper.
+//
+// The reason this exists rather than reusing the layer path: temporal antialiasing blurs and smears
+// world-space UI, worst of all while the camera moves, and no resolution fixes it. This runs after the
+// temporal resolve, so TAA and TSR never see the document at all.
+//
+// Two consequences follow from that and are handled here. There is no depth buffer to test against at
+// this point in the frame, so occlusion is done by reading scene depth and rejecting fragments behind
+// geometry. And there is no temporal edge antialiasing, so the edges have to be produced analytically -
+// which is what the distance fields already do.
+//
+// Everything is premultiplied alpha, matching RmlUi 6.x.
+
+#include "/Engine/Public/Platform.ush"
+#include "/Folio/FolioMsdf.ush"
+
+Texture2D UITexture;
+SamplerState UISampler;
+
+// Document pixels, top left origin, to clip space.
+float4x4 DocumentToClip;
+
+// xy: the field's range in texture coordinates. z: threshold. w: sharpen.
+float4 MsdfField;
+
+// x: effect mode. y: offset. z: softness.
+float4 MsdfEffect;
+
+Texture2D SceneDepthTexture;
+
+// Scene depth is at render resolution while this target is at display resolution whenever an upscaler
+// is running, so a fragment's own pixel is not the same pixel in the depth buffer.
+//   xy: display to render resolution scale.
+//   z:  1 to reject fragments behind geometry, 0 to draw through it.
+//   w:  unused.
+float4 DepthParams;
+
+void WorldVS(
+	in float2 InPosition : ATTRIBUTE0,
+	in float2 InUV : ATTRIBUTE1,
+	in float4 InColor : ATTRIBUTE2,
+	out float2 OutUV : TEXCOORD0,
+	out float4 OutColor : TEXCOORD1,
+	out float4 OutPosition : SV_POSITION)
+{
+	OutPosition = mul(float4(InPosition, 0.0f, 1.0f), DocumentToClip);
+	OutUV = InUV;
+	OutColor = InColor;
+}
+
+// True when scene geometry is in front of this fragment.
+//
+// Compared in device Z rather than in world units, because that is what both sides already are and it
+// avoids needing the projection's near and far here. Reverse-Z, so a larger value is nearer.
+bool IsOccluded(float4 SvPosition)
+{
+	if (DepthParams.z < 0.5f)
+	{
+		return false;
+	}
+
+	const int2 DepthPixel = int2(SvPosition.xy * DepthParams.xy);
+	const float SceneDeviceZ = SceneDepthTexture.Load(int3(DepthPixel, 0)).r;
+
+	return SceneDeviceZ > SvPosition.z;
+}
+
+float4 WorldPS(
+	in float2 UV : TEXCOORD0,
+	in float4 Color : TEXCOORD1,
+	in float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	if (IsOccluded(SvPosition))
+	{
+		discard;
+	}
+
+	return UITexture.Sample(UISampler, UV) * Color;
+}
+
+// Text and vector art, which is where drawing after the tonemapper pays for itself: with no temporal
+// antialiasing the edges have to come from somewhere, and the field produces them analytically at any
+// size or distance.
+float4 WorldMsdfPS(
+	in float2 UV : TEXCOORD0,
+	in float4 Color : TEXCOORD1,
+	in float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	if (IsOccluded(SvPosition))
+	{
+		discard;
+	}
+
+	float4 Premultiplied = float4(Color.rgb * Color.a, Color.a);
+
+	// No fill pattern on this path, for the same reason the layer path has none: a second texture needs
+	// a second sampler, and passing the atlas keeps the sampler valid where a strength of zero means it
+	// is never read.
+	return FolioMsdfShade(UITexture, UISampler, UV, MsdfField.xy, MsdfField.z,
+		MsdfEffect.x, MsdfEffect.y, MsdfEffect.z, MsdfField.w, Premultiplied,
+		UITexture, UISampler, UV, 0.0f);
+}

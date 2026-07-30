@@ -118,6 +118,14 @@ private:
 	TUniquePtr<Folio::FFolioFontEngine> FontEngine;
 	TUniquePtr<class FFolioFontCache> FontCache;
 	TUniquePtr<class FFolioCoreHost> CoreHost;
+
+	/**
+	 * Draws world-space documents after the tonemapper.
+	 *
+	 * A scene view extension is shared rather than owned outright: the renderer holds it for as long as a
+	 * frame is in flight, so it cannot be a unique pointer the module destroys at will.
+	 */
+	TSharedPtr<class FFolioWorldPass> WorldPass;
 #if WITH_EDITOR
 	TUniquePtr<class FFolioHotReload> HotReload;
 #endif

@@ -10,6 +10,7 @@
 #include "FolioFontCache.h"
 #include "FolioHotReload.h"
 #include "FolioInputPreprocessor.h"
+#include "FolioWorldPass.h"
 #include "FolioNavigation.h"
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
@@ -108,14 +109,28 @@ void FFolioModule::StartupModule()
 	// Deferred: this module loads at PostConfigInit and DirectoryWatcher is not reliably loadable
 	// that early.
 	HotReload = MakeUnique<FFolioHotReload>();
-	FCoreDelegates::GetOnPostEngineInit().AddLambda([this] { HotReload->Start(); });
 #endif
+
+	// Also deferred, and for a harder reason: registering a scene view extension asserts on GEngine,
+	// which does not exist at PostConfigInit. Registered unconditionally once it does, and inert until a
+	// document exists, because an extension cannot be added mid-frame.
+	FCoreDelegates::GetOnPostEngineInit().AddLambda([this]
+	{
+		WorldPass = FSceneViewExtensions::NewExtension<FFolioWorldPass>();
+
+#if WITH_EDITOR
+		HotReload->Start();
+#endif
+	});
 
 	UE_LOG(LogFolio, Log, TEXT("Folio ready. Content root: %s, plugin root: %s"), *ContentRoot, *PluginRoot);
 }
 
 void FFolioModule::ShutdownModule()
 {
+	// Dropped before RmlUi goes, since the pass reads recordings that belong to documents.
+	WorldPass.Reset();
+
 #if WITH_EDITOR
 	HotReload.Reset();
 #endif

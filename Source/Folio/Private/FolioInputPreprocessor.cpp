@@ -15,8 +15,17 @@ namespace
 			"whether a pad reaches Folio at all."),
 		ECVF_Default);
 
-	/** The focused canvas for this event's user, or null when focus is anywhere else. */
-	SFolioCanvas* FocusedCanvas(FSlateApplication& SlateApp, const FInputEvent& Event)
+	/**
+	 * The canvas this event belongs to, or null.
+	 *
+	 * Normally that is simply the focused widget. The second case exists because CommonUI's action
+	 * router reassigns focus to the game viewport whenever it reapplies its input config, so a
+	 * document that asked to keep focus can lose it without anything going wrong that a log would
+	 * show. Taking it back here, when input actually arrives, settles in one event rather than
+	 * fighting the router every frame.
+	 */
+	SFolioCanvas* CanvasForEvent(FSlateApplication& SlateApp, const FInputEvent& Event,
+		const bool bMayReclaim = true)
 	{
 		const TArray<SFolioCanvas*>& Live = SFolioCanvas::GetLiveCanvases();
 		if (Live.Num() == 0)
@@ -24,16 +33,36 @@ namespace
 			return nullptr;
 		}
 
-		const TSharedPtr<SWidget> Focused = SlateApp.GetUserFocusedWidget(Event.GetUserIndex());
-		if (!Focused.IsValid())
+		if (const TSharedPtr<SWidget> Focused = SlateApp.GetUserFocusedWidget(Event.GetUserIndex()))
+		{
+			SFolioCanvas* const* Found = Live.FindByPredicate(
+				[&Focused](const SFolioCanvas* Canvas) { return Canvas == Focused.Get(); });
+
+			if (Found)
+			{
+				return *Found;
+			}
+		}
+
+		SFolioCanvas* const* Claiming = bMayReclaim
+			? Live.FindByPredicate([](const SFolioCanvas* Canvas) { return Canvas->WantsFocus(); })
+			: nullptr;
+
+		if (!Claiming)
 		{
 			return nullptr;
 		}
 
-		SFolioCanvas* const* Found = Live.FindByPredicate(
-			[&Focused](const SFolioCanvas* Canvas) { return Canvas == Focused.Get(); });
+		SlateApp.SetUserFocus(Event.GetUserIndex(), (*Claiming)->AsShared(), EFocusCause::SetDirectly);
 
-		return Found ? *Found : nullptr;
+		if (CVarInputTrace.GetValueOnAnyThread() != 0)
+		{
+			UE_LOG(LogFolio, Display,
+				TEXT("input trace: focus had been taken from the document, reclaimed for user %d"),
+				Event.GetUserIndex());
+		}
+
+		return *Claiming;
 	}
 
 	bool Tracing()
@@ -85,15 +114,17 @@ void FFolioInputPreprocessor::Unregister()
 
 bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
+	// Called for every device, because reclaiming focus is what keyboard input needs too. Slate
+	// reads the focus path after the pre-processors run, so a keyboard event refocused here is
+	// routed to the document by Slate itself and does not need consuming.
+	SFolioCanvas* Canvas = CanvasForEvent(SlateApp, InKeyEvent);
+
 	if (!InKeyEvent.GetKey().IsGamepadKey())
 	{
-		// Traced but never touched. Keyboard routing is Slate's business.
-		Trace(TEXT("key down"), InKeyEvent, InKeyEvent.GetKey(),
-			FocusedCanvas(SlateApp, InKeyEvent), false);
+		Trace(TEXT("key down"), InKeyEvent, InKeyEvent.GetKey(), Canvas, false);
 		return false;
 	}
 
-	SFolioCanvas* Canvas = FocusedCanvas(SlateApp, InKeyEvent);
 	const bool bConsumed = Canvas && Canvas->RouteGamepadKeyDown(InKeyEvent);
 	Trace(TEXT("key down"), InKeyEvent, InKeyEvent.GetKey(), Canvas, bConsumed);
 
@@ -109,7 +140,7 @@ bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, cons
 		return false;
 	}
 
-	SFolioCanvas* Canvas = FocusedCanvas(SlateApp, InKeyEvent);
+	SFolioCanvas* Canvas = CanvasForEvent(SlateApp, InKeyEvent);
 	if (Canvas)
 	{
 		// Paired with the press, or RmlUi keeps thinking the button is held.
@@ -127,10 +158,12 @@ bool FFolioInputPreprocessor::HandleAnalogInputEvent(FSlateApplication& SlateApp
 		return false;
 	}
 
-	SFolioCanvas* Canvas = FocusedCanvas(SlateApp, InAnalogInputEvent);
+	// A resting stick reports zero every frame. Reclaiming focus off the back of that would fight
+	// the action router continuously, so only a real push counts as intent.
+	const bool bPushed = FMath::Abs(InAnalogInputEvent.GetAnalogValue()) >= 0.2f;
+	SFolioCanvas* Canvas = CanvasForEvent(SlateApp, InAnalogInputEvent, bPushed);
 
-	// Only past the deadzone, or a resting stick fills the log at sixty lines a second.
-	if (Tracing() && FMath::Abs(InAnalogInputEvent.GetAnalogValue()) >= 0.2f)
+	if (Tracing() && bPushed)
 	{
 		Trace(TEXT("analog"), InAnalogInputEvent, InAnalogInputEvent.GetKey(), Canvas, Canvas != nullptr);
 	}

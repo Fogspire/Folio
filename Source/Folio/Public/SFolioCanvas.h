@@ -79,6 +79,22 @@ public:
 	static const TArray<SFolioCanvas*>& GetLiveCanvases();
 
 	/**
+	 * Asks to keep keyboard focus even when something else takes it away.
+	 *
+	 * CommonUI's action router owns focus in any project that uses it. When its input config is
+	 * reapplied - which changing the input mode or touching a gamepad both do - it looks for a focus
+	 * target on its leaf-most activatable widget, finds none, and focuses the game viewport, taking
+	 * focus off a document that had it. Nothing is logged as an error; input simply stops arriving.
+	 *
+	 * With this set, the pre-processor takes focus back when an event arrives and a canvas that
+	 * wanted focus does not have it. Off by default: a document embedded in a game's own widget tree
+	 * should let that tree decide, and the right answer there is a CommonUI focus target pointing at
+	 * the canvas rather than a fight over it.
+	 */
+	void SetKeepFocus(bool bInKeepFocus) { bKeepFocus = bInKeepFocus; }
+	bool WantsFocus() const { return bKeepFocus; }
+
+	/**
 	 * Gamepad entry points for the input pre-processor, which has an event but no geometry.
 	 *
 	 * Safe because key and analog handling never consults the geometry: a key means the same thing
@@ -101,6 +117,7 @@ private:
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;
 	FFolioInputModel InputModel;
+	bool bKeepFocus = false;
 
 	/** Screen space to the context's own pixel space. */
 	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;

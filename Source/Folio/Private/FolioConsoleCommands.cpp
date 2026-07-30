@@ -324,6 +324,12 @@ namespace
 			NavTicker.Reset();
 		}
 
+		if (NavCanvas.IsValid())
+		{
+			// Before anything else, or reclaiming would fight the router for a document on its way out.
+			NavCanvas->SetKeepFocus(false);
+		}
+
 		UGameViewportClient* Viewport = FindViewport();
 		if (Viewport && NavContainer.IsValid())
 		{
@@ -395,6 +401,11 @@ namespace
 				// Every user, not just user 0: a gamepad in PIE is often a second Slate user, and
 				// focusing only the keyboard's user leaves the sticks going to the game.
 				FSlateApplication::Get().SetAllUserFocus(NavCanvas, EFocusCause::SetDirectly);
+
+				// CommonUI's action router hands focus back to the game viewport whenever it
+				// reapplies its input config, which SetInputMode below and any gamepad press both
+				// cause. This is what stops that quietly killing every subsequent press.
+				NavCanvas->SetKeepFocus(true);
 
 				// The input mode is what makes the mouse usable and stops the pawn reading the same
 				// input the menu is reading. Slate focus alone does neither: the viewport keeps the

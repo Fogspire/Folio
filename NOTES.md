@@ -1374,3 +1374,21 @@ hand against `EngineDirectory`.
 
 That is an engine-layout assumption. Check it on any engine upgrade: if the path moves, the in-scene
 draw mode stops compiling, which is at least loud.
+
+## Instanced stereo does not reach the world pass, and `vr.InstancedStereo` lies about itself
+
+World documents work under instanced stereo untouched, and the reason is worth knowing before anyone
+"fixes" it. Both direct routes hook post-processing — `SubscribeToPostProcessingPass(Tonemap)` and
+`PrePostProcessPass_RenderThread` — and post-processing runs **per view**, after the instanced passes
+have resolved. An eye index only matters to a pass that draws both eyes in one draw, which neither of
+these is. `FolioWorld.usf` therefore needs no `EyeIndex` and reads one set of view uniforms correctly.
+
+Separately: `vr.InstancedStereo` is `ECVF_ReadOnly`, so the console cannot set it, and querying it
+reports "last set by constructor" even when instanced stereo is on. It is not the authority.
+`FStereoShaderAspects` reads the ini directly per shader platform through
+`FShaderPlatformCachedIniValue`, so the value that decides shader compilation comes from
+`[/Script/Engine.RendererSettings] vr.InstancedStereo` and not from the runtime variable. Judging it
+by the console readout wastes an afternoon.
+
+Emulated stereo (`-emulatestereo` on a standalone launch) exercises the two-view path without a
+headset, and is how the world pass was verified in both plain and instanced stereo.

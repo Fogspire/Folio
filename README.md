@@ -10,6 +10,8 @@ and the UE plugin under `Source/`. Anything authored in one renders in the other
 
 | Path | What |
 |---|---|
+| `FOLIO_BRIEF.md` | The plan of record: phases, gates, decisions taken, and the feature backlog |
+| `docs/` | Written for someone learning to use Folio, starting at `docs/hello_world.md` |
 | `UI_CONVENTIONS.md` | **What RCSS actually supports.** Authoritative. Read before authoring markup |
 | `NOTES.md` | Gotchas ledger. Read this before debugging anything surprising |
 | `Source/Folio/` | The UE module: renderer, input, document lifecycle |

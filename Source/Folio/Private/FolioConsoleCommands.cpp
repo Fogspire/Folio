@@ -16,6 +16,13 @@
 #include "Widgets/SWeakWidget.h"
 #include "Widgets/SWindow.h"
 
+// None of this exists in a retail build. Every command here puts a document on screen, drives it or
+// reloads it, which is development tooling: shipping it would leave a player able to open a test
+// document over the game. UFolioBindTest is the exception and stays compiled, because a UCLASS inside
+// a preprocessor block is not something UnrealHeaderTool handles - it generates the reflection code
+// regardless and the link then fails. An unreferenced class registration costs nothing.
+#if !UE_BUILD_SHIPPING
+
 /**
  * Dev-only commands for putting a document on screen without any game code.
  *
@@ -671,3 +678,5 @@ namespace
 
 	FShutdownHook ShutdownHook;
 }
+
+#endif // !UE_BUILD_SHIPPING

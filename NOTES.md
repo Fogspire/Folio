@@ -902,3 +902,20 @@ else.
 
 Do not "optimise" this by only updating on input. Caret blink, `transition`, `animation`, `:hover`
 settling, data model updates from gameplay and `@media` re-evaluation all change with no input.
+
+## Dev tooling is compiled out of Shipping, except one UCLASS
+
+`FolioConsoleCommands.cpp` is wrapped in `#if !UE_BUILD_SHIPPING`, so `folio.Show`, `folio.ShowWindow`,
+`folio.Gate`, `folio.NavTest`, `folio.MvvmTest`, `folio.ReloadTextures` and `folio.Nav.Bind*` do not
+exist in a retail build. The `folio.Nav.*` console *variables* are not affected - they are runtime
+settings and live in `FolioNavigation.cpp`.
+
+`UFolioBindTest` stays compiled in Shipping deliberately. A `UCLASS` inside a preprocessor block is not
+something UnrealHeaderTool handles: it generates the reflection code regardless and the link then
+fails. An unreferenced class registration costs nothing, so it is the lesser evil. If it ever needs to
+go, the supported route is a separate module with `"TargetConfigurationDenyList": ["Shipping"]` in
+`Folio.uplugin`, which also means fixing the public headers that currently include private ones
+(`SFolioCanvas.h` includes `FolioNavigation.h`) - no external module can compile against them today.
+
+Verify with a string search, and remember `TEXT()` is UTF-16: searching a binary for ASCII
+`folio.NavTest` finds nothing either way, which reads as a pass when it is not a test at all.

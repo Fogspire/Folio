@@ -95,6 +95,15 @@ public:
 	 */
 	bool BindObjectModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
 
+	/**
+	 * Whether game code has already bound this model name.
+	 *
+	 * A document's bindings resolve when it loads, and RmlUi refuses a second model under a name it
+	 * already has, so the order matters: bind before loading, and design-time mock data stays out of
+	 * the way of anything real.
+	 */
+	bool HasObjectModel(const FString& ModelName) const;
+
 	/** Every live canvas, so the input pre-processor can tell whether the focused widget is one. */
 	static const TArray<SFolioCanvas*>& GetLiveCanvases();
 

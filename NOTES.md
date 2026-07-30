@@ -1077,3 +1077,27 @@ must be constructed and destroyed by the properties themselves rather than memse
 parameter left as zeroed memory is a string that frees a pointer it never owned. Arguments the
 expression did not supply keep whatever the property initialised to, so a command with an optional
 argument still works from `data-event-click="Name"`.
+
+## A data model must exist before the document that reads it loads
+
+RmlUi resolves a document's bindings as it loads and gives no way to attach a model afterwards. It also
+refuses a second model under a name it already has. Together those two facts caused a bug that only a
+packaged build made obvious, and they constrain the API.
+
+**`UFolioWidget` builds its canvas with no document.** `RebuildWidget` creates the canvas, applies every
+recorded binding, and *then* calls `LoadDocument`. Passing `DocumentPath` to the canvas's `Construct`
+loads it immediately, which is before any `BindViewModel` call can have run - so every binding rendered
+as literal braces and the cause was nowhere near the symptom.
+
+`BindViewModel` is therefore callable at any time. It records the binding (so a rebuild - designer
+preview, re-add to the viewport, hot reload - puts the same models back), applies it if the canvas
+exists, and rebuilds the document if one was already up. That last case logs, because it is not free.
+
+**Mock data is compiled out of Shipping and yields to game code.** `SFolioCanvas::MountDataModel` used to
+mount `ui/mock/<model>.json` in every configuration. Two consequences, both live: a retail build rendered
+invented values for any screen whose model the game forgot to bind, instead of failing visibly; and the
+mock occupied the name, so `BindObjectModel` on it failed. Now the whole path is `#if !UE_BUILD_SHIPPING`,
+gated on `folio.MockData`, and skipped outright when `HasObjectModel` says game code got there first.
+
+`folio.MockData 0` is worth knowing: it shows a screen as a player would see it if the binding were
+missing, which is otherwise only discoverable by packaging.

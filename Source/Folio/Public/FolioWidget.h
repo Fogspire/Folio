@@ -7,6 +7,23 @@
 
 class SFolioCanvas;
 
+/** One requested binding, kept so it can be applied before the document loads and again on rebuild. */
+USTRUCT()
+struct FFolioViewModelBinding
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName ModelName;
+
+	/** Strong: a view model handed to a widget and referenced nowhere else must not be collected. */
+	UPROPERTY()
+	TObjectPtr<UObject> Source;
+
+	UPROPERTY()
+	bool bPollEveryFrame = true;
+};
+
 /**
  * A document as a UMG widget, so it can sit in a game's existing widget tree.
  *
@@ -57,6 +74,11 @@ public:
 	 * a view model is the better source when there is a choice.
 	 *
 	 * The document reads them as it would any model: <body data-model="player"> and {{ health }}.
+	 *
+	 * Callable at any point, including before the widget is built, which is the ordinary case in a
+	 * Blueprint construction script. A document resolves its bindings when it loads, so this is the
+	 * one call that must happen first - the widget defers loading until its bindings are in, and
+	 * rebuilds the document if one is already up.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API bool BindViewModel(FName ModelName, UObject* Source, bool bPollEveryFrame = true);
@@ -87,5 +109,11 @@ protected:
 	FOLIO_API virtual TSharedRef<SWidget> RebuildWidget() override;
 
 private:
+	/** Applies every requested binding to the canvas. Must run before the document loads. */
+	void ApplyBindings();
+
+	UPROPERTY()
+	TArray<FFolioViewModelBinding> Bindings;
+
 	TSharedPtr<SFolioCanvas> Canvas;
 };

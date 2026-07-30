@@ -17,11 +17,32 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 		return SNullWidget::NullWidget;
 	}
 
+	// Built with no document on purpose. A document resolves its bindings as it loads, so every model
+	// has to exist first; passing the path here would load it before ApplyBindings could run and every
+	// binding would render as literal braces.
 	Canvas = SNew(SFolioCanvas)
-		.DocumentPath(DocumentPath)
 		.DesiredSize(DesiredSize);
 
+	ApplyBindings();
+	Canvas->LoadDocument(DocumentPath);
+
 	return Canvas.ToSharedRef();
+}
+
+void UFolioWidget::ApplyBindings()
+{
+	if (!Canvas.IsValid())
+	{
+		return;
+	}
+
+	for (const FFolioViewModelBinding& Binding : Bindings)
+	{
+		if (Binding.Source && !Canvas->HasObjectModel(Binding.ModelName.ToString()))
+		{
+			Canvas->BindObjectModel(Binding.ModelName.ToString(), Binding.Source, Binding.bPollEveryFrame);
+		}
+	}
 }
 
 void UFolioWidget::ReleaseSlateResources(const bool bReleaseChildren)
@@ -42,14 +63,54 @@ void UFolioWidget::LoadDocument(const FString& InDocumentPath)
 
 bool UFolioWidget::BindViewModel(const FName ModelName, UObject* Source, const bool bPollEveryFrame)
 {
-	if (!Canvas.IsValid())
+	if (ModelName.IsNone() || !Source)
 	{
-		UE_LOG(LogFolio, Warning,
-			TEXT("BindViewModel was called before the widget was built; bind it after construction"));
 		return false;
 	}
 
-	return Canvas->BindObjectModel(ModelName.ToString(), Source, bPollEveryFrame);
+	// Recorded rather than only applied, so a rebuild - which a designer preview, a re-add to the
+	// viewport or a hot reload all cause - puts the same models back.
+	const int32 Existing = Bindings.IndexOfByPredicate(
+		[ModelName](const FFolioViewModelBinding& Binding) { return Binding.ModelName == ModelName; });
+
+	FFolioViewModelBinding Binding;
+	Binding.ModelName = ModelName;
+	Binding.Source = Source;
+	Binding.bPollEveryFrame = bPollEveryFrame;
+
+	if (Existing != INDEX_NONE)
+	{
+		Bindings[Existing] = MoveTemp(Binding);
+	}
+	else
+	{
+		Bindings.Add(MoveTemp(Binding));
+	}
+
+	if (!Canvas.IsValid())
+	{
+		// The widget has not been built yet, which is the ordinary case from a construction script.
+		// RebuildWidget applies this before it loads the document.
+		return true;
+	}
+
+	const bool bDocumentAlreadyUp = Canvas->GetDocument() != nullptr;
+	ApplyBindings();
+
+	if (bDocumentAlreadyUp)
+	{
+		// The document resolved its bindings without this model, and RmlUi gives no way to attach one
+		// afterwards. Rebuilding is what makes it visible, and doing it here rather than reporting it
+		// means the call does what it says whenever it is made.
+		UE_LOG(LogFolio, Log,
+			TEXT("BindViewModel('%s') arrived after '%s' had loaded, so the document is being rebuilt. ")
+			TEXT("Bind before the document loads to avoid it."),
+			*ModelName.ToString(), *DocumentPath);
+
+		Canvas->ReloadDocument();
+	}
+
+	return true;
 }
 
 void UFolioWidget::TakeFocus()

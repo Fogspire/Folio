@@ -13,6 +13,27 @@
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/DataVariable.h>
 
+namespace Folio
+{
+#if !UE_BUILD_SHIPPING
+	static TAutoConsoleVariable<bool> CVarMockData(
+		TEXT("folio.MockData"),
+		true,
+		TEXT("Mount ui/mock/<model>.json for a document whose model nothing has bound. Off shows what "
+			"a player sees when the game forgets to bind it."),
+		ECVF_Default);
+#endif
+
+	bool MockDataEnabled()
+	{
+#if UE_BUILD_SHIPPING
+		return false;
+#else
+		return CVarMockData.GetValueOnGameThread();
+#endif
+	}
+}
+
 /**
  * One definition per JSON kind, shared by every node of that kind. The node pointer carries all
  * the state, so children handed back from Child need no registration of their own.

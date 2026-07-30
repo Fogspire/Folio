@@ -200,8 +200,26 @@ void SFolioCanvas::ReloadStyleSheets()
 	Folio::Reload::ReloadStyleSheets(Context);
 }
 
+bool SFolioCanvas::HasObjectModel(const FString& ModelName) const
+{
+	return ObjectModels.ContainsByPredicate(
+		[&ModelName](const TUniquePtr<FFolioObjectModel>& Model)
+		{
+			return Model.IsValid() && Model->GetModelName() == ModelName;
+		});
+}
+
 void SFolioCanvas::MountDataModel(const FString& RelativePath)
 {
+	// Mock data is a design-time stand-in and has no business in a retail build. Left in, a screen
+	// whose model the game forgot to bind would silently render invented values instead of failing
+	// visibly, and the mock would occupy the name the real view model wanted.
+#if !UE_BUILD_SHIPPING
+	if (!Folio::MockDataEnabled())
+	{
+		return;
+	}
+
 	// Once per context. A model cannot be added to a context that already has one under the same
 	// name, and a document reload keeps the values it was mounted with.
 	if (DataModel.IsValid())
@@ -230,6 +248,13 @@ void SFolioCanvas::MountDataModel(const FString& RelativePath)
 		return;
 	}
 
+	// Game code got there first, and it wins. RmlUi refuses a second model under the same name, so
+	// mounting a mock here is what would make BindObjectModel fail rather than the other way round.
+	if (HasObjectModel(ModelName))
+	{
+		return;
+	}
+
 	const FString MockPath = FFolioDataModel::FindMockFile(ContentRoot, ModelName);
 	if (MockPath.IsEmpty())
 	{
@@ -245,6 +270,7 @@ void SFolioCanvas::MountDataModel(const FString& RelativePath)
 	{
 		DataModel.Reset();
 	}
+#endif
 }
 
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)

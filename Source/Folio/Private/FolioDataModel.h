@@ -9,6 +9,18 @@ class FJsonValue;
 
 namespace Rml { class Context; }
 
+namespace Folio
+{
+	/**
+	 * Whether design-time mock data may be mounted, from folio.MockData.
+	 *
+	 * On by default. Worth turning off to see what a screen looks like with nothing bound, which is
+	 * what a player gets if the game forgets to bind the model. Never true in Shipping, where mock
+	 * mounting is not compiled at all.
+	 */
+	bool MockDataEnabled();
+}
+
 /**
  * Mounts a JSON file as a data model, with no compile-time structs.
  *

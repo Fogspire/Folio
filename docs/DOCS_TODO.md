@@ -31,10 +31,11 @@ the first thing a reader will want after this.
   Step 7 (cooking, staging and `-uidev`) *was* verified end to end against a packaged Development
   client: documents, stylesheets and faces load from the pak, and a loose file in the override
   directory wins over it.
-- **Hosting a document** (`hosting.md` — both `hello_world.md` and `data_binding.md` link to it, so
-  it is a dead link twice over until written). `UFolioWidget` in an existing widget tree, and the CommonUI focus-target
-  override. The failure it prevents (gamepad silently doing nothing) is worth naming, since the
-  symptom points nowhere near the cause.
+- ~~**Hosting a document.**~~ Written: `hosting.md`. `UFolioWidget` in an existing widget tree, view
+  model binding and why it must precede the load, and the CommonUI focus-target override with the
+  symptom it prevents named. Written from the header contracts and `UI_CONVENTIONS.md` §8 rather than
+  from a session in the editor, so the focus advice is accurate to the code but the walkthrough has
+  not been followed by anyone.
 - ~~**Localization.**~~ Written: `localization.md`. Every claim in it was run: the gather produces 35
   strings under `UI.Settings` in the same manifest as the C++ and asset text, `folio.Loc.Report` shows
   them resolving, a patched translation displays, and `--culture pseudo --strict` behaves as described

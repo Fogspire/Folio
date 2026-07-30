@@ -47,7 +47,8 @@ enum class EFolioWorldDrawMode : uint8
 	 * at a new resolution costs no atlas work.
 	 *
 	 * The price is the one resample the other two modes exist to avoid, which is why this is not the
-	 * default. Folio does not own the mesh: assign GetRenderTarget to a material and the mesh is the game's.
+	 * default. Folio does not own the mesh: instance /Folio/M_FolioSurface, feed its Element parameter
+	 * from OnSurfaceChanged, and the mesh is the game's. See docs/world_documents.md.
 	 */
 	Surface,
 };

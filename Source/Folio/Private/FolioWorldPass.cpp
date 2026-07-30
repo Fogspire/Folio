@@ -5,9 +5,11 @@
 #include "FolioWorldDocument.h"
 #include "FolioWorldShader.h"
 
+#include "Engine/World.h"
 #include "PostProcess/PostProcessInputs.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
 #include "RenderGraphUtils.h"
+#include "SceneInterface.h"
 #include "ScreenPass.h"
 #include "SystemTextures.h"
 
@@ -54,9 +56,18 @@ void FFolioWorldPass::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 	// touched. Everything the pass needs is taken now, and nothing reads a UObject afterwards.
 	Surfaces.Reset();
 
+	// The live list is process-wide, and so is a view extension. Without this a document placed in the
+	// level draws into every other scene the editor renders: blueprint and material preview viewports,
+	// asset thumbnails, anything with its own world.
+	const UWorld* FamilyWorld = InViewFamily.Scene ? InViewFamily.Scene->GetWorld() : nullptr;
+	if (!FamilyWorld)
+	{
+		return;
+	}
+
 	for (UFolioWorldDocument* Document : UFolioWorldDocument::GetLive())
 	{
-		if (!Document)
+		if (!Document || Document->GetWorld() != FamilyWorld)
 		{
 			continue;
 		}

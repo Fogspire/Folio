@@ -54,6 +54,10 @@ the first thing a reader will want after this.
   what actually makes a screen slow. The numbers quoted in it were measured, not estimated.
 - **Testing a document.** `uipreview`, `--strict`, and the screenshot and metrics reports. Cheap to
   write and the thing most likely to be skipped.
+- ~~**Documents in the world.**~~ Written: `world_documents.md`. The three draw modes, the Surface
+  setup against `/Folio/M_FolioSurface`, and the console commands. After-tonemap and in-scene were
+  confirmed in PIE; the Surface walkthrough follows a setup that was got working, but the doc's own
+  steps have not been followed start to finish by anyone else.
 
 ## Things to check before publishing any of it
 

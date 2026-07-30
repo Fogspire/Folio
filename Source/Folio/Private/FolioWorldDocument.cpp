@@ -8,6 +8,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
+#include "RHIGlobals.h"
 
 #include <RmlUi/Core/Context.h>
 
@@ -24,6 +25,37 @@ namespace
 
 	/** Coarse enough that ordinary movement does not cross a step every frame. */
 	constexpr int32 SurfaceSizeStep = 128;
+
+	/**
+	 * Shrinks a size until it fits what the RHI can allocate, keeping its aspect ratio.
+	 *
+	 * A render target past the device limit asserts inside the RHI rather than failing to create, so an
+	 * unreasonable PixelsPerUnit has to be caught here. Proportional rather than per-axis: clamping one
+	 * edge would silently stretch the document instead.
+	 */
+	FIntPoint FitToTextureLimit(const FIntPoint Size)
+	{
+		const int32 Limit = FMath::Max(1, int32(GMaxTextureDimensions));
+		const int32 Longest = FMath::Max(Size.X, Size.Y);
+		if (Longest <= Limit)
+		{
+			return Size;
+		}
+
+		static bool bWarned = false;
+		if (!bWarned)
+		{
+			bWarned = true;
+			UE_LOG(LogFolio, Warning,
+				TEXT("a world document asks for %dx%d, past the %d texture limit, so it is being scaled down "
+					"to fit. Lower PixelsPerUnit or WorldSize."), Size.X, Size.Y, Limit);
+		}
+
+		const double Scale = double(Limit) / double(Longest);
+		return FIntPoint(
+			FMath::Max(1, FMath::FloorToInt(double(Size.X) * Scale)),
+			FMath::Max(1, FMath::FloorToInt(double(Size.Y) * Scale)));
+	}
 }
 
 const TArray<UFolioWorldDocument*>& UFolioWorldDocument::GetLive()
@@ -53,9 +85,9 @@ UFolioWorldDocument::UFolioWorldDocument()
 
 FIntPoint UFolioWorldDocument::GetDocumentSize() const
 {
-	return FIntPoint(
+	return FitToTextureLimit(FIntPoint(
 		FMath::Max(1, FMath::RoundToInt(WorldSize.X * PixelsPerUnit)),
-		FMath::Max(1, FMath::RoundToInt(WorldSize.Y * PixelsPerUnit)));
+		FMath::Max(1, FMath::RoundToInt(WorldSize.Y * PixelsPerUnit))));
 }
 
 void UFolioWorldDocument::GetSurface(FVector& OutCentre, FVector& OutRight, FVector& OutUp) const
@@ -257,7 +289,7 @@ FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const
 	const int32 Width = FMath::Max(SurfaceSizeStep,
 		FMath::RoundToInt(float(Height) * float(Document.X) / float(FMath::Max(1, Document.Y))));
 
-	return FIntPoint(Width, Height);
+	return FitToTextureLimit(FIntPoint(Width, Height));
 }
 
 void UFolioWorldDocument::RenderToSurface(const FIntPoint Size)

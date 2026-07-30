@@ -318,6 +318,9 @@ private:
 	/** Traces from the local player's view and drives the pointer and its button. */
 	void TickPlayerPointer();
 
+	/** Draws the rectangle the pointer resolves against, for folio.World.ShowSurface. */
+	void DrawDebugSurface() const;
+
 	/** Takes or hands back Slate's keyboard focus, following whether a text field has it. */
 	void UpdateKeyboardFocus();
 
@@ -331,6 +334,19 @@ private:
 	 * preceded by a move even when nothing has moved.
 	 */
 	TOptional<FIntPoint> Pointer;
+
+	/** Why the last ray did not land on the surface, for folio.World.ShowSurface to report. */
+	enum class EPointerMiss : uint8
+	{
+		Landed,
+		NotDriven,
+		Parallel,
+		Behind,
+		TooFar,
+		Outside,
+	};
+
+	EPointerMiss LastMiss = EPointerMiss::NotDriven;
 
 	/** Whether PointerKey was down last tick, so the auto pointer sends edges rather than a state. */
 	bool bPointerKeyHeld = false;

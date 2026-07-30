@@ -12,6 +12,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
+#include "DrawDebugHelpers.h"
 #include "RHIGlobals.h"
 
 #include <RmlUi/Core/Context.h>
@@ -20,6 +21,14 @@
 namespace
 {
 	TArray<UFolioWorldDocument*> LiveDocuments;
+
+	TAutoConsoleVariable<bool> CVarShowSurface(
+		TEXT("folio.World.ShowSurface"),
+		false,
+		TEXT("Draws every world document's rectangle in the world, and where the pointer lands on it. "
+			"Green means the pointer is on the surface. In Surface mode nothing about this rectangle is "
+			"drawn normally, so it can be wrong while the picture is perfect - which presents as input "
+			"doing nothing."));
 
 	TAutoConsoleVariable<bool> CVarSurfaceAutoResolution(
 		TEXT("folio.World.SurfaceAutoResolution"),
@@ -192,6 +201,7 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 		TickPlayerPointer();
 	}
 	UpdateKeyboardFocus();
+	DrawDebugSurface();
 
 	const bool bSurface = DrawMode == EFolioWorldDrawMode::Surface;
 	const FIntPoint Document = GetDocumentSize();
@@ -307,12 +317,20 @@ bool UFolioWorldDocument::MovePointerAlong(const FVector Origin, const FVector D
 	const double Slope = FVector::DotProduct(Normal, Ray);
 	if (FMath::IsNearlyZero(Slope))
 	{
+		LastMiss = EPointerMiss::Parallel;
 		return false;
 	}
 
 	const double Along = FVector::DotProduct(Centre - Origin, Normal) / Slope;
-	if (Along < 0.0 || Along > double(Distance))
+	if (Along < 0.0)
 	{
+		LastMiss = EPointerMiss::Behind;
+		return false;
+	}
+
+	if (Along > double(Distance))
+	{
+		LastMiss = EPointerMiss::TooFar;
 		return false;
 	}
 
@@ -322,8 +340,11 @@ bool UFolioWorldDocument::MovePointerAlong(const FVector Origin, const FVector D
 	const double V = FVector::DotProduct(Local, Up) / Up.SizeSquared();
 	if (FMath::Abs(U) > 1.0 || FMath::Abs(V) > 1.0)
 	{
+		LastMiss = EPointerMiss::Outside;
 		return false;
 	}
+
+	LastMiss = EPointerMiss::Landed;
 
 	// Document space runs down from the top left, and the surface's up axis runs the other way.
 	MovePointer(FVector2D(U * 0.5 + 0.5, 0.5 - V * 0.5));
@@ -423,6 +444,68 @@ void UFolioWorldDocument::ReleaseFocus()
 	}
 
 	UpdateKeyboardFocus();
+}
+
+void UFolioWorldDocument::DrawDebugSurface() const
+{
+#if ENABLE_DRAW_DEBUG
+	const UWorld* World = GetWorld();
+	if (!CVarShowSurface.GetValueOnGameThread() || !World || !Host.IsValid())
+	{
+		return;
+	}
+
+	FVector Centre;
+	FVector Right;
+	FVector Up;
+	GetSurface(Centre, Right, Up);
+
+	const TCHAR* Why = TEXT("");
+	switch (LastMiss)
+	{
+	case EPointerMiss::Landed:    Why = TEXT("pointing at it"); break;
+	case EPointerMiss::NotDriven: Why = TEXT("nothing is driving the pointer: tick Pointer From Player "
+		"View, or call Move Pointer Along"); break;
+	case EPointerMiss::Parallel:  Why = TEXT("the view is edge on to the surface"); break;
+	case EPointerMiss::Behind:    Why = TEXT("the surface is behind the ray: it faces the other way, so "
+		"turn the component 180 degrees"); break;
+	case EPointerMiss::TooFar:    Why = TEXT("further away than Pointer Reach"); break;
+	case EPointerMiss::Outside:   Why = TEXT("aimed off the surface"); break;
+	}
+
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(int32(GetUniqueID()), 0.0f,
+			LastMiss == EPointerMiss::Landed ? FColor::Green : FColor::Orange,
+			FString::Printf(TEXT("Folio '%s': %s"), *DocumentPath, Why));
+	}
+
+	const FColor Colour = Pointer.IsSet() ? FColor::Green : FColor::Red;
+	const FVector Corners[4] = {
+		Centre - Right + Up, Centre + Right + Up, Centre + Right - Up, Centre - Right - Up };
+
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		DrawDebugLine(World, Corners[Index], Corners[(Index + 1) % 4], Colour, false, -1.0f, 0, 0.5f);
+	}
+
+	// A corner marker, because a rectangle alone does not say which way up the document is and an
+	// upside-down surface points as convincingly as a right way up one.
+	DrawDebugLine(World, Corners[0], Corners[0] + (Corners[1] - Corners[0]) * 0.1f
+		+ (Corners[3] - Corners[0]) * 0.1f, Colour, false, -1.0f, 0, 1.5f);
+
+	if (!Pointer.IsSet())
+	{
+		return;
+	}
+
+	const FIntPoint Size = Host->GetSize();
+	const double U = double(Pointer.GetValue().X) / double(FMath::Max(1, Size.X));
+	const double V = double(Pointer.GetValue().Y) / double(FMath::Max(1, Size.Y));
+
+	DrawDebugSphere(World, Centre + Right * (U * 2.0 - 1.0) + Up * (1.0 - V * 2.0),
+		2.0f, 8, FColor::Yellow, false, -1.0f, 0, 0.5f);
+#endif
 }
 
 void UFolioWorldDocument::TickPlayerPointer()

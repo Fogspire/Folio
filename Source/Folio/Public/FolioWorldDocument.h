@@ -8,6 +8,11 @@
 
 class FFolioDocumentHost;
 
+namespace Rml
+{
+	class Element;
+}
+
 /**
  * How a world-space document reaches the screen.
  *
@@ -149,6 +154,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
 		meta = (EditCondition = "bPointerFromPlayerView", ClampMin = "1.0"))
 	float PointerReach = 400.0f;
+
+	/**
+	 * Draws a cursor on the surface at the pointer.
+	 *
+	 * A screen in the world has no system cursor and the player is aiming a camera at it, so without one
+	 * there is nothing saying where a click will land until something highlights. Added to the document
+	 * from here rather than authored, so it works on any document and takes no markup.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input")
+	bool bShowCursor = true;
 
 	/** What counts as a click while the pointer comes from the player's view. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
@@ -355,6 +370,20 @@ private:
 
 	/** The element under the pointer, as tag#id. What says whether a click landed where it looked. */
 	FString DescribeHover() const;
+
+	/** Moves the on-surface cursor, making it if the document does not have one yet. */
+	void UpdateCursor();
+
+	/**
+	 * The cursor element, owned by the document rather than by this.
+	 *
+	 * Cleared when the document closes, because by then the element is freed and touching it is a
+	 * use-after-free rather than a no-op.
+	 */
+	Rml::Element* Cursor = nullptr;
+
+	/** What the cursor was last moved to, so a settled document is not dirtied every frame. */
+	TOptional<FIntPoint> CursorAt;
 
 	/** Takes or hands back Slate's keyboard focus, following whether a text field has it. */
 	void UpdateKeyboardFocus();

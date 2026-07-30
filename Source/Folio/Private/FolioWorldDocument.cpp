@@ -18,6 +18,7 @@
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/ElementDocument.h>
 
 namespace
 {
@@ -144,6 +145,10 @@ void UFolioWorldDocument::OnRegister()
 	bTickInEditor = bUpdateInEditor;
 
 	Host = MakeUnique<FFolioDocumentHost>();
+
+	// The cursor belongs to the document, so a reload or a hot reload takes it with it.
+	Host->OnDocumentClosing = [this] { Cursor = nullptr; CursorAt.Reset(); };
+
 	if (!Host->Create(TEXT("world"), GetDocumentSize()))
 	{
 		Host.Reset();
@@ -202,6 +207,7 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 		TickPlayerPointer();
 	}
 	UpdateKeyboardFocus();
+	UpdateCursor();
 	DrawDebugSurface();
 
 	const bool bSurface = DrawMode == EFolioWorldDrawMode::Surface;
@@ -468,6 +474,70 @@ void UFolioWorldDocument::ReleaseFocus()
 	}
 
 	UpdateKeyboardFocus();
+}
+
+void UFolioWorldDocument::UpdateCursor()
+{
+	Rml::ElementDocument* Document = Host.IsValid() ? Host->GetDocument() : nullptr;
+	if (!Document)
+	{
+		Cursor = nullptr;
+		return;
+	}
+
+	if (!bShowCursor)
+	{
+		if (Cursor)
+		{
+			Cursor->SetProperty("display", "none");
+		}
+		return;
+	}
+
+	if (!Cursor)
+	{
+		Rml::ElementPtr Made = Document->CreateElement("div");
+		if (!Made)
+		{
+			return;
+		}
+
+		// Sized in dp so it stays the same size on the surface whatever resolution it renders at, and
+		// taken out of hit testing so the thing it points at is what gets clicked rather than the cursor.
+		Made->SetProperty("position", "absolute");
+		Made->SetProperty("pointer-events", "none");
+		Made->SetProperty("z-index", "2147483647");
+		Made->SetProperty("width", "22dp");
+		Made->SetProperty("height", "22dp");
+		Made->SetProperty("margin-left", "-11dp");
+		Made->SetProperty("margin-top", "-11dp");
+		Made->SetProperty("border-width", "2dp");
+		Made->SetProperty("border-color", "#ffffffcc");
+		Made->SetProperty("box-shadow", "0 0 3dp 1dp #000000a0");
+
+		Cursor = Document->AppendChild(std::move(Made));
+	}
+
+	// Only on a change. A property set every frame dirties the document every frame, which is exactly what
+	// the invalidation path exists to avoid.
+	if (!Cursor || CursorAt == Pointer)
+	{
+		return;
+	}
+
+	CursorAt = Pointer;
+
+	if (!Pointer.IsSet())
+	{
+		Cursor->SetProperty("display", "none");
+		return;
+	}
+
+	Cursor->SetProperty("display", "block");
+	Cursor->SetProperty("left", Rml::String(TCHAR_TO_UTF8(*FString::Printf(TEXT("%dpx"),
+		Pointer.GetValue().X))));
+	Cursor->SetProperty("top", Rml::String(TCHAR_TO_UTF8(*FString::Printf(TEXT("%dpx"),
+		Pointer.GetValue().Y))));
 }
 
 FString UFolioWorldDocument::DescribeHover() const

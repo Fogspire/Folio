@@ -761,8 +761,15 @@ The target is named by id, so a handle can move or resize anything, not only its
 must be `position: absolute` — a handle writes `left`, `top`, `width` and `height`, and those mean
 nothing to a flex item. `edge_margin` on the handle keeps the target inside its parent.
 
-**Dropping needs somewhere to drop.** RmlUi fires `dragstart`, `dragover`, `dragout`, `dragdrop` and
-`dragend`, but acts on none of them. Folio adds the two things every drop needs:
+**`drag` fires events; it moves nothing.** RmlUi reports the gesture and leaves the element where it
+was. `folio-drag="move"` is what actually repositions it, and the element must be `position: absolute`
+or the `left` and `top` it writes mean nothing. It warns if you forget.
+
+**Use `drag-drop`, not `drag`, on anything you mean to drop.** RmlUi only looks for a drop target when
+the dragged element's `drag` is `drag-drop` or `clone`; with plain `drag` the zone never hears about
+it and `folio-drop` never runs.
+
+Folio adds:
 
 | | |
 |---|---|
@@ -771,18 +778,32 @@ nothing to a flex item. `edge_margin` on the handle keeps the target inside its 
 | `folio-drop="hide"` | Attribute on a drop zone: hides the dropped element |
 | `folio-drop="remove"` | Removes it from the document |
 | `folio-drop="accept"` | Does nothing itself, but still gets `folio-dragover` for styling |
+| `folio-drag="move"` | The element follows the pointer while dragged |
+| `folio-close="id"` | On click, closes that element. No id closes the parent |
+| `folio-closing` | Class, set on a closing element. Animate it and the close waits for the animation to finish |
 
 Only an element with `folio-drop` gets `folio-dragover`, so an inert element never offers to accept
 a drop it will not take.
 
 ```html
-<div class="icon" drag="drag">CORE.DAT</div>
+<div class="icon" drag="drag-drop" folio-drag="move">CORE.DAT</div>
 <div class="bin" folio-drop="hide">Recycle</div>
+
+<div id="win" class="window">
+	<handle class="titlebar" move_target="win">Title</handle>
+	<div class="close" folio-close="win">X</div>
+	<handle class="grip" size_target="win"></handle>
+</div>
 ```
 
 ```css
+.icon { position: absolute; }
 .icon.folio-dragging { opacity: 0.55; }
 .bin.folio-dragover { border-color: #fff; }
+
+/* Closing waits for this. Without an animation the element hides at once. */
+@keyframes suck { to { transform: translateY(520dp) scale(0.04); opacity: 0; } }
+.window.folio-closing { animation: 0.5s cubic-in suck; }
 ```
 
 Anything past those three actions is the game's: listen for `dragdrop` in C++, or use

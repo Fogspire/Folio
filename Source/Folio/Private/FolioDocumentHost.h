@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FolioCore/FolioDragDrop.h"
+#include "FolioCore/FolioBehaviours.h"
 #include "FolioInputState.h"
 
 #include "CoreMinimal.h"
@@ -107,8 +107,8 @@ private:
 
 	FFolioInputModel InputModel;
 
-	/** Drop actions and the drag styling classes, which every document gets whatever hosts it. */
-	FFolioDragDrop DragDrop;
+	/** Dragging, dropping and closing, which every document gets whatever hosts it. */
+	FFolioBehaviours Behaviours;
 
 	/** Rebuilt with the context: a model cannot be added once a document is loaded. */
 	TUniquePtr<class FFolioDataModel> DataModel;

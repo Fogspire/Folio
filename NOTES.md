@@ -1393,6 +1393,28 @@ by the console readout wastes an afternoon.
 Emulated stereo (`-emulatestereo` on a standalone launch) exercises the two-view path without a
 headset, and is how the world pass was verified in both plain and instanced stereo.
 
+## Anything touching an RmlUi global must be compiled into the module that called Rml::Initialise
+
+RmlUi is a static library linked into **both** `Folio` and `FolioCore`, so each DLL carries its own
+copy of every RmlUi global. Only the Folio module calls `Rml::Initialise`, so only its copy of
+`StyleSheetSpecification` is ever populated. Code compiled into FolioCore that reaches a global reads
+one that was never built.
+
+This is why `FolioFontEffects.h` and `FolioFilters.h` are header-only, and their comments say to
+instantiate them from the module that initialised RmlUi. `FolioBehaviours.h` is header-only for the
+same reason and was not, briefly: `Element::SetProperty` resolves the property through
+`StyleSheetSpecification::GetProperty`, which reads `properties.size()` on an empty vector, and every
+drag crashed on the first mouse move with a stack that pointed at `std::vector::size` and looked like
+a lifetime bug.
+
+Element-local calls - `SetClass`, `GetAttribute`, `AddEventListener` - have no globals behind them and
+work from either module, which is what makes this so misleading: most of a file works, and one call in
+it does not.
+
+The rule: a `.cpp` under `Source/FolioCore/Private/` may not call `Rml::Factory::*`,
+`Rml::StyleSheetSpecification::*`, `Element::SetProperty`, or anything else that resolves through
+RmlUi's registries. Put it in a header and let the consuming module instantiate it.
+
 ## Never hold an RmlUi element across frames as a raw pointer
 
 `FFolioBehaviours` kept the element being dragged in a raw `Rml::Element*` between the `dragstart`

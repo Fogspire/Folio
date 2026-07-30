@@ -40,6 +40,18 @@ void UFolioWidget::LoadDocument(const FString& InDocumentPath)
 	}
 }
 
+bool UFolioWidget::BindViewModel(const FName ModelName, UObject* Source, const bool bPollEveryFrame)
+{
+	if (!Canvas.IsValid())
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("BindViewModel was called before the widget was built; bind it after construction"));
+		return false;
+	}
+
+	return Canvas->BindObjectModel(ModelName.ToString(), Source, bPollEveryFrame);
+}
+
 void UFolioWidget::TakeFocus()
 {
 	if (Canvas.IsValid() && FSlateApplication::IsInitialized())

@@ -3,6 +3,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "FolioModule.h"
+#include "FolioBindTest.h"
 #include "FolioNavBindings.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
@@ -433,6 +434,95 @@ namespace
 	}
 
 	/**
+	 * Proves the view model bridge, with a plain UObject whose values move every frame.
+	 *
+	 *   folio.MvvmTest [off]
+	 */
+	TSharedPtr<SFolioCanvas> MvvmCanvas;
+	TSharedPtr<SWidget> MvvmContainer;
+	TStrongObjectPtr<UFolioBindTest> MvvmSource;
+	FTSTicker::FDelegateHandle MvvmTicker;
+
+	void HideMvvmTest()
+	{
+		if (MvvmTicker.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(MvvmTicker);
+			MvvmTicker.Reset();
+		}
+
+		UGameViewportClient* Viewport = FindViewport();
+		if (Viewport && MvvmContainer.IsValid())
+		{
+			Viewport->RemoveViewportWidgetContent(MvvmContainer.ToSharedRef());
+		}
+
+		MvvmContainer.Reset();
+		MvvmCanvas.Reset();
+		MvvmSource.Reset();
+	}
+
+	void RunMvvmTest(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0 && Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
+		{
+			HideMvvmTest();
+			return;
+		}
+
+		HideMvvmTest();
+
+		MvvmTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
+			[](float) -> bool
+			{
+				UGameViewportClient* Viewport = FindViewport();
+				if (!Viewport || !Viewport->GetWorld() || !Viewport->GetWorld()->HasBegunPlay())
+				{
+					return true;
+				}
+
+				if (!MvvmCanvas.IsValid())
+				{
+					const FVector2D Size(520.0, 400.0);
+
+					MvvmSource.Reset(NewObject<UFolioBindTest>());
+					MvvmCanvas = SNew(SFolioCanvas).DesiredSize(Size);
+
+					// Bound before the document loads, so its bindings resolve on the first layout
+					// rather than rendering literal braces for a frame.
+					MvvmCanvas->BindObjectModel(TEXT("test"), MvvmSource.Get());
+					MvvmCanvas->LoadDocument(TEXT("/folio/dev/mvvm_test.rml"));
+
+					MvvmContainer = SNew(SBox)
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Top)
+						.Padding(FMargin(830.0f, 60.0f, 0.0f, 0.0f))
+						[
+							SNew(SBox)
+								.WidthOverride(Size.X)
+								.HeightOverride(Size.Y)
+								[
+									SNew(SWeakWidget).PossiblyNullContent(MvvmCanvas)
+								]
+						];
+
+					Viewport->AddViewportWidgetContent(MvvmContainer.ToSharedRef(), 100);
+
+					UE_LOG(LogFolio, Display,
+						TEXT("folio.MvvmTest: bound a UObject as data model 'test'. The values must move ")
+						TEXT("and Hidden must stay unbound. folio.MvvmTest off to close."));
+				}
+
+				if (MvvmSource.IsValid())
+				{
+					MvvmSource->Advance();
+				}
+
+				return true;
+			}), 0.0f);
+	}
+
+	/**
 	 * Rebinding by hand, so a binding table is not needed to try one.
 	 *
 	 *   folio.Nav.Bind Q Left
@@ -516,6 +606,7 @@ namespace
 			HideDocument();
 			HideGate();
 			HideNavTest();
+			HideMvvmTest();
 		}
 	};
 
@@ -550,6 +641,12 @@ namespace
 		TEXT("folio.NavTest [document|off]. Opens a boxed document in PIE and gives it keyboard focus, "
 			"so arrows, WASD, IJKL and the gamepad can be tried by hand."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunNavTest));
+
+	FAutoConsoleCommand MvvmTestCommand(
+		TEXT("folio.MvvmTest"),
+		TEXT("folio.MvvmTest [off]. Binds a UObject whose values move every frame as a data model, "
+			"which is the view model path without needing a view model."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunMvvmTest));
 
 	FAutoConsoleCommand BindNavCommand(
 		TEXT("folio.Nav.Bind"),

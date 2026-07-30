@@ -33,6 +33,10 @@ public class Folio : ModuleRules
 			"TraceLog",
 			"ApplicationCore",
 			"Json",
+			// For the view model bridge. This is the engine's own field notification interface, not
+			// the ModelViewViewModel plugin: a UMVVMViewModelBase implements it, so Folio binds view
+			// models without depending on MVVM and a project ignoring MVVM pays nothing.
+			"FieldNotification",
 			"RmlUiLibrary",
 			"FolioCore",
 		});

@@ -1,0 +1,35 @@
+<rml>
+<head>
+	<title>Folio view model test</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { background-color: #14141ae8; color: #e8e8f0; font-size: 17dp; padding: 16dp;
+		       width: 100%; height: 100%; box-sizing: border-box; }
+		h2 { font-size: 13dp; color: #8a8a99; margin-bottom: 8dp; }
+		p { margin-bottom: 5dp; }
+		.v { color: #f0c674; }
+		.bar { width: 300dp; height: 14dp; background-color: #2b2b36; border-radius: 3dp;
+		       margin: 4dp 0 12dp 0; }
+		.fill { height: 14dp; background-color: #4ec9a0; border-radius: 3dp; }
+		.down .fill { background-color: #e06c75; }
+		.note { color: #8a8a99; font-size: 13dp; margin-top: 12dp; }
+	</style>
+</head>
+<body data-model="test">
+	<h2>bound straight off a UObject's properties</h2>
+	<p>Ticks <span class="v">{{ Ticks }}</span></p>
+	<p>Health <span class="v">{{ Health }}</span></p>
+	<p>bAlive <span class="v">{{ bAlive }}</span></p>
+	<p>Status <span class="v">{{ Status }}</span></p>
+
+	<h2>the same value driving a style</h2>
+	<div class="bar" data-class-down="!bAlive">
+		<div class="fill" data-style-width="Health * 300 + 'dp'"></div>
+	</div>
+
+	<p class="note">Hidden is a UPROPERTY with no BlueprintReadOnly or EditAnywhere, so it must not be
+	bound. Staying as literal braces is the pass, and the "could not add data-text view" warnings that
+	go with it are expected here: <span class="v">{{ Hidden }}</span></p>
+	<p class="note">folio.MvvmTest off to close.</p>
+</body>
+</rml>

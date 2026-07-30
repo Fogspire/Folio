@@ -75,6 +75,15 @@ public:
 	/** What the player last touched. Documents swap button glyphs on it. */
 	Folio::EInputDevice GetLastInputDevice() const;
 
+	/**
+	 * Binds a UObject's properties as a named data model.
+	 *
+	 * The view model path. Works with any UObject; a source implementing INotifyFieldValueChanged -
+	 * which UMVVMViewModelBase does - updates by notification, and one that does not can be polled
+	 * instead. Repeatable with different names, so a screen can bind several sources.
+	 */
+	bool BindObjectModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
+
 	/** Every live canvas, so the input pre-processor can tell whether the focused widget is one. */
 	static const TArray<SFolioCanvas*>& GetLiveCanvases();
 
@@ -118,6 +127,9 @@ private:
 	Folio::FUiSoundListener Sounds;
 	FFolioInputModel InputModel;
 	bool bKeepFocus = false;
+
+	/** Bound UObject sources. Held by the canvas because a data model belongs to its context. */
+	TArray<TUniquePtr<class FFolioObjectModel>> ObjectModels;
 
 	/** Screen space to the context's own pixel space. */
 	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;

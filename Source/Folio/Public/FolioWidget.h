@@ -48,6 +48,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void LoadDocument(const FString& InDocumentPath);
 
+	/**
+	 * Binds a UObject's properties as a named data model, so a document can read them.
+	 *
+	 * This is the view model path, and it takes any UObject. A source implementing
+	 * INotifyFieldValueChanged - which UMVVMViewModelBase does - updates the document as its fields
+	 * change. One that does not is re-read once a frame instead, which costs work per bound field, so
+	 * a view model is the better source when there is a choice.
+	 *
+	 * The document reads them as it would any model: <body data-model="player"> and {{ health }}.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API bool BindViewModel(FName ModelName, UObject* Source, bool bPollEveryFrame = true);
+
 	/** Moves keyboard focus to the document. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void TakeFocus();

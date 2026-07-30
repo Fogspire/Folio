@@ -3,6 +3,7 @@
 #include "FolioInsights.h"
 
 #include "FolioDataModel.h"
+#include "FolioObjectModel.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
@@ -92,6 +93,7 @@ void SFolioCanvas::DestroyContext()
 	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
 	{
 		InputModel.Release();
+		ObjectModels.Empty();
 		Context = nullptr;
 		Document = nullptr;
 		return;
@@ -101,6 +103,7 @@ void SFolioCanvas::DestroyContext()
 	// close. Removing the context destroys everything in it outright, which is what we want.
 	Sounds.Detach();
 	InputModel.Release();
+	ObjectModels.Empty();
 	Document = nullptr;
 	Rml::RemoveContext(Context->GetName());
 	Context = nullptr;
@@ -233,6 +236,14 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	}
 
 	UpdateContextSize(AllottedGeometry);
+
+	// Before the context update, so a value read this frame lays out this frame. Only sources with
+	// no change notification do any work here, and a model whose source was collected stops on its
+	// own rather than being removed - RmlUi owns it, and a document is still bound to its last values.
+	for (const TUniquePtr<FFolioObjectModel>& Model : ObjectModels)
+	{
+		Model->Tick();
+	}
 
 	// A held stick becomes repeated presses here, where there is a clock. Suppressed while a text
 	// field has focus, for the same reason letters are not directions there.
@@ -466,6 +477,23 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 	const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
 	Context->ProcessKeyUp(Key, Modifiers);
 	return bConsumed;
+}
+
+bool SFolioCanvas::BindObjectModel(const FString& ModelName, UObject* Source, const bool bPollEveryFrame)
+{
+	if (!Context)
+	{
+		return false;
+	}
+
+	TUniquePtr<FFolioObjectModel> Model = MakeUnique<FFolioObjectModel>();
+	if (!Model->Mount(Context, ModelName, Source, bPollEveryFrame))
+	{
+		return false;
+	}
+
+	ObjectModels.Add(MoveTemp(Model));
+	return true;
 }
 
 Folio::EInputDevice SFolioCanvas::GetLastInputDevice() const

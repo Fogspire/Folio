@@ -67,6 +67,11 @@ void FFolioDocumentHost::Destroy()
 		return;
 	}
 
+	if (Document && OnDocumentClosing)
+	{
+		OnDocumentClosing();
+	}
+
 	// Closing a document is deferred until the next Update, so the context has to outlive the close.
 	// Removing the context destroys everything in it outright, which is what we want.
 	InputModel.Release();
@@ -102,6 +107,13 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 
 	if (Document)
 	{
+		// Before the close, not after: whatever is listening on this document has to be told while its
+		// elements still exist.
+		if (OnDocumentClosing)
+		{
+			OnDocumentClosing();
+		}
+
 		Document->Close();
 		// Close is deferred to the next update; without this the old document is still alive when the
 		// new one loads and both would render.

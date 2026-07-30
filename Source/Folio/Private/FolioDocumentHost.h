@@ -78,6 +78,15 @@ public:
 	/** Polled sources are read here even when the update is skipped, so one still reports a change. */
 	void TickDataModels();
 
+	/**
+	 * Called before the current document closes, while it is still alive.
+	 *
+	 * Anything holding a pointer into the document has to let go here rather than on the next load: by
+	 * then the elements are freed, and removing a listener from one is a use-after-free rather than a
+	 * no-op.
+	 */
+	TFunction<void()> OnDocumentClosing;
+
 	/** Called after a document loads, for whatever the owner attaches to it. */
 	TFunction<void(Rml::ElementDocument*)> OnDocumentLoaded;
 

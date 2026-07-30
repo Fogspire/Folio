@@ -40,12 +40,10 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 	}
 
 	// Sounds are the canvas's rather than the host's: a world-space document has no UI audio of its own
-	// and would not want the same events.
-	Host.OnDocumentLoaded = [this](Rml::ElementDocument* Loaded)
-	{
-		Sounds.Detach();
-		Sounds.Attach(Loaded);
-	};
+	// and would not want the same events. The listener holds the document, so it lets go while the
+	// document is still alive and attaches to the new one afterwards.
+	Host.OnDocumentClosing = [this] { Sounds.Detach(); };
+	Host.OnDocumentLoaded = [this](Rml::ElementDocument* Loaded) { Sounds.Attach(Loaded); };
 
 	// Slate caches draw elements for a non-volatile widget inside an invalidation root, so a paint has
 	// to be asked for rather than assumed. Outside one this costs nothing and Slate paints regardless.

@@ -4,6 +4,7 @@
 
 #include "HAL/LowLevelMemTracker.h"
 #include "ProfilingDebugging/CountersTrace.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 DEFINE_STAT(STAT_FolioUpdate);
 DEFINE_STAT(STAT_FolioRender);
@@ -24,6 +25,7 @@ namespace FolioInsights
 {
 	namespace
 	{
+#if COUNTERSTRACE_ENABLED
 		/// What the core's HostId slot holds for a counter: the Insights id, plus the running
 		/// total, because the core can ask to add to a counter and Insights only takes absolutes.
 		struct FCounter
@@ -39,7 +41,12 @@ namespace FolioInsights
 			static TArray<FCounter> Storage;
 			return Storage;
 		}
+#endif
 
+		// Shipping compiles the trace machinery out entirely, so FCpuProfilerTrace and
+		// FCountersTrace do not exist there. The hooks still have to, because the core calls them
+		// unconditionally, so they become empty rather than absent.
+#if CPUPROFILERTRACE_ENABLED
 		void BeginScope(Folio::Trace::FScopeSpec& Spec)
 		{
 			if (Spec.HostId == 0)
@@ -55,7 +62,12 @@ namespace FolioInsights
 		{
 			FCpuProfilerTrace::OutputEndEvent();
 		}
+#else
+		void BeginScope(Folio::Trace::FScopeSpec&) {}
+		void EndScope() {}
+#endif
 
+#if COUNTERSTRACE_ENABLED
 		FCounter& Resolve(Folio::Trace::FCounterSpec& Spec)
 		{
 			if (Spec.HostId == 0)
@@ -85,6 +97,10 @@ namespace FolioInsights
 			Counter.Value += Delta;
 			FCountersTrace::OutputSetValue(Counter.Id, Counter.Value);
 		}
+#else
+		void SetCounter(Folio::Trace::FCounterSpec&, int64) {}
+		void AddCounter(Folio::Trace::FCounterSpec&, int64) {}
+#endif
 	}
 
 	void Install()

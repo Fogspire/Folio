@@ -163,7 +163,7 @@ translation reports `[source]`, while text with no key does not appear in the li
 To see a whole screen's worth at once before any translation exists, the preview tool inflates and
 accents every string:
 
-```powershell
+```bash
 uipreview.exe ui\screens\settings.rml --root . --culture pseudo --strict
 ```
 

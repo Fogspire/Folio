@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+#
+# Locates Visual Studio's bundled CMake and Ninja and imports the MSVC environment.
+#
+# Sourced by the build scripts. Nothing has to be installed globally and neither cmake nor ninja has
+# to be on PATH.
+#
+# Bash rather than PowerShell even though this half is Windows-only: a .sh can grow a Linux branch
+# later, and a .ps1 never can. When Folio builds on Linux, folio_import_toolchain gains a case here
+# rather than a second script somewhere else.
+#
+# Sets FOLIO_CMAKE, FOLIO_NINJA and FOLIO_VS_PATH.
+
+folio_is_windows() {
+	case "$(uname -s)" in
+		MINGW*|MSYS*|CYGWIN*) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+folio_die() {
+	echo "error: $*" >&2
+	exit 1
+}
+
+# Windows puts a parenthesis in the name, which is not a legal shell identifier, so it cannot be
+# read as $ProgramFiles(x86) and has to come out of the environment by name.
+folio_program_files_x86() {
+	local value
+	value="$(printenv 'ProgramFiles(x86)' 2>/dev/null || true)"
+	if [[ -n "$value" ]]; then
+		cygpath -u "$value"
+	else
+		echo "/c/Program Files (x86)"
+	fi
+}
+
+#
+# Imports the MSVC environment for the given toolset into this shell.
+#
+# 'latest' picks the highest toolset installed, which is what UnrealBuildTool also defaults to.
+# Static libraries that will be linked into an Unreal module must be built with the same one: check
+# UBT's "Toolchain Information" line and pass the version explicitly if it disagrees.
+#
+folio_import_msvc() {
+	local toolset="${1:-latest}"
+
+	if ! folio_is_windows; then
+		folio_die "this build is Windows only. Folio's ThirdParty libraries are MSVC static libraries; there is no Linux toolchain path yet."
+	fi
+
+	local vswhere
+	vswhere="$(folio_program_files_x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+	if [[ ! -f "$vswhere" ]]; then
+		folio_die "vswhere.exe not found at '$vswhere'. Install Visual Studio 2022 with the C++ desktop workload."
+	fi
+
+	# Installs carrying the C++ toolset, rather than simply the newest: a BuildTools install may
+	# ship neither the toolset nor CMake.
+	local -a installs=()
+	while IFS= read -r line; do
+		line="${line%$'\r'}"
+		[[ -n "$line" ]] && installs+=("$(cygpath -u "$line")")
+	done < <("$vswhere" -products '*' \
+		-requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+		-property installationPath 2>/dev/null)
+
+	if [[ ${#installs[@]} -eq 0 ]]; then
+		folio_die "no Visual Studio installation with the C++ desktop workload was found."
+	fi
+
+	if [[ "$toolset" == "latest" ]]; then
+		# Sorted as versions, not as strings, or 14.9 beats 14.50.
+		toolset="$(
+			for install in "${installs[@]}"; do
+				[[ -d "$install/VC/Tools/MSVC" ]] || continue
+				ls -1 "$install/VC/Tools/MSVC" 2>/dev/null
+			done | sort -V | tail -1
+		)"
+		[[ -n "$toolset" ]] || folio_die "no MSVC toolset found in any Visual Studio install."
+	fi
+
+	FOLIO_VS_PATH=""
+	for install in "${installs[@]}"; do
+		if [[ -d "$install/VC/Tools/MSVC/$toolset" ]]; then
+			FOLIO_VS_PATH="$install"
+			break
+		fi
+	done
+
+	if [[ -z "$FOLIO_VS_PATH" ]]; then
+		echo "No Visual Studio install provides MSVC toolset $toolset:" >&2
+		for install in "${installs[@]}"; do
+			echo "  $install -> $(ls -1 "$install/VC/Tools/MSVC" 2>/dev/null | tr '\n' ' ')" >&2
+		done
+		folio_die "install the required toolset, or select an available one with --toolset."
+	fi
+
+	FOLIO_CMAKE="$FOLIO_VS_PATH/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
+	FOLIO_NINJA="$FOLIO_VS_PATH/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
+	local vsdevcmd="$FOLIO_VS_PATH/Common7/Tools/VsDevCmd.bat"
+
+	local tool
+	for tool in "$FOLIO_CMAKE" "$FOLIO_NINJA" "$vsdevcmd"; do
+		[[ -f "$tool" ]] || folio_die "missing '$tool'. Add the 'C++ CMake tools for Windows' component to the Visual Studio install."
+	done
+
+	echo "Importing MSVC environment (toolset $toolset)..." >&2
+
+	# Some of VsDevCmd's helper scripts invoke vswhere without a path.
+	PATH="$(dirname "$vswhere"):$PATH"
+	export PATH
+
+	# The environment lives in a cmd process, so it has to be dumped and imported.
+	#
+	# Through a generated batch file rather than `cmd //c "..."`, because a quoted path handed
+	# straight from bash to cmd does not survive: bash's escaping and MSYS's path mangling fight over
+	# it and cmd ends up seeing a literal \" in the command name. A wrapper does its own quoting on
+	# the cmd side, where the rules are consistent.
+	local wrapper
+	wrapper="$(mktemp --suffix=.bat)"
+	printf '@echo off\r\ncall "%s" -arch=amd64 -host_arch=amd64 -vcvars_ver=%s -no_logo\r\nif errorlevel 1 exit /b 1\r\nset\r\n' \
+		"$(cygpath -w "$vsdevcmd")" "$toolset" > "$wrapper"
+
+	local dumped status=0
+	dumped="$(cmd //c "$(cygpath -w "$wrapper")" 2>&1)" || status=$?
+	rm -f "$wrapper"
+
+	if [[ $status -ne 0 ]]; then
+		echo "$dumped" >&2
+		folio_die "VsDevCmd.bat failed. Is MSVC toolset $toolset installed? Override with --toolset."
+	fi
+
+	local name value
+	while IFS= read -r line; do
+		line="${line%$'\r'}"
+		[[ "$line" == *=* ]] || continue
+		name="${line%%=*}"
+		value="${line#*=}"
+
+		# A name with anything but word characters is not a shell identifier - cmd exports several -
+		# and exporting one is a syntax error rather than a warning.
+		[[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+
+		if [[ "$name" == "PATH" || "$name" == "Path" ]]; then
+			# The only variable that has to change form: bash resolves executables through a POSIX
+			# path list, while the compiler reads INCLUDE and LIB as Windows paths and must not be
+			# converted.
+			PATH="$(cygpath -up "$value")"
+			export PATH
+		else
+			export "$name=$value"
+		fi
+	done <<< "$dumped"
+
+	[[ -n "${INCLUDE:-}" ]] || folio_die "VsDevCmd.bat did not set INCLUDE. The MSVC environment was not imported."
+}
+
+#
+# Resolves the Unreal engine directory for the project this plugin sits in.
+#
+# Reads EngineAssociation from the .uproject and looks it up in the registry, which is where source
+# builds register themselves. A launcher install stores a version string instead, so that case falls
+# back to the standard install location.
+#
+folio_resolve_engine() {
+	local project_root="$1"
+
+	local uproject
+	uproject="$(find "$project_root" -maxdepth 1 -name '*.uproject' -print -quit)"
+	[[ -n "$uproject" ]] || folio_die "no .uproject found in '$project_root'. Pass --engine-dir explicitly."
+
+	local association
+	association="$(sed -n 's/.*"EngineAssociation"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$uproject" | head -1)"
+	[[ -n "$association" ]] || folio_die "$(basename "$uproject") has no EngineAssociation. Pass --engine-dir explicitly."
+
+	local root=""
+
+	if folio_is_windows && command -v reg >/dev/null 2>&1; then
+		local key
+		for key in 'HKCU\Software\Epic Games\Unreal Engine\Builds' 'HKLM\Software\Epic Games\Unreal Engine\Builds'; do
+			# Everything after REG_SZ, not the last field: an engine path routinely contains spaces.
+			# reg also emits CRLF, and a trailing carriage return turns a valid path into a missing one.
+			root="$(reg query "$key" 2>/dev/null \
+				| grep -F "$association" \
+				| sed -e 's/\r$//' -e 's/.*REG_SZ[[:space:]]*//' \
+				| head -1)"
+			[[ -n "$root" ]] && break
+		done
+
+		# A launcher install associates by version number rather than by GUID.
+		if [[ -z "$root" && "$association" =~ ^[0-9]+\.[0-9]+$ ]]; then
+			local install_root
+			install_root="$(reg query 'HKLM\Software\EpicGames\Unreal Engine' //v INSTALLDIR 2>/dev/null \
+				| sed -e 's/\r$//' -e 's/.*REG_SZ[[:space:]]*//' | head -1)"
+			[[ -n "$install_root" ]] && root="$install_root/UE_$association"
+		fi
+	else
+		local install="${XDG_CONFIG_HOME:-$HOME/.config}/Epic/UnrealEngine/Install.ini"
+		[[ -f "$install" ]] && root="$(sed -n "s|^${association}=||p" "$install" | head -1)"
+	fi
+
+	[[ -n "$root" ]] || folio_die "could not resolve engine '$association'. Pass --engine-dir explicitly."
+
+	local engine="$root/Engine"
+	[[ -d "$engine" ]] || folio_die "'$engine' does not exist. Pass --engine-dir explicitly."
+
+	echo "$engine"
+}

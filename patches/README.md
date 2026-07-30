@@ -11,7 +11,7 @@ Generate one from a modified checkout of the dependency:
 Adding or changing a patch needs a clean build tree, since the dependency is only fetched and
 patched once:
 
-    .\scripts\build.ps1 -Clean
+    ./scripts/build.sh --clean
 
 Every patch should say in its commit message why it exists and what upstream state makes it
 removable, so the pin can be moved forward without archaeology.

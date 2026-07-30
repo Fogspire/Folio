@@ -93,8 +93,8 @@ Folio looks for `ui/mock/<model>.json` and mounts it if game code has not bound 
 
 Now the preview shows a working bar:
 
-```powershell
-.\bin\win64\uipreview.exe <YourProject>\ui\healthbar.rml --root <YourProject>
+```bash
+./bin/win64/uipreview.exe <YourProject>/ui/healthbar.rml --root <YourProject>
 ```
 
 Edit the numbers, save, watch it change. Set `Health` to `18` and the bar turns red without any code

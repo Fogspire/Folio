@@ -2,7 +2,7 @@ using System.IO;
 using UnrealBuildTool;
 
 /// <summary>
-/// msdfgen 1.12, built as static libraries by scripts/build_ue_libs.ps1 alongside RmlUi.
+/// msdfgen 1.12, built as static libraries by scripts/build_ue_libs.sh alongside RmlUi.
 ///
 /// The libraries are not in source control, for the same reason RmlUi's are not.
 /// </summary>
@@ -19,7 +19,7 @@ public class MsdfgenLibrary : ModuleRules
 		{
 			throw new BuildException(
 				"msdfgen has not been built for Unreal.\n" +
-				"Run: Plugins\\Folio\\scripts\\build_ue_libs.ps1\n" +
+				"Run: Plugins\\Folio\\scripts/\build_ue_libs.sh\n" +
 				"It builds RmlUi and msdfgen together.");
 		}
 

@@ -21,41 +21,41 @@ and the UE plugin under `Source/`. Anything authored in one renders in the other
 | `Shaders/` | The distance field shader, shared by the material and the layer path |
 | `rcss/` | `folio.rcss`, the base stylesheet every document links |
 | `fonts/` | The variable typefaces Folio ships as defaults |
-| `scripts/build.ps1` | The supported build entry point |
-| `scripts/verify.ps1` | The verification harness |
+| `scripts/build.sh` | The supported build entry point |
+| `scripts/verify.sh` | The verification harness |
 | `ASSETS_WANTED.md` | Art request queue, maintained automatically by `uipreview` |
 
 ## Building
 
 Requires **Visual Studio 2022** with the C++ desktop workload. Nothing else needs installing:
-`build.ps1` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be
+`build.sh` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be
 on `PATH`.
 
-```powershell
-.\scripts\build.ps1                        # RelWithDebInfo, default
-.\scripts\build.ps1 -Config Debug
-.\scripts\build.ps1 -Clean                 # wipes the build tree, re-fetches dependencies
-.\scripts\build.ps1 -Asan                  # AddressSanitizer, into its own build tree
+```bash
+./scripts/build.sh                        # RelWithDebInfo, default
+./scripts/build.sh --config Debug
+./scripts/build.sh --clean                 # wipes the build tree, re-fetches dependencies
+./scripts/build.sh --asan                  # AddressSanitizer, into its own build tree
 ```
 
-Output lands at `bin\win64\`.
+Output lands at `bin/win64`.
 
 The first build clones the dependencies and takes several minutes. Later builds reuse them.
 
-`build.ps1` runs `check_shader_parity.ps1` before compiling, which fails if the HLSL and GLSL
-distance field shaders have drifted apart. `-SkipShaderParity` to bypass it while editing one
+`build.sh` runs `check_shader_parity.sh` before compiling, which fails if the HLSL and GLSL
+distance field shaders have drifted apart. `--skip-shader-parity` to bypass it while editing one
 side.
 
-Every configuration writes to the same `bin\win64\`, so an `-Asan` build replaces the normal
+Every configuration writes to the same `bin/win64`, so an `--asan` build replaces the normal
 binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH
 for the sanitizer runtime.
 
 ## Verification
 
-```powershell
-.\scripts\verify.ps1 -Out build\verify-before
+```bash
+./scripts/verify.sh --out build\verify-before
 # ...change something...
-.\scripts\verify.ps1 -Baseline build\verify-before
+./scripts/verify.sh --baseline build\verify-before
 ```
 
 Runs every document in `Tools/uipreview/tests/` under `--strict` at two dp ratios, writes a text
@@ -67,7 +67,7 @@ change to the text engine shifts them slightly and moves line breaks; the diff r
 that wrapped somewhere new. That is the regression this system is most likely to cause and the
 least likely to be noticed by looking.
 
-Use `-Asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is
+Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is
 still intact, so they survive for weeks and then fail on someone else's machine.
 
 ### Backend and dependency choices
@@ -117,21 +117,21 @@ specific ones that bite.
 
 The tool is game agnostic: it renders whatever content root it is pointed at.
 
-```powershell
+```bash
 # open a document with hot reload and the RmlUi debugger. F8 toggles the debugger
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --debug
+./bin/win64/uipreview.exe ui/screens/main_menu.rml --debug
 
 # render one frame to a PNG without showing a window
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --screenshot out.png --size 1280x800
+./bin/win64/uipreview.exe ui/screens/main_menu.rml --screenshot out.png --size 1280x800
 
 # drive navigation and capture each step, to verify focus order
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --keys "down,down,confirm" --shot-each shots\
+./bin/win64/uipreview.exe ui/screens/main_menu.rml --keys "down,down,confirm" --shot-each shots/
 
 # check a screen for length overflow before any translations exist
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --culture pseudo --screenshot pseudo.png
+./bin/win64/uipreview.exe ui/screens/main_menu.rml --culture pseudo --screenshot pseudo.png
 
 # validate for CI, failing on warnings too, and emit a machine readable report
-.\bin\win64\uipreview.exe ui\screens\main_menu.rml --screenshot nul --strict --json-report report.json
+./bin/win64/uipreview.exe ui/screens/main_menu.rml --screenshot nul --strict --json-report report.json
 ```
 
 **Fonts.** Faces resolve in order: `--font` if given, else any font under `<root>/ui/fonts`,

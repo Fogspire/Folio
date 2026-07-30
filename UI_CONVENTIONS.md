@@ -793,14 +793,14 @@ stylesheet. A non-zero exit code means the document is invalid.
 
 ### The harness
 
-`scripts/verify.ps1` runs every document in `Tools/uipreview/tests/` under `--strict` at two dp
+`scripts/verify.sh` runs every document in `Tools/uipreview/tests/` under `--strict` at two dp
 ratios, writes a metrics report for each, optionally diffs them against a previous run, and
 takes the screenshots that have to be judged by eye.
 
-```powershell
-.\scripts\verify.ps1 -Out build\verify-before
+```bash
+./scripts/verify.sh --out build\verify-before
 # ...change something...
-.\scripts\verify.ps1 -Baseline build\verify-before
+./scripts/verify.sh --baseline build\verify-before
 ```
 
 `--metrics-report` is what makes a text-engine change reviewable. It records where every text
@@ -808,10 +808,10 @@ element and every wrapped line landed, and the diff reports lines that broke som
 the regression this system is most likely to cause and the least likely to be noticed by eye.
 Compare like for like: same size, same dp ratio.
 
-`scripts/check_shader_parity.ps1` fails if `Shaders/Private/FolioMsdf.ush` and the GLSL in
-`Tools/uipreview/src/MsdfProgram.cpp` have drifted. `build.ps1` runs it before compiling. A
+`scripts/check_shader_parity.sh` fails if `Shaders/Private/FolioMsdf.ush` and the GLSL in
+`Tools/uipreview/src/MsdfProgram.cpp` have drifted. `build.sh` runs it before compiling. A
 golden-image comparison cannot catch this — the two renderers' colour pipelines never match
 pixel for pixel, so only the source can be compared.
 
-`build.ps1 -Asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that
+`build.sh --asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that
 is still intact, so they survive for weeks and then fail somewhere else.

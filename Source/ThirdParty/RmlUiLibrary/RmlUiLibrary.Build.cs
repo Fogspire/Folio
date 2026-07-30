@@ -2,7 +2,7 @@ using System.IO;
 using UnrealBuildTool;
 
 /// <summary>
-/// RmlUi 6.2, built as static libraries by scripts/build_ue_libs.ps1.
+/// RmlUi 6.2, built as static libraries by scripts/build_ue_libs.sh.
 ///
 /// The libraries are not in source control: they run to tens of megabytes and would land in
 /// history again on every rebuild. Building them is a one-time step, documented in README.md.
@@ -20,7 +20,7 @@ public class RmlUiLibrary : ModuleRules
 		{
 			throw new BuildException(
 				"RmlUi has not been built for Unreal.\n" +
-				"Run: Plugins\\Folio\\scripts\\build_ue_libs.ps1\n" +
+				"Run: Plugins\\Folio\\scripts/\build_ue_libs.sh\n" +
 				"It needs Visual Studio 2022 and takes a few minutes on a cold tree.");
 		}
 

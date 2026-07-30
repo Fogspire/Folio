@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""Runs the Folio verification harness.
+
+Three things, in order of how much they catch:
+
+Parity. The HLSL and GLSL field shaders must agree, or the editor and the preview tool disagree about
+text in a way no screenshot comparison would reveal.
+
+Layout. Every test and example document is rendered under --strict and its text metrics written out.
+Given a baseline, the reports are compared numerically: a moved line break is the symptom of an advance
+that changed, which is the regression this system is most likely to cause and the least likely to be
+noticed by eye.
+
+Images. Screenshots of the scale, weight and typography documents. These are for a person to look at -
+the distance field case is about how text reads at 8x magnification and at 10dp, and neither is a number.
+
+Nothing here asserts against a committed golden image. The two renderers' colour pipelines differ,
+displays differ, and a harness that cries wolf gets ignored.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import pathlib
+import subprocess
+import sys
+
+# The dp ratio is pinned rather than derived from the window. A window larger than the display is
+# silently clamped, so an unpinned run reports whatever ratio the desktop happened to allow and two
+# machines would never agree.
+# Spelled without a trailing .0 because that is what the harness has always written, and a
+# baseline directory recorded before this was ported still has to compare against a new run.
+RATIOS = ("1", "2")
+
+SHOTS = (
+    ("scale.rml", "1920x1080", "1"),
+    ("weights.rml", "1920x1080", "1"),
+    ("typography.rml", "1920x1080", "1"),
+    ("typography.rml", "1920x1080", "2"),
+    ("effects.rml", "1920x1080", "1"),
+    ("effect_edges.rml", "800x480", "1"),
+    ("vector_stack.rml", "600x400", "1"),
+    ("outside_blur.rml", "700x460", "1"),
+    ("vector_strokes.rml", "620x700", "1"),
+    ("textured_text.rml", "620x480", "1"),
+    ("shader_decorator.rml", "640x620", "1"),
+)
+
+DEVICE_CASES = (("keyboard", "south"), ("mouse", "south"), ("gamepad", "south"), ("gamepad", "east"))
+
+
+class Harness:
+    def __init__(self, preview: pathlib.Path, out: pathlib.Path) -> None:
+        self.preview = preview
+        self.out = out
+        self.failures: list[str] = []
+
+    def fail(self, message: str) -> None:
+        print(f"  FAIL {message}")
+        self.failures.append(message)
+
+    @staticmethod
+    def ok(message: str) -> None:
+        print(f"  ok   {message}")
+
+    def run(self, arguments: list[str]) -> subprocess.CompletedProcess:
+        # uipreview reports on stderr by design, so its output is captured rather than treated as a
+        # failure signal. The exit code is what says whether it worked.
+        return subprocess.run([str(self.preview), *arguments], capture_output=True, text=True)
+
+
+def read_json(path: pathlib.Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def laid_out_text(report: pathlib.Path) -> list[str]:
+    """Text of every element the report says was laid out.
+
+    The metrics report only lists line boxes for text that was laid out, so an element hidden by a class
+    rule or by data-if has none - which is what makes visibility checkable without comparing images.
+    """
+    parsed = read_json(report)
+    return [entry["text"] for entry in parsed.get("text", []) if entry.get("lines")]
+
+
+def all_lines(report_data) -> list[str]:
+    return [line["text"] for entry in report_data.get("text", []) for line in entry.get("lines", [])]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--repo", help="the Folio repository root")
+    parser.add_argument("--out", help="where reports and screenshots are written")
+    parser.add_argument("--baseline",
+                        help="a previous --out directory; metrics reports are compared against it and "
+                             "differences listed. Without it the run only records")
+    parser.add_argument("--skip-shader-parity", action="store_true")
+    parser.add_argument("--visual-tests", action="store_true",
+                        help="also run RmlUi's own visual test suite. Off by default: 109 documents take "
+                             "longer than the rest of the harness put together")
+    args = parser.parse_args()
+
+    repo = pathlib.Path(args.repo).resolve() if args.repo else pathlib.Path(__file__).resolve().parents[2]
+    preview = repo / "bin/win64/uipreview.exe"
+    if not preview.is_file():
+        preview = repo / "bin/win64/uipreview"
+    if not preview.is_file():
+        print(f"verify: {preview} not found. Run scripts/build.sh first.", file=sys.stderr)
+        return 1
+
+    out = pathlib.Path(args.out).resolve() if args.out else repo / "build/verify"
+    out.mkdir(parents=True, exist_ok=True)
+
+    harness = Harness(preview, out)
+    tests_dir = repo / "Tools/uipreview/tests"
+
+    # What a document needs beyond the defaults, and what it is supposed to do. missing_assets.rml
+    # exists to be caught, so a clean exit from it would mean the sprite checks had stopped working.
+    hud_json = str(tests_dir / "hud.json")
+    setup: dict[str, dict] = {
+        "data_model": {"args": ["--data", hud_json]},
+        "hud": {"args": ["--data", hud_json]},
+        "menu": {"args": ["--data", hud_json]},
+        "missing_assets": {"expect": 5},
+        "effect_edges": {"expect": 5},
+    }
+
+    # --- Shader parity ----------------------------------------------------------------------
+
+    if not args.skip_shader_parity:
+        print("Shader parity")
+        parity = subprocess.run([sys.executable, str(repo / "Tools/shaderparity/check_parity.py"),
+                                 "--repo", str(repo)], capture_output=True, text=True)
+        if parity.returncode != 0:
+            harness.fail("HLSL and GLSL field shaders disagree (run scripts/check_shader_parity.sh)")
+        else:
+            harness.ok("FolioMsdf.ush matches MsdfProgram.cpp")
+
+    # --- Documents --------------------------------------------------------------------------
+
+    print("Layout")
+    for document in sorted(tests_dir.glob("*.rml")):
+        for ratio in RATIOS:
+            name = f"{document.stem}@{ratio}"
+            report = out / f"{name}.metrics.json"
+
+            entry = setup.get(document.stem, {})
+            extra = entry.get("args", [])
+            expect = entry.get("expect", 0)
+
+            result = harness.run([str(document), "--size", "1920x1080", "--dp-ratio", ratio,
+                                  "--strict", "--no-assets-wanted", "--metrics-report", str(report),
+                                  *extra])
+
+            if result.returncode != expect:
+                harness.fail(f"{name} exited {result.returncode}, expected {expect}")
+                for line in (result.stdout + result.stderr).splitlines()[:5]:
+                    print(f"    {line}")
+                continue
+            if not report.is_file():
+                harness.fail(f"{name} wrote no metrics report")
+                continue
+            harness.ok(name)
+
+    # --- Compare against a baseline ---------------------------------------------------------
+
+    if args.baseline:
+        print("Metrics diff")
+        baseline = pathlib.Path(args.baseline)
+        if not baseline.is_dir():
+            harness.fail(f"baseline {baseline} does not exist")
+        else:
+            for current in sorted(out.glob("*.metrics.json")):
+                before = baseline / current.name
+                if not before.is_file():
+                    print(f"  new  {current.stem}")
+                    continue
+
+                # Line text first. A box that resized is worth knowing about; a line that broke
+                # somewhere new is what actually changes how a screen reads.
+                lines_before = all_lines(read_json(before))
+                lines_now = all_lines(read_json(current))
+
+                if len(lines_before) != len(lines_now):
+                    harness.fail(f"{current.stem}: {len(lines_before)} lines became {len(lines_now)}")
+                    continue
+
+                moved = 0
+                for index, (was, now) in enumerate(zip(lines_before, lines_now)):
+                    if was != now:
+                        if moved < 5:
+                            print(f"    line {index}")
+                            print(f"      was: {was}")
+                            print(f"      now: {now}")
+                        moved += 1
+
+                if moved:
+                    if moved >= 5:
+                        print(f"    ... and {moved - 5} more")
+                    harness.fail(f"{current.stem}: {moved} lines wrapped differently")
+                else:
+                    harness.ok(f"{current.stem} unchanged")
+
+    # --- Screenshots ------------------------------------------------------------------------
+
+    print("Screenshots")
+    for document_name, size, ratio in SHOTS:
+        document = tests_dir / document_name
+        if not document.is_file():
+            harness.fail(f"missing {document_name}")
+            continue
+
+        name = f"{document.stem}@{ratio}.png"
+        png = out / name
+
+        harness.run([str(document), "--size", size, "--dp-ratio", ratio,
+                     "--no-assets-wanted", "--screenshot", str(png)])
+        if png.is_file():
+            harness.ok(name)
+        else:
+            harness.fail(f"no screenshot for {name}")
+
+    # --- Input device -----------------------------------------------------------------------
+
+    # Both routes the device reaches markup by, across every combination.
+    print("Input device")
+    device_doc = tests_dir / "input_device.rml"
+    if not device_doc.is_file():
+        harness.fail("missing input_device.rml")
+    else:
+        for device, confirm in DEVICE_CASES:
+            label = f"{device}/{confirm}"
+            report = out / f"input_device.{device}.{confirm}.json"
+
+            result = harness.run([str(device_doc), "--strict", "--no-assets-wanted",
+                                  "--input-device", device, "--confirm-button", confirm,
+                                  "--metrics-report", str(report)])
+
+            if result.returncode != 0:
+                harness.fail(f"{label} exited {result.returncode}")
+                continue
+            if not report.is_file():
+                harness.fail(f"{label} wrote no report")
+                continue
+
+            shown = laid_out_text(report)
+            pad = device == "gamepad"
+            expected = [
+                (f"device={device}", True),
+                (f"gamepad={'1' if pad else '0'}", True),
+                (f"confirm={confirm}", True),
+                (f"back={'south' if confirm == 'east' else 'east'}", True),
+                ("the confirm button", pad),
+                ("Enter", not pad),
+                ("A / Cross", confirm == "south"),
+                ("B / Circle", confirm == "east"),
+                (f"a sprite name built from it: btn_{confirm}", pad),
+            ]
+
+            wrong = [f"'{text}' should{'' if want else ' not'} show"
+                     for text, want in expected if (text in shown) != want]
+            if wrong:
+                harness.fail(f"{label} - {'; '.join(wrong)}")
+            else:
+                harness.ok(label)
+
+    # --- Texture reload ---------------------------------------------------------------------
+
+    # What a hot reload does, done twice in one process: render, throw every texture away, render again.
+    # The two images must be identical. They are not, if something releases a texture it does not own -
+    # which is easy to do, because a glyph atlas and a baked sprite sheet reach the render interface
+    # through the same call and only one of them belongs to RmlUi.
+    print("Texture reload")
+    for name in ("typography", "effects", "menu"):
+        document = tests_dir / f"{name}.rml"
+        if not document.is_file():
+            continue
+
+        plain = out / f"{name}.reload-before.png"
+        after = out / f"{name}.reload-after.png"
+        extra = setup.get(name, {}).get("args", [])
+
+        harness.run([str(document), "--size", "1920x1080", "--dp-ratio", "1", "--no-assets-wanted",
+                     "--screenshot", str(plain), *extra])
+        harness.run([str(document), "--size", "1920x1080", "--dp-ratio", "1", "--no-assets-wanted",
+                     "--reload-textures", "--screenshot", str(after), *extra])
+
+        if not plain.is_file() or not after.is_file():
+            harness.fail(f"{name}: reload comparison produced no image")
+            continue
+
+        digest_before = hashlib.sha256(plain.read_bytes()).hexdigest()
+        digest_after = hashlib.sha256(after.read_bytes()).hexdigest()
+        if digest_before != digest_after:
+            harness.fail(f"{name} renders differently after releasing its textures")
+        else:
+            harness.ok(f"{name} survives a texture reload")
+
+    # --- RmlUi's visual test suite ----------------------------------------------------------
+
+    if args.visual_tests:
+        print("Visual tests")
+        visual = subprocess.run([sys.executable, str(repo / "Tools/verify/visual_tests.py"),
+                                 "--repo", str(repo), "--out", str(out / "visual")])
+        if visual.returncode != 0:
+            harness.fail("RmlUi visual tests regressed (run scripts/visual_tests.sh)")
+        else:
+            harness.ok("RmlUi visual tests match their baseline")
+
+    # --- Summary ----------------------------------------------------------------------------
+
+    print("")
+    if not harness.failures:
+        print(f"Verification passed. Output in {out}")
+        return 0
+
+    print(f"Verification failed: {len(harness.failures)} problem(s).", file=sys.stderr)
+    for message in harness.failures:
+        print(f"  {message}", file=sys.stderr)
+    print(f"Output in {out}", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

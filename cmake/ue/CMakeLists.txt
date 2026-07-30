@@ -1,6 +1,6 @@
 # Builds RmlUi as static libraries for the Unreal ThirdParty module.
 #
-# Driven by scripts/build_ue_libs.ps1, which supplies the toolset and the engine directory.
+# Driven by scripts/build_ue_libs.sh, which supplies the toolset and the engine directory.
 # Not part of the root build: the preview tool and the engine want different FreeType, a
 # different runtime library and a different output location.
 #

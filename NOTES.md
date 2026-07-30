@@ -388,7 +388,7 @@ CMake never applied the value - it only ever read as documentation, and it docum
 toolset that is not installed.
 
 A build tree caches `CMAKE_CXX_COMPILER` from its first configure, but `INCLUDE` comes from
-whatever `VsEnv.ps1` resolves now. When those drift apart the STL fails the compiler out
+whatever `vsenv.sh` resolves now. When those drift apart the STL fails the compiler out
 rather than the mismatch being silent:
 
 ```
@@ -398,9 +398,9 @@ yvals_core.h(929): error C2338: static_assert failed:
 
 followed by a hundred errors inside `<type_traits>` and `<xutility>`. It looks like the
 dependency that happened to compile first is broken. It is not - the fix is
-`build.ps1 -Clean`.
+`build.sh --clean`.
 
-`scripts/build_ue_libs.ps1` builds RmlUi for Unreal, separately from the preview tool. The
+`scripts/build_ue_libs.sh` builds RmlUi for Unreal, separately from the preview tool. The
 two need different settings: the engine's FreeType rather than our own, `/MD`, no RTTI, and
 output staged into `Source/ThirdParty/RmlUiLibrary`. Those libraries are **not committed** -
 they run to tens of megabytes and would re-enter history on every rebuild - so a fresh clone
@@ -514,7 +514,7 @@ The general rule this is an instance of: **anything holding an `IMsdfTextureSink
 before the object implementing it.** Member declaration order will not arrange that on its own
 when part of the teardown is explicit calls in a destructor body.
 
-**Use `build.ps1 -Asan` for any intermittent crash here.** It named this one on the first run,
+**Use `build.sh --asan` for any intermittent crash here.** It named this one on the first run,
 with both stacks - the free and the later read - after an afternoon of bisecting had only
 established that it needed a cold cache. It builds into `build/win64-asan` but writes its
 binaries to the same `bin/win64`, so rebuild without the flag afterwards, and run it from a
@@ -531,7 +531,7 @@ It does mean every existing screen re-flows slightly against a hinted rasteriser
 line break is not stable across dp ratios: an advance is a whole number of pixels at each size,
 so doubling the ratio halves the relative rounding error and words move between lines.
 
-`uipreview --metrics-report` and `scripts/verify.ps1 -Baseline` exist to make that visible
+`uipreview --metrics-report` and `scripts/verify.sh --baseline` exist to make that visible
 rather than discovered. Compare like for like - same size, same dp ratio. A break that moves
 after an engine change is usually correct and still has to be looked at.
 
@@ -590,7 +590,7 @@ Both renderers now track which field pages came from a file, and release only th
 atlas belongs to the font engine and goes at shutdown through `ReleaseAtlasHandle`.
 
 `uipreview --reload-textures` renders, releases everything, renders again and captures.
-`verify.ps1` compares that against an ordinary capture and fails on any difference, which is the
+`verify.sh` compares that against an ordinary capture and fails on any difference, which is the
 only cheap way to catch this class of bug: it needs a reload to happen, and a reload is
 something you normally only do by hand.
 
@@ -731,16 +731,16 @@ those the script runs silently and looks like it did nothing.
 **Where the pattern is read from is the host's job, not the field maths.** Unreal computes the UV
 from `Parameters.SvPosition` in the Custom node; the preview tool from `gl_FragCoord`, flipped,
 since GL puts the origin at the bottom. Both are screen space, so a pattern is continuous across
-a whole run instead of restarting on each glyph quad. `check_shader_parity.ps1` skips a block
+a whole run instead of restarting on each glyph quad. `check_shader_parity.sh` skips a block
 fenced with `FOLIO_MSDF_HOST_BEGIN`/`END` for exactly this - the two renderers are expected to
 differ there, and only there.
 
 ## RmlUi's visual test suite, and what its numbers mean
 
-`scripts/visual_tests.ps1` runs the 109 documents in `Tests/Data/VisualTests` from the fetched
+`scripts/visual_tests.sh` runs the 109 documents in `Tests/Data/VisualTests` from the fetched
 RmlUi tree through uipreview. They cover layout, floats, flexbox, tables, transforms, filters,
 clip masks, box-shadow and text, and they exercise the render interface far harder than anything
-hand-written here. `verify.ps1 -VisualTests` runs them; it is off by default because they take
+hand-written here. `verify.sh --visual-tests` runs them; it is off by default because they take
 longer than the whole rest of the harness.
 
 All 109 render. The suite still reports 197 errors and 448 warnings, and almost none of that is
@@ -1162,7 +1162,7 @@ exists at all rather than what to display.
 **Verification, and how to repeat it.** `folio.Loc.Report [document]` lists every key with `[loc]` or
 `[source]`. Run it in a `-game` session rather than PIE:
 
-```powershell
+```bash
 UnrealEditor.exe <project>.uproject -game -windowed -resx=640 -resy=360 `
   -ExecCmds="folio.Loc.Report ui/screens/settings.rml" -log=Loc.log
 ```
@@ -1175,3 +1175,34 @@ throwaway config holding `[CommonSettings]` plus a single `[GatherTextStep0]` of
 `-run=GenerateTextLocalizationResource` crashes: it has to go through `-run=GatherText`.
 
 The manifest and archives are **UTF-16**, so reading one with a UTF-8 decoder fails on the first byte.
+
+## The scripts are bash, including the Windows-only ones
+
+Every script under `scripts/` is `.sh`. That includes `build.sh` and `build_ue_libs.sh`, which are
+Windows-only today because they build MSVC static libraries: the reasoning is that a `.sh` can grow a
+Linux branch later and a `.ps1` never can, so when Folio builds on Linux `folio_import_msvc` gains a
+sibling in `vsenv.sh` rather than a second script somewhere else.
+
+The logic-heavy ones are python behind a thin `.sh` wrapper, following what `loc.sh` already did:
+`Tools/shaderparity/check_parity.py`, `Tools/verify/verify.py`, `Tools/verify/visual_tests.py`. They
+read and compare JSON, which a shell does badly, and python is already a dependency.
+
+**Importing the MSVC environment from bash needs a generated batch file.** The environment lives in a
+cmd process, so it has to be dumped with `set` and read back. Handing the command straight over as
+`cmd //c "\"$vsdevcmd\" ... && set"` does not work: bash's escaping and MSYS's path mangling fight over
+the quoting and cmd ends up seeing a literal `\"` as the command name. Writing a one-line `.bat` that
+does its own quoting on the cmd side, then running that, is reliable. Two further traps in the same
+place:
+
+- **`MSYS_NO_PATHCONV=1` suppresses the `//c` to `/c` rewrite**, so cmd receives `//c`, ignores it, and
+  opens an interactive shell that returns its banner and hangs. Use one or the other, never both.
+- **Only `PATH` may be converted to POSIX form.** `cygpath -up` it so bash can resolve `cl.exe`, and
+  leave `INCLUDE`, `LIB` and `LIBPATH` as Windows paths, because the compiler reads them natively.
+- Names cmd exports that are not legal shell identifiers have to be skipped, or `export` is a syntax
+  error rather than a warning.
+
+**The ports were checked against the originals rather than assumed equivalent.** `check_parity.py`
+reports the same 779 tokens, all 40 metrics reports from `verify.sh` are byte-identical to the
+PowerShell run's, and the visual suite renders 109 of 109. One thing that had to be preserved
+deliberately: PowerShell stringified a dp ratio of `1.0` as `1`, so the report and screenshot names are
+`name@1` rather than `name@1.0`, and a baseline directory recorded before the port still compares.

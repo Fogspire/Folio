@@ -20,9 +20,9 @@ Copy or clone Folio to:
 Folio uses RmlUi and msdfgen, which are compiled from source against your engine's toolchain rather
 than shipped as binaries. This is a one-off:
 
-```powershell
+```bash
 cd <YourProject>\Plugins\Folio
-.\scripts\build_ue_libs.ps1
+./scripts/build_ue_libs.sh
 ```
 
 A cold run takes a few minutes and clones dependencies as it goes. If you skip this step the project
@@ -110,14 +110,14 @@ document. That is deliberate: focus is a decision a game makes, and
 
 There is a standalone renderer that draws the same markup with no Unreal involved. Build it once:
 
-```powershell
-.\scripts\build.ps1
+```bash
+./scripts/build.sh
 ```
 
 Then:
 
-```powershell
-.\bin\win64\uipreview.exe <YourProject>\ui\hello.rml --root <YourProject>
+```bash
+./bin/win64/uipreview.exe <YourProject>/ui/hello.rml --root <YourProject>
 ```
 
 It watches the file and reloads on save, so the loop is edit, save, look — no compiling and no
@@ -125,7 +125,7 @@ editor restart. This is where you will spend most of your authoring time.
 
 Two flags worth knowing on day one:
 
-```powershell
+```bash
 # Treat warnings as errors and run the markup lint checks.
 uipreview.exe ui\hello.rml --root . --strict
 

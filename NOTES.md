@@ -1101,3 +1101,62 @@ gated on `folio.MockData`, and skipped outright when `HasObjectModel` says game 
 
 `folio.MockData 0` is worth knowing: it shows a screen as a player would see it if the binding were
 missing, which is otherwise only discoverable by packaging.
+
+## Localisation: the gather cannot see markup, so a script makes it visible
+
+`GatherTextFromSource` scans C++ for `NSLOCTEXT`. It knows nothing about `.rml`, so the strings in a
+Folio document are invisible to it and a manifest gathered without help simply lacks them, silently.
+
+`Tools/locgather/gather_rml.py` walks the documents, reads every `data-loc` key with the text beside
+it, and writes **one generated header that nothing includes** - it exists to be read by the gatherer,
+not compiled. `scripts/loc.ps1` runs it and then `GatherText`, in that order, because running the
+second without the first is the failure this whole arrangement exists to prevent.
+
+**Deliberate deviation from the original plan:** the brief said to add `FileNameFilters=*.rml` to the
+gather step. Emitting a header instead means there is no custom filter for the Localization Dashboard
+to drop, which removes the hazard rather than documenting it. `Config/Localization/Game.ini` still says
+never to use the Dashboard for gather settings, because it regenerates that file from its own store and
+would drop `SearchDirectoryPaths=Source/`.
+
+**The namespace rule is duplicated across two languages and both must agree.**
+`Folio::Loc::NamespaceForDocument` and `namespace_for` in the script both derive `UI.MainMenu` from
+`ui/screens/main_menu.rml`, and `UI.Common` from anything under `ui/lib/`. If they disagree, every
+lookup misses and every string falls back to English with nothing logged. The script fails on two
+documents deriving the same namespace, which is what stops the file-stem rule silently merging
+`ui/hud/player.rml` and `ui/screens/player.rml`.
+
+**Runtime resolution is a document pass, not `TranslateString`.** That hook receives a string with no
+element context, so it cannot tell whether the owning element carries a key: it can neither look one up
+nor notice text that has none, and wiring both would translate twice. The pass runs in `LoadDocument`
+before the first update, so translated text is laid out rather than reflowed a frame later.
+
+Three kinds of element are skipped, and the reasons differ:
+
+- **Containing child elements.** Translation replaces the element's entire contents, so a child would
+  be swallowed into the string and come back out as escaped, visible markup. The key belongs on an
+  inner text-only element.
+- **Driven by a data binding.** Its value is game state, and rewriting the RML destroys the view RmlUi
+  built at load, leaving the binding permanently dead.
+- **Empty.** Nothing to gather, so nothing to resolve.
+
+`FText::AsLocalizable_Advanced` rather than `FindTextInLiveTable_Advanced`: the former returns the
+source string for a key that is gathered but untranslated, which is every string in the culture it was
+authored in. The latter is used only by `folio.Loc.Report`, where the question is whether a translation
+exists at all rather than what to display.
+
+**Verification, and how to repeat it.** `folio.Loc.Report [document]` lists every key with `[loc]` or
+`[source]`. Run it in a `-game` session rather than PIE:
+
+```powershell
+UnrealEditor.exe <project>.uproject -game -windowed -resx=640 -resy=360 `
+  -ExecCmds="folio.Loc.Report ui/screens/settings.rml" -log=Loc.log
+```
+
+To prove text actually swaps, patch a translation into `Content/Localization/<Target>/en/Game.archive`
+and regenerate only the locres. **`-DisableSteps` does not work** - the run above ignored it and
+executed every step, and step 3 rewrote the patched translation back to the source text. Use a
+throwaway config holding `[CommonSettings]` plus a single `[GatherTextStep0]` of
+`GenerateTextLocalizationResource`, and note that invoking that commandlet directly with
+`-run=GenerateTextLocalizationResource` crashes: it has to go through `-run=GatherText`.
+
+The manifest and archives are **UTF-16**, so reading one with a UTF-8 decoder fails on the first byte.

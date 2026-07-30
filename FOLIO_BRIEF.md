@@ -240,7 +240,7 @@ Distance fields are what make the alternative possible. Two modes, chosen per do
   it would not be for UMG: geometry is compiled once and glyphs are size-independent, so
   re-rendering at a new resolution costs no atlas work.
 
-Direct is the default. Surface is for documents that actually use layer effects.
+Neither of these is the default. **After tonemap is the default, always** - see below. Direct is for a document that should sit in the scene and be lit by it; Surface is for one that actually uses layer effects.
 
 **Temporal AA must not touch a world-space document. This is the primary objective, not a nicety.**
 Unreal's world-space UI looks bad mainly because TAA/TSR blurs and smears it, worst of all while
@@ -281,8 +281,10 @@ genuine trade with no right answer:
 
 A diegetic screen that should sit *in* the world - grimy monitor, lit by the scene, blurring with
 DOF - wants in-scene. A waypoint marker or a readable terminal you walk up to wants after-tonemap.
-So expose it **per document**, defaulting to in-scene since that is what matches an existing project's
-expectations, and make it a project-wide default a game can set once.
+So expose it **per document**, defaulting to after tonemap, and make it a project-wide default a game can
+set once. **After tonemap is the default and nothing should propose otherwise.** Avoiding the temporal
+resolve is the reason this phase exists, so the default has to be the mode that avoids it; a document opts
+in to being smeared, never out of it by accident.
 
 **Per element is not practical, and it is worth saying why rather than leaving it open.** One document
 produces one geometry stream that composites in order; splitting it across two render passes would

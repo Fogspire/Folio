@@ -38,6 +38,7 @@ namespace Rml
 class FFolioObjectModel
 {
 public:
+	FFolioObjectModel();
 	~FFolioObjectModel();
 
 	/** Creates the model and binds every property the source exposes. */
@@ -66,6 +67,15 @@ public:
 		enum class EKind : uint8 { Bool, Int, Float, String } Kind = EKind::String;
 
 		FDelegateHandle Notification;
+		/** Kept so a write can announce itself, not only so the subscription can be removed. */
+		UE::FieldNotification::FFieldId FieldId;
+
+		/** Whose property this is. RmlUi hands Set the field, and the write needs the object. */
+		FFolioObjectModel* Owner = nullptr;
+
+		/** False for a property the author marked read-only, so markup cannot write it. */
+		bool bWritable = false;
+		bool bWarnedReadOnly = false;
 	};
 
 private:
@@ -85,14 +95,25 @@ private:
 	/** Reads the property into the mirror. Returns true when the value actually moved. */
 	bool Refresh(FField& Field);
 
+	/**
+	 * Writes a value from markup back through the property to the source object.
+	 *
+	 * What `data-value` on an input needs. Writing the mirror alone would look like it worked and then
+	 * spring back on the next refresh, which is worse than not supporting it.
+	 */
+	bool Write(FField& Field, const Rml::Variant& Value);
+
 	void Unsubscribe();
 
 	TWeakObjectPtr<UObject> Source;
 	FString ModelName;
 	Rml::DataModelHandle Handle;
 
+	class FFieldDefinition;
+
 	// Held by pointer so the mirrors keep their addresses as the array grows.
 	TArray<TUniquePtr<FField>> Fields;
+	TUniquePtr<FFieldDefinition> Definition;
 
 	int32 Commands = 0;
 	bool bPolling = false;

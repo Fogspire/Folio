@@ -41,6 +41,23 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Folio", meta = (AllowPrivateAccess = true))
 	bool bDrifting = true;
 
+	//
+	// Writable, so a control can move them. Read-write is what a settings value looks like; everything
+	// above is BlueprintReadOnly and must stay unwritable, which is half of what the test proves.
+	//
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio", meta = (AllowPrivateAccess = true))
+	int32 Volume = 50;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio", meta = (AllowPrivateAccess = true))
+	float Gamma = 1.0f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio", meta = (AllowPrivateAccess = true))
+	bool bSubtitles = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio", meta = (AllowPrivateAccess = true))
+	FString PlayerName = TEXT("Player");
+
 	/** Not marked visible, so the bridge must leave it out of the model. */
 	UPROPERTY()
 	int32 Hidden = 99;

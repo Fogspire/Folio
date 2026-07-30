@@ -84,6 +84,44 @@ namespace
 	}
 }
 
+/**
+ * How RmlUi reads and writes one bound property.
+ *
+ * One definition serves every field, because the field itself carries its kind. Bound by address of
+ * the FField rather than of the mirrored value, which is what makes a write reach the UObject: given
+ * only a `float*` RmlUi would set the mirror, the next refresh would overwrite it from the property,
+ * and a slider would spring back one frame after being dragged.
+ */
+class FFolioObjectModel::FFieldDefinition final : public Rml::VariableDefinition
+{
+public:
+	FFieldDefinition() : VariableDefinition(Rml::DataVariableType::Scalar) {}
+
+	bool Get(void* Ptr, Rml::Variant& Variant) override
+	{
+		const FField& Field = *static_cast<FField*>(Ptr);
+		switch (Field.Kind)
+		{
+		case FField::EKind::Bool:  Variant = Field.bValue; break;
+		case FField::EKind::Int:   Variant = Field.IntValue; break;
+		case FField::EKind::Float: Variant = Field.FloatValue; break;
+		default:                   Variant = Field.StringValue; break;
+		}
+		return true;
+	}
+
+	bool Set(void* Ptr, const Rml::Variant& Variant) override
+	{
+		FField& Field = *static_cast<FField*>(Ptr);
+		return Field.Owner != nullptr && Field.Owner->Write(Field, Variant);
+	}
+};
+
+FFolioObjectModel::FFolioObjectModel()
+	: Definition(MakeUnique<FFieldDefinition>())
+{
+}
+
 FFolioObjectModel::~FFolioObjectModel()
 {
 	Unsubscribe();
@@ -129,15 +167,18 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 		Field->Property = Property;
 		Field->Name = Folio::ToRmlString(Property->GetName());
 		Field->Kind = KindFor(*Property);
+		Field->Owner = this;
+
+		// BlueprintReadOnly and EditConst are the author saying this is published for display. A
+		// markup write to one is refused rather than half-applied.
+		Field->bWritable = !Property->HasAnyPropertyFlags(CPF_BlueprintReadOnly | CPF_EditConst);
+
 		Refresh(*Field);
 
-		switch (Field->Kind)
-		{
-		case FField::EKind::Bool:   Constructor.Bind(Field->Name, &Field->bValue); break;
-		case FField::EKind::Int:    Constructor.Bind(Field->Name, &Field->IntValue); break;
-		case FField::EKind::Float:  Constructor.Bind(Field->Name, &Field->FloatValue); break;
-		default:                    Constructor.Bind(Field->Name, &Field->StringValue); break;
-		}
+		// Through the field rather than the mirrored value, so a write can reach the property. See
+		// FFieldDefinition.
+		Constructor.BindCustomDataVariable(Field->Name,
+			Rml::DataVariable(Definition.Get(), Field.Get()));
 
 		Fields.Add(MoveTemp(Field));
 	}
@@ -183,6 +224,8 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 			{
 				continue;
 			}
+
+			Field->FieldId = Id;
 
 			FField* Raw = Field.Get();
 			Field->Notification = Notifier->AddFieldValueChangedDelegate(Id,
@@ -373,6 +416,80 @@ bool FFolioObjectModel::Refresh(FField& Field)
 		return true;
 	}
 	}
+}
+
+bool FFolioObjectModel::Write(FField& Field, const Rml::Variant& Value)
+{
+	UObject* Object = Source.Get();
+	if (!Object || !Field.Property)
+	{
+		return false;
+	}
+
+	if (!Field.bWritable)
+	{
+		// Once per field. A slider bound to a read-only value simply will not move, and without this
+		// the reason is invisible.
+		if (!Field.bWarnedReadOnly)
+		{
+			Field.bWarnedReadOnly = true;
+			UE_LOG(LogFolio, Warning,
+				TEXT("'%s.%s' is read-only, so markup cannot write it. Drop BlueprintReadOnly or "
+					"EditConst for a value a control is meant to change."),
+				*Object->GetName(), *Field.Property->GetName());
+		}
+		return false;
+	}
+
+	void* Slot = Field.Property->ContainerPtrToValuePtr<void>(Object);
+
+	switch (Field.Kind)
+	{
+	case FField::EKind::Bool:
+		CastFieldChecked<FBoolProperty>(Field.Property)->SetPropertyValue(Slot, Value.Get<bool>());
+		break;
+
+	case FField::EKind::Int:
+		CastFieldChecked<FNumericProperty>(Field.Property)
+			->SetIntPropertyValue(Slot, static_cast<int64>(Value.Get<int>()));
+		break;
+
+	case FField::EKind::Float:
+		CastFieldChecked<FNumericProperty>(Field.Property)
+			->SetFloatingPointPropertyValue(Slot, Value.Get<float>());
+		break;
+
+	default:
+	{
+		// The inverse of the ExportTextItem the read path uses, so anything that can be read as a
+		// string can be written back the same way: an FName, an FText, an enum by name, a struct.
+		const FString Text = Folio::ToFString(Value.Get<Rml::String>());
+		if (Field.Property->ImportText_InContainer(*Text, Object, Object, PPF_None) == nullptr)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("could not write '%s' to %s.%s"),
+				*Text, *Object->GetName(), *Field.Property->GetName());
+			return false;
+		}
+		break;
+	}
+	}
+
+	// Read back rather than trusting the value written: a property may clamp, quantise or round, and
+	// the document has to show what the object actually holds.
+	Refresh(Field);
+
+	// Announced, so anything else bound to the same field updates. A settings screen showing the same
+	// value twice - a slider and a number beside it - is the ordinary case, and without this only the
+	// control that was touched moves.
+	if (Field.FieldId.IsValid())
+	{
+		if (INotifyFieldValueChanged* Notifier = Cast<INotifyFieldValueChanged>(Object))
+		{
+			Notifier->BroadcastFieldValueChanged(Field.FieldId);
+		}
+	}
+
+	return true;
 }
 
 void FFolioObjectModel::Unsubscribe()

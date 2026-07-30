@@ -1206,3 +1206,36 @@ reports the same 779 tokens, all 40 metrics reports from `verify.sh` are byte-id
 PowerShell run's, and the visual suite renders 109 of 109. One thing that had to be preserved
 deliberately: PowerShell stringified a dp ratio of `1.0` as `1`, so the report and screenshot names are
 `name@1` rather than `name@1.0`, and a baseline directory recorded before the port still compares.
+
+## Two-way binding has to write through the property, not into the mirror
+
+`data-value` on an input writes back through the data model, and the object bridge originally could not
+do it *while looking as though it could*. `Constructor.Bind(name, &Field->FloatValue)` hands RmlUi the
+address of the mirrored copy, so a drag set the mirror, the next `Refresh` overwrote it from the
+`UPROPERTY`, and the value moved for one frame and sprang back. Silent, and worse than refusing.
+
+The fix is a custom `Rml::VariableDefinition` bound by the address of the **field record** rather than of
+the mirrored value, so `Set` can reach the source object. `FFolioObjectModel::Write` then converts by
+kind: `SetPropertyValue` for a bool, `SetIntPropertyValue`/`SetFloatingPointPropertyValue` for a number,
+and `ImportText_InContainer` for everything else - the exact inverse of the `ExportTextItem` the read
+path uses, so an FName, an FText, an enum by name or a struct all round-trip.
+
+Three things about it that are not obvious:
+
+- **It reads back after writing** rather than trusting the value it wrote. A property may clamp,
+  quantise or round, and the document has to show what the object actually holds.
+- **It broadcasts the field change** when the source notifies. A settings screen showing one value twice
+  - a slider and the number beside it - is the ordinary case, and without the broadcast only the control
+  that was touched moves.
+- **`BlueprintReadOnly` and `EditConst` mean refuse, with one warning per field.** A slider bound to a
+  read-only value simply will not move, and the reason is otherwise invisible. Note that a range control
+  writes once at load, so the warning appears as the document opens rather than when anything is dragged.
+
+**Driving a control from code needs the change event, not just the value.** `DataControllerValue`
+listens for `EventId::Change` and reads its `value` parameter, so `SetValue` alone updates the control
+and announces nothing - the model never hears. `folio.MvvmTest set <id> <value>` therefore sets the
+control and then dispatches `change` itself, which is what a widget does when a person moves it. A
+checkbox is different again: its state is the `checked` attribute, so that is what a click toggles.
+
+Verified through that command in a `-game` session: int 50 to 73, float 1.0 to 1.8, bool false to true,
+string 'Player' to 'Kaede', and a `BlueprintReadOnly` float refused with the warning naming it.

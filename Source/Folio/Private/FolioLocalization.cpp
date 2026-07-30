@@ -102,10 +102,10 @@ namespace Folio::Loc
 		// rather than being duplicated per screen.
 		if (Path.StartsWith(TEXT("ui/lib/")) || Path.Contains(TEXT("/ui/lib/")))
 		{
-			return TEXT("UI.Common");
+			return TEXT("Folio.Common");
 		}
 
-		return TEXT("UI.") + ToPascalCase(FPaths::GetBaseFilename(Path));
+		return TEXT("Folio.") + ToPascalCase(FPaths::GetBaseFilename(Path));
 	}
 
 	void ApplyToDocument(Rml::ElementDocument* Document, const FString& RelativePath)

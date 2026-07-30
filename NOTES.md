@@ -1109,18 +1109,33 @@ Folio document are invisible to it and a manifest gathered without help simply l
 
 `Tools/locgather/gather_rml.py` walks the documents, reads every `data-loc` key with the text beside
 it, and writes **one generated header that nothing includes** - it exists to be read by the gatherer,
-not compiled. `scripts/loc.ps1` runs it and then `GatherText`, in that order, because running the
-second without the first is the failure this whole arrangement exists to prevent.
+not compiled. `scripts/loc.sh` runs it and then `GatherText`, in that order, because running the
+second without the first is the failure this whole arrangement exists to prevent. Bash rather than
+PowerShell so a Linux developer can use it: engine discovery reads the registry on Windows and
+`~/.config/Epic/UnrealEngine/Install.ini` on Linux, with `UE_ROOT` overriding both. `reg query` emits
+CRLF and an engine path routinely contains spaces, so parsing its output by last field silently
+truncates it.
+
+**The UI is its own localization target.** `Config/Localization/Folio.ini` gathers only
+`Source/Generated/`, producing `Folio.manifest`, `Folio.archive`, `Folio.po` and `Folio.locres`. So the
+file handed to a translator holds the screens and nothing else, rather than every C++ string in the
+project. Two consequences that are easy to get wrong:
+
+- **The target has to be registered for the runtime to load it**, with
+  `+LocalizationPaths=%GAMEDIR%Content/Localization/Folio` under `[Internationalization]` in
+  `DefaultGame.ini`. Without it the manifest is correct, the archive has translations, and every string
+  still renders in English with nothing logged. This is the setup mistake to check first.
+- **The game's own target must exclude `Source/Generated/*`**, or the same strings land in two
+  manifests and appear twice in a word count.
 
 **Deliberate deviation from the original plan:** the brief said to add `FileNameFilters=*.rml` to the
 gather step. Emitting a header instead means there is no custom filter for the Localization Dashboard
-to drop, which removes the hazard rather than documenting it. `Config/Localization/Game.ini` still says
-never to use the Dashboard for gather settings, because it regenerates that file from its own store and
-would drop `SearchDirectoryPaths=Source/`.
+to drop, which removes the hazard rather than documenting it. `Config/Localization/Folio.ini` still says
+never to use the Dashboard for gather settings, because it regenerates that file from its own store.
 
 **The namespace rule is duplicated across two languages and both must agree.**
-`Folio::Loc::NamespaceForDocument` and `namespace_for` in the script both derive `UI.MainMenu` from
-`ui/screens/main_menu.rml`, and `UI.Common` from anything under `ui/lib/`. If they disagree, every
+`Folio::Loc::NamespaceForDocument` and `namespace_for` in the script both derive `Folio.MainMenu` from
+`ui/screens/main_menu.rml`, and `Folio.Common` from anything under `ui/lib/`. If they disagree, every
 lookup misses and every string falls back to English with nothing logged. The script fails on two
 documents deriving the same namespace, which is what stops the file-stem rule silently merging
 `ui/hud/player.rml` and `ui/screens/player.rml`.
@@ -1152,7 +1167,7 @@ UnrealEditor.exe <project>.uproject -game -windowed -resx=640 -resy=360 `
   -ExecCmds="folio.Loc.Report ui/screens/settings.rml" -log=Loc.log
 ```
 
-To prove text actually swaps, patch a translation into `Content/Localization/<Target>/en/Game.archive`
+To prove text actually swaps, patch a translation into `Content/Localization/Folio/en/Folio.archive`
 and regenerate only the locres. **`-DisableSteps` does not work** - the run above ignored it and
 executed every step, and step 3 rewrote the patched translation back to the source text. Use a
 throwaway config holding `[CommonSettings]` plus a single `[GatherTextStep0]` of

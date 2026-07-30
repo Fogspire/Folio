@@ -24,7 +24,7 @@ namespace Folio::Loc
 	/**
 	 * The gather namespace for a document, derived mechanically from its path.
 	 *
-	 * `ui/screens/main_menu.rml` gives `UI.MainMenu`; anything under `ui/lib/` gives `UI.Common`,
+	 * `ui/screens/main_menu.rml` gives `Folio.MainMenu`; anything under `ui/lib/` gives `Folio.Common`,
 	 * because a shared component's strings belong to every screen that uses it. Never hand-authored,
 	 * so nothing writing markup has to decide it.
 	 *

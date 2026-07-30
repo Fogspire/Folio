@@ -29,17 +29,17 @@ SKIP_TAGS = {"style", "script", "head", "title"}
 
 
 def namespace_for(relative: pathlib.PurePosixPath) -> str:
-    """ui/screens/main_menu.rml -> UI.MainMenu; anything under ui/lib/ -> UI.Common.
+    """ui/screens/main_menu.rml -> Folio.MainMenu; anything under ui/lib/ -> Folio.Common.
 
     Must stay in step with Folio::Loc::NamespaceForDocument in FolioLocalization.cpp.
     """
     parts = relative.parts
     if "lib" in parts[:-1]:
-        return "UI.Common"
+        return "Folio.Common"
 
     stem = relative.stem
     pascal = "".join(word[:1].upper() + word[1:] for word in stem.replace("-", "_").split("_") if word)
-    return f"UI.{pascal}"
+    return f"Folio.{pascal}"
 
 
 class Finding:
@@ -178,7 +178,7 @@ def main() -> int:
 
         # Two documents deriving one namespace would silently share a key space, and the collision
         # would surface as one screen showing another's text.
-        if namespace in owners and owners[namespace] != display and namespace != "UI.Common":
+        if namespace in owners and owners[namespace] != display and namespace != "Folio.Common":
             findings.append(Finding(display, 1, "E-LOC-NAMESPACE",
                                     f"'{namespace}' is already used by {owners[namespace]}; "
                                     f"rename one of the files"))
@@ -229,7 +229,7 @@ def main() -> int:
     for namespace in sorted(gathered):
         if not gathered[namespace]:
             continue
-        lines.append(f"// {owners[namespace]}" if namespace != "UI.Common" else "// shared components")
+        lines.append(f"// {owners[namespace]}" if namespace != "Folio.Common" else "// shared components")
         for key in sorted(gathered[namespace]):
             text, _, _ = gathered[namespace][key]
             lines.append(f'static const FText FolioText_{namespace.replace(".", "_")}_{key} = '

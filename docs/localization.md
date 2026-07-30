@@ -1,8 +1,10 @@
 # Localization
 
-Folio's text goes through Unreal's own localization pipeline. The same manifest, the same archives,
-the same `.locres`, the same PO export, the same Translation Editor. A translator never learns that
-some of your strings came from markup instead of C++.
+Folio's text goes through Unreal's own localization pipeline — the same commandlets, the same archive
+format, the same PO export, the same Translation Editor — as **its own localization target**. What a
+translator receives is one `Folio.po` holding your screens and nothing else, rather than a PO with
+every C++ string and asset in the project mixed into it. You can hand someone the UI without handing
+them the game.
 
 There is **one extra step**, and it is the only thing about this that is Folio-specific: a script has
 to run before Unreal gathers. `GatherTextFromSource` scans C++ for `NSLOCTEXT` and cannot read markup,
@@ -27,11 +29,11 @@ it is never something you decide:
 
 | Document | Namespace |
 |---|---|
-| `ui/screens/settings.rml` | `UI.Settings` |
-| `ui/screens/main_menu.rml` | `UI.MainMenu` |
-| anything under `ui/lib/` | `UI.Common` |
+| `ui/screens/settings.rml` | `Folio.Settings` |
+| `ui/screens/main_menu.rml` | `Folio.MainMenu` |
+| anything under `ui/lib/` | `Folio.Common` |
 
-Shared components all land in `UI.Common` on purpose: a button's label belongs to every screen that
+Shared components all land in `Folio.Common` on purpose: a button's label belongs to every screen that
 uses it, not to one of them.
 
 ### The key goes on an element holding nothing but text
@@ -71,36 +73,46 @@ so the checks stop asking about it.
 Copy Folio's template into your project:
 
 ```
-Plugins/Folio/templates/Config/Localization/Game.ini  ->  Config/Localization/Game.ini
+Plugins/Folio/templates/Config/Localization/Folio.ini  ->  Config/Localization/Folio.ini
 ```
 
-Then add the cultures you ship to `Config/DefaultGame.ini`, so the packaged build carries them:
+Then three lines in `Config/DefaultGame.ini`. The first is the one that matters and the one that is
+easy to miss — **without it the gather is correct and every string still renders in English**, because
+nothing has told the runtime the target exists:
 
 ```ini
+[Internationalization]
++LocalizationPaths=%GAMEDIR%Content/Localization/Folio
+
 [/Script/UnrealEd.ProjectPackagingSettings]
 +CulturesToStage=en
 +CulturesToStage=fr
 ```
 
+If your project already has its own localization target, exclude the generated header from it, or the
+same strings are gathered into two manifests:
+
+```ini
+; in Config/Localization/<YourTarget>.ini
+ExcludePathFilters=Source/Generated/*
+```
+
 **Do not use the Localization Dashboard to change gather settings.** It keeps its own copy of those
-settings and regenerates `Config/Localization/Game.ini` from them, dropping anything it does not know
+settings and regenerates `Config/Localization/Folio.ini` from them, dropping anything it does not know
 about — including the directory holding the generated declarations, which silently removes every
 string that came from markup. Use the Dashboard for the Translation Editor and nothing else. The
 template says so at the top of the file, for whoever opens it next.
 
 ## 3. Gather
 
-From your project directory, in PowerShell:
-
-```powershell
-.\Plugins\Folio\scripts\loc.ps1
-```
-
-Or from a bash shell, where it has to be handed to PowerShell rather than run:
+From your project directory:
 
 ```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File "Plugins/Folio/scripts/loc.ps1"
+./Plugins/Folio/scripts/loc.sh
 ```
+
+Bash rather than PowerShell so it runs on Linux as well as in git bash on Windows. Set `UE_ROOT` if
+engine discovery fails.
 
 Two things happen, in this order:
 
@@ -115,17 +127,18 @@ containing other elements, a key on a bound value, or two documents deriving the
 
 Re-run it whenever you add or change user-visible text.
 
-`-ScriptOnly` regenerates the header alone, which is the fast check while writing markup.
-`-GatherOnly` skips it, for when you have only changed C++.
+`--script-only` regenerates the header alone, which is the fast check while writing markup.
+`--gather-only` skips it.
 
 ## 4. Translate
 
-Nothing here is Folio's. Your strings are in
-`Content/Localization/Game/<culture>/Game.archive` alongside everything else, exported as
-`Game.po` for whoever does the translating, and imported back by the same gather command.
+Nothing here is Folio's. Your strings are in `Content/Localization/Folio/<culture>/Folio.archive`,
+exported as `Folio.po` for whoever does the translating, and imported back by the same gather command.
 
-The Translation Editor in the Localization Dashboard works normally. So does handing the PO file to a
-translation service.
+Because the UI is its own target, `Folio.po` is a self-contained handoff: send it to a translator or a
+translation service and nothing else about the project goes with it.
+
+The Translation Editor in the Localization Dashboard works normally.
 
 ## 5. Check it
 
@@ -136,7 +149,7 @@ folio.Loc.Report ui/screens/settings.rml
 Every key in the document, with what it resolved to:
 
 ```
-localisation of 'ui/screens/settings.rml' in namespace 'UI.Settings', culture 'fr':
+localisation of 'ui/screens/settings.rml' in namespace 'Folio.Settings', culture 'fr':
   title                    [loc]    Paramètres
   apply                    [loc]    Appliquer
   raytracing_hint          [source] Not supported on this device
@@ -164,7 +177,10 @@ worth running before committing a document.
 
 ## If something looks wrong
 
-- **Gather succeeded but the UI text is not in the manifest.** The script did not run. Use `loc.ps1`
+- **Every string reports `[source]` and the archive clearly has translations.** The target is not
+  loaded. Check `+LocalizationPaths=%GAMEDIR%Content/Localization/Folio` is in `DefaultGame.ini`. This
+  is the most common setup mistake, because everything else looks right.
+- **Gather succeeded but the UI text is not in the manifest.** The script did not run. Use `loc.sh`
   rather than the Dashboard's Gather button, which cannot run it.
 - **Every string reports `[source]` in a culture that has translations.** The namespace is not
   matching. Check the document's path against the table above; a file that moved changes its
@@ -177,3 +193,5 @@ worth running before committing a document.
   its text comes from a binding.
 - **Text changes in the editor but not in a packaged build.** The `.locres` was not regenerated, or the
   culture is not in `CulturesToStage`.
+- **The same string appears twice in a word count.** Your game's target is also gathering
+  `Source/Generated`. Exclude it there.

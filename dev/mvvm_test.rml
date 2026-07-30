@@ -34,13 +34,15 @@
 
 	<h2>commands: markup calling back into the UObject</h2>
 	<div class="row">
+		<button data-event-click="ToggleDrift">{{ bDrifting ? 'Hold Health' : 'Resume drift' }}</button>
 		<button data-event-click="Revive">Revive</button>
 		<button data-event-click="Damage(0.25, 'a button')">Damage(0.25)</button>
 		<button data-event-click="Damage(0.6, 'the other button')">Damage(0.6)</button>
 	</div>
 	<p class="note">These are UFUNCTION(BlueprintCallable) on the source, bound by reflection like the
 	properties. Health and Status must move, and the log names the call and its arguments. CountCommands
-	returns a value, so the bridge must refuse it: the warning naming it is the pass.</p>
+	returns a value, so the bridge must refuse it: the warning naming it is the pass. Hold Health first,
+	or the drift makes the other two impossible to read.</p>
 
 	<p class="note">Hidden is a UPROPERTY with no BlueprintReadOnly or EditAnywhere, so it must not be
 	bound. Staying as literal braces is the pass, and the "could not add data-text view" warnings that

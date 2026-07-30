@@ -37,6 +37,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Folio", meta = (AllowPrivateAccess = true))
 	FString Status = TEXT("starting");
 
+	/** Whether Advance keeps moving Health on its own. Off makes the commands legible. */
+	UPROPERTY(BlueprintReadOnly, Category = "Folio", meta = (AllowPrivateAccess = true))
+	bool bDrifting = true;
+
 	/** Not marked visible, so the bridge must leave it out of the model. */
 	UPROPERTY()
 	int32 Hidden = 99;
@@ -46,6 +50,10 @@ public:
 
 	/** How many notifications have been broadcast, so a test can prove they happened. */
 	int32 GetBroadcastCount() const { return BroadcastCount; }
+
+	/** Stops or starts the automatic drift, so a command's effect on Health can be seen at all. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	void ToggleDrift();
 
 	/** Reachable from markup as data-event-click="Revive". Proves the no-argument case. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
@@ -67,10 +75,12 @@ public:
 		UE_FIELD_NOTIFICATION_DECLARE_FIELD(Health, FOLIO_API)
 		UE_FIELD_NOTIFICATION_DECLARE_FIELD(bAlive, FOLIO_API)
 		UE_FIELD_NOTIFICATION_DECLARE_FIELD(Status, FOLIO_API)
+		UE_FIELD_NOTIFICATION_DECLARE_FIELD(bDrifting, FOLIO_API)
 		UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD_BEGIN(Ticks)
 		UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD(Health)
 		UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD(bAlive)
 		UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD(Status)
+		UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD(bDrifting)
 		UE_FIELD_NOTIFICATION_DECLARE_ENUM_FIELD_END()
 	UE_FIELD_NOTIFICATION_DECLARE_CLASS_DESCRIPTOR_BASE_END()
 

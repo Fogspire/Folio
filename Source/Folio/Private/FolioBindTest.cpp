@@ -2,7 +2,7 @@
 
 #include "FolioModule.h"
 
-UE_FIELD_NOTIFICATION_IMPLEMENT_CLASS_DESCRIPTOR_FourFields(UFolioBindTest, Ticks, Health, bAlive, Status);
+UE_FIELD_NOTIFICATION_IMPLEMENT_CLASS_DESCRIPTOR_FiveFields(UFolioBindTest, Ticks, Health, bAlive, Status, bDrifting);
 
 // The BASE descriptor declares this but leaves it to the class, since there is no parent descriptor
 // to chain into.
@@ -91,7 +91,12 @@ void UFolioBindTest::Advance()
 	++Ticks;
 	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Ticks);
 
-	const float NewHealth = 0.5f + 0.5f * FMath::Sin(Ticks * 0.05f);
+	if (!bDrifting)
+	{
+		return;
+	}
+
+	const float NewHealth = 0.5f + 0.5f * FMath::Sin(Ticks * 0.012f);
 	if (NewHealth != Health)
 	{
 		Health = NewHealth;
@@ -106,6 +111,17 @@ void UFolioBindTest::Advance()
 		Status = bAlive ? TEXT("alive") : TEXT("down");
 		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Status);
 	}
+}
+
+void UFolioBindTest::ToggleDrift()
+{
+	++CommandCount;
+
+	bDrifting = !bDrifting;
+	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::bDrifting);
+
+	Status = bDrifting ? TEXT("drifting") : TEXT("held, try the buttons");
+	BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Status);
 }
 
 void UFolioBindTest::Revive()

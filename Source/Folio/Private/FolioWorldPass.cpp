@@ -78,8 +78,12 @@ void FFolioWorldPass::SubscribeToPostProcessingPass(const EPostProcessingPass Pa
 FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FSceneView& View,
 	const FPostProcessMaterialInputs& Inputs)
 {
-	const FScreenPassTexture SceneColour = FScreenPassTexture::CopyFromSlice(
-		GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
+	// The scene colour texture itself, not a copy of it. CopyFromSlice allocates a new texture, and
+	// returning that from this pass replaced scene colour in the post chain with something the scene had
+	// never been drawn into - a black screen with a correctly lit depth buffer behind it.
+	const FScreenPassTextureSlice& Slice = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
+	const FScreenPassTexture SceneColour(
+		Slice.TextureSRV ? Slice.TextureSRV->Desc.Texture : nullptr, Slice.ViewRect);
 
 	if (Surfaces.IsEmpty() || !SceneColour.IsValid())
 	{

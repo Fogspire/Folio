@@ -978,6 +978,10 @@ namespace
 		// Before registering: the mode decides which space the recording's colours are in, and the first
 		// recording happens on the first tick after registration.
 		Surface->DrawMode = Mode;
+
+		// A test surface is for trying a document, and a document that cannot be clicked is half tried.
+		Surface->bPointerFromPlayerView = true;
+
 		Actor->SetRootComponent(Surface);
 		Surface->RegisterComponent();
 
@@ -986,6 +990,7 @@ namespace
 		const FIntPoint Size = Surface->GetDocumentSize();
 		UE_LOG(LogFolio, Display,
 			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d, drawn %s. ")
+			TEXT("Look at it to point at it and click to press. ")
 			TEXT("'folio.WorldTest report' says what it recorded; 'folio.WorldTest off' removes it."),
 			*Document, Surface->WorldSize.X, Surface->WorldSize.Y, Size.X, Size.Y,
 			Mode == EFolioWorldDrawMode::InScene

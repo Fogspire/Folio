@@ -120,6 +120,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio", meta=(Keywords="tick"))
 	bool bUpdateInEditor = true;
 
+	/**
+	 * Drives the pointer from where the local player is looking, with no input wiring at all.
+	 *
+	 * For trying a document out and for a game that aims with the camera. Anything else - a cursor, a
+	 * touch, a hand in VR - should leave this off and call MovePointerAlong itself, which is the same
+	 * path with the ray supplied.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input")
+	bool bPointerFromPlayerView = false;
+
+	/** How far the player can be from the surface and still point at it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
+		meta = (EditCondition = "bPointerFromPlayerView", ClampMin = "1.0"))
+	float PointerReach = 400.0f;
+
+	/** What counts as a click while the pointer comes from the player's view. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
+		meta = (EditCondition = "bPointerFromPlayerView"))
+	FKey PointerKey;
+
 	/** Loads a different document, replacing whatever is up. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void LoadDocument(const FString& InDocumentPath);
@@ -136,6 +156,56 @@ public:
 	/** Says the document changed, for game code that reaches into it directly. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void MarkDirty();
+
+	/**
+	 * Puts the pointer at a point on the surface, in 0-1 with the origin at the top left.
+	 *
+	 * The primitive the rest of the input surface is built on. Use it directly when the surface is not
+	 * flat and the UV comes from somewhere Folio cannot work out, such as FindCollisionUV on a hit
+	 * against a curved mesh.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	void MovePointer(FVector2D SurfaceUV);
+
+	/**
+	 * Puts the pointer where a line from Origin along Direction crosses the component's rectangle.
+	 *
+	 * Returns false and leaves the pointer alone if the line misses, so the same call decides both
+	 * whether the document is being looked at and where. Works whatever the mesh is, because it uses
+	 * the component's own plane rather than the geometry: place the component over the screen face with
+	 * WorldSize matching it and a modelled bezel, curve or oval cutout costs nothing.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	bool MovePointerAlong(FVector Origin, FVector Direction, float Distance = 1000.0f);
+
+	/** Takes the pointer off the document, so nothing is left hovered. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	void ClearPointer();
+
+	/** A press at wherever the pointer is. Left, right and middle mouse buttons. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	void PressPointer(FKey Button);
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	void ReleasePointer(FKey Button);
+
+	/** Scrolls under the pointer. Positive is down, matching a wheel turned towards the user. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	void ScrollPointer(float Lines);
+
+	/**
+	 * Whether a text field in the document has focus, which is when typing goes to it.
+	 *
+	 * While this is true the document holds Slate's keyboard focus, so characters reach it with the
+	 * layout, modifiers and IME Slate already resolved. Keys the document does not consume still fall
+	 * through to the game.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	bool IsTakingText() const;
+
+	/** Blurs whatever has focus, which is what hands the keyboard back to the game. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	void ReleaseFocus();
 
 	/** Rebuilds from disk, putting focus and scroll back. What a markup change needs. */
 	void ReloadDocument();
@@ -228,8 +298,28 @@ private:
 	 */
 	FIntPoint DesiredSurfaceSize() const;
 
+	/** Traces from the local player's view and drives the pointer and its button. */
+	void TickPlayerPointer();
+
+	/** Takes or hands back Slate's keyboard focus, following whether a text field has it. */
+	void UpdateKeyboardFocus();
+
 	/** Held by pointer so the host stays private to the module while this header is public. */
 	TUniquePtr<FFolioDocumentHost> Host;
+
+	/**
+	 * Where the pointer is, in document pixels, or unset when it is off the surface.
+	 *
+	 * Kept because RmlUi resolves a click against whatever the last move hovered, so a press has to be
+	 * preceded by a move even when nothing has moved.
+	 */
+	TOptional<FIntPoint> Pointer;
+
+	/** Whether PointerKey was down last tick, so the auto pointer sends edges rather than a state. */
+	bool bPointerKeyHeld = false;
+
+	/** Whether this document is the one currently holding Slate's keyboard focus. */
+	bool bHoldingFocus = false;
 
 	TArray<FPendingBinding> Bindings;
 

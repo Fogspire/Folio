@@ -1,16 +1,21 @@
 #include "FolioWorldDocument.h"
 
 #include "FolioDocumentHost.h"
+#include "FolioInput.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioSettings.h"
+#include "SFolioWorldFocus.h"
 
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/World.h"
+#include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 #include "RHIGlobals.h"
 
 #include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/Element.h>
 
 namespace
 {
@@ -25,6 +30,14 @@ namespace
 
 	/** Coarse enough that ordinary movement does not cross a step every frame. */
 	constexpr int32 SurfaceSizeStep = 128;
+
+	/** Shift, control and alt as RmlUi wants them, taken from the keyboard rather than from an event. */
+	int32 CurrentModifiers()
+	{
+		return FSlateApplication::IsInitialized()
+			? Folio::ToRmlModifiers(FSlateApplication::Get().GetModifierKeys())
+			: 0;
+	}
 
 	/**
 	 * Shrinks a size until it fits what the RHI can allocate, keeping its aspect ratio.
@@ -81,6 +94,8 @@ UFolioWorldDocument::UFolioWorldDocument()
 	// Read here rather than at registration because a value set on the component has to win, and by then
 	// the two are indistinguishable.
 	DrawMode = GetDefault<UFolioSettings>()->DefaultWorldDrawMode;
+
+	PointerKey = EKeys::LeftMouseButton;
 }
 
 FIntPoint UFolioWorldDocument::GetDocumentSize() const
@@ -140,6 +155,14 @@ void UFolioWorldDocument::OnRegister()
 void UFolioWorldDocument::OnUnregister()
 {
 	LiveDocuments.RemoveSingleSwap(this);
+
+	// Before the host goes: the sink holds a raw pointer to it, and it is what gives the keyboard back.
+	if (bHoldingFocus)
+	{
+		SFolioWorldFocus::Detach(Host.Get());
+		bHoldingFocus = false;
+	}
+
 	Host.Reset();
 	ReleaseRecordings();
 	SurfaceTarget.Reset();
@@ -162,6 +185,13 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 	Retired.RemoveAll([](const TSharedPtr<const FFolioDrawList>& List) { return List.IsUnique(); });
 
 	Host->TickDataModels();
+
+	// Before the update, so a click and what it changed land in the same frame.
+	if (bPointerFromPlayerView)
+	{
+		TickPlayerPointer();
+	}
+	UpdateKeyboardFocus();
 
 	const bool bSurface = DrawMode == EFolioWorldDrawMode::Surface;
 	const FIntPoint Document = GetDocumentSize();
@@ -239,6 +269,199 @@ void UFolioWorldDocument::ReleaseRecordings()
 
 	Published.Reset();
 	Retired.Empty();
+}
+
+void UFolioWorldDocument::MovePointer(const FVector2D SurfaceUV)
+{
+	Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr;
+	if (!Context)
+	{
+		return;
+	}
+
+	const FIntPoint Size = Host->GetSize();
+	const FIntPoint Position(
+		FMath::RoundToInt(FMath::Clamp(SurfaceUV.X, 0.0, 1.0) * double(Size.X)),
+		FMath::RoundToInt(FMath::Clamp(SurfaceUV.Y, 0.0, 1.0) * double(Size.Y)));
+
+	// Compared in the coordinates RmlUi receives rather than against the ray, so a head that moves
+	// without the aim leaving a glyph does not count as a move and the document can still be idle.
+	if (Pointer.IsSet() && Pointer.GetValue() == Position)
+	{
+		return;
+	}
+
+	Pointer = Position;
+	Host->MarkDirty(TEXT("pointer move"));
+	Context->ProcessMouseMove(Position.X, Position.Y, CurrentModifiers());
+}
+
+bool UFolioWorldDocument::MovePointerAlong(const FVector Origin, const FVector Direction,
+	const float Distance)
+{
+	FVector Centre;
+	FVector Right;
+	FVector Up;
+	GetSurface(Centre, Right, Up);
+
+	const FVector Normal = FVector::CrossProduct(Right, Up).GetSafeNormal();
+	const FVector Ray = Direction.GetSafeNormal();
+
+	const double Slope = FVector::DotProduct(Normal, Ray);
+	if (FMath::IsNearlyZero(Slope))
+	{
+		return false;
+	}
+
+	const double Along = FVector::DotProduct(Centre - Origin, Normal) / Slope;
+	if (Along < 0.0 || Along > double(Distance))
+	{
+		return false;
+	}
+
+	// Right and Up are half extents, so these land in -1 to 1 across the surface.
+	const FVector Local = (Origin + Ray * Along) - Centre;
+	const double U = FVector::DotProduct(Local, Right) / Right.SizeSquared();
+	const double V = FVector::DotProduct(Local, Up) / Up.SizeSquared();
+	if (FMath::Abs(U) > 1.0 || FMath::Abs(V) > 1.0)
+	{
+		return false;
+	}
+
+	// Document space runs down from the top left, and the surface's up axis runs the other way.
+	MovePointer(FVector2D(U * 0.5 + 0.5, 0.5 - V * 0.5));
+	return true;
+}
+
+void UFolioWorldDocument::ClearPointer()
+{
+	if (!Pointer.IsSet())
+	{
+		return;
+	}
+
+	Pointer.Reset();
+
+	if (Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr)
+	{
+		// Without this the last hovered element keeps :hover indefinitely.
+		Host->MarkDirty(TEXT("pointer leave"));
+		Context->ProcessMouseLeave();
+	}
+}
+
+void UFolioWorldDocument::PressPointer(const FKey Button)
+{
+	Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr;
+	const int32 Index = Folio::ToRmlMouseButton(Button);
+	if (!Context || Index < 0 || !Pointer.IsSet())
+	{
+		return;
+	}
+
+	Host->MarkDirty(TEXT("pointer down"));
+	Context->ProcessMouseButtonDown(Index, CurrentModifiers());
+}
+
+void UFolioWorldDocument::ReleasePointer(const FKey Button)
+{
+	Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr;
+	const int32 Index = Folio::ToRmlMouseButton(Button);
+	if (!Context || Index < 0)
+	{
+		return;
+	}
+
+	// Sent even with the pointer off the surface, so a press that ends elsewhere still completes rather
+	// than leaving the document believing a button is held.
+	Host->MarkDirty(TEXT("pointer up"));
+	Context->ProcessMouseButtonUp(Index, CurrentModifiers());
+}
+
+void UFolioWorldDocument::ScrollPointer(const float Lines)
+{
+	if (Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr)
+	{
+		Host->MarkDirty(TEXT("pointer wheel"));
+		Context->ProcessMouseWheel(Lines, CurrentModifiers());
+	}
+}
+
+bool UFolioWorldDocument::IsTakingText() const
+{
+	return Host.IsValid() && Host->IsTakingText();
+}
+
+void UFolioWorldDocument::ReleaseFocus()
+{
+	Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr;
+	if (!Context)
+	{
+		return;
+	}
+
+	if (Rml::Element* Focused = Context->GetFocusElement())
+	{
+		Host->MarkDirty(TEXT("focus released"));
+		Focused->Blur();
+	}
+}
+
+void UFolioWorldDocument::TickPlayerPointer()
+{
+	const UWorld* World = GetWorld();
+	const APlayerController* Player = World ? World->GetFirstPlayerController() : nullptr;
+	if (!Player)
+	{
+		return;
+	}
+
+	FVector ViewLocation = FVector::ZeroVector;
+	FRotator ViewRotation = FRotator::ZeroRotator;
+	Player->GetPlayerViewPoint(ViewLocation, ViewRotation);
+
+	if (!MovePointerAlong(ViewLocation, ViewRotation.Vector(), PointerReach))
+	{
+		ClearPointer();
+	}
+
+	// Edges rather than the state: RmlUi wants one press and one release, and a held button polled every
+	// frame would otherwise arrive as a stream of clicks.
+	const bool bDown = PointerKey.IsValid() && Player->IsInputKeyDown(PointerKey);
+	if (bDown == bPointerKeyHeld)
+	{
+		return;
+	}
+
+	bPointerKeyHeld = bDown;
+	if (bDown)
+	{
+		PressPointer(PointerKey);
+	}
+	else
+	{
+		ReleasePointer(PointerKey);
+	}
+}
+
+void UFolioWorldDocument::UpdateKeyboardFocus()
+{
+	const UWorld* World = GetWorld();
+	const bool bWanted = Host.IsValid() && World && World->IsGameWorld() && Host->IsTakingText();
+	if (bWanted == bHoldingFocus)
+	{
+		return;
+	}
+
+	bHoldingFocus = bWanted;
+	if (bWanted)
+	{
+		SFolioWorldFocus::Attach(Host.Get());
+	}
+	else
+	{
+		SFolioWorldFocus::Detach(Host.Get());
+	}
 }
 
 FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const

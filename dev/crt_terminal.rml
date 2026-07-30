@@ -1,0 +1,182 @@
+<rml>
+<head>
+	<title>CRT terminal</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* Written for an oval screen wider than it is tall. The document is still a rectangle - a render
+		   target and a projection both are - and the corners simply are not on an oval mesh, so nothing
+		   may be laid out there. RCSS border-radius takes no percentage, so the ellipse is a radial
+		   falloff rather than a clip: it reads as glass on the mesh and as an oval on a flat surface.
+
+		   Content sits inside the ellipse's inscribed rectangle, which is 1/sqrt(2) of each axis. Rows are
+		   given their own widths rather than one column width, so the lines nearest the top and bottom
+		   stay clear of the curve instead of running into it. */
+		body {
+			font-family: Roboto Mono;
+			font-size: 32dp;
+			color: #7dff9b;
+			background-color: transparent;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			position: relative;
+			overflow: hidden;
+		}
+
+		.glass {
+			position: absolute;
+			left: 0; top: 0;
+			width: 100%; height: 100%;
+			background-color: #04120a;
+			overflow: hidden;
+		}
+
+		.screen {
+			position: absolute;
+			left: 15%; top: 15%;
+			width: 70%; height: 70%;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+		}
+
+		/* Every row is centred and capped, so the block is a lens shape rather than a rectangle. */
+		.narrow { width: 62%; }
+		.mid { width: 84%; }
+		.wide { width: 100%; }
+
+		.title { font-weight: bold; letter-spacing: 4dp; text-align: center;
+		         font-effect: glow(3dp #2bff7a80); }
+		.rule { height: 3dp; background-color: #7dff9b59; margin: 12dp 0; }
+		.dim { color: #7dff9b8c; font-size: 24dp; }
+		.centre { text-align: center; }
+
+		.row { display: flex; align-items: center; margin-bottom: 14dp; }
+		.label { width: 190dp; flex: 0 0 auto; }
+
+		/* A field is a normal RmlUi text input. Caret, selection and editing all come from RmlUi;
+		   nothing here is world-space specific. */
+		input.field {
+			flex: 1;
+			height: 50dp;
+			padding: 0 12dp;
+			background-color: #7dff9b14;
+			border: 2dp #7dff9b73;
+			color: #b9ffcb;
+			caret-color: #b9ffcb;
+			tab-index: auto;
+		}
+		input.field:hover { border-color: #b9ffcb; background-color: #7dff9b26; }
+		input.field:focus { border-color: #eaffef; background-color: #7dff9b33; }
+		input.field selection { background-color: #7dff9b59; color: #04120a; }
+
+		button {
+			padding: 10dp 24dp;
+			background-color: transparent;
+			border: 2dp #7dff9b8c;
+			color: #7dff9b;
+			tab-index: auto;
+		}
+		button:hover { background-color: #7dff9b26; border-color: #b9ffcb; color: #eaffef; }
+		button:active { background-color: #b9ffcb; color: #04120a; }
+		button:focus { border-color: #eaffef; }
+
+		/* Radios as channel buttons: pressing one visibly moves the selection with no script involved. */
+		.buttons { display: flex; justify-content: center; }
+		.buttons > * { margin: 0 8dp; }
+
+		.channel { position: relative; }
+		.channel input {
+			position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+			opacity: 0; tab-index: auto;
+		}
+		.channel span {
+			display: block;
+			padding: 8dp 20dp;
+			border: 2dp #7dff9b59;
+			color: #7dff9b8c;
+		}
+		.channel input:hover ~ span { border-color: #b9ffcb; color: #eaffef; }
+		.channel input:checked ~ span { background-color: #7dff9b33; border-color: #b9ffcb; color: #eaffef; }
+
+		/* Cursor block, so the screen looks alive while nothing is being typed. */
+		@keyframes blink { from { opacity: 1; } to { opacity: 0; } }
+		.caret {
+			display: inline-block;
+			width: 16dp; height: 24dp;
+			background-color: #7dff9b;
+			animation: 0.6s blink infinite alternate;
+		}
+
+		/* Phosphor lines. A gradient rather than a scanline bitmap: it stays correct at whatever
+		   resolution the surface renders at, which a fixed texture does not. */
+		.scanlines {
+			position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+			decorator: repeating-linear-gradient(to bottom,
+				#00000000 0dp, #00000000 3dp, #00000047 3dp, #00000047 6dp);
+		}
+
+		/* Falloff towards the glass edge, which is what sells the curve of a tube. */
+		.vignette {
+			position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+			decorator: radial-gradient(ellipse farthest-side, #00000000 52%, #0000008c 82%, #000000e6 100%);
+		}
+
+		.roll {
+			position: absolute; left: 0; width: 100%; height: 90dp;
+			decorator: linear-gradient(to bottom, #7dff9b00, #7dff9b1f, #7dff9b00);
+			animation: 5s roll infinite;
+		}
+		@keyframes roll {
+			from { top: -90dp; }
+			to   { top: 100%; }
+		}
+	</style>
+</head>
+<body>
+	<div class="glass">
+		<div class="screen">
+			<div class="narrow title">SYS-7 TERMINAL</div>
+			<div class="narrow centre dim">bay 4 · local link established</div>
+			<div class="mid rule"></div>
+
+			<div class="wide row">
+				<span class="label">OPERATOR</span>
+				<input type="text" class="field" id="operator" maxlength="24"/>
+			</div>
+			<div class="wide row">
+				<span class="label">ACCESS</span>
+				<input type="password" class="field" id="access" maxlength="16"/>
+			</div>
+
+			<div class="wide row buttons">
+				<div class="channel">
+					<input type="radio" name="channel" id="ch_a" checked/>
+					<span>ALPHA</span>
+				</div>
+				<div class="channel">
+					<input type="radio" name="channel" id="ch_b"/>
+					<span>BETA</span>
+				</div>
+				<div class="channel">
+					<input type="radio" name="channel" id="ch_c"/>
+					<span>GAMMA</span>
+				</div>
+			</div>
+
+			<div class="mid row buttons">
+				<button id="engage">ENGAGE</button>
+				<button id="purge">PURGE</button>
+			</div>
+
+			<div class="mid rule"></div>
+			<div class="narrow centre dim">ready<span class="caret"></span></div>
+		</div>
+
+		<div class="scanlines"></div>
+		<div class="vignette"></div>
+		<div class="roll"></div>
+	</div>
+</body>
+</rml>

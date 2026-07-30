@@ -124,6 +124,42 @@ always the document's own size.
 
 If the document comes up upside down, that is the mesh's UVs. Document V=0 is the top.
 
+## Interacting with one
+
+A document in the world is a real document: text fields, buttons, hover, focus and the caret all
+behave as they do on screen. What it does not have is a widget, so nothing routes input to it by
+default and you say where the pointer is.
+
+To try it immediately, tick **Pointer From Player View**. The component then traces from the local
+player's view each frame and drives the pointer itself, and **Pointer Key** (left mouse by default) is
+the click. No input wiring, no Blueprint. `folio.WorldTest` turns this on for you.
+
+That is a prototyping convenience and a fair fit for a game that aims with the camera. For a cursor, a
+touch, or a hand in VR, leave it off and call the same path with your own ray:
+
+| Call | Does |
+| --- | --- |
+| `Move Pointer Along (Origin, Direction, Distance)` | Puts the pointer where the line crosses the surface. Returns false and changes nothing if it misses, so one call answers both *is it being pointed at* and *where*. |
+| `Move Pointer (UV)` | The primitive underneath, in 0-1 from the top left. Use it when the UV comes from somewhere Folio cannot work out, such as `Find Collision UV` against a curved mesh. |
+| `Clear Pointer` | Takes the pointer off, so nothing is left hovered. |
+| `Press Pointer` / `Release Pointer` | A click at wherever the pointer is. |
+| `Scroll Pointer (Lines)` | Positive scrolls down. |
+
+`Move Pointer Along` uses the **component's own rectangle**, not the mesh, so it works whatever you
+modelled: place the component over the screen face with `World Size` matching it, and a bezel, a curve
+or an oval cutout costs nothing. Only `Move Pointer` needs real UVs.
+
+### Typing
+
+While a text field in the document has focus, the component takes Slate's keyboard focus through an
+invisible widget, so characters arrive with the keyboard layout, modifiers and IME already resolved.
+Deriving characters from key codes instead would be wrong for every layout but one.
+
+Keys the document does not consume still fall through to the game, so movement keeps working. `Is
+Taking Text` says whether the document currently has the keyboard, and `Release Focus` blurs the field
+and hands it back. Give the player a way to call that: walking away from a terminal with a field still
+focused means their keyboard is still going to it.
+
 ## Working in the editor
 
 `Update In Editor` is on by default: a placed document loads, updates and draws in the level viewport,
@@ -155,6 +191,11 @@ Markup and stylesheet edits hot reload in the world the same as anywhere else �
   `AlphaComposite`.
 - **It is behind the wall it is mounted on.** Nudge it off the surface. `folio.World.Occlusion 0`
   confirms that is what is happening in one command.
+- **Nothing hovers or clicks.** Nothing is driving the pointer. Tick `Pointer From Player View` or
+  call `Move Pointer Along` yourself. Check `World Size` covers the screen face: the pointer is
+  resolved against the component's rectangle, not the mesh.
+- **Typing goes to the game instead of the field.** The field does not have focus. Clicking it is what
+  gives it focus, so the pointer has to be working first.
 - **Nothing at all, any mode.** `folio.WorldTest report` says whether the document recorded any
   geometry. Nothing recorded is a document problem — check the path and the log — rather than a
   rendering one.

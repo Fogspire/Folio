@@ -75,6 +75,20 @@ bool FFolioLayerStack::Push(const FIntPoint Size)
 	return Size.X > 0 && Size.Y > 0 && Acquire(Size) != nullptr;
 }
 
+bool FFolioLayerStack::PushInto(UTextureRenderTarget2D* Target)
+{
+	if (!Target || Target->SizeX <= 0 || Target->SizeY <= 0)
+	{
+		return false;
+	}
+
+	FLayer& Layer = Stack.AddDefaulted_GetRef();
+	Layer.Target = TStrongObjectPtr<UTextureRenderTarget2D>(Target);
+	Layer.Size = FIntPoint(Target->SizeX, Target->SizeY);
+	Layer.bCallerOwned = true;
+	return true;
+}
+
 void FFolioLayerStack::Pop()
 {
 	if (Stack.IsEmpty())
@@ -84,7 +98,11 @@ void FFolioLayerStack::Pop()
 
 	FLayer Layer = Stack.Pop();
 	Resolve(Layer);
-	Release(Layer.Target.Get());
+
+	if (!Layer.bCallerOwned)
+	{
+		Release(Layer.Target.Get());
+	}
 }
 
 void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,

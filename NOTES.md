@@ -1315,3 +1315,62 @@ screen path lets Slate keep its cached draw elements.
 Verified with `folio.WorldTest ui/screens/settings.rml` then `folio.WorldTest report`: 48 draws, 1916
 triangles at 1000x600, from the project's real settings screen. Note the report has to wait for the
 component's first tick, or it reports zero and means nothing.
+
+## RmlUi culls text that falls entirely outside the context
+
+`ElementText::OnRender` (`ElementText.cpp:176-199`) tests each laid-out line against the scissor
+region and, when nothing has set one, against `Rectanglei::FromSize(render_manager.GetViewport())` -
+the context's dimensions. A line whose box does not intersect that rectangle is never submitted.
+
+So a world-space document cannot draw text outside its own bounds. Partly outside is fine, which is
+why corner elements hanging off an edge still render in full: the line intersects. Fully outside
+draws nothing, silently, with no warning anywhere.
+
+This is upstream behaviour, not something Folio's recording does, and it is not configurable without
+setting a scissor region. If a document needs something to appear clear of its own background, the
+background has to be a panel inset inside the document rather than the document itself - which is
+what `dev/idle_animation.rml` does for its banner.
+
+Backgrounds and images are not culled this way, only text. That asymmetry is what makes it confusing
+to diagnose: a `div` with a colour appears outside the bounds and the text inside it does not.
+
+## Two colour spaces for a world document, decided by its draw mode
+
+A recorded colour is a byte triple, and what has to happen to it depends entirely on where it lands.
+
+- **After tonemap.** The tonemapper has already applied the output device transform - the LUT in
+  `PostProcessTonemap.usf` ends with `OutDeviceColor` - so scene colour at that point is gamma
+  encoded. A byte colour goes through as written, `value / 255`, with no decode.
+- **In scene.** Scene colour before post-processing is linear HDR with the view's pre-exposure baked
+  in. The same byte colour must be decoded from sRGB *and* multiplied by `View.PreExposure`, because
+  the tonemapper divides that back out later.
+- **A layer, or a Surface document's target.** An sRGB render target, which encodes on write, so the
+  decode is needed and the pre-exposure is not.
+
+Getting this wrong is quiet. Everything renders, in the right place, at the right size; the colours
+are just wrong in a way that reads as "a bit dark" rather than as a bug. `FFolioDrawList::SetDecodeSrgb`
+is the switch, and the layer path and the world path disagree about it on purpose.
+
+## A scene view does not expose the render-resolution view rect
+
+`FSceneView` has `UnscaledViewRect` and `UnconstrainedViewRect`, both at display resolution.
+The render-resolution rectangle lives on `FViewInfo`, which is private to the Renderer module, so a
+scene view extension drawing its own geometry cannot set a viewport matching the view.
+
+The way out is to set the viewport to the whole target and correct in the vertex shader, where the
+view uniform buffer does know: `View.ViewRectMin` and `View.ViewSizeAndInvSize`. Clip space to the
+view's pixels, then back out to the whole target's clip space. `FolioWorld.usf` does this whenever
+`FolioSceneTarget.z` is set.
+
+Deriving the rectangle from the display rect and a screen-percentage fraction instead would be wrong
+under dynamic resolution, and wrong in split screen where the rect's origin is not zero.
+
+## FPostProcessingInputs is an internal renderer header
+
+`PrePostProcessPass_RenderThread` receives it, and it lives in
+`Engine/Source/Runtime/Renderer/Internal/PostProcess/PostProcessInputs.h`. UBT does not put a
+dependency's `Internal` folder on a dependent module's include path, so `Folio.Build.cs` adds it by
+hand against `EngineDirectory`.
+
+That is an engine-layout assumption. Check it on any engine upgrade: if the path moves, the in-scene
+draw mode stops compiling, which is at least loud.

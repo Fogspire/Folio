@@ -3,12 +3,27 @@
 #include "FolioDocumentHost.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
+#include "FolioSettings.h"
+
+#include "Engine/TextureRenderTarget2D.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 
 #include <RmlUi/Core/Context.h>
 
 namespace
 {
 	TArray<UFolioWorldDocument*> LiveDocuments;
+
+	TAutoConsoleVariable<bool> CVarSurfaceAutoResolution(
+		TEXT("folio.World.SurfaceAutoResolution"),
+		true,
+		TEXT("Size a Surface document's offscreen target from how large it lands on screen, so walking up to "
+			"it sharpens it. Off pins the target to the document's own size, which is the fixed-resolution "
+			"behaviour a UWidgetComponent has."));
+
+	/** Coarse enough that ordinary movement does not cross a step every frame. */
+	constexpr int32 SurfaceSizeStep = 128;
 }
 
 const TArray<UFolioWorldDocument*>& UFolioWorldDocument::GetLive()
@@ -29,6 +44,11 @@ UFolioWorldDocument::UFolioWorldDocument()
 	// document that stopped updating while looked away from would arrive stale, and the invalidation
 	// path already makes an idle one nearly free.
 	PrimaryComponentTick.TickGroup = TG_PrePhysics;
+
+	// The project's default, so a game that has made this decision does not repeat it on every component.
+	// Read here rather than at registration because a value set on the component has to win, and by then
+	// the two are indistinguishable.
+	DrawMode = GetDefault<UFolioSettings>()->DefaultWorldDrawMode;
 }
 
 FIntPoint UFolioWorldDocument::GetDocumentSize() const
@@ -90,6 +110,8 @@ void UFolioWorldDocument::OnUnregister()
 	LiveDocuments.RemoveSingleSwap(this);
 	Host.Reset();
 	ReleaseRecordings();
+	SurfaceTarget.Reset();
+	SurfaceSize = FIntPoint::ZeroValue;
 
 	Super::OnUnregister();
 }
@@ -109,12 +131,26 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 
 	Host->TickDataModels();
 
+	const bool bSurface = DrawMode == EFolioWorldDrawMode::Surface;
+	const FIntPoint Document = GetDocumentSize();
+	const FIntPoint TargetSize = bSurface ? DesiredSurfaceSize() : Document;
+
+	if (bSurface && TargetSize != SurfaceSize)
+	{
+		// Otherwise an idle document keeps whatever resolution it was first rendered at, and walking up to
+		// it would never sharpen it - which is the one thing this mode exists to do.
+		Host->MarkDirty(TEXT("surface resolution"));
+	}
+
 	// A world document has no host scaling to inherit: `dp` resolves against 1, so a dp is a document
 	// pixel and PixelsPerUnit is the only thing deciding how large text is on the surface.
 	//
-	// The render scale is one document pixel expressed in document units, which is 1 here for the same
-	// reason. It only affects background antialiasing width, and the fields carry their own edges.
-	if (!Host->Update(DeltaTime, 1.0f, 1.0f))
+	// The render scale is one document pixel expressed in target pixels, which is 1 for the direct routes
+	// and the ratio for a surface. It only affects background antialiasing width; the fields carry their own
+	// edges and need no telling.
+	const float RenderScale = float(Document.Y) / float(FMath::Max(1, TargetSize.Y));
+
+	if (!Host->Update(DeltaTime, 1.0f, RenderScale))
 	{
 		// Nothing changed, so the recording from last time still describes the document. Re-recording it
 		// would be the same work the invalidation path exists to avoid.
@@ -125,6 +161,12 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 	FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
 	if (!Context || !Renderer)
 	{
+		return;
+	}
+
+	if (bSurface)
+	{
+		RenderToSurface(TargetSize);
 		return;
 	}
 
@@ -165,6 +207,95 @@ void UFolioWorldDocument::ReleaseRecordings()
 
 	Published.Reset();
 	Retired.Empty();
+}
+
+FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const
+{
+	const FIntPoint Document = GetDocumentSize();
+	const int32 MaxEdge = FMath::Max(1, FMath::RoundToInt(float(FMath::Max(Document.X, Document.Y))
+		* FMath::Max(0.25f, MaxSurfaceScale)));
+
+	const UWorld* World = GetWorld();
+	if (!CVarSurfaceAutoResolution.GetValueOnGameThread() || !World || !World->IsGameWorld())
+	{
+		return Document;
+	}
+
+	const APlayerController* Player = World->GetFirstPlayerController();
+	const APlayerCameraManager* Camera = Player ? Player->PlayerCameraManager : nullptr;
+	if (!Camera)
+	{
+		return Document;
+	}
+
+	int32 ViewportX = 0;
+	int32 ViewportY = 0;
+	Player->GetViewportSize(ViewportX, ViewportY);
+	if (ViewportY <= 0)
+	{
+		return Document;
+	}
+
+	const FVector Centre = GetComponentLocation();
+	const float Distance = float(FVector::Dist(Centre, Camera->GetCameraLocation()));
+	const float HalfFovRadians = FMath::DegreesToRadians(FMath::Clamp(Camera->GetFOVAngle(), 1.0f, 170.0f) * 0.5f);
+	const float HalfHeightAtDistance = FMath::Max(1.0f, Distance * FMath::Tan(HalfFovRadians));
+
+	// How tall the surface is on screen, in pixels. The vertical axis because that is what FOV describes
+	// once the aspect ratio is applied, and the surface is square-ish enough that one axis decides both.
+	const float WorldHeight = float(WorldSize.Y * GetComponentScale().Y);
+	const float ScreenPixels = (WorldHeight * 0.5f / HalfHeightAtDistance) * float(ViewportY);
+
+	// Rounded up to a step, so approaching the surface raises the resolution before it looks soft rather
+	// than after. Never above the document's own size times the cap, and never above what it lands at.
+	const float Ratio = FMath::Clamp(ScreenPixels / float(FMath::Max(1, Document.Y)), 0.25f, MaxSurfaceScale);
+	const int32 Height = FMath::Clamp(
+		FMath::DivideAndRoundUp(FMath::RoundToInt(float(Document.Y) * Ratio), SurfaceSizeStep) * SurfaceSizeStep,
+		SurfaceSizeStep, MaxEdge);
+
+	// The document's aspect ratio is what decides the width: a target that did not match it would stretch.
+	const int32 Width = FMath::Max(SurfaceSizeStep,
+		FMath::RoundToInt(float(Height) * float(Document.X) / float(FMath::Max(1, Document.Y))));
+
+	return FIntPoint(Width, Height);
+}
+
+void UFolioWorldDocument::RenderToSurface(const FIntPoint Size)
+{
+	Rml::Context* Context = Host->GetContext();
+	FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
+	if (!Context || !Renderer || Size.X <= 0 || Size.Y <= 0)
+	{
+		return;
+	}
+
+	// Replaced rather than resized: resizing a render target in place reallocates its resource anyway, and a
+	// new object is what tells a material holding the old one that it has to rebind.
+	if (!SurfaceTarget.IsValid() || SurfaceSize != Size)
+	{
+		UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>(this);
+		Target->RenderTargetFormat = RTF_RGBA8;
+
+		// Premultiplied transparent, matching the layer path: a surface that starts opaque black fringes
+		// every edge the material later blends.
+		Target->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		Target->bAutoGenerateMips = false;
+		Target->bForceLinearGamma = false;
+		Target->InitAutoFormat(Size.X, Size.Y);
+		Target->UpdateResourceImmediate(true);
+
+		SurfaceTarget.Reset(Target);
+		SurfaceSize = Size;
+		OnSurfaceChanged.Broadcast(Target);
+	}
+
+	if (!Renderer->BeginSurface(Size, SurfaceTarget.Get()))
+	{
+		return;
+	}
+
+	Context->Render();
+	Renderer->EndSurface();
 }
 
 void UFolioWorldDocument::LoadDocument(const FString& InDocumentPath)

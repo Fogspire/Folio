@@ -51,10 +51,27 @@ public:
 	 */
 	void BeginRecording(FFolioDrawList& InDrawList, FIntPoint InContextSize);
 
+	/**
+	 * Renders the following calls into an offscreen target rather than to a screen or a recording.
+	 *
+	 * What a document needs to reach a mesh with its effects intact: a base layer stands in for Slate, so
+	 * box-shadow, filter, backdrop-filter and mask-image all work exactly as they do on screen, and the
+	 * whole document composites as one surface. The cost is the resample the direct paths avoid.
+	 *
+	 * Paired with EndSurface, which resolves the layer and hands over its target.
+	 */
+	bool BeginSurface(FIntPoint InContextSize, class UTextureRenderTarget2D* Target);
+
+	/** Resolves the surface into the target it was given. */
+	void EndSurface();
+
 	void EndFrame();
 
 	/** True while render calls are being recorded rather than drawn. */
 	bool IsRecording() const { return DrawList != nullptr; }
+
+	/** True while render calls are going to an offscreen surface of our own rather than to Slate. */
+	bool IsSurface() const { return bSurface; }
 
 	/** Highest Slate layer used this frame, so the caller can continue above the document. */
 	int32 GetMaxLayerId() const { return MaxLayerId; }
@@ -330,6 +347,9 @@ private:
 	TMap<Rml::CompiledFilterHandle, FFilter> Filters;
 
 	FFolioLayerStack Layers;
+
+	/** Set between BeginSurface and EndSurface, where the bottom layer is the destination. */
+	bool bSurface = false;
 
 	/**
 	 * The size a layer is allocated at, and the origin its contents are offset by.

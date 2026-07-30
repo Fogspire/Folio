@@ -36,6 +36,14 @@ public:
 
 	bool Push(FIntPoint Size);
 
+	/**
+	 * Pushes a layer that resolves into a target the caller owns, rather than one from the pool.
+	 *
+	 * What a render-target surface needs: the destination outlives the frame and is sampled by a material,
+	 * so it must not go back to the pool to be handed to the next layer and cleared.
+	 */
+	bool PushInto(class UTextureRenderTarget2D* Target);
+
 	/** Resolves the layer and returns its target to the pool. */
 	void Pop();
 
@@ -87,6 +95,9 @@ private:
 
 		bool bClipMaskEnabled = false;
 		bool bClipMaskInverted = false;
+
+		/** Set for a target the caller owns, which Pop resolves but does not pool. */
+		bool bCallerOwned = false;
 	};
 
 	UTextureRenderTarget2D* Acquire(FIntPoint Size);

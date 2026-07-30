@@ -1175,10 +1175,19 @@ namespace msdfbake
 			if (Drawing.DistinctFills > 1)
 			{
 				std::fprintf(stderr,
-					"msdfbake: warning: %s has %d fill colours, and a distance field holds one "
-					"silhouette. Every filled path merges into a single shape, coloured wherever it "
-					"is drawn. Keep this as raster art, or split it into one file per colour.\n",
+					"msdfbake: warning: %s has %d fill colours, and one field holds one silhouette, so "
+					"every filled path merges into a single shape. Re-run with --layers to bake each "
+					"colour as its own sprite, with the RCSS to stack them back into the drawing.\n",
 					SpriteName.c_str(), Drawing.DistinctFills);
+			}
+
+			if (Drawing.StrokedPaths > 0)
+			{
+				std::fprintf(stderr,
+					"msdfbake: warning: %s has %d stroked path(s), which contribute nothing to a field: a "
+					"stroke has no area until it is outlined. --layers bakes stroke geometry as its own "
+					"sprite instead.\n",
+					SpriteName.c_str(), Drawing.StrokedPaths);
 			}
 
 			FMsdfGlyphBitmap Bitmap;

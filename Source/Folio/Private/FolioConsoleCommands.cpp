@@ -8,6 +8,8 @@
 #include "FolioLocalization.h"
 #include "FolioNavBindings.h"
 #include "FolioWorldDocument.h"
+
+#include "Engine/TextureRenderTarget2D.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
 #include "Framework/Application/SlateApplication.h"
@@ -779,7 +781,7 @@ namespace
 	/**
 	 * A document on a surface in the world, in front of the camera.
 	 *
-	 *   folio.WorldTest [document] [inscene|aftertonemap]
+	 *   folio.WorldTest [document] [inscene|aftertonemap|surface]
 	 *   folio.WorldTest off
 	 *
 	 * The mode argument is what makes the two routes comparable: the same document, in the same place, drawn
@@ -815,6 +817,19 @@ namespace
 	{
 		for (const UFolioWorldDocument* Surface : UFolioWorldDocument::GetLive())
 		{
+			if (Surface->DrawMode == EFolioWorldDrawMode::Surface)
+			{
+				// A surface records no draw list: it renders straight into its target, so what is worth
+				// reporting is the resolution that target ended up at.
+				const UTextureRenderTarget2D* Target = Surface->GetRenderTarget();
+				UE_LOG(LogFolio, Display,
+					TEXT("folio.WorldTest: '%s' laid out at %dx%d, rendered into a %dx%d target"),
+					*Surface->DocumentPath,
+					Surface->GetDocumentSize().X, Surface->GetDocumentSize().Y,
+					Target ? Target->SizeX : 0, Target ? Target->SizeY : 0);
+				continue;
+			}
+
 			const TSharedPtr<const FFolioDrawList> Recorded = Surface->GetDrawList();
 			UE_LOG(LogFolio, Display,
 				TEXT("folio.WorldTest: '%s' recorded %d draw(s), %d triangle(s) at %dx%d"),
@@ -852,6 +867,11 @@ namespace
 				const bool bRecorded = Live.ContainsByPredicate(
 					[](const UFolioWorldDocument* Surface)
 					{
+						if (Surface->DrawMode == EFolioWorldDrawMode::Surface)
+						{
+							return Surface->GetRenderTarget() != nullptr;
+						}
+
 						const TSharedPtr<const FFolioDrawList> Recorded = Surface->GetDrawList();
 						return Recorded.IsValid() && !Recorded->IsEmpty();
 					});
@@ -906,6 +926,10 @@ namespace
 				|| Arg.Equals(TEXT("tonemap"), ESearchCase::IgnoreCase))
 			{
 				Mode = EFolioWorldDrawMode::AfterTonemap;
+			}
+			else if (Arg.Equals(TEXT("surface"), ESearchCase::IgnoreCase))
+			{
+				Mode = EFolioWorldDrawMode::Surface;
 			}
 			else if (Document.IsEmpty())
 			{
@@ -966,7 +990,11 @@ namespace
 			*Document, Surface->WorldSize.X, Surface->WorldSize.Y, Size.X, Size.Y,
 			Mode == EFolioWorldDrawMode::InScene
 				? TEXT("in scene, so temporal antialiasing, bloom and depth of field all reach it")
-				: TEXT("after the tonemapper, where temporal antialiasing cannot reach it"));
+				: Mode == EFolioWorldDrawMode::Surface
+					? TEXT("into a render target, which nothing samples until a material is given "
+						"GetRenderTarget - so expect to see nothing here. 'folio.WorldTest report' says what "
+						"size it rendered at")
+					: TEXT("after the tonemapper, where temporal antialiasing cannot reach it"));
 	}
 
 	/**

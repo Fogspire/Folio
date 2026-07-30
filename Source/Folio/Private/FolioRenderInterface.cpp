@@ -116,6 +116,47 @@ void FFolioRenderInterface::BeginRecording(FFolioDrawList& InDrawList, const FIn
 	LayerComposites.Reset();
 }
 
+bool FFolioRenderInterface::BeginSurface(const FIntPoint InContextSize, UTextureRenderTarget2D* Target)
+{
+	ElementList = nullptr;
+	DrawList = nullptr;
+	ContextSize = InContextSize;
+	LayerId = 0;
+	MaxLayerId = 0;
+
+	// Positions stay in document space, as they do for a recording: the base layer is the size of the
+	// document, so there is nothing to transform them by.
+	Geometry = FGeometry::MakeRoot(FVector2D(InContextSize.X, InContextSize.Y), FSlateLayoutTransform());
+
+	bScissorEnabled = false;
+	bClipPushed = false;
+	bHasTransform = false;
+	ClipMaskRect.Reset();
+	LayerDepth = 0;
+	RmlTransform = FSlateRenderTransform();
+	PendingBackdropSigma = 0.0f;
+	LayerComposites.Reset();
+
+	// The document's own layer, standing in for Slate. Every effect layer RmlUi pushes composites down
+	// into this one, exactly as it would composite into the screen. The caller's target rather than a
+	// pooled one, because a material samples it long after the pool would have reused it.
+	bSurface = Layers.PushInto(Target);
+	return bSurface;
+}
+
+void FFolioRenderInterface::EndSurface()
+{
+	if (!bSurface)
+	{
+		return;
+	}
+
+	Layers.Pop();
+	bSurface = false;
+
+	EndFrame();
+}
+
 void FFolioRenderInterface::EndFrame()
 {
 	// A document that leaves clipping enabled would otherwise leak its clip zone into
@@ -177,7 +218,9 @@ Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Sp
 void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Handle,
 	const Rml::Vector2f Translation, const Rml::TextureHandle Texture)
 {
-	if (!ElementList && !DrawList)
+	// A surface has neither an element list nor a recording: its destination is the bottom layer, which the
+	// layer branches below already write to.
+	if (!ElementList && !DrawList && Layers.IsEmpty())
 	{
 		return;
 	}

@@ -35,6 +35,8 @@ public class Folio : ModuleRules
 			// path, which is why this only became necessary with world-space documents.
 			"Renderer",
 			"Projects",
+			// For UFolioSettings, which is where a project sets a default once rather than per document.
+			"DeveloperSettings",
 			"TraceLog",
 			"ApplicationCore",
 			"Json",

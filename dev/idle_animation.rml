@@ -3,7 +3,7 @@
 	<title>Folio animation idle check</title>
 	<link type="text/rcss" href="/folio/folio.rcss"/>
 	<style>
-		body { background-color: #14141ae8; color: #e8e8f0; font-size: 16dp; padding: 16dp;
+		body { background-color: #f7c8d8; color: #e8e8f0; font-size: 16dp; padding: 16dp;
 		       width: 100%; height: 100%; box-sizing: border-box; }
 		@keyframes pulse {
 			from { opacity: 0.5; }

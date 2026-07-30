@@ -1415,6 +1415,20 @@ The rule: a `.cpp` under `Source/FolioCore/Private/` may not call `Rml::Factory:
 `Rml::StyleSheetSpecification::*`, `Element::SetProperty`, or anything else that resolves through
 RmlUi's registries. Put it in a header and let the consuming module instantiate it.
 
+## Removing an RmlUi element inside its own event handler frees it under the dispatcher
+
+`Element::RemoveChild` returns the only owning `ElementPtr`. Dropping that return value destroys the
+element there and then - and the handler that decided to remove it is, by definition, running inside
+that element's own event dispatch, so RmlUi carries on walking a freed object. It segfaults on the
+next listener.
+
+This bit `folio-drop="remove"`, where the removal waits for the `animationend` that RmlUi delivers to
+the element being removed. The fix is to keep the returned `ElementPtr` in a member and release it on
+the next event, once the dispatch that triggered it has finished.
+
+The same applies to anything that frees an element from a handler: a drop action, a close, a data
+binding that rebuilds a subtree. Take it out of the tree during the event; free it after.
+
 ## Never hold an RmlUi element across frames as a raw pointer
 
 `FFolioBehaviours` kept the element being dragged in a raw `Rml::Element*` between the `dragstart`

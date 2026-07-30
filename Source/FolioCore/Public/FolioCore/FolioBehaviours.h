@@ -95,6 +95,10 @@ public:
 	//~ Begin Rml::EventListener
 	virtual void ProcessEvent(Rml::Event& Event) override
 	{
+		// Whatever the last event took out of the tree is freed here, one event later, once RmlUi is no
+		// longer walking it. See Discarded.
+		Discarded.reset();
+
 		Rml::Element* Target = Event.GetTargetElement();
 		if (!Target)
 		{
@@ -371,9 +375,10 @@ private:
 				Moving.reset();
 			}
 
-			// Hidden first: removing during an event dispatch frees the element RmlUi is still walking.
+			// Taken out of the tree now and freed later. RemoveChild hands back the only owning pointer,
+			// and dropping it here would destroy an element RmlUi is still dispatching this event on.
 			Element.SetProperty("display", "none");
-			Parent->RemoveChild(&Element);
+			Discarded = Parent->RemoveChild(&Element);
 		}
 	}
 
@@ -385,6 +390,15 @@ private:
 	 * survives all three and writes into freed memory on the next pointer move. An observer goes null.
 	 */
 	Rml::ObserverPtr<Rml::Element> Document;
+
+	/**
+	 * An element taken out of the tree, held until the next event so it is not freed mid-dispatch.
+	 *
+	 * A removal always happens while RmlUi is walking that element's own listeners - it is what delivers
+	 * the `animationend` the removal waits for - and `RemoveChild` returns the only owning pointer, so
+	 * letting it go on the spot is a use-after-free inside the dispatcher.
+	 */
+	Rml::ElementPtr Discarded;
 
 	/** What is being moved, with what it takes to work out where to put it. Null when nothing is. */
 	Rml::ObserverPtr<Rml::Element> Moving;

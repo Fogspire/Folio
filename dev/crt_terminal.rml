@@ -218,7 +218,7 @@
 
 		.bin {
 			position: absolute;
-			left: 19%; top: 46%;
+			left: 19%; top: 56%;
 			width: 110dp;
 			text-align: center;
 			font-size: 20dp;

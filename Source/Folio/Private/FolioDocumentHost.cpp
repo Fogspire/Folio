@@ -72,6 +72,8 @@ void FFolioDocumentHost::Destroy()
 		OnDocumentClosing();
 	}
 
+	DragDrop.Detach();
+
 	// Closing a document is deferred until the next Update, so the context has to outlive the close.
 	// Removing the context destroys everything in it outright, which is what we want.
 	InputModel.Release();
@@ -114,6 +116,7 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 			OnDocumentClosing();
 		}
 
+		DragDrop.Detach();
 		Document->Close();
 		// Close is deferred to the next update; without this the old document is still alive when the
 		// new one loads and both would render.
@@ -157,6 +160,7 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 
 	Document->Show();
 	InputModel.SetDocument(Document);
+	DragDrop.Attach(Document);
 
 	if (OnDocumentLoaded)
 	{

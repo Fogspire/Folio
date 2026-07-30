@@ -718,7 +718,7 @@ RML is not HTML. Only these tags are backed by real element types with behaviour
 |---|---|
 | `body` | The document element |
 | `img` | Image. Takes `sprite="name"`, or `src` + `rect` |
-| `handle` | Drag/resize handle, used with the `drag` property |
+| `handle` | Drag/resize handle. `move_target="id"` moves that element, `size_target="id"` resizes it, `edge_margin` keeps it inside its parent. Both are RmlUi's own and need no code |
 | `form`, `input`, `select`, `textarea`, `label` | Form controls. `input` types: `text`, `password`, `checkbox`, `radio`, `range`, `submit` |
 | `progress` / `progressbar` | Takes `value`, `max`, `direction` (`top`, `right`, `bottom`, `left`, `clockwise`, `counter-clockwise`) and `start-edge`, plus the `fill-image` property |
 | `tabset` | `<tabset><tabs><tab>…</tab></tabs><panels><panel>…</panel></panels></tabset>`. Sets `:selected` on the active tab and its panel, and `display: none` on the others, as inline properties |
@@ -742,7 +742,60 @@ Tag names are matched literally in selectors, so keep the invented ones document
 
 ---
 
-## 12. Localisation
+## 12. Dragging and dropping
+
+`drag` on an element decides whether it can be picked up at all: `none` (the default), `drag`,
+`drag-drop`, `block` or `clone`. Without it a press is a press and nothing follows the pointer.
+
+**Moving and resizing need no code.** `<handle>` is a real element type and does both:
+
+```html
+<div id="win" class="window">
+	<handle class="titlebar" move_target="win">Title</handle>
+	<div class="body">…</div>
+	<handle class="grip" size_target="win"></handle>
+</div>
+```
+
+The target is named by id, so a handle can move or resize anything, not only its parent. The window
+must be `position: absolute` — a handle writes `left`, `top`, `width` and `height`, and those mean
+nothing to a flex item. `edge_margin` on the handle keeps the target inside its parent.
+
+**Dropping needs somewhere to drop.** RmlUi fires `dragstart`, `dragover`, `dragout`, `dragdrop` and
+`dragend`, but acts on none of them. Folio adds the two things every drop needs:
+
+| | |
+|---|---|
+| `folio-dragging` | Class, set on the dragged element for the length of the drag |
+| `folio-dragover` | Class, set on a drop zone while a drag is over it |
+| `folio-drop="hide"` | Attribute on a drop zone: hides the dropped element |
+| `folio-drop="remove"` | Removes it from the document |
+| `folio-drop="accept"` | Does nothing itself, but still gets `folio-dragover` for styling |
+
+Only an element with `folio-drop` gets `folio-dragover`, so an inert element never offers to accept
+a drop it will not take.
+
+```html
+<div class="icon" drag="drag">CORE.DAT</div>
+<div class="bin" folio-drop="hide">Recycle</div>
+```
+
+```css
+.icon.folio-dragging { opacity: 0.55; }
+.bin.folio-dragover { border-color: #fff; }
+```
+
+Anything past those three actions is the game's: listen for `dragdrop` in C++, or use
+`data-event-dragdrop` against a bound model. This exists so the common case needs neither, and so
+both renderers behave the same — the listener lives in `FolioCore`, which the preview tool and the
+Unreal host both install.
+
+**A drag is a pointer gesture.** It works on a world-space document exactly as on screen, because
+both feed the same press, move and release.
+
+---
+
+## 13. Localisation
 
 Folio's mechanism, which a game's own conventions will have policy on top of.
 
@@ -778,7 +831,7 @@ Assume translated strings are up to 40% longer than English.
 
 ---
 
-## 13. Verifying a document
+## 14. Verifying a document
 
 ```
 uipreview <file.rml> --size 1920x1080

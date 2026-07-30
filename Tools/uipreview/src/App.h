@@ -6,6 +6,7 @@
 #include "FontCache.h"
 #include "MissingAssets.h"
 #include "Options.h"
+#include "FolioCore/FolioDragDrop.h"
 
 #include <memory>
 #include <string>
@@ -121,6 +122,9 @@ private:
 
 	Rml::Context* context = nullptr;
 	Rml::ElementDocument* document = nullptr;
+
+	// Drop actions and drag styling, the same listener the Unreal host installs.
+	FFolioDragDrop drag_drop;
 	std::vector<std::string> screenshots;
 	std::vector<FocusReport> focus_reports;
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FolioCore/FolioDragDrop.h"
 #include "FolioInputState.h"
 
 #include "CoreMinimal.h"
@@ -105,6 +106,9 @@ private:
 	FIntPoint Size = FIntPoint(1920, 1080);
 
 	FFolioInputModel InputModel;
+
+	/** Drop actions and the drag styling classes, which every document gets whatever hosts it. */
+	FFolioDragDrop DragDrop;
 
 	/** Rebuilt with the context: a model cannot be added once a document is loaded. */
 	TUniquePtr<class FFolioDataModel> DataModel;

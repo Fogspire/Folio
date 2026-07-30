@@ -460,6 +460,7 @@ bool App::LoadDocumentFromDisk()
 		return false;
 	}
 	document->Show();
+	drag_drop.Attach(document);
 	ApplyInputClasses();
 	context->Update();
 	localizer.ApplyToDocument(document, options.strict);
@@ -836,6 +837,7 @@ void App::RebuildDocument()
 {
 	const DocumentState state = CaptureDocumentState(context, document);
 
+	drag_drop.Detach();
 	document->Close();
 	// Close is deferred: without this the old document is still alive during the reload.
 	context->Update();
@@ -855,6 +857,7 @@ void App::RebuildDocument()
 	}
 
 	document->Show();
+	drag_drop.Attach(document);
 	ApplyInputClasses();
 	// Layout has to exist before focus and scroll can be put back.
 	context->Update();

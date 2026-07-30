@@ -146,12 +146,15 @@ anything:
 
 ```ini
 [/Script/UnrealEd.ProjectPackagingSettings]
+; Folio's distance field material is loaded by path, so nothing references it and the cooker never
+; sees it. Without this, all text renders with no shader.
++DirectoriesToAlwaysCook=(Path="/Folio")
 +DirectoriesToAlwaysStageAsUFS=(Path="../ui")
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/rcss")
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/fonts")
 ```
 
-The `../` is not a mistake. These paths are resolved against `Content`, not the project root, and the
+The `../` on the staging lines is not a mistake. These paths are resolved against `Content`, not the project root, and the
 staged path collapses back to the project root — which is exactly where Folio looks at runtime. Drop
 the `fonts` line if you ship your own faces in `ui/fonts`.
 
@@ -167,8 +170,9 @@ Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\Automation
 
 ### Changing UI on a device without cooking again
 
-Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` directory beside the
-executable before it reads the package. `-uidev=<path>` points somewhere else. The directory mirrors
+Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` directory in the
+project — in a staged build that is `<Staged>/<YourProject>/uidev`, beside the `ui` tree — before it
+reads the package. `-uidev=<path>` points somewhere else. The directory mirrors
 the project, so `uidev/ui/screens/hud.rml` overrides `ui/screens/hud.rml`, and anything absent falls
 through to the package — a directory holding one document is enough. This is how UI gets iterated on
 a console or a Steam Deck. It does not exist in Shipping.

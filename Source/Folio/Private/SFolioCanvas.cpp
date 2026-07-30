@@ -443,6 +443,7 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	NoteDevice(Folio::DeviceForKey(KeyEvent.GetKey()));
 
 	const int32 Modifiers = Folio::ToRmlModifiers(KeyEvent.GetModifierKeys());
+	const bool bNavigates = Navigates(KeyEvent.GetKey());
 
 	// The literal key first, so a text field still receives W as a letter. Only when nothing is
 	// taking text does a letter get to mean a direction, which is what lets the arrows, WASD and
@@ -458,7 +459,8 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 			return FReply::Unhandled();
 		}
 
-		return !Context->ProcessKeyDown(Key, Modifiers) ? FReply::Handled() : FReply::Unhandled();
+		const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+		return bConsumed || bNavigates ? FReply::Handled() : FReply::Unhandled();
 	}
 
 	if (IsTakingText())
@@ -470,10 +472,24 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	if (const Rml::Input::KeyIdentifier Nav = Folio::ToNavigationKey(KeyEvent.GetKey(), Extra);
 		Nav != Rml::Input::KI_UNKNOWN)
 	{
-		return SendNavigation(Nav, Modifiers | Extra) ? FReply::Handled() : FReply::Unhandled();
+		SendNavigation(Nav, Modifiers | Extra);
+		return FReply::Handled();
 	}
 
-	return FReply::Unhandled();
+	return bNavigates ? FReply::Handled() : FReply::Unhandled();
+}
+
+bool SFolioCanvas::Navigates(const FKey& Key) const
+{
+	// A key that means navigation belongs to the focused document whether or not anything moved.
+	// RmlUi reports a direction it could not act on - already at the edge of a list - as unconsumed,
+	// and letting that fall through means the pawn turns while a menu is open. Worse, in a CommonUI
+	// project the game receiving input makes the action router reapply its input config, which
+	// reassigns focus away from the document, and then no further input arrives at all.
+	//
+	// Only navigation, not every key: swallowing the whole keyboard would take the console key with
+	// it, and that is the way out of a document that has gone wrong.
+	return !IsTakingText() && Folio::ActionForKey(Key) != EFolioNavAction::None;
 }
 
 FReply SFolioCanvas::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& AnalogEvent)
@@ -582,7 +598,9 @@ FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEv
 	const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
 	if (!Context || Key == Rml::Input::KI_UNKNOWN)
 	{
-		return FReply::Unhandled();
+		// Paired with the press: a release reaching the game after its press did not leaves
+		// Enhanced Input holding an action down that nothing will ever complete.
+		return Navigates(KeyEvent.GetKey()) ? FReply::Handled() : FReply::Unhandled();
 	}
 
 	Context->ProcessKeyUp(Key, Folio::ToRmlModifiers(KeyEvent.GetModifierKeys()));

@@ -980,6 +980,25 @@ change to `FFolioDataModel`: it binds the address of the parsed `FJsonValue` nod
 leave RmlUi holding a freed pointer. The fix is to bind a stable slot that the definitions dereference,
 which is what the preview tool does. Reopen the document for now.
 
+## M_FolioMSDF is not cooked unless the project asks for it
+
+`FFolioRenderInterface` loads the distance field material with
+`LoadObject<UMaterialInterface>(nullptr, TEXT("/Folio/M_FolioMSDF.M_FolioMSDF"))`. Nothing *references*
+the asset, so the cooker never sees it, so it is absent from every package and all text renders with
+no shader. The symptom is one log line - `could not load /Folio/M_FolioMSDF; text has no shader to
+resolve its fields` - and otherwise looks like a text rendering bug.
+
+Every project using Folio needs this in `DefaultGame.ini`:
+
+```ini
++DirectoriesToAlwaysCook=(Path="/Folio")
+```
+
+There is no way for the plugin to declare it: `"CanContainContent": true` makes the content *mount*,
+not cook. A `UDeveloperSettings` holding a `TSoftObjectPtr` would not help either, since a config soft
+reference is not a cook reference without asset manager rules. Confirmed empirically - the material was
+missing from the package until the entry was added, and present afterwards.
+
 ## Staging: DirectoriesToAlwaysStageAsUFS is relative to Content, not the project
 
 Folio's files are not assets, so they reach a package only by being staged, and getting the path base
@@ -1024,6 +1043,11 @@ package, so UI can be changed on a device - a console, a Steam Deck - without co
 directory mirrors the project, which is also the staged layout, so `uidev/ui/screens/hud.rml` overrides
 `ui/screens/hud.rml`. A file that is not there falls through, so a directory holding one document
 works. Compiled out of Shipping.
+
+Bare `-uidev` resolves to `FPaths::ProjectDir()/uidev`, which in a staged build is
+`<Staged>/<Project>/uidev`, beside the `ui` tree it shadows. Explicitly **not**
+`FPlatformProcess::BaseDir()`: once staged that is `<Project>/Binaries/<Platform>`, which is nowhere
+anyone would think to drop files.
 
 The override is logged as a **warning** at startup on purpose. A stale file there presents as the game
 ignoring an edit, and nothing in that symptom points at an override directory.

@@ -28,6 +28,9 @@ the first thing a reader will want after this.
 - ~~**Getting started.**~~ Written: `hello_world.md`. Its markup and the `--strict` run were
   verified in the preview; the clean-project setup steps (2 and 3) are accurate to the scripts but
   have never been run on a project that did not already have Folio. Worth walking once.
+  Step 7 (cooking, staging and `-uidev`) *was* verified end to end against a packaged Development
+  client: documents, stylesheets and faces load from the pak, and a loose file in the override
+  directory wins over it.
 - **Hosting a document** (`hosting.md` — both `hello_world.md` and `data_binding.md` link to it, so
   it is a dead link twice over until written). `UFolioWidget` in an existing widget tree, and the CommonUI focus-target
   override. The failure it prevents (gamepad silently doing nothing) is worth naming, since the

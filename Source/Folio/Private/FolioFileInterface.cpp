@@ -110,17 +110,18 @@ FString FFolioFileInterface::OverrideRootFromCommandLine()
 {
 	const TCHAR* CommandLine = FCommandLine::Get();
 
-	// -uidev=<path> for anywhere, bare -uidev for a uidev directory beside the executable, which is
-	// what a build dropped onto a device has.
 	FString Directory;
 	if (FParse::Value(CommandLine, TEXT("uidev="), Directory) && !Directory.IsEmpty())
 	{
 		return FPaths::ConvertRelativePathToFull(Directory);
 	}
 
+	// Bare -uidev means a uidev directory in the project, which in a staged build sits beside the ui
+	// tree it shadows. Deliberately not BaseDir: that is Binaries/<Platform> once staged, which is
+	// nowhere anyone would think to drop files.
 	if (FParse::Param(CommandLine, TEXT("uidev")))
 	{
-		return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPlatformProcess::BaseDir(), TEXT("uidev")));
+		return FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("uidev"));
 	}
 
 	return FString();

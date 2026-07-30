@@ -295,17 +295,21 @@ context and is the honest answer.
 *Gate for this specifically: a document on a mesh, camera moving, with no smearing or softening
 under TSR - compared against `UWidgetComponent` in the same shot, which will show both.*
 
-**Post-processing is per document, and it is a material setting, not a new pass.** A world-space
-surface is translucent, so `Translucency Pass: Before DOF` (`MTP_BeforeDOF`) makes it receive
-depth of field and `After DOF` exempts it. Expose it so a diegetic screen blurs with the scene
-while a floating waypoint marker stays readable. Motion blur is off by default; translucency has
-to opt into writing velocity, so make it a flag only if it costs little - it is not worth
-distorting the design for.
+**Post-processing follows from the draw mode, and Folio exposes nothing for it.** This was written
+expecting every world document to be a translucent material, where `Translucency Pass: Before DOF`
+(`MTP_BeforeDOF`) decides whether depth of field reaches it. That is only true of Surface mode, and
+there the material belongs to the game, so the setting is already theirs. The two direct modes draw
+in Folio's own passes with no material involved: after-tonemap is past DOF by construction and
+in-scene is before it, which is most of what separates them. A per-document switch would have to
+move a document between modes, which is what the draw mode already is.
+
+Motion blur is off by default; translucency has to opt into writing velocity, so make it a flag only
+if it costs little - it is not worth distorting the design for.
 
 Vector sprites are opt-in per document, as everywhere else.
 
 **Gate:** a document on a mesh, legible from across a room and still sharp with the camera
-against it, with DOF affecting it or not according to its setting.
+against it.
 
 ### Phase 8 — Component library and authoring tools
 

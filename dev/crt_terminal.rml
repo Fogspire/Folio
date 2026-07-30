@@ -183,11 +183,13 @@
 		}
 		.desk-icon.folio-closing { animation: 0.35s cubic-in consume; }
 
-		/* The way out, which folio-close waits for before hiding anything. Pulled down off the bottom
-		   and shrunk to nothing, which reads as the window being swallowed by the desk. */
+		/* The way out, which folio-close waits for before hiding anything. Shrunk towards the bottom of
+		   the screen rather than off it: on a surface the render target *is* the document, so anything
+		   translated past its edge is clipped, and text that leaves the context is culled outright.
+		   Both read as the window vanishing partway rather than travelling. */
 		@keyframes suck {
 			from { transform: translateY(0dp) scale(1.0); opacity: 1; }
-			to   { transform: translateY(520dp) scale(0.04); opacity: 0; }
+			to   { transform: translateY(150dp) scale(0.06); opacity: 0; }
 		}
 		.window.folio-closing { animation: 0.5s cubic-in suck; }
 

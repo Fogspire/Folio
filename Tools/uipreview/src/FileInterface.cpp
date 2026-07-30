@@ -45,6 +45,9 @@ std::string RootedFileInterface::Resolve(const std::string& path) const
 
 	// Whatever Folio itself ships resolves against the plugin, not the content root, so a
 	// document can import the base stylesheet without knowing where it was launched from.
+	if (!folio_root.empty() && normalised.rfind("folio/dev/", 0) == 0)
+		return folio_root + "/dev/" + normalised.substr(10);
+
 	if (!folio_root.empty() && normalised.rfind("folio/", 0) == 0)
 		return folio_root + "/rcss/" + normalised.substr(6);
 

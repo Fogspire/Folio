@@ -157,11 +157,11 @@
 		.grip {
 			position: absolute;
 			right: 0; bottom: 0;
-			width: 48dp; height: 48dp;
-			decorator: linear-gradient(135deg, #7dff9b00, #7dff9b00 52%, #7dff9b8c 52%, #7dff9b8c);
+			width: 60dp; height: 60dp;
+			decorator: linear-gradient(135deg, #7dff9b00, #7dff9b00 54%, #7dff9b8c 54%, #7dff9b8c);
 			cursor: se-resize;
 		}
-		.grip:hover { decorator: linear-gradient(135deg, #7dff9b00, #7dff9b00 52%, #eaffef 52%, #eaffef); }
+		.grip:hover { decorator: linear-gradient(135deg, #7dff9b00, #7dff9b00 54%, #eaffef 54%, #eaffef); }
 
 		.close {
 			position: absolute;
@@ -174,6 +174,14 @@
 			tab-index: auto;
 		}
 		.close:hover { background-color: #ff5c5c; color: #04120a; }
+
+		/* An icon dropped on the bin shrinks into it and is then removed outright. The drop leaves it
+		   sitting over the bin already, so shrinking in place is what reads as being swallowed. */
+		@keyframes consume {
+			from { transform: scale(1.0); opacity: 1; }
+			to   { transform: scale(0.05); opacity: 0; }
+		}
+		.desk-icon.folio-closing { animation: 0.35s cubic-in consume; }
 
 		/* The way out, which folio-close waits for before hiding anything. Pulled down off the bottom
 		   and shrunk to nothing, which reads as the window being swallowed by the desk. */
@@ -210,7 +218,7 @@
 
 		.bin {
 			position: absolute;
-			left: 19%; top: 58%;
+			left: 19%; top: 46%;
 			width: 110dp;
 			text-align: center;
 			font-size: 20dp;
@@ -296,7 +304,7 @@
 
 		<!-- folio-drop is Folio's: hide the dropped element, remove it, or accept it and do the rest
 		     yourself in a dragdrop listener. -->
-		<div class="bin" folio-drop="hide">
+		<div class="bin" folio-drop="remove">
 			<span class="glyph"></span>RECYCLE
 		</div>
 

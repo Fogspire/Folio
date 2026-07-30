@@ -118,33 +118,35 @@ public:
 
 		case Rml::EventId::Dragover:
 			// Only a zone that would do something, so an inert element never offers to accept a drop.
-			if (Target->HasAttribute("folio-drop"))
+			if (Rml::Element* Zone = Bearing(Target, "folio-drop"))
 			{
-				Target->SetClass(DragOverClass(), true);
+				Zone->SetClass(DragOverClass(), true);
 			}
 			break;
 
 		case Rml::EventId::Dragout:
-			Target->SetClass(DragOverClass(), false);
+			if (Rml::Element* Zone = Bearing(Target, "folio-drop"))
+			{
+				Zone->SetClass(DragOverClass(), false);
+			}
 			break;
 
 		case Rml::EventId::Dragdrop:
-			Drop(*Target, Event);
+			if (Rml::Element* Zone = Bearing(Target, "folio-drop"))
+			{
+				Drop(*Zone, Event);
+			}
 			break;
 
 		case Rml::EventId::Click:
-			if (Target->HasAttribute("folio-close"))
+			if (Rml::Element* Button = Bearing(Target, "folio-close"))
 			{
-				Close(*Target);
+				Close(*Button);
 			}
 			break;
 
 		case Rml::EventId::Animationend:
-			// The end of the way out, whatever the stylesheet made of it.
-			if (Target->IsClassSet(ClosingClass()))
-			{
-				Target->SetProperty("display", "none");
-			}
+			Finish(*Target);
 			break;
 
 		default:
@@ -184,6 +186,26 @@ private:
 			Rml::EventId::Click,
 			Rml::EventId::Animationend,
 		};
+	}
+
+	/**
+	 * The nearest element at or above this one carrying the attribute, or null.
+	 *
+	 * An event targets the deepest element under the pointer, which for anything with an icon or a label
+	 * inside it is a child rather than the thing the author put the attribute on. Dropping on a bin means
+	 * dropping on the bin's glyph.
+	 */
+	static Rml::Element* Bearing(Rml::Element* Element, const char* Attribute)
+	{
+		for (; Element; Element = Element->GetParentNode())
+		{
+			if (Element->HasAttribute(Attribute))
+			{
+				return Element;
+			}
+		}
+
+		return nullptr;
 	}
 
 	/** The element being dragged, which a drop event carries as a parameter rather than as its target. */
@@ -266,21 +288,14 @@ private:
 			return;
 		}
 
-		if (Action == "hide")
+		if (Action == "hide" || Action == "remove")
 		{
-			Dragged->SetProperty("display", "none");
-		}
-		else if (Action == "remove")
-		{
-			if (Rml::Element* Parent = Dragged->GetParentNode())
+			if (Moving.get() == Dragged)
 			{
-				if (Moving.get() == Dragged)
-				{
-					Moving.reset();
-				}
-
-				Parent->RemoveChild(Dragged);
+				Moving.reset();
 			}
+
+			Dismiss(*Dragged, Action);
 		}
 		else if (Action != "accept")
 		{
@@ -304,21 +319,61 @@ private:
 			return;
 		}
 
-		// The class first, so a stylesheet gets to animate the way out. Hiding then waits for that to
-		// finish; with nothing to wait for, it happens now.
-		Target->SetClass(ClosingClass(), true);
+		Dismiss(*Target, "hide");
+	}
+
+	/**
+	 * Takes an element away, letting a stylesheet animate it out first.
+	 *
+	 * The class goes on, and what happens at the end is remembered on the element rather than here, so
+	 * several can be on their way out at once and a reload cannot leave this holding a stale intent.
+	 */
+	void Dismiss(Rml::Element& Element, const Rml::String& Action)
+	{
+		Element.SetAttribute("folio-dismissing", Action);
+		Element.SetClass(ClosingClass(), true);
 
 		// Adding a class only marks the element's definition dirty - the rules behind it are not resolved
 		// until the next update, and reading the animation before then reports whatever was true a moment
-		// ago. Which would mean every animated close read as un-animated and vanished instantly.
-		if (Rml::ElementDocument* Owner = Target->GetOwnerDocument())
+		// ago. Which would mean every animated dismissal read as un-animated and vanished instantly.
+		if (Rml::ElementDocument* Owner = Element.GetOwnerDocument())
 		{
 			Owner->UpdateDocument();
 		}
 
-		if (!HasAnimation(*Target))
+		if (!HasAnimation(Element))
 		{
-			Target->SetProperty("display", "none");
+			Finish(Element);
+		}
+	}
+
+	/** The end of the way out, whatever the stylesheet made of it. */
+	void Finish(Rml::Element& Element)
+	{
+		if (!Element.IsClassSet(ClosingClass()))
+		{
+			return;
+		}
+
+		const Rml::String Action = Element.GetAttribute<Rml::String>("folio-dismissing", "hide");
+		Element.RemoveAttribute("folio-dismissing");
+
+		if (Action != "remove")
+		{
+			Element.SetProperty("display", "none");
+			return;
+		}
+
+		if (Rml::Element* Parent = Element.GetParentNode())
+		{
+			if (Moving.get() == &Element)
+			{
+				Moving.reset();
+			}
+
+			// Hidden first: removing during an event dispatch frees the element RmlUi is still walking.
+			Element.SetProperty("display", "none");
+			Parent->RemoveChild(&Element);
 		}
 	}
 

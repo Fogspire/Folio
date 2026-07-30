@@ -780,10 +780,17 @@ Folio adds:
 | `folio-drop="accept"` | Does nothing itself, but still gets `folio-dragover` for styling |
 | `folio-drag="move"` | The element follows the pointer while dragged |
 | `folio-close="id"` | On click, closes that element. No id closes the parent |
-| `folio-closing` | Class, set on a closing element. Animate it and the close waits for the animation to finish |
+| `folio-closing` | Class, set on anything on its way out, by a close **or** a drop. Animate it and the removal waits for the animation to finish |
 
 Only an element with `folio-drop` gets `folio-dragover`, so an inert element never offers to accept
 a drop it will not take.
+
+**The attribute is looked for up the tree, not on the event's target.** An event targets the deepest
+element under the pointer, so dropping on a bin means dropping on the bin's icon or its label. Put
+`folio-drop` and `folio-close` on the box you think of as the thing; children need nothing.
+
+**`hide` and `remove` animate too.** Both put `folio-closing` on the dropped element and wait, the
+same as a close, so an icon can shrink into the bin before it goes.
 
 ```html
 <div class="icon" drag="drag-drop" folio-drag="move">CORE.DAT</div>

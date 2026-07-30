@@ -111,6 +111,10 @@
 
 		/* Phosphor lines. A gradient rather than a scanline bitmap: it stays correct at whatever
 		   resolution the surface renders at, which a fixed texture does not. */
+		/* Overlays, so they must not take the pointer: they cover the whole screen and are drawn after
+		   the content, so without this they swallow every hover and click meant for what is under them. */
+		.scanlines, .vignette, .roll { pointer-events: none; }
+
 		.scanlines {
 			position: absolute; left: 0; top: 0; width: 100%; height: 100%;
 			decorator: repeating-linear-gradient(to bottom,

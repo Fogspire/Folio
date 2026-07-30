@@ -2,6 +2,7 @@
 
 #include "FolioModule.h"
 #include "SFolioCanvas.h"
+#include "SFolioWorldFocus.h"
 
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/IConsoleManager.h"
@@ -114,6 +115,14 @@ void FFolioInputPreprocessor::Unregister()
 
 bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
+	// A world document holds focus through its own sink, which is not a canvas. It is checked first
+	// because a screen document and a document on a monitor are never both driving the pad.
+	if (InKeyEvent.GetKey().IsGamepadKey() && SFolioWorldFocus::IsActive())
+	{
+		SFolioWorldFocus::RouteGamepadKeyDown(InKeyEvent);
+		return true;
+	}
+
 	// Called for every device, because reclaiming focus is what keyboard input needs too. Slate
 	// reads the focus path after the pre-processors run, so a keyboard event refocused here is
 	// routed to the document by Slate itself and does not need consuming.
@@ -140,6 +149,12 @@ bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, cons
 		return false;
 	}
 
+	if (SFolioWorldFocus::IsActive())
+	{
+		SFolioWorldFocus::RouteGamepadKeyUp(InKeyEvent);
+		return true;
+	}
+
 	SFolioCanvas* Canvas = CanvasForEvent(SlateApp, InKeyEvent);
 	if (Canvas)
 	{
@@ -156,6 +171,12 @@ bool FFolioInputPreprocessor::HandleAnalogInputEvent(FSlateApplication& SlateApp
 	if (!InAnalogInputEvent.GetKey().IsGamepadKey())
 	{
 		return false;
+	}
+
+	if (SFolioWorldFocus::IsActive())
+	{
+		SFolioWorldFocus::RouteGamepadAnalog(InAnalogInputEvent);
+		return true;
 	}
 
 	// A resting stick reports zero every frame. Reclaiming focus off the back of that would fight

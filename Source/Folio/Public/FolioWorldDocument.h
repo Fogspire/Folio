@@ -203,7 +203,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
 	bool IsTakingText() const;
 
-	/** Blurs whatever has focus, which is what hands the keyboard back to the game. */
+	/**
+	 * Hands input to this document: the d-pad, the arrows, WASD and IJKL all navigate it.
+	 *
+	 * What turns a screen in the world into the thing the player is using. Directional input the
+	 * document acts on stops reaching the game, so the player navigates the terminal rather than walking
+	 * while they do it. Anything Folio has no meaning for still falls through, and Escape and the
+	 * console key always do.
+	 *
+	 * Focus is one document at a time. Focusing another releases this one.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	void FocusDocument();
+
+	/** Whether this document currently has input. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Folio|Input")
+	bool IsFocused() const { return bFocusRequested; }
+
+	/** Gives input back to the game, and blurs whatever the document had focused. */
 	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
 	void ReleaseFocus();
 
@@ -320,6 +337,12 @@ private:
 
 	/** Whether this document is the one currently holding Slate's keyboard focus. */
 	bool bHoldingFocus = false;
+
+	/** Whether the game asked for input outright, rather than a text field having pulled it in. */
+	bool bFocusRequested = false;
+
+	/** What the sink was last told, so a change between the two levels reaches it. */
+	bool bLastNavigating = false;
 
 	TArray<FPendingBinding> Bindings;
 

@@ -149,6 +149,20 @@ touch, or a hand in VR, leave it off and call the same path with your own ray:
 modelled: place the component over the screen face with `World Size` matching it, and a bezel, a curve
 or an oval cutout costs nothing. Only `Move Pointer` needs real UVs.
 
+### Navigating it like a menu
+
+Call **Focus Document** on the component and the d-pad, the arrows, WASD and IJKL all navigate it, the
+same as any screen-space document. Directional input the document acts on stops reaching the game, so
+the player works the terminal instead of walking while they do it. **Release Focus** hands input back.
+
+Escape and the console key always fall through, and so does anything Folio has no meaning for.
+
+Focus is one document at a time: focusing another releases the first.
+
+A common shape is to focus on interact and release on Escape or on walking away. Nothing focuses a
+world document on its own, deliberately: a screen the player has not chosen to use should not be taking
+their movement keys.
+
 ### Typing
 
 While a text field in the document has focus, the component takes Slate's keyboard focus through an

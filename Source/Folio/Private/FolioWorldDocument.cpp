@@ -389,8 +389,27 @@ bool UFolioWorldDocument::IsTakingText() const
 	return Host.IsValid() && Host->IsTakingText();
 }
 
+void UFolioWorldDocument::FocusDocument()
+{
+	bFocusRequested = true;
+
+	// The document itself, so the first direction moves to something rather than nowhere. RmlUi
+	// navigates from whatever holds focus, and a document with none swallows the first press.
+	if (Host.IsValid())
+	{
+		if (Rml::ElementDocument* Document = Host->GetDocument())
+		{
+			Document->Focus();
+		}
+	}
+
+	UpdateKeyboardFocus();
+}
+
 void UFolioWorldDocument::ReleaseFocus()
 {
+	bFocusRequested = false;
+
 	Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr;
 	if (!Context)
 	{
@@ -402,6 +421,8 @@ void UFolioWorldDocument::ReleaseFocus()
 		Host->MarkDirty(TEXT("focus released"));
 		Focused->Blur();
 	}
+
+	UpdateKeyboardFocus();
 }
 
 void UFolioWorldDocument::TickPlayerPointer()
@@ -444,16 +465,22 @@ void UFolioWorldDocument::TickPlayerPointer()
 void UFolioWorldDocument::UpdateKeyboardFocus()
 {
 	const UWorld* World = GetWorld();
-	const bool bWanted = Host.IsValid() && World && World->IsGameWorld() && Host->IsTakingText();
-	if (bWanted == bHoldingFocus)
+	const bool bLive = Host.IsValid() && World && World->IsGameWorld();
+
+	// Two ways in. Focused outright, the document owns directional input; pulled in by a text field, it
+	// owns only what a field needs and the player can still walk away mid-word.
+	const bool bWanted = bLive && (bFocusRequested || Host->IsTakingText());
+	if (bWanted == bHoldingFocus && (!bWanted || bFocusRequested == bLastNavigating))
 	{
 		return;
 	}
 
 	bHoldingFocus = bWanted;
+	bLastNavigating = bFocusRequested;
+
 	if (bWanted)
 	{
-		SFolioWorldFocus::Attach(Host.Get());
+		SFolioWorldFocus::Attach(Host.Get(), bFocusRequested);
 	}
 	else
 	{

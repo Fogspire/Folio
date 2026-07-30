@@ -389,6 +389,45 @@ Anything that would make the generated markup unpleasant to read is out of scope
 **Gate:** dragging an element in the extension moves it in Unreal after a save, and the diff on the
 source is one property on one rule, formatted as a person would have written it.
 
+#### Generating the view model from the document
+
+A document already declares everything its binding surface needs: `data-model="hud"` names the model,
+`{{ Health }}` names a value, `data-event-click="Reload"` names a command. Writing the matching C++ by
+hand is transcription, and transcription is worth generating - for anyone, not only a designer.
+
+**Types come from the mock file, names come from the markup.** `ui/mock/hud.json` already holds typed
+values because someone wrote it to see the screen, so `"Health": 0.75` is a float and `"bAlive": true`
+is a bool with no inference from expressions and no type annotations polluting the view. This also
+makes the mock file do double duty and turns the two into a cross-check: a name used in markup with no
+mock entry is exactly the error to report, and so is a mock entry nothing uses.
+
+**Generate a base class, never the class itself.** `UHudViewModelBase` is generated and holds only the
+`FieldNotify` properties and the `BlueprintCallable` command stubs; `UHudViewModel : UHudViewModelBase`
+is hand-written and holds the logic. Regenerating the base is then always safe, and no edit a person
+made is ever at risk. Generating one file that a human is expected to then own is the version that
+eventually overwrites somebody's work.
+
+Commands take their signature from the call site: `data-event-click="Damage(0.25, 'cause')"` gives
+`(float, FString)`. An argument that is a bound value rather than a literal types from the mock file;
+an argument that is neither is reported rather than guessed.
+
+**The loop is a restart, not a build step**, if the project sets this in
+`DefaultEditorPerProjectUserSettings.ini`:
+
+```ini
+[/Script/UnrealEd.EditorLoadingSavingSettings]
+bForceCompilationAtStartup=True
+```
+
+Then "generate, restart the editor" is the whole instruction. Two things to get right: the generated
+file has to be on disk before the restart, and a **failed** compile still opens the editor with the new
+class simply absent - which reads as the tool having done nothing. So the generator reports what it
+wrote, and the bridge already warns by name when a bound name resolves to nothing, which is what makes
+that case legible.
+
+**Gate:** a document with a `data-model` and no C++ behind it produces a compiling view model whose
+values and commands both work after one editor restart, with no file a person wrote being modified.
+
 ---
 
 ## How I want you to work

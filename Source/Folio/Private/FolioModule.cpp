@@ -8,6 +8,7 @@
 #include "FolioFileInterface.h"
 #include "FolioCoreHost.h"
 #include "FolioFontCache.h"
+#include "FolioHotReload.h"
 #include "FolioInputPreprocessor.h"
 #include "FolioNavigation.h"
 #include "FolioRenderInterface.h"
@@ -93,11 +94,22 @@ void FFolioModule::StartupModule()
 	// Ahead of CommonUI's, so a focused document actually receives the gamepad.
 	FFolioInputPreprocessor::Register();
 
+#if WITH_EDITOR
+	// Deferred: this module loads at PostConfigInit and DirectoryWatcher is not reliably loadable
+	// that early.
+	HotReload = MakeUnique<FFolioHotReload>();
+	FCoreDelegates::GetOnPostEngineInit().AddLambda([this] { HotReload->Start(); });
+#endif
+
 	UE_LOG(LogFolio, Log, TEXT("Folio ready. Content root: %s, plugin root: %s"), *ContentRoot, *PluginRoot);
 }
 
 void FFolioModule::ShutdownModule()
 {
+#if WITH_EDITOR
+	HotReload.Reset();
+#endif
+
 	FFolioInputPreprocessor::Unregister();
 
 	// Anything holding a context drops it while RmlUi is still alive to be told about it.

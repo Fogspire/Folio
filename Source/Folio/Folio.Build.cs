@@ -40,5 +40,12 @@ public class Folio : ModuleRules
 			"RmlUiLibrary",
 			"FolioCore",
 		});
+
+		// Hot reload only. DirectoryWatcher is a Developer module and does not exist in a game
+		// build, which is what the -uidev loose-file override covers instead.
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("DirectoryWatcher");
+		}
 	}
 }

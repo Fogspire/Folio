@@ -43,6 +43,17 @@ public:
 	/** Replaces the current document. An empty path unloads without loading anything. */
 	void LoadDocument(const FString& RelativePath);
 
+	/**
+	 * Rebuilds the current document from disk, putting focus and scroll back where they were.
+	 *
+	 * Heavier than ReloadStyleSheets and loses anything the DOM was holding, so hot reload only
+	 * takes this path when the markup itself changed.
+	 */
+	void ReloadDocument();
+
+	/** Re-reads every stylesheet, leaving the DOM, focus, scroll and data model alone. */
+	void ReloadStyleSheets();
+
 	Rml::Context* GetContext() const { return Context; }
 	Rml::ElementDocument* GetDocument() const { return Document; }
 

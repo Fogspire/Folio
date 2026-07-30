@@ -2,6 +2,7 @@
 
 #include "FolioModule.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformProcess.h"
 #include "Misc/Paths.h"
 
 namespace
@@ -60,16 +61,43 @@ FString FFolioFileInterface::Resolve(const Rml::String& Path) const
 	return Relative;
 }
 
+FString FFolioFileInterface::NormalisePath(const FString& Path)
+{
+	FString Out = FPaths::ConvertRelativePathToFull(Path);
+	FPaths::NormalizeFilename(Out);
+	return Out.ToLower();
+}
+
 Rml::FileHandle FFolioFileInterface::Open(const Rml::String& Path)
 {
 	const FString Absolute = Resolve(Path);
 
 	FArchive* Archive = IFileManager::Get().CreateFileReader(*Absolute);
+
+#if WITH_EDITOR
+	// Editors save by writing a temporary file and renaming over the target, so for a few
+	// milliseconds after a change notification the file is locked or zero length. Without this,
+	// every other save during hot reload looks like a parse error. Only a file that is already
+	// there is waited for, so a genuinely missing one still fails immediately.
+	if ((!Archive || Archive->TotalSize() == 0) && FPaths::FileExists(Absolute))
+	{
+		const double Deadline = FPlatformTime::Seconds() + 0.25;
+		while ((!Archive || Archive->TotalSize() == 0) && FPlatformTime::Seconds() < Deadline)
+		{
+			delete Archive;
+			FPlatformProcess::Sleep(0.01f);
+			Archive = IFileManager::Get().CreateFileReader(*Absolute);
+		}
+	}
+#endif
+
 	if (!Archive)
 	{
 		UE_LOG(LogFolio, Verbose, TEXT("could not open '%s'"), *Absolute);
 		return 0;
 	}
+
+	Opened.Add(NormalisePath(Absolute));
 
 	return reinterpret_cast<Rml::FileHandle>(Archive);
 }

@@ -33,7 +33,21 @@ public:
 	/** Absolute path a document reference resolves to, for diagnostics and hot reload. */
 	FString Resolve(const Rml::String& Path) const;
 
+	/**
+	 * Everything RmlUi has opened, normalised for comparison against a watcher notification.
+	 *
+	 * This is the hot reload dependency list: the document, every @import-ed and <link>-ed
+	 * stylesheet, every font and every texture, with no import parser to keep in step with
+	 * RmlUi's own resolution rules. It only ever grows, so a file that is no longer referenced
+	 * costs a wasted reload rather than a missed one.
+	 */
+	const TSet<FString>& GetOpened() const { return Opened; }
+
+	/** Lowercased, forward slashed, absolute: the form GetOpened holds and compares against. */
+	static FString NormalisePath(const FString& Path);
+
 private:
 	FString ContentRoot;
 	FString PluginRoot;
+	TSet<FString> Opened;
 };

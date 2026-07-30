@@ -44,6 +44,12 @@ public:
 	/** Absolute path to the directory documents resolve against. */
 	const FString& GetContentRoot() const { return ContentRoot; }
 
+	/** Absolute path to the plugin, which is where Folio's own stylesheets and fonts live. */
+	const FString& GetPluginRoot() const { return PluginRoot; }
+
+	/** Also the hot reload dependency list: it records every file RmlUi has opened. */
+	FFolioFileInterface* GetFileInterface() const { return FileInterface.Get(); }
+
 	/**
 	 * The one render interface for the process.
 	 *
@@ -112,6 +118,9 @@ private:
 	TUniquePtr<Folio::FFolioFontEngine> FontEngine;
 	TUniquePtr<class FFolioFontCache> FontCache;
 	TUniquePtr<class FFolioCoreHost> CoreHost;
+#if WITH_EDITOR
+	TUniquePtr<class FFolioHotReload> HotReload;
+#endif
 
 	FSimpleMulticastDelegate PreShutdownDelegate;
 	FOnUiSound UiSoundDelegate;

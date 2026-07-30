@@ -7,10 +7,13 @@
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
+#include "FolioReload.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
 #include "Misc/FileHelper.h"
 
+#include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/Factory.h>
 #include <RmlUi/Core/MeshUtilities.h>
 
 namespace
@@ -160,6 +163,40 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 	Sounds.Attach(Document);
 	InputModel.SetDocument(Document);
 	UE_LOG(LogFolio, Log, TEXT("loaded '%s'"), *RelativePath);
+}
+
+void SFolioCanvas::ReloadDocument()
+{
+	if (!Context || PendingDocumentPath.IsEmpty())
+	{
+		return;
+	}
+
+	const Folio::Reload::FDocumentState State = Folio::Reload::CaptureDocumentState(Context, Document);
+
+	// Without clearing these, an edited stylesheet reached through @import is served from cache and
+	// the reload appears to do nothing at all.
+	Rml::Factory::ClearStyleSheetCache();
+	Rml::Factory::ClearTemplateCache();
+	Rml::ReleaseTextures();
+	Rml::ReleaseCompiledGeometry();
+
+	LoadDocument(PendingDocumentPath);
+	if (!Document)
+	{
+		return;
+	}
+
+	// Layout has to exist before focus and scroll can be put back, and the restore itself changes
+	// both, so the state lands one update later.
+	Context->Update();
+	Folio::Reload::RestoreDocumentState(Document, State);
+	Context->Update();
+}
+
+void SFolioCanvas::ReloadStyleSheets()
+{
+	Folio::Reload::ReloadStyleSheets(Context);
 }
 
 void SFolioCanvas::MountDataModel(const FString& RelativePath)

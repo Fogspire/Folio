@@ -941,3 +941,41 @@ the debugger's chrome with no text in it at all - a symptom that points nowhere 
 
 It also needs a cursor to be usable, which a game that has captured the mouse will not have.
 `folio.MouseMode on` sets `FInputModeGameAndUI` with the cursor shown and no viewport lock.
+
+## Hot reload: what decides the granularity, and why the code is duplicated
+
+`folio.HotReload` (default on, editor only) watches `<project>/ui` and `<plugin>/rcss` with
+`IDirectoryWatcher` and reloads open documents. Three things are load-bearing.
+
+**The dependency list is what RmlUi opened, not a parse of `@import`.** `FFolioFileInterface` records
+every path it successfully opened, so the list covers the document, every imported and linked
+stylesheet, every font and every texture, and it cannot drift from RmlUi's own resolution rules. It
+only grows, so a file that is no longer referenced costs a wasted reload rather than a missed one.
+
+**Granularity is not an optimisation.** Rebuilding a document loses everything the DOM held, so an
+`.rcss` change reloads stylesheets only and leaves focus, scroll and the data model alone. `.rml`
+rebuilds and puts focus and scroll back via `FolioReload.cpp`. Anything else opened is art:
+`ReloadChangedTextures` by name plus `ReleaseCompiledGeometry`, deliberately not
+`Rml::ReleaseTextures`, so the distance field pages are not dropped with it.
+
+**`FolioReload.cpp` duplicates the preview tool's `Reload.cpp`/`ElementPath.cpp` on purpose.** RmlUi
+is a static library linked into both the Folio and FolioCore modules, so each has its own copy of
+RmlUi's globals. `Rml::Factory::ClearStyleSheetCache` and `Rml::ReleaseTextures` called from a
+FolioCore translation unit clear FolioCore's caches, which are empty, and the reload silently does
+nothing. Anything touching RmlUi's globals has to be compiled into the module that owns the context.
+Do not "de-duplicate" this into FolioCore.
+
+Two more traps worth knowing:
+
+- **Editors save by writing a temporary file and renaming over the target**, so for a few
+  milliseconds after a notification the file is locked or zero length, and every other save looks
+  like a parse error. `FFolioFileInterface::Open` retries for 250 ms under `WITH_EDITOR`, but only
+  when the file already exists, so a genuinely missing one still fails immediately.
+- **A single save arrives as several notifications** and an atlas re-bake touches many files, so
+  changes accumulate and apply once on the next tick rather than per notification.
+
+**Mock data does not hot reload.** `ui/mock/<model>.json` is read with `FFileHelper`, not through the
+file interface, so it is not in the dependency list and a change is ignored. Making it work needs a
+change to `FFolioDataModel`: it binds the address of the parsed `FJsonValue` node, so a re-parse would
+leave RmlUi holding a freed pointer. The fix is to bind a stable slot that the definitions dereference,
+which is what the preview tool does. Reopen the document for now.

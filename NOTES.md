@@ -1239,3 +1239,42 @@ checkbox is different again: its state is the `checked` attribute, so that is wh
 
 Verified through that command in a `-game` session: int 50 to 73, float 1.0 to 1.8, bool false to true,
 string 'Player' to 'Kaede', and a `BlueprintReadOnly` float refused with the warning naming it.
+
+## Idle cost: RmlUi already tells us when it next needs updating
+
+The brief planned a patch for this on the premise that "RmlUi gives us no signal to work from". **That
+was stale.** RmlUi 6.2 has `Context::GetNextUpdateDelay()`, public and documented as being for exactly
+this, and upstream already requests updates for the cases conservative tracking would have got wrong:
+
+| Requester | Case |
+|---|---|
+| `Element.cpp` | a running `animation` or `transition` |
+| `WidgetTextInput.cpp` | the blinking caret |
+| `WidgetSlider` / `WidgetScroll` | a held arrow's auto-repeat |
+| `Context.cpp` | smooth scrolling |
+
+So no patch, no re-basing cost across an RmlUi bump, and the animation case is upstream's rather than
+ours. `SFolioCanvas::Tick` reads the delay after each update and skips the frame until it elapses;
+everything on our side of the boundary calls `MarkDirty` with a reason.
+
+**Read the delay after `Update()`, never before.** RmlUi resets it to infinity as `Update` begins and
+fills it in as elements ask, so before the call it says nothing about the frame about to happen.
+
+**The one thing that made this not work at all: a captured viewport sends a mouse move every frame.**
+Whether the cursor moved or not. With `MarkDirty` at the top of `OnMouseMove`, a static document
+reported "never, until input" from RmlUi and still updated 10,489 times in 90 seconds - the feature was
+present and doing nothing. `OnMouseMove` now compares the rounded context-space position and modifiers
+against the last event and returns early when they match, which took the same document to **2 updates**.
+Compared in the coordinates RmlUi would receive rather than by `GetCursorDelta`, because a document
+moving under a stationary cursor is a real move and the delta would miss it.
+
+**`autofocus` is an attribute, not a property.** `ElementDocument::Show` defaults to `FocusFlag::Auto`
+and scans for the `autofocus` *attribute*; the RCSS `focus` property has nothing to do with it. This
+cost a while when the caret test kept reporting "never" - the field simply never had focus, so there was
+no caret to blink. Correct behaviour, wrong test.
+
+**Both directions are checked, by `scripts/check_invalidation.sh`.** A build where every document idles
+forever would pass a check that only tested idling, and a frozen document is far worse than a slow one.
+Measured: static 2 updates in 20 s reporting "never"; animated 1777 updates reporting `0.000s`; a focused
+caret 19 updates on a 0.698 s timer. It drives a real editor, because what it measures exists only on the
+Unreal side - uipreview has its own frame loop and would prove nothing.

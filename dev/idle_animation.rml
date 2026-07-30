@@ -1,0 +1,22 @@
+<rml>
+<head>
+	<title>Folio animation idle check</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { background-color: #14141ae8; color: #e8e8f0; font-size: 16dp; padding: 16dp;
+		       width: 100%; height: 100%; box-sizing: border-box; }
+		@keyframes pulse {
+			from { opacity: 0.2; }
+			to   { opacity: 1.0; }
+		}
+		.pulsing { animation: 1.4s pulse infinite alternate; background-color: #4ec9a0;
+		           width: 180dp; height: 32dp; border-radius: 3dp; }
+	</style>
+</head>
+<body>
+	<!-- Nothing else moves, so whatever the invalidation trace reports is the animation's own request.
+	     RmlUi asks for a delay of 0 while any element is animating, which is what must keep this
+	     document out of the idle path. -->
+	<div class="pulsing"></div>
+</body>
+</rml>

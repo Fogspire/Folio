@@ -49,6 +49,9 @@ the first thing a reader will want after this.
   (single-colour silhouettes, no gradients yet, no embedded rasters, no ninepatch on the vector
   atlas). Gradients are on the backlog in `FOLIO_BRIEF.md`, so word this so it does not need
   rewriting when they land.
+- ~~**Performance and profiling.**~~ Written: `performance_profiling.md`. Covers `stat Folio`, the
+  trace channel, the invalidation path with its trace and its escape hatch, and the ordered list of
+  what actually makes a screen slow. The numbers quoted in it were measured, not estimated.
 - **Testing a document.** `uipreview`, `--strict`, and the screenshot and metrics reports. Cheap to
   write and the thing most likely to be skipped.
 

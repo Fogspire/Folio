@@ -235,6 +235,10 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 						if (Refresh(*Raw) && Handle)
 						{
 							Handle.DirtyVariable(Raw->Name);
+
+							// Recorded rather than acted on: this fires whenever the source chooses,
+							// and the canvas asks once a frame.
+							bNotified = true;
 						}
 					}));
 		}
@@ -343,27 +347,36 @@ void FFolioObjectModel::Invoke(UFunction* Function, const Rml::VariantList& Argu
 	}
 }
 
-void FFolioObjectModel::Tick()
+bool FFolioObjectModel::Tick()
 {
+	// A notification arrived since the last tick, which already dirtied its variable. Reported here
+	// because the canvas asks once a frame rather than being called back.
+	const bool bWasNotified = bNotified;
+	bNotified = false;
+
 	if (!bPolling || !Handle)
 	{
-		return;
+		return bWasNotified;
 	}
 
 	if (!Source.IsValid())
 	{
 		// The source was collected. Stop rather than read a stale object every frame.
 		bPolling = false;
-		return;
+		return bWasNotified;
 	}
 
+	bool bMoved = false;
 	for (TUniquePtr<FField>& Field : Fields)
 	{
 		if (Refresh(*Field))
 		{
 			Handle.DirtyVariable(Field->Name);
+			bMoved = true;
 		}
 	}
+
+	return bMoved || bWasNotified;
 }
 
 bool FFolioObjectModel::Refresh(FField& Field)

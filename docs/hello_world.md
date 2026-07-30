@@ -185,6 +185,8 @@ a console or a Steam Deck. It does not exist in Shipping.
 - **Hosting a document** — `UFolioWidget`, focus, and fitting into an existing widget tree.
 - **Data binding** — showing values from your game, and whether a view model is worth it.
 - **[Localization](localization.md)** — keying your text, and getting it into Unreal's gather.
+- **[Performance and profiling](performance_profiling.md)** — `stat Folio`, Insights, and why a settled
+  document costs nothing.
 
 ## If nothing appears
 

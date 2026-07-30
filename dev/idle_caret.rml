@@ -1,0 +1,21 @@
+<rml>
+<head>
+	<title>Folio caret idle check</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { background-color: #14141ae8; color: #e8e8f0; font-size: 16dp; padding: 16dp;
+		       width: 100%; height: 100%; box-sizing: border-box; }
+		/* focus: auto is what makes Document::Show pick this element, which the caret needs: the blink
+		   timer only runs while the field has focus, and an unfocused document is correctly idle. */
+		input[type="text"] { width: 200dp; padding: 4dp 6dp; nav: auto; focus: auto;
+		                     background-color: #2b2b36; color: #e8e8f0; border-radius: 2dp; }
+	</style>
+</head>
+<body>
+	<!-- Nothing here animates. The only thing that changes without input is the caret, so whatever the
+	     invalidation trace reports is the caret's own request and nothing else's. -->
+	<!-- autofocus is an attribute, not a property: ElementDocument::Show scans for the attribute
+	     and the RCSS focus property has nothing to do with it. -->
+	<input type="text" value="focus me" autofocus/>
+</body>
+</rml>

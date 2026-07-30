@@ -44,8 +44,14 @@ public:
 	/** Creates the model and binds every property the source exposes. */
 	bool Mount(Rml::Context* Context, const FString& ModelName, UObject* Source, bool bPollEveryFrame);
 
-	/** Re-reads polled fields. Does nothing for a source that reports its own changes. */
-	void Tick();
+	/**
+	 * Re-reads polled fields. Does nothing for a source that reports its own changes.
+	 *
+	 * Returns whether any value moved, so the canvas knows to update. A polled source is the case that
+	 * would otherwise freeze: it has no notification to raise a dirty flag with, so the only evidence
+	 * that it changed is this sweep finding a difference.
+	 */
+	bool Tick();
 
 	/** True while the source is alive. A garbage collected source stops updating rather than crashing. */
 	bool IsValid() const { return Source.IsValid(); }
@@ -117,4 +123,7 @@ private:
 
 	int32 Commands = 0;
 	bool bPolling = false;
+
+	/** Set by the notification path, read and cleared by Tick, so a notified change reaches the canvas. */
+	bool bNotified = false;
 };

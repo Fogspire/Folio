@@ -49,6 +49,11 @@ void FFolioInputModel::SetDocument(Rml::ElementDocument* InDocument)
 
 void FFolioInputModel::Refresh()
 {
+	if (OnChanged)
+	{
+		OnChanged();
+	}
+
 	const Folio::EInputDevice Device = FFolioModule::Get().GetInputDevice();
 	const Folio::EConfirmButton Button = Folio::ConfirmButton();
 

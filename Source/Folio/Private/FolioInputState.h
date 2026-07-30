@@ -35,6 +35,15 @@ public:
 	/** The document whose body carries the classes. Null when the context is torn down. */
 	void SetDocument(Rml::ElementDocument* InDocument);
 
+	/**
+	 * Called whenever the device or the confirm button changes.
+	 *
+	 * The canvas uses it to mark itself dirty. Needed because a confirm-button change can come from a
+	 * settings screen rather than from input, so there is no key press to notice it by, and a document
+	 * showing button glyphs would keep the old ones until something else happened.
+	 */
+	TFunction<void()> OnChanged;
+
 	/** Pushes the current values into the classes and the model. */
 	void Refresh();
 

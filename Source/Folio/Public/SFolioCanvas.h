@@ -54,6 +54,17 @@ public:
 	/** Re-reads every stylesheet, leaving the DOM, focus, scroll and data model alone. */
 	void ReloadStyleSheets();
 
+	/**
+	 * Says the document has changed and must be updated and repainted.
+	 *
+	 * Only needed by game code that changes a document behind Folio's back. Everything Folio does
+	 * itself - input, loading, resizing, a data model update - already marks itself.
+	 *
+	 * The reason is for `folio.Invalidation.Trace`, which is how "why does this document never idle"
+	 * gets answered. Without it the trace can say a document is busy but not what is keeping it busy.
+	 */
+	void MarkDirty(const TCHAR* Reason = TEXT("game code"));
+
 	Rml::Context* GetContext() const { return Context; }
 	Rml::ElementDocument* GetDocument() const { return Document; }
 
@@ -178,4 +189,32 @@ private:
 
 	/** Mutable: Slate's paint is const, and RmlUi's render pass is not. */
 	mutable FIntPoint ContextSize = FIntPoint::ZeroValue;
+
+	//
+	// Idle cost. A document that has not changed should not be laid out or re-rendered, which is the
+	// one structural disadvantage against UMG under an invalidation panel.
+	//
+
+	/**
+	 * Seconds until RmlUi says it must be updated again.
+	 *
+	 * Straight from `Context::GetNextUpdateDelay()`, which exists for exactly this. Infinity means
+	 * nothing will change without input; zero means something is animating and every frame counts.
+	 * Upstream requests it for the cases that are easy to forget - a running transition, a blinking
+	 * caret, a held scroll arrow, a smooth scroll - so those are not ours to track.
+	 */
+	double NextUpdateIn = 0.0;
+
+	/**
+	 * Where the cursor last was, in the coordinates RmlUi received.
+	 *
+	 * A captured viewport sends a mouse move every frame whether the cursor moved or not, so without
+	 * this a document is never idle and the invalidation above never engages.
+	 */
+	TOptional<FIntPoint> LastMousePosition;
+	int32 LastMouseModifiers = 0;
+
+	/** Something changed on our side of the boundary: input, a load, a resize, a data model write. */
+	bool bDirty = true;
+	const TCHAR* DirtyReason = TEXT("first frame");
 };

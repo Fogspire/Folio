@@ -7,6 +7,7 @@
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
+#include "FolioInvalidation.h"
 #include "FolioLocalization.h"
 #include "FolioReload.h"
 #include "FolioUiSounds.h"
@@ -56,6 +57,7 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 		return;
 	}
 
+	InputModel.OnChanged = [this] { MarkDirty(TEXT("input device or confirm button")); };
 	InputModel.Create(Context);
 
 	if (!PendingDocumentPath.IsEmpty())
@@ -169,6 +171,7 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 	Document->Show();
 	Sounds.Attach(Document);
 	InputModel.SetDocument(Document);
+	MarkDirty(TEXT("document loaded"));
 	UE_LOG(LogFolio, Log, TEXT("loaded '%s'"), *RelativePath);
 }
 
@@ -204,6 +207,7 @@ void SFolioCanvas::ReloadDocument()
 void SFolioCanvas::ReloadStyleSheets()
 {
 	Folio::Reload::ReloadStyleSheets(Context);
+	MarkDirty(TEXT("stylesheets reloaded"));
 }
 
 bool SFolioCanvas::HasObjectModel(const FString& ModelName) const
@@ -291,6 +295,10 @@ void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 
 	ContextSize = Size;
 	Context->SetDimensions(Rml::Vector2i(Size.X, Size.Y));
+
+	// A resize re-evaluates @media and every vw/vh unit, so it is a change even though nothing in the
+	// document moved on its own.
+	MarkDirty(TEXT("resized"));
 }
 
 void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -310,9 +318,16 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	// Before the context update, so a value read this frame lays out this frame. Only sources with
 	// no change notification do any work here, and a model whose source was collected stops on its
 	// own rather than being removed - RmlUi owns it, and a document is still bound to its last values.
+	//
+	// Always, even when the rest of the frame is skipped: polling is how a source without change
+	// notification is noticed at all, so skipping it would freeze exactly the bindings that have no
+	// other way to report themselves.
 	for (const TUniquePtr<FFolioObjectModel>& Model : ObjectModels)
 	{
-		Model->Tick();
+		if (Model->Tick())
+		{
+			MarkDirty(TEXT("data model"));
+		}
 	}
 
 	// A held stick becomes repeated presses here, where there is a clock. Suppressed while a text
@@ -326,6 +341,17 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 		}
 	}
 
+	// Nothing on our side changed and RmlUi asked not to be updated yet, so the frame is skipped
+	// entirely. The clock still runs, because what RmlUi asked for is a delay rather than a signal.
+	if (Folio::InvalidationEnabled() && !bDirty && NextUpdateIn > 0.0)
+	{
+		NextUpdateIn -= InDeltaTime;
+		if (NextUpdateIn > 0.0)
+		{
+			return;
+		}
+	}
+
 	// Slate's layout scale is Unreal's UI scaling; RmlUi expresses the same thing as a
 	// density independent pixel ratio, which is what dp units resolve against.
 	Context->SetDensityIndependentPixelRatio(AllottedGeometry.Scale);
@@ -336,7 +362,39 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const float RenderScale = AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
 	Rml::MeshUtilities::SetBackgroundAntialiasWidth(RenderScale > KINDA_SMALL_NUMBER ? 1.0f / RenderScale : 1.0f);
 
+	const TCHAR* const Reason = bDirty ? DirtyReason : TEXT("RmlUi asked");
+
 	Context->Update();
+
+	// Read after the update, not before: RmlUi resets the request to infinity as Update starts and
+	// fills it in as elements ask, so before the call it says nothing about this frame.
+	NextUpdateIn = Context->GetNextUpdateDelay();
+	bDirty = false;
+
+	// Slate caches draw elements for a non-volatile widget inside an invalidation root, so a paint has
+	// to be asked for rather than assumed. Outside one this costs nothing and Slate paints regardless.
+	Invalidate(EInvalidateWidgetReason::Paint);
+
+	if (Folio::InvalidationTracing())
+	{
+		UE_LOG(LogFolio, Display, TEXT("folio invalidation: updated because '%s', next update in %s"),
+			Reason,
+			FMath::IsFinite(NextUpdateIn)
+				? *FString::Printf(TEXT("%.3fs"), NextUpdateIn)
+				: TEXT("never, until input"));
+	}
+}
+
+void SFolioCanvas::MarkDirty(const TCHAR* Reason)
+{
+	// First reason of the frame wins, since it is the one that actually caused the update.
+	if (!bDirty)
+	{
+		DirtyReason = Reason;
+	}
+
+	bDirty = true;
+	Invalidate(EInvalidateWidgetReason::Paint);
 }
 
 FVector2D SFolioCanvas::ComputeDesiredSize(float) const
@@ -395,14 +453,35 @@ FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEven
 	}
 
 	const FVector2f Local = ToContextSpace(MyGeometry, MouseEvent);
-	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y),
-		Folio::ToRmlModifiers(MouseEvent.GetModifierKeys()));
+	const FIntPoint Position(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y));
+	const int32 Modifiers = Folio::ToRmlModifiers(MouseEvent.GetModifierKeys());
+
+	// A viewport with the mouse captured delivers a move event every frame whether the cursor moved or
+	// not, so this is what decides whether a document can ever be idle. Compared in the coordinates
+	// RmlUi would receive rather than by cursor delta, because a document moving under a stationary
+	// cursor is a real move and a stationary cursor over a moving document is not a new event.
+	if (LastMousePosition.IsSet() && LastMousePosition.GetValue() == Position
+		&& LastMouseModifiers == Modifiers)
+	{
+		return FReply::Unhandled();
+	}
+
+	LastMousePosition = Position;
+	LastMouseModifiers = Modifiers;
+
+	MarkDirty(TEXT("mouse move"));
+	Context->ProcessMouseMove(Position.X, Position.Y, Modifiers);
 
 	return FReply::Unhandled();
 }
 
 FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("mouse down"));
+
 	const int32 Button = Folio::ToRmlMouseButton(MouseEvent.GetEffectingButton());
 	if (!Context || Button < 0)
 	{
@@ -427,6 +506,11 @@ FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoint
 
 FReply SFolioCanvas::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("mouse up"));
+
 	const int32 Button = Folio::ToRmlMouseButton(MouseEvent.GetEffectingButton());
 	if (!Context || Button < 0)
 	{
@@ -443,6 +527,11 @@ FReply SFolioCanvas::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointer
 
 FReply SFolioCanvas::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("mouse wheel"));
+
 	if (!Context)
 	{
 		return FReply::Unhandled();
@@ -457,6 +546,11 @@ FReply SFolioCanvas::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEve
 
 void SFolioCanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("mouse leave"));
+
 	if (Context)
 	{
 		// Without this the last hovered element keeps :hover indefinitely.
@@ -468,6 +562,11 @@ void SFolioCanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
 
 FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("key down"));
+
 	if (!Context)
 	{
 		return FReply::Unhandled();
@@ -546,6 +645,11 @@ bool SFolioCanvas::ClaimsKey(const FKey& Key) const
 
 FReply SFolioCanvas::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& AnalogEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("analog"));
+
 	if (!Context)
 	{
 		return FReply::Unhandled();
@@ -565,6 +669,11 @@ FReply SFolioCanvas::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAn
 
 void SFolioCanvas::OnFocusLost(const FFocusEvent& FocusEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("focus lost"));
+
 	// A stick held while focus moves elsewhere would otherwise keep repeating into this document.
 	Analog.Reset();
 	SLeafWidget::OnFocusLost(FocusEvent);
@@ -598,6 +707,7 @@ bool SFolioCanvas::BindObjectModel(const FString& ModelName, UObject* Source, co
 	}
 
 	ObjectModels.Add(MoveTemp(Model));
+	MarkDirty(TEXT("model bound"));
 	return true;
 }
 
@@ -647,6 +757,11 @@ bool SFolioCanvas::IsTakingText() const
 
 FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("key up"));
+
 	const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
 	if (!Context || Key == Rml::Input::KI_UNKNOWN)
 	{
@@ -661,6 +776,11 @@ FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEv
 
 FReply SFolioCanvas::OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& CharacterEvent)
 {
+	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
+	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
+	// added later cannot forget.
+	MarkDirty(TEXT("text input"));
+
 	if (!Context)
 	{
 		return FReply::Unhandled();

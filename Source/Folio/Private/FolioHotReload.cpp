@@ -6,6 +6,7 @@
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
+#include "FolioWorldDocument.h"
 #include "SFolioCanvas.h"
 
 #include "DirectoryWatcherModule.h"
@@ -249,6 +250,24 @@ bool FFolioHotReload::Flush(float)
 		else if (bStyle)
 		{
 			Canvas->ReloadStyleSheets();
+		}
+	}
+
+	// A copy for the same reason, and dirtied on an art change where a canvas needs nothing: a world
+	// document caches its recording, so releasing the geometry behind it is not enough to redraw it.
+	for (UFolioWorldDocument* Surface : TArray<UFolioWorldDocument*>(UFolioWorldDocument::GetLive()))
+	{
+		if (bMarkup)
+		{
+			Surface->ReloadDocument();
+		}
+		else if (bStyle)
+		{
+			Surface->ReloadStyleSheets();
+		}
+		else
+		{
+			Surface->MarkDirty();
 		}
 	}
 

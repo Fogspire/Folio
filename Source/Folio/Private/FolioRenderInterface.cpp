@@ -1355,7 +1355,8 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		Draw.Kind = FFolioDraw::EKind::Geometry;
 		Draw.Texture.Reset(static_cast<UTexture*>(Entry->Texture.Get()));
 		FFolioDrawList::Convert(Compiled.Vertices, Compiled.Indices,
-			FVector2f(Translation.x, Translation.y), /*bUnpremultiply*/ false, Draw);
+			FVector2f(Translation.x, Translation.y), /*bUnpremultiply*/ false,
+			DrawList->ShouldDecodeSrgb(), Draw);
 
 		for (FFolioUIVertex& Vertex : Draw.Vertices)
 		{

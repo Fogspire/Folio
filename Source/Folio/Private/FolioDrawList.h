@@ -65,6 +65,17 @@ public:
 	void AddClipMask(Rml::ClipMaskOperation Operation, const TArray<FSlateVertex>& Vertices,
 		const TArray<SlateIndex>& Indices, FVector2f Offset);
 
+	/**
+	 * Whether a recorded colour is decoded from sRGB on the way in.
+	 *
+	 * A layer replays into an sRGB target, which encodes on write, so a byte colour has to be decoded
+	 * first or it is encoded twice. Scene colour after the tonemapper is already gamma encoded - the
+	 * tonemapper applies the output device transform - so the same decode there is one conversion too
+	 * many and every colour lands dark and shifted.
+	 */
+	void SetDecodeSrgb(const bool bDecode) { bDecodeSrgb = bDecode; }
+	bool ShouldDecodeSrgb() const { return bDecodeSrgb; }
+
 	void Reset() { Draws.Reset(); }
 	bool IsEmpty() const { return Draws.IsEmpty(); }
 	int32 Num() const { return Draws.Num(); }
@@ -77,8 +88,9 @@ public:
 
 	/** Slate's vertex layout into the shader's, with the offset folded in. */
 	static void Convert(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-		FVector2f Offset, bool bUnpremultiply, FFolioDraw& OutDraw);
+		FVector2f Offset, bool bUnpremultiply, bool bDecodeSrgb, FFolioDraw& OutDraw);
 
 private:
 	TArray<FFolioDraw> Draws;
+	bool bDecodeSrgb = true;
 };

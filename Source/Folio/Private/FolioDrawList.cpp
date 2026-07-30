@@ -4,7 +4,7 @@
 
 namespace
 {
-	FLinearColor ToLinear(const FColor& Color)
+	FLinearColor ToLinear(const FColor& Color, const bool bDecodeSrgb)
 	{
 		// The target is sRGB, so the shader's output is encoded on write. Passing the byte values through
 		// as though they were linear encodes them a second time, which turns a #1f1f28 panel into
@@ -14,7 +14,10 @@ namespace
 		// The real sRGB curve, not a pow(2.2) approximation: the curve has a linear toe, and
 		// approximating it lands #1f1f28 on (22,22,34) instead of (31,31,40). UI colours are dark, which
 		// is precisely where the two disagree most.
-		FLinearColor Linear = FLinearColor::FromSRGBColor(Color);
+		// Not decoded when the destination is already encoded, which is the case after the tonemapper.
+		FLinearColor Linear = bDecodeSrgb
+			? FLinearColor::FromSRGBColor(Color)
+			: FLinearColor(Color.R / 255.0f, Color.G / 255.0f, Color.B / 255.0f, 1.0f);
 
 		// Alpha is coverage, not a colour, and must not be decoded.
 		Linear.A = Color.A / 255.0f;
@@ -23,7 +26,7 @@ namespace
 }
 
 void FFolioDrawList::Convert(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-	const FVector2f Offset, const bool bUnpremultiply, FFolioDraw& OutDraw)
+	const FVector2f Offset, const bool bUnpremultiply, const bool bDecodeSrgb, FFolioDraw& OutDraw)
 {
 	OutDraw.Vertices.Reserve(Vertices.Num());
 	for (const FSlateVertex& Vertex : Vertices)
@@ -45,7 +48,7 @@ void FFolioDrawList::Convert(const TArray<FSlateVertex>& Vertices, const TArray<
 		FFolioUIVertex& Out = OutDraw.Vertices.AddDefaulted_GetRef();
 		Out.Position = FVector2f(Vertex.Position) + Offset;
 		Out.UV = FVector2f(Vertex.TexCoords[0], Vertex.TexCoords[1]);
-		Out.Color = ToLinear(Color);
+		Out.Color = ToLinear(Color, bDecodeSrgb);
 	}
 
 	OutDraw.Indices.Reserve(Indices.Num());
@@ -68,7 +71,7 @@ void FFolioDrawList::AddTriangles(const TArray<FSlateVertex>& Vertices, const TA
 	Draw.Texture.Reset(Texture);
 	Draw.bMasked = bMasked;
 	Draw.bMaskInverted = bMaskInverted;
-	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, Draw);
+	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, bDecodeSrgb, Draw);
 
 	Draws.Add(MoveTemp(Draw));
 }
@@ -89,7 +92,7 @@ void FFolioDrawList::AddField(const TArray<FSlateVertex>& Vertices, const TArray
 	Draw.bMaskInverted = bMaskInverted;
 	Draw.Field = Field;
 	Draw.Effect = Effect;
-	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ true, Draw);
+	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ true, bDecodeSrgb, Draw);
 
 	Draws.Add(MoveTemp(Draw));
 }
@@ -120,7 +123,7 @@ void FFolioDrawList::AddClipMask(const Rml::ClipMaskOperation Operation,
 		break;
 	}
 
-	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, Draw);
+	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, bDecodeSrgb, Draw);
 	Draws.Add(MoveTemp(Draw));
 }
 

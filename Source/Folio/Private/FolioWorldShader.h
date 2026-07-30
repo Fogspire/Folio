@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "FolioUIShader.h"
 #include "GlobalShader.h"
+#include "SceneView.h"
 #include "RenderGraphResources.h"
 #include "ShaderParameterStruct.h"
 
@@ -25,13 +26,25 @@ BEGIN_SHADER_PARAMETER_STRUCT(FFolioWorldParameters, )
 	/** x: effect mode. y: offset. z: softness. */
 	SHADER_PARAMETER(FVector4f, MsdfEffect)
 
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneDepthTexture)
+	/** For ScreenPositionScaleBias and BufferSizeAndInvSize, which is how a fragment finds its depth pixel. */
+	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FolioSceneDepth)
+
+	/** This target's view rect: xy the origin in pixels, zw one over its size. */
+	SHADER_PARAMETER(FVector4f, FolioOutputRect)
+
+	/** 0 draws through geometry, 1 rejects fragments behind it, 2 shows what the test reads. */
+	SHADER_PARAMETER(float, FolioOcclusionMode)
 
 	/**
-	 * xy: display to render resolution scale, because scene depth is at render resolution while this
-	 * target is at display resolution whenever an upscaler runs. z: whether to reject occluded fragments.
+	 * In-scene drawing. xy: one over the target extent. z: remap clip space out of the view rect into the
+	 * whole target. w: scale colour by the view's pre-exposure.
+	 *
+	 * Both corrections exist because the in-scene path draws into a texture the renderer owns, sized and
+	 * scaled on the renderer's terms, rather than into a screen pass of Folio's own.
 	 */
-	SHADER_PARAMETER(FVector4f, DepthParams)
+	SHADER_PARAMETER(FVector4f, FolioSceneTarget)
 
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()

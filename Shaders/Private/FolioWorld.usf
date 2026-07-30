@@ -11,7 +11,10 @@
 //
 // Everything is premultiplied alpha, matching RmlUi 6.x.
 
-#include "/Engine/Public/Platform.ush"
+// Common rather than Platform, for the view uniform buffer: mapping a fragment onto its scene depth pixel
+// needs ScreenPositionScaleBias, which is built from the render-resolution view rect and so is the one
+// thing here that stays correct under an upscaler.
+#include "/Engine/Private/Common.ush"
 #include "/Folio/FolioMsdf.ush"
 
 Texture2D UITexture;
@@ -26,14 +29,21 @@ float4 MsdfField;
 // x: effect mode. y: offset. z: softness.
 float4 MsdfEffect;
 
-Texture2D SceneDepthTexture;
+Texture2D FolioSceneDepth;
 
-// Scene depth is at render resolution while this target is at display resolution whenever an upscaler
-// is running, so a fragment's own pixel is not the same pixel in the depth buffer.
-//   xy: display to render resolution scale.
-//   z:  1 to reject fragments behind geometry, 0 to draw through it.
-//   w:  unused.
-float4 DepthParams;
+// This target's view rect: xy the origin in pixels, zw one over its size. Needed because SV_Position is
+// absolute in the render target while a screen position is relative to the view.
+float4 FolioOutputRect;
+
+// 0 draws through geometry, 1 rejects fragments behind it, 2 replaces the document with what the occlusion
+// test is reading so a wrong depth lookup can be told from a wrong comparison.
+float FolioOcclusionMode;
+
+// In-scene drawing, where the target is the scene's own colour rather than a screen pass of our own.
+//   xy: one over the target's extent, for the viewport remap below.
+//   z:  1 to remap clip space from the view rect into the whole target.
+//   w:  1 to scale colour by the view's pre-exposure.
+float4 FolioSceneTarget;
 
 void WorldVS(
 	in float2 InPosition : ATTRIBUTE0,
@@ -44,8 +54,43 @@ void WorldVS(
 	out float4 OutPosition : SV_POSITION)
 {
 	OutPosition = mul(float4(InPosition, 0.0f, 1.0f), DocumentToClip);
+
+	// Drawing into a scene texture means the viewport covers the whole texture rather than the view's own
+	// rectangle, because the render-resolution rectangle is not available outside the renderer. The view
+	// uniform buffer knows it, so the correction happens here: clip to the view's pixels, then back out to
+	// the whole target's clip space.
+	if (FolioSceneTarget.z > 0.5f)
+	{
+		const float2 Ndc = OutPosition.xy / OutPosition.w;
+		const float2 PixelInView = (Ndc * float2(0.5f, -0.5f) + 0.5f) * View.ViewSizeAndInvSize.xy
+			+ View.ViewRectMin.xy;
+		const float2 NdcInTarget = PixelInView * FolioSceneTarget.xy * float2(2.0f, -2.0f)
+			+ float2(-1.0f, 1.0f);
+
+		OutPosition.xy = NdcInTarget * OutPosition.w;
+	}
+
 	OutUV = InUV;
-	OutColor = InColor;
+
+	// Scene colour carries the pre-exposure the tonemapper divides back out, so a colour written straight
+	// in would come out scaled by it. Nothing to undo on the after-tonemap path, where this is off.
+	OutColor = FolioSceneTarget.w > 0.5f
+		? float4(InColor.rgb * View.PreExposure, InColor.a)
+		: InColor;
+}
+
+// What scene depth holds at this fragment.
+//
+// Routed through a screen position rather than scaling pixels directly: the two targets differ in both
+// resolution and padding under an upscaler, and ScreenPositionScaleBias already describes the render
+// target the depth buffer actually lives in.
+float SceneDeviceZAt(float4 SvPosition)
+{
+	const float2 Screen = (SvPosition.xy - FolioOutputRect.xy) * FolioOutputRect.zw
+		* float2(2.0f, -2.0f) + float2(-1.0f, 1.0f);
+	const float2 DepthUV = Screen * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
+
+	return FolioSceneDepth.Load(int3(int2(DepthUV * View.BufferSizeAndInvSize.xy), 0)).r;
 }
 
 // True when scene geometry is in front of this fragment.
@@ -54,15 +99,22 @@ void WorldVS(
 // avoids needing the projection's near and far here. Reverse-Z, so a larger value is nearer.
 bool IsOccluded(float4 SvPosition)
 {
-	if (DepthParams.z < 0.5f)
+	if (FolioOcclusionMode < 0.5f || FolioOcclusionMode > 1.5f)
 	{
 		return false;
 	}
 
-	const int2 DepthPixel = int2(SvPosition.xy * DepthParams.xy);
-	const float SceneDeviceZ = SceneDepthTexture.Load(int3(DepthPixel, 0)).r;
+	return SceneDeviceZAt(SvPosition) > SvPosition.z;
+}
 
-	return SceneDeviceZ > SvPosition.z;
+// Red is what scene depth reads, green is the document's own depth amplified so a near-plane-relative value
+// is visible at all, blue is the verdict.
+float4 OcclusionDebug(float4 SvPosition)
+{
+	const float SceneZ = SceneDeviceZAt(SvPosition);
+
+	return float4(saturate(SceneZ), saturate(SvPosition.z * 20.0f),
+		SceneZ > SvPosition.z ? 1.0f : 0.0f, 1.0f);
 }
 
 float4 WorldPS(
@@ -70,6 +122,11 @@ float4 WorldPS(
 	in float4 Color : TEXCOORD1,
 	in float4 SvPosition : SV_POSITION) : SV_Target0
 {
+	if (FolioOcclusionMode > 1.5f)
+	{
+		return OcclusionDebug(SvPosition);
+	}
+
 	if (IsOccluded(SvPosition))
 	{
 		discard;
@@ -86,6 +143,11 @@ float4 WorldMsdfPS(
 	in float4 Color : TEXCOORD1,
 	in float4 SvPosition : SV_POSITION) : SV_Target0
 {
+	if (FolioOcclusionMode > 1.5f)
+	{
+		return OcclusionDebug(SvPosition);
+	}
+
 	if (IsOccluded(SvPosition))
 	{
 		discard;

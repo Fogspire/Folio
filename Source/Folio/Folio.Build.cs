@@ -1,3 +1,4 @@
+using System.IO;
 using UnrealBuildTool;
 
 public class Folio : ModuleRules
@@ -44,6 +45,11 @@ public class Folio : ModuleRules
 			"RmlUiLibrary",
 			"FolioCore",
 		});
+
+		// FPostProcessingInputs is what PrePostProcessPass_RenderThread receives, and the in-scene draw
+		// mode cannot be implemented without reading it. It lives in the renderer's Internal folder, which
+		// UBT does not put on a dependent module's include path, so the path is added by hand.
+		PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Source", "Runtime", "Renderer", "Internal"));
 
 		// Hot reload only. DirectoryWatcher is a Developer module and does not exist in a game
 		// build, which is what the -uidev loose-file override covers instead.

@@ -106,6 +106,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void MarkDirty();
 
+	/** Rebuilds from disk, putting focus and scroll back. What a markup change needs. */
+	void ReloadDocument();
+
+	/** Re-reads stylesheets, leaving the DOM, focus, scroll and data models alone. */
+	void ReloadStyleSheets();
+
 	/** The document's size in pixels, which is WorldSize times PixelsPerUnit. */
 	FIntPoint GetDocumentSize() const;
 
@@ -122,10 +128,14 @@ public:
 	/**
 	 * The document's geometry as of the last update, in document space.
 	 *
-	 * Recorded rather than drawn, because where it lands depends on which pass picks it up. Empty until
+	 * Recorded rather than drawn, because where it lands depends on which pass picks it up. Null until
 	 * the first update produces something.
+	 *
+	 * Shared and immutable: a render pass reads this for as long as its frame is in flight, which
+	 * outlasts the tick that handed it over. Re-recording publishes a new list rather than rewriting
+	 * this one, so nothing is ever read while it is being built.
 	 */
-	const FFolioDrawList& GetDrawList() const { return DrawList; }
+	TSharedPtr<const FFolioDrawList> GetDrawList() const { return Published; }
 
 	/** Every live world document, so a render pass can find them without walking the world. */
 	static const TArray<UFolioWorldDocument*>& GetLive();
@@ -163,7 +173,16 @@ private:
 	 * A settled document keeps the recording it already has, which is the same reason the screen path
 	 * lets Slate keep its cached draw elements.
 	 */
-	FFolioDrawList DrawList;
+	TSharedPtr<const FFolioDrawList> Published;
+
+	/**
+	 * Superseded lists a frame in flight may still be reading, dropped here once nothing else holds one.
+	 *
+	 * Released on the game thread deliberately: a recorded draw holds a TStrongObjectPtr, and letting the
+	 * last reference go on a render worker would touch the garbage collector's reference set from the
+	 * wrong thread.
+	 */
+	TArray<TSharedPtr<const FFolioDrawList>> Retired;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> BoundSources;

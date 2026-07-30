@@ -779,12 +779,11 @@ namespace
 	/**
 	 * A document on a surface in the world, in front of the camera.
 	 *
-	 *   folio.WorldTest [document]
+	 *   folio.WorldTest [document] [inscene|aftertonemap]
 	 *   folio.WorldTest off
 	 *
-	 * Nothing draws it yet - that is the after-tonemap pass. What this proves is the half that has to
-	 * work first: the component registers, creates its own context, lays the document out at a size
-	 * derived from world units rather than from a screen, and idles when it settles.
+	 * The mode argument is what makes the two routes comparable: the same document, in the same place, drawn
+	 * either inside the temporal resolve or after it.
 	 */
 	TWeakObjectPtr<AActor> WorldTestActor;
 	/** Set while a report is waiting for the component's first recording. */
@@ -816,10 +815,12 @@ namespace
 	{
 		for (const UFolioWorldDocument* Surface : UFolioWorldDocument::GetLive())
 		{
-			const FFolioDrawList& Recorded = Surface->GetDrawList();
+			const TSharedPtr<const FFolioDrawList> Recorded = Surface->GetDrawList();
 			UE_LOG(LogFolio, Display,
 				TEXT("folio.WorldTest: '%s' recorded %d draw(s), %d triangle(s) at %dx%d"),
-				*Surface->DocumentPath, Recorded.Num(), Recorded.CountTriangles(),
+				*Surface->DocumentPath,
+				Recorded.IsValid() ? Recorded->Num() : 0,
+				Recorded.IsValid() ? Recorded->CountTriangles() : 0,
 				Surface->GetDocumentSize().X, Surface->GetDocumentSize().Y);
 		}
 	}
@@ -849,7 +850,11 @@ namespace
 			{
 				const TArray<UFolioWorldDocument*>& Live = UFolioWorldDocument::GetLive();
 				const bool bRecorded = Live.ContainsByPredicate(
-					[](const UFolioWorldDocument* Surface) { return !Surface->GetDrawList().IsEmpty(); });
+					[](const UFolioWorldDocument* Surface)
+					{
+						const TSharedPtr<const FFolioDrawList> Recorded = Surface->GetDrawList();
+						return Recorded.IsValid() && !Recorded->IsEmpty();
+					});
 
 				if (bRecorded || FPlatformTime::Seconds() > Deadline)
 				{
@@ -885,27 +890,57 @@ namespace
 
 		HideWorldTest();
 
-		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("/folio/dev/idle_animation.rml");
+		// The mode is a token rather than a second positional, so the document stays first whether or not
+		// one is given. Comparing the two routes is the whole reason this command takes it at all.
+		EFolioWorldDrawMode Mode = EFolioWorldDrawMode::AfterTonemap;
+		FString Document;
 
-		// Two metres ahead of the camera and turned to face it, so it is visible without anyone having
-		// to place an actor.
-		FVector Location = FVector::ZeroVector;
-		FRotator Rotation = FRotator::ZeroRotator;
-		if (const APlayerController* Player = FirstPlayer())
+		for (const FString& Arg : Args)
 		{
-			Player->GetPlayerViewPoint(Location, Rotation);
+			if (Arg.Equals(TEXT("inscene"), ESearchCase::IgnoreCase)
+				|| Arg.Equals(TEXT("scene"), ESearchCase::IgnoreCase))
+			{
+				Mode = EFolioWorldDrawMode::InScene;
+			}
+			else if (Arg.Equals(TEXT("aftertonemap"), ESearchCase::IgnoreCase)
+				|| Arg.Equals(TEXT("tonemap"), ESearchCase::IgnoreCase))
+			{
+				Mode = EFolioWorldDrawMode::AfterTonemap;
+			}
+			else if (Document.IsEmpty())
+			{
+				Document = Arg;
+			}
 		}
 
-		const FVector Forward = Rotation.Vector();
+		if (Document.IsEmpty())
+		{
+			Document = TEXT("/folio/dev/idle_animation.rml");
+		}
 
-		// The surface lies in local XY facing local Z, so facing the camera means aiming local Z back
-		// along the view direction. MakeFromZ builds exactly that; a Rotator from the vector would aim
-		// local X instead and leave the document lying flat.
+		// Two metres ahead of the camera, so it is visible without anyone having to place an actor.
+		FVector ViewLocation = FVector::ZeroVector;
+		FRotator ViewRotation = FRotator::ZeroRotator;
+		if (const APlayerController* Player = FirstPlayer())
+		{
+			Player->GetPlayerViewPoint(ViewLocation, ViewRotation);
+		}
+		else
+		{
+			// Said out loud because the alternative presents as the surface being invisible: at the origin
+			// it is usually inside the level or behind the camera, and nothing about that says why.
+			UE_LOG(LogFolio, Warning,
+				TEXT("no player controller, so the surface goes at the world origin rather than in front of "
+					"the camera. Possess a pawn and run this again to place it."));
+		}
+
+		// Pitched up and turned off axis, so it stands rather than lying flat and is seen at an angle. That
+		// makes a projection error obvious: a surface square to the camera hides skew and foreshortening.
 		//
-		// The rotation goes on the spawn transform rather than onto the component afterwards: setting it
-		// on a component that is neither registered nor the root does not survive being made the root.
-		const FTransform SpawnAt(FRotationMatrix::MakeFromZ(-Forward).Rotator(),
-			Location + Forward * 200.0);
+		// The rotation goes on the spawn transform rather than onto the component afterwards: setting it on
+		// a component that is neither registered nor the root does not survive being made the root.
+		const FTransform SpawnAt(FRotator(90.0, 45.0, 0.0),
+			ViewLocation + ViewRotation.Vector() * 200.0);
 
 		AActor* Actor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnAt);
 		if (!Actor)
@@ -916,6 +951,9 @@ namespace
 
 		UFolioWorldDocument* Surface = NewObject<UFolioWorldDocument>(Actor);
 		Surface->DocumentPath = Document;
+		// Before registering: the mode decides which space the recording's colours are in, and the first
+		// recording happens on the first tick after registration.
+		Surface->DrawMode = Mode;
 		Actor->SetRootComponent(Surface);
 		Surface->RegisterComponent();
 
@@ -923,10 +961,12 @@ namespace
 
 		const FIntPoint Size = Surface->GetDocumentSize();
 		UE_LOG(LogFolio, Display,
-			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d. NOTHING IS DRAWN YET - ")
-			TEXT("the pass that draws a world document does not exist, so expect to see nothing. ")
+			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d, drawn %s. ")
 			TEXT("'folio.WorldTest report' says what it recorded; 'folio.WorldTest off' removes it."),
-			*Document, Surface->WorldSize.X, Surface->WorldSize.Y, Size.X, Size.Y);
+			*Document, Surface->WorldSize.X, Surface->WorldSize.Y, Size.X, Size.Y,
+			Mode == EFolioWorldDrawMode::InScene
+				? TEXT("in scene, so temporal antialiasing, bloom and depth of field all reach it")
+				: TEXT("after the tonemapper, where temporal antialiasing cannot reach it"));
 	}
 
 	/**

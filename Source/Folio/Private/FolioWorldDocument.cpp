@@ -21,6 +21,10 @@ UFolioWorldDocument::UFolioWorldDocument()
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
 
+	// Authoring a surface means seeing it in the level viewport, and the recording only happens on tick, so
+	// without this a placed document draws nothing until play begins.
+	bTickInEditor = true;
+
 	// The document updates itself, which has nothing to do with whether the surface is on screen. A
 	// document that stopped updating while looked away from would arrive stale, and the invalidation
 	// path already makes an idle one nearly free.
@@ -84,6 +88,21 @@ void UFolioWorldDocument::OnUnregister()
 	LiveDocuments.RemoveSingleSwap(this);
 	Host.Reset();
 
+	// A frame still reading one of these would otherwise release the last reference itself, on a render
+	// worker, which is the one thread a recorded draw's TStrongObjectPtr must not be freed from.
+	const auto StillInFlight = [](const TSharedPtr<const FFolioDrawList>& List)
+	{
+		return List.IsValid() && !List.IsUnique();
+	};
+
+	if (StillInFlight(Published) || Retired.ContainsByPredicate(StillInFlight))
+	{
+		FlushRenderingCommands();
+	}
+
+	Published.Reset();
+	Retired.Empty();
+
 	Super::OnUnregister();
 }
 
@@ -96,6 +115,9 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 	{
 		return;
 	}
+
+	// Anything no frame is reading any more goes here, on the game thread. See Retired.
+	Retired.RemoveAll([](const TSharedPtr<const FFolioDrawList>& List) { return List.IsUnique(); });
 
 	Host->TickDataModels();
 
@@ -118,11 +140,27 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 		return;
 	}
 
+	// A new list rather than a rewrite of the published one: a render pass reads that list for as long as
+	// its frame is in flight, which outlasts this tick. Rewriting it under the pass is a data race, and it
+	// presents as geometry flickering while the camera moves and eventually as a freed texture.
+	const TSharedRef<FFolioDrawList> Next = MakeShared<FFolioDrawList>();
+
+	// Which space the destination is in, which the two routes disagree about. Scene colour after the
+	// tonemapper is already gamma encoded, so a byte colour goes through as written. Scene colour before
+	// post-processing is linear HDR, so the same byte colour has to be decoded first.
+	Next->SetDecodeSrgb(DrawMode == EFolioWorldDrawMode::InScene);
+
 	// The same Render call the screen path makes, with the recording installed instead of Slate. RmlUi
 	// does not know the difference, which is the point.
-	Renderer->BeginRecording(DrawList, GetDocumentSize());
+	Renderer->BeginRecording(*Next, GetDocumentSize());
 	Context->Render();
 	Renderer->EndFrame();
+
+	if (Published.IsValid())
+	{
+		Retired.Add(Published);
+	}
+	Published = Next;
 }
 
 void UFolioWorldDocument::LoadDocument(const FString& InDocumentPath)
@@ -209,6 +247,22 @@ void UFolioWorldDocument::MarkDirty()
 	if (Host.IsValid())
 	{
 		Host->MarkDirty(TEXT("game code"));
+	}
+}
+
+void UFolioWorldDocument::ReloadDocument()
+{
+	if (Host.IsValid())
+	{
+		Host->ReloadDocument();
+	}
+}
+
+void UFolioWorldDocument::ReloadStyleSheets()
+{
+	if (Host.IsValid())
+	{
+		Host->ReloadStyleSheets();
 	}
 }
 

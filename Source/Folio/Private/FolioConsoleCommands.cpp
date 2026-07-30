@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "FolioModule.h"
 #include "FolioBindTest.h"
+#include "FolioDebugger.h"
 #include "FolioNavBindings.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
@@ -594,6 +595,104 @@ namespace
 	}
 
 	/**
+	 * Which document the debugger should inspect.
+	 *
+	 * A focused canvas is the one being looked at. The fallback to the last registered is what
+	 * makes the command work straight after folio.Show, before anything has taken focus.
+	 */
+	SFolioCanvas* PickCanvas()
+	{
+		const TArray<SFolioCanvas*>& Live = SFolioCanvas::GetLiveCanvases();
+		if (Live.Num() == 0)
+		{
+			return nullptr;
+		}
+
+		for (SFolioCanvas* Canvas : Live)
+		{
+			if (Canvas->HasAnyUserFocus().IsSet())
+			{
+				return Canvas;
+			}
+		}
+
+		return Live.Last();
+	}
+
+	/**
+	 * RmlUi's own element inspector.
+	 *
+	 *   folio.Debugger [on|off]
+	 */
+	void RunDebugger(const TArray<FString>& Args)
+	{
+		const FString Mode = Args.Num() > 0 ? Args[0].ToLower() : FString();
+
+		if (Mode == TEXT("off"))
+		{
+			Folio::Debug::SetVisible(false);
+			return;
+		}
+
+		SFolioCanvas* Canvas = PickCanvas();
+		if (!Canvas)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("no Folio document is open; open one first"));
+			return;
+		}
+
+		// Attaching to a canvas that already hosts it is free, so this doubles as the re-target
+		// when a second document has since opened.
+		const bool bWasVisible = Folio::Debug::Host() == Canvas && Folio::Debug::IsVisible();
+		if (!Folio::Debug::Attach(Canvas))
+		{
+			return;
+		}
+
+		const bool bVisible = Mode == TEXT("on") || !bWasVisible;
+		Folio::Debug::SetVisible(bVisible);
+
+		if (bVisible)
+		{
+			UE_LOG(LogFolio, Display,
+				TEXT("debugger open on the document. It needs a cursor to click with, so run ")
+				TEXT("'folio.MouseMode on' if the game still has the mouse. 'folio.Debugger off' hides it."));
+		}
+	}
+
+	/**
+	 * Menu mouse rather than gameplay mouse, so a document can be clicked.
+	 *
+	 *   folio.MouseMode [on|off]
+	 */
+	void SetMouseMode(const TArray<FString>& Args)
+	{
+		APlayerController* Player = FirstPlayer();
+		if (!Player)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("no player controller; run this in PIE or in a game"));
+			return;
+		}
+
+		const bool bOn = Args.Num() == 0 || (Args[0] != TEXT("off") && Args[0] != TEXT("0"));
+		if (bOn)
+		{
+			FInputModeGameAndUI Mode;
+			Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			Mode.SetHideCursorDuringCapture(false);
+			Player->SetInputMode(Mode);
+			Player->SetShowMouseCursor(true);
+		}
+		else
+		{
+			Player->SetInputMode(FInputModeGameOnly());
+			Player->SetShowMouseCursor(false);
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("mouse mode %s"), bOn ? TEXT("on") : TEXT("off"));
+	}
+
+	/**
 	 * Tears both down before RmlUi does. These are statics, so without this they are destroyed
 	 * during DLL unload, long after the module has shut RmlUi down.
 	 */
@@ -609,6 +708,7 @@ namespace
 
 		static void Close()
 		{
+			Folio::Debug::Detach();
 			CloseWindow();
 			HideDocument();
 			HideGate();
@@ -670,6 +770,18 @@ namespace
 		TEXT("folio.Nav.ResetBindings"),
 		TEXT("Forgets every runtime navigation binding, leaving the built-in schemes."),
 		FConsoleCommandDelegate::CreateStatic(&ResetNavBindings));
+
+	FAutoConsoleCommand DebuggerCommand(
+		TEXT("folio.Debugger"),
+		TEXT("folio.Debugger [on|off]. Opens RmlUi's element inspector on the focused document: "
+			"element tree, computed style, event log and every data model in the context."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunDebugger));
+
+	FAutoConsoleCommand MouseModeCommand(
+		TEXT("folio.MouseMode"),
+		TEXT("folio.MouseMode [on|off]. Shows the cursor and stops the game consuming the mouse, "
+			"so a document can be clicked."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&SetMouseMode));
 
 	FAutoConsoleCommand ReloadTexturesCommand(
 		TEXT("folio.ReloadTextures"),

@@ -905,9 +905,9 @@ settling, data model updates from gameplay and `@media` re-evaluation all change
 
 ## Dev tooling is compiled out of Shipping, except one UCLASS
 
-`FolioConsoleCommands.cpp` is wrapped in `#if !UE_BUILD_SHIPPING`, so `folio.Show`, `folio.ShowWindow`,
-`folio.Gate`, `folio.NavTest`, `folio.MvvmTest`, `folio.ReloadTextures` and `folio.Nav.Bind*` do not
-exist in a retail build. The `folio.Nav.*` console *variables* are not affected - they are runtime
+`FolioConsoleCommands.cpp` and `FolioDebugger.cpp` are wrapped in `#if !UE_BUILD_SHIPPING`, so
+`folio.Show`, `folio.ShowWindow`, `folio.Gate`, `folio.NavTest`, `folio.MvvmTest`, `folio.Debugger`,
+`folio.MouseMode`, `folio.ReloadTextures` and `folio.Nav.Bind*` do not exist in a retail build. The `folio.Nav.*` console *variables* are not affected - they are runtime
 settings and live in `FolioNavigation.cpp`.
 
 `UFolioBindTest` stays compiled in Shipping deliberately. A `UCLASS` inside a preprocessor block is not
@@ -919,3 +919,25 @@ go, the supported route is a separate module with `"TargetConfigurationDenyList"
 
 Verify with a string search, and remember `TEXT()` is UTF-16: searching a binary for ASCII
 `folio.NavTest` finds nothing either way, which reads as a pass when it is not a test at all.
+
+## The RmlUi debugger lives inside the context it inspects
+
+`folio.Debugger` attaches `Rml::Debugger` to a canvas. Three things about it are not obvious:
+
+**There is one debugger per process, and it is hosted by a context.** `Debugger::Initialise(ctx)` puts
+its own documents into `ctx`, so it draws through our render interface and receives mouse through the
+canvas's normal forwarding. Inspecting a second document means `Shutdown()` then `Initialise()` on the
+other context, never a second `Initialise`.
+
+**RmlUi releases the debugger when its host context is destroyed** and tells us nothing. So the stored
+host pointer can outlive the debugger, and every entry point in `FolioDebugger.cpp` re-checks the canvas
+against `SFolioCanvas::GetLiveCanvases()` before touching the API. Context lifetime equals canvas
+lifetime, which is what makes that check exact.
+
+**Its font comes through the *memory* `LoadFontFace` overload** as family `rmlui-debugger-font`, not
+through a file. A custom font engine that only implements the path overload compiles, runs, and renders
+the debugger's chrome with no text in it at all - a symptom that points nowhere near the cause.
+`FFolioFontEngine` implements both; verified by screenshotting `uipreview --debug`.
+
+It also needs a cursor to be usable, which a game that has captured the mouse will not have.
+`folio.MouseMode on` sets `FInputModeGameAndUI` with the cursor shown and no viewport lock.

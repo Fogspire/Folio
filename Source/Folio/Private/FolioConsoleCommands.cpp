@@ -919,7 +919,8 @@ namespace
 
 		const FIntPoint Size = Surface->GetDocumentSize();
 		UE_LOG(LogFolio, Display,
-			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d. ")
+			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d. NOTHING IS DRAWN YET - ")
+			TEXT("the pass that draws a world document does not exist, so expect to see nothing. ")
 			TEXT("'folio.WorldTest report' says what it recorded; 'folio.WorldTest off' removes it."),
 			*Document, Surface->WorldSize.X, Surface->WorldSize.Y, Size.X, Size.Y);
 	}
@@ -1070,7 +1071,8 @@ namespace
 	FAutoConsoleCommand WorldTestCommand(
 		TEXT("folio.WorldTest"),
 		TEXT("folio.WorldTest [document|off|report]. Puts a document on a surface in the world in front "
-			"of the camera, and records its geometry. 'report' says how much it recorded."),
+			"of the camera and records its geometry. Draws nothing: the pass that draws a world document "
+			"is not written yet. 'report' says how much it recorded."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunWorldTest));
 
 	FAutoConsoleCommand LocReportCommand(

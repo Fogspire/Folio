@@ -494,7 +494,21 @@ bool SFolioCanvas::IsTakingText() const
 	}
 
 	const Rml::String FocusTag = Focus->GetTagName();
-	return FocusTag == "input" || FocusTag == "textarea";
+	if (FocusTag == "textarea")
+	{
+		return true;
+	}
+
+	if (FocusTag != "input")
+	{
+		return false;
+	}
+
+	// The tag alone is not enough: a checkbox, radio or range slider is an input that takes no
+	// text, and treating it as one blocks WASD and IJKL for as long as it has focus. RmlUi defaults
+	// a type-less input to text.
+	const Rml::String Type = Focus->GetAttribute<Rml::String>("type", "text");
+	return Type == "text" || Type == "password";
 }
 
 FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)

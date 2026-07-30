@@ -1,0 +1,38 @@
+<rml>
+<head>
+	<title>text input</title>
+	<style>
+		body { font-family: Roboto; font-size: 16dp; color: #e8e8f0; background-color: #14141a;
+		       padding: 18dp; }
+		h2 { font-size: 13dp; color: #8a8a99; margin-bottom: 6dp; }
+		.field {
+			tab-index: auto; nav: auto;
+			width: 260dp; margin-bottom: 12dp; padding: 6dp 8dp;
+			background-color: #0e0e13; color: #e8e8f0;
+			border: 2dp #3a3a48; border-radius: 4dp;
+		}
+		.field:focus-visible { border-color: #f0c674; }
+		.row { display: flex; flex-direction: row; margin-bottom: 12dp; }
+		.row input { tab-index: auto; nav: auto; margin-right: 8dp; }
+		label { margin-right: 18dp; color: #8a8a99; }
+		.readout { color: #f0c674; margin-top: 8dp; }
+	</style>
+</head>
+<body>
+	<h2>text, which takes letters</h2>
+	<input type="text" class="field" id="name" value="start" autofocus/>
+
+	<h2>password, which also takes letters</h2>
+	<input type="password" class="field" id="secret" value="hunter2"/>
+
+	<h2>these are inputs that take no text, so letters must still navigate</h2>
+	<div class="row">
+		<input type="checkbox" id="agree" checked/><label>checkbox</label>
+		<input type="radio" name="pick" id="one" checked/><label>radio</label>
+		<input type="range" id="volume" min="0" max="100" value="40"/><label>range</label>
+	</div>
+
+	<h2>somewhere for focus to land that is not a field</h2>
+	<div class="field" id="plain" tab-index="auto">a plain focusable div</div>
+</body>
+</rml>

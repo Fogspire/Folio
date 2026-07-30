@@ -214,19 +214,23 @@ void UFolioWorldDocument::TickComponent(const float DeltaTime, const ELevelTick 
 	const FIntPoint Document = GetDocumentSize();
 	const FIntPoint TargetSize = bSurface ? DesiredSurfaceSize() : Document;
 
-	// The context is the size of what is being drawn into, always. A surface renders at whatever
-	// resolution it currently deserves, so the document is laid out there rather than in its own space
-	// and scaled: geometry and glyphs are size-independent, so laying out again costs nothing and every
-	// edge lands on a target pixel.
-	//
-	// `dp` carries the difference. It resolves against the ratio between the target and the document's
-	// authored size, so a 32dp box is the same size on the surface whatever resolution it is rendered at,
-	// and PixelsPerUnit stays the only thing deciding how much fits.
-	Host->SetSize(TargetSize);
+	// Laid out in its own space at every resolution, and the replay scales. Laying out against the target
+	// instead would re-round every length each time the surface changed resolution, and walking towards a
+	// screen would visibly reflow it. Nothing is lost: the fields carry their own edges, so the same
+	// geometry drawn into a larger target is sharper rather than bigger.
+	Host->SetSize(Document);
 
-	const float DpRatio = float(TargetSize.Y) / float(FMath::Max(1, Document.Y));
+	if (bSurface && TargetSize != SurfaceSize)
+	{
+		// The new target starts empty, and a settled document would otherwise decline to redraw it.
+		Host->MarkDirty(TEXT("surface resolution"));
+	}
 
-	if (!Host->Update(DeltaTime, DpRatio, 1.0f))
+	// One document pixel expressed in target pixels, which only the background antialiasing needs: the
+	// distance fields resolve their own edges and need no telling.
+	const float RenderScale = float(Document.Y) / float(FMath::Max(1, TargetSize.Y));
+
+	if (!Host->Update(DeltaTime, 1.0f, RenderScale))
 	{
 		// Nothing changed, so the recording from last time still describes the document. Re-recording it
 		// would be the same work the invalidation path exists to avoid.
@@ -693,9 +697,12 @@ void UFolioWorldDocument::TickPlayerPointer()
 		ClearPointer();
 	}
 
-	// Edges rather than the state: RmlUi wants one press and one release, and a held button polled every
-	// frame would otherwise arrive as a stream of clicks.
-	const bool bDown = PointerKey.IsValid() && Player->IsInputKeyDown(PointerKey);
+	// A mouse button is asked of Slate rather than of the player controller, because under an input mode
+	// of UI Only the controller never sees one and the screen would stop taking clicks.
+	const bool bDown = PointerKey.IsValid()
+		&& (PointerKey.IsMouseButton() && FSlateApplication::IsInitialized()
+			? FSlateApplication::Get().GetPressedMouseButtons().Contains(PointerKey)
+			: Player->IsInputKeyDown(PointerKey));
 	if (bDown == bPointerKeyHeld)
 	{
 		return;
@@ -818,7 +825,9 @@ void UFolioWorldDocument::RenderToSurface(const FIntPoint Size)
 		OnSurfaceChanged.Broadcast(Target);
 	}
 
-	if (!Renderer->BeginSurface(Size, SurfaceTarget.Get()))
+	// The document's own size, not the target's: that is the space the geometry is recorded in, and what
+	// the replay scales from.
+	if (!Renderer->BeginSurface(GetDocumentSize(), SurfaceTarget.Get()))
 	{
 		return;
 	}

@@ -75,7 +75,7 @@ bool FFolioLayerStack::Push(const FIntPoint Size)
 	return Size.X > 0 && Size.Y > 0 && Acquire(Size) != nullptr;
 }
 
-bool FFolioLayerStack::PushInto(UTextureRenderTarget2D* Target)
+bool FFolioLayerStack::PushInto(UTextureRenderTarget2D* Target, const FIntPoint ClipSize)
 {
 	if (!Target || Target->SizeX <= 0 || Target->SizeY <= 0)
 	{
@@ -85,6 +85,7 @@ bool FFolioLayerStack::PushInto(UTextureRenderTarget2D* Target)
 	FLayer& Layer = Stack.AddDefaulted_GetRef();
 	Layer.Target = TStrongObjectPtr<UTextureRenderTarget2D>(Target);
 	Layer.Size = FIntPoint(Target->SizeX, Target->SizeY);
+	Layer.ClipSize = ClipSize;
 	Layer.bCallerOwned = true;
 	return true;
 }
@@ -256,8 +257,12 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 
 	const FIntPoint Size = Layer.Size;
 
+	// What the geometry was recorded in, which is the target's size unless a surface is drawing a
+	// document at a higher resolution than it was laid out at.
+	const FIntPoint Clip = Layer.ClipSize.X > 0 && Layer.ClipSize.Y > 0 ? Layer.ClipSize : Layer.Size;
+
 	ENQUEUE_RENDER_COMMAND(FolioResolveLayer)(
-		[Resource, Size, Draws = MoveTemp(Draws)](FRHICommandListImmediate& RHICmdList) mutable
+		[Resource, Size, Clip, Draws = MoveTemp(Draws)](FRHICommandListImmediate& RHICmdList) mutable
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
 
@@ -274,8 +279,10 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 			Parameters->UISampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 			Parameters->UITexture = GWhiteTexture->TextureRHI;
 
-			// Layer pixels to clip space. Y is flipped: RmlUi's origin is top left.
-			Parameters->ClipTransform = FVector4f(2.0f / Size.X, -2.0f / Size.Y, -1.0f, 1.0f);
+			// Document pixels to clip space. Y is flipped: RmlUi's origin is top left. Against the recorded
+			// space rather than the target, so a larger target scales the same geometry up instead of
+			// leaving it in a corner.
+			Parameters->ClipTransform = FVector4f(2.0f / Clip.X, -2.0f / Clip.Y, -1.0f, 1.0f);
 			Parameters->RenderTargets[0] = FRenderTargetBinding(Colour, ERenderTargetLoadAction::ELoad);
 			Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(Stencil,
 				ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,

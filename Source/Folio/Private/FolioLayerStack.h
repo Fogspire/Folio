@@ -42,7 +42,7 @@ public:
 	 * What a render-target surface needs: the destination outlives the frame and is sampled by a material,
 	 * so it must not go back to the pool to be handed to the next layer and cleared.
 	 */
-	bool PushInto(class UTextureRenderTarget2D* Target);
+	bool PushInto(class UTextureRenderTarget2D* Target, FIntPoint ClipSize = FIntPoint::ZeroValue);
 
 	/** Resolves the layer and returns its target to the pool. */
 	void Pop();
@@ -91,6 +91,14 @@ private:
 	{
 		TStrongObjectPtr<UTextureRenderTarget2D> Target;
 		FIntPoint Size = FIntPoint::ZeroValue;
+
+		/**
+		 * The space the recorded geometry is in, when that is not the target's own size.
+		 *
+		 * A surface renders a document into a target larger than the document, so the replay scales rather
+		 * than the layout. Unset means the two are the same, which is every other layer.
+		 */
+		FIntPoint ClipSize = FIntPoint::ZeroValue;
 		FFolioDrawList Draws;
 
 		bool bClipMaskEnabled = false;

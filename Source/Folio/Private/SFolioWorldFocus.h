@@ -87,4 +87,13 @@ private:
 	bool bNavigates = false;
 
 	Folio::FAnalogNavigator Analog;
+
+	/**
+	 * Keys whose press this took, so only their release is taken too.
+	 *
+	 * Focus can arrive between a press and its release: the press reaches the game, and consuming the
+	 * release would leave Enhanced Input holding an action nothing will ever complete. The player's pawn
+	 * runs off with the key already let go and no way to stop it.
+	 */
+	TSet<FKey> Claimed;
 };

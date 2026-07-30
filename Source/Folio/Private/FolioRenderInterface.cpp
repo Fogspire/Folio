@@ -140,7 +140,7 @@ bool FFolioRenderInterface::BeginSurface(const FIntPoint InContextSize, UTexture
 	// The document's own layer, standing in for Slate. Every effect layer RmlUi pushes composites down
 	// into this one, exactly as it would composite into the screen. The caller's target rather than a
 	// pooled one, because a material samples it long after the pool would have reused it.
-	bSurface = Layers.PushInto(Target);
+	bSurface = Layers.PushInto(Target, InContextSize);
 	return bSurface;
 }
 

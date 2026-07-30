@@ -201,7 +201,13 @@ FReply SFolioWorldFocus::OnKeyDown(const FGeometry&, const FKeyEvent& KeyEvent)
 		}
 
 		const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
-		return bConsumed || bClaimed ? FReply::Handled() : FReply::Unhandled();
+		if (bConsumed || bClaimed)
+		{
+			Claimed.Add(KeyEvent.GetKey());
+			return FReply::Handled();
+		}
+
+		return FReply::Unhandled();
 	}
 
 	if (IsTakingText() || !bNavigates)
@@ -213,25 +219,36 @@ FReply SFolioWorldFocus::OnKeyDown(const FGeometry&, const FKeyEvent& KeyEvent)
 	if (const Rml::Input::KeyIdentifier Nav = Folio::ToNavigationKey(KeyEvent.GetKey(), Extra);
 		Nav != Rml::Input::KI_UNKNOWN)
 	{
+		Claimed.Add(KeyEvent.GetKey());
 		SendNavigation(Nav, Modifiers | Extra);
 		return FReply::Handled();
 	}
 
-	return bClaimed ? FReply::Handled() : FReply::Unhandled();
+	if (bClaimed)
+	{
+		Claimed.Add(KeyEvent.GetKey());
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
 }
 
 FReply SFolioWorldFocus::OnKeyUp(const FGeometry&, const FKeyEvent& KeyEvent)
 {
-	Rml::Context* Context = Host ? Host->GetContext() : nullptr;
-	const Rml::Input::KeyIdentifier Key = Context ? Folio::ToRmlKey(KeyEvent.GetKey()) : Rml::Input::KI_UNKNOWN;
-	if (Key == Rml::Input::KI_UNKNOWN)
+	// A release is only ours if the press was. Anything else belongs to whoever took the press, and
+	// swallowing it is what strands a held movement key.
+	if (Claimed.Remove(KeyEvent.GetKey()) == 0)
 	{
-		// Paired with the press: a release reaching the game after its press did not leaves Enhanced
-		// Input holding an action down that nothing will ever complete.
-		return ClaimsKey(KeyEvent.GetKey()) ? FReply::Handled() : FReply::Unhandled();
+		return FReply::Unhandled();
 	}
 
-	Context->ProcessKeyUp(Key, Folio::ToRmlModifiers(KeyEvent.GetModifierKeys()));
+	Rml::Context* Context = Host ? Host->GetContext() : nullptr;
+	const Rml::Input::KeyIdentifier Key = Context ? Folio::ToRmlKey(KeyEvent.GetKey()) : Rml::Input::KI_UNKNOWN;
+	if (Key != Rml::Input::KI_UNKNOWN)
+	{
+		Context->ProcessKeyUp(Key, Folio::ToRmlModifiers(KeyEvent.GetModifierKeys()));
+	}
+
 	return FReply::Handled();
 }
 
@@ -278,5 +295,8 @@ void SFolioWorldFocus::OnFocusLost(const FFocusEvent& FocusEvent)
 {
 	// A stick held while focus moves elsewhere would otherwise keep repeating into this document.
 	Analog.Reset();
+
+	// Releases now go wherever focus went, so nothing here may still be waiting for them.
+	Claimed.Reset();
 	SLeafWidget::OnFocusLost(FocusEvent);
 }

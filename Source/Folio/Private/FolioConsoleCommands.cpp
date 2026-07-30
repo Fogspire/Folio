@@ -5,6 +5,7 @@
 #include "FolioModule.h"
 #include "FolioBindTest.h"
 #include "FolioDebugger.h"
+#include "FolioLocalization.h"
 #include "FolioNavBindings.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
@@ -661,6 +662,30 @@ namespace
 	}
 
 	/**
+	 * Reports what every keyed string in a document resolved to.
+	 *
+	 *   folio.Loc.Report [document]
+	 */
+	void ReportLocalisation(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0)
+		{
+			// Opened here rather than required to be on screen already, so the check can be run
+			// against any document in the project from one command.
+			ShowDocument(Args);
+		}
+
+		SFolioCanvas* Canvas = PickCanvas();
+		if (!Canvas || !Canvas->GetDocument())
+		{
+			UE_LOG(LogFolio, Warning, TEXT("no document is open; pass one, or open one first"));
+			return;
+		}
+
+		Folio::Loc::ReportDocument(Canvas->GetDocument(), Canvas->GetDocumentPath());
+	}
+
+	/**
 	 * Menu mouse rather than gameplay mouse, so a document can be clicked.
 	 *
 	 *   folio.MouseMode [on|off]
@@ -776,6 +801,12 @@ namespace
 		TEXT("folio.Debugger [on|off]. Opens RmlUi's element inspector on the focused document: "
 			"element tree, computed style, event log and every data model in the context."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunDebugger));
+
+	FAutoConsoleCommand LocReportCommand(
+		TEXT("folio.Loc.Report"),
+		TEXT("folio.Loc.Report [document]. Lists every data-loc key in a document and whether it "
+			"resolved to a translation or fell back to its source text."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ReportLocalisation));
 
 	FAutoConsoleCommand MouseModeCommand(
 		TEXT("folio.MouseMode"),

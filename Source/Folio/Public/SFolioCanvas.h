@@ -57,6 +57,9 @@ public:
 	Rml::Context* GetContext() const { return Context; }
 	Rml::ElementDocument* GetDocument() const { return Document; }
 
+	/** The path the document was loaded from, which is also what its gather namespace derives from. */
+	const FString& GetDocumentPath() const { return PendingDocumentPath; }
+
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& CullingRect,
 		FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle,
 		bool bParentEnabled) const override;

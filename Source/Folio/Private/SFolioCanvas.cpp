@@ -7,6 +7,7 @@
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
 #include "FolioInput.h"
+#include "FolioLocalization.h"
 #include "FolioReload.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
@@ -159,6 +160,11 @@ void SFolioCanvas::LoadDocument(const FString& RelativePath)
 		UE_LOG(LogFolio, Error, TEXT("could not load document '%s'"), *RelativePath);
 		return;
 	}
+
+	// Before the first update, so translated text is laid out rather than reflowed a frame later.
+	// Data views already exist by now - they are built as the markup is parsed - which is what lets
+	// the pass recognise a bound element and leave it alone.
+	Folio::Loc::ApplyToDocument(Document, RelativePath);
 
 	Document->Show();
 	Sounds.Attach(Document);

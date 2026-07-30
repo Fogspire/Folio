@@ -475,6 +475,40 @@ public headers.
 
 Do this after the phases, not during: it touches the header layout everything else builds on.
 
+### Helmet HUDs: drift is free, curvature is not
+
+The Metroid Prime visor is two separate things, and Folio's answer differs for each.
+
+**Movement is available today and needs no feature.** A HUD that drifts, lags behind the camera or
+settles after a turn is `transform: translate()`, either from `@keyframes` for canned motion or from a
+per-frame value pushed into the data model and read through `data-style-transform`. That is exactly
+the frequency split the brief already describes: camera-derived lag is a per-frame value that bypasses
+the view model and is written straight from C++. Nothing needs building; it needs documenting as a
+recipe.
+
+**Curvature is not possible in screen space, and this is a hard blocker rather than an omission.**
+`FSlateVertex` carries a 2D position and no `W`, so there is no perspective-correct interpolation
+available through `MakeCustomVerts`. That is the same reason `UI_CONVENTIONS.md` bans 3D transforms
+outright: `perspective` and `rotateX`/`rotateY` parse and then do not map onto the renderer. Warping a
+document to sit on a visor is the same problem one step further on.
+
+Rendering the document to a target and sampling it through a distortion would work and should be
+rejected: it is a resample, which reintroduces precisely the softness the distance fields exist to
+avoid, and it would look worse than the flat version.
+
+**The place this becomes reachable is Phase 7's after-tonemap path**, because there Folio owns the
+vertex format and the draw rather than handing triangles to Slate. Two routes once that exists:
+
+- **Tessellate and displace.** Subdivide the emitted geometry and push each vertex along a spherical
+  or cylindrical surface. A quad's four corners cannot express a curve, so subdivision is the whole
+  cost, and it is per document rather than per element.
+- **A camera-attached curved mesh**, which is the Surface mode already described pointed at a visor
+  rather than a terminal. Simpler, and it composites as one translucent surface.
+
+Both stay sharp: the fields are resolution-independent and neither route resamples. So the honest
+position is that a curved helmet HUD is a Phase 7 dependency, not a screen-space feature, and it
+should not be attempted before that path exists.
+
 ### Accessibility: expose the document to assistive technology
 
 **Today a Folio document is invisible to a screen reader.** `SFolioCanvas` is a single

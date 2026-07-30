@@ -475,6 +475,47 @@ public headers.
 
 Do this after the phases, not during: it touches the header layout everything else builds on.
 
+### Long lists: bind a window, do not pool widgets
+
+The reason Fortnite drops to raw Slate for item cards is widget churn - creating and destroying
+`UUserWidget`s in large numbers, which they alleviate with a pooling system. **Most of that problem does
+not exist here**, and it is worth recording why so nobody rebuilds a solution to it:
+
+- **No UObject per element.** `Rml::Element` is plain C++ owned by a unique pointer. No reflection init,
+  no Blueprint class construction, no GC pressure, no deferred destruction. That layer is the whole
+  reason they left UMG, and Folio never had it.
+- **Style resolution is shared rather than per-element.** `StyleSheet::GetElementDefinition` caches on
+  the set of matching style nodes, so a thousand identical cards resolve their style once and share one
+  `ElementDefinition`. This is the largest per-widget cost in UMG.
+- **The heavy per-element state is already pooled by RmlUi**: `Pool<ElementMeta>` covers the event
+  dispatcher, style, background and border, effects, scroll and computed values.
+
+**What Folio does have is a different problem with the same symptom.** From `DataViewFor::Update`:
+
+- Every new row calls `SetInnerRML`, which **re-parses the row's markup**. Per row, per appearance. For
+  a card template of any complexity times thousands of rows, this is the dominant cost.
+- Shrinking a list calls `RemoveChild(...).reset()`, so rows are destroyed rather than recycled and a
+  list that changes size churns.
+- **There is no virtualisation.** `data-for` instances one element per array entry whether it is on
+  screen or not. A browser solves this with virtual scrolling written in JavaScript; Folio has no
+  JavaScript by design, so it is ours to provide.
+
+**The answer is a windowed binding, not a widget pool.** `data-for` sizes itself from
+`variable.Size()`, so expose a fixed-size view into the array rather than the array itself: N rows,
+whose contents shift as the list scrolls. The row count then never changes, so after the first frame
+nothing is created or destroyed again - scrolling dirties variables and the same N elements re-read new
+values. That is the pooling result achieved as a binding, and it needs no RmlUi patch.
+
+Two pieces of work, in order:
+
+1. **Array binding in the object bridge.** Today `FFolioObjectModel` skips `FArrayProperty` outright, so
+   an inventory cannot be fed from a UObject at all. This blocks everything else here.
+2. **A virtualised list component**, in the library rather than the renderer: a scroll container that
+   reports its visible range and a windowed array binding that answers it.
+
+Worth doing when a screen actually needs a long list. Until then the honest position is that a few
+hundred rows will be fine and a few thousand will not, for a reason that is understood.
+
 ### Drag and drop
 
 RmlUi has the mechanism already, so this is smaller than it sounds. `drag: drag | drag-drop | clone |

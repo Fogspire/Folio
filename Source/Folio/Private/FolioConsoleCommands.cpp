@@ -7,6 +7,7 @@
 #include "FolioDebugger.h"
 #include "FolioLocalization.h"
 #include "FolioNavBindings.h"
+#include "FolioWorldDocument.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
 #include "Framework/Application/SlateApplication.h"
@@ -776,6 +777,83 @@ namespace
 	}
 
 	/**
+	 * A document on a surface in the world, in front of the camera.
+	 *
+	 *   folio.WorldTest [document]
+	 *   folio.WorldTest off
+	 *
+	 * Nothing draws it yet - that is the after-tonemap pass. What this proves is the half that has to
+	 * work first: the component registers, creates its own context, lays the document out at a size
+	 * derived from world units rather than from a screen, and idles when it settles.
+	 */
+	TWeakObjectPtr<AActor> WorldTestActor;
+
+	void HideWorldTest()
+	{
+		if (AActor* Actor = WorldTestActor.Get())
+		{
+			Actor->Destroy();
+		}
+		WorldTestActor.Reset();
+	}
+
+	void RunWorldTest(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0 && Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
+		{
+			HideWorldTest();
+			return;
+		}
+
+		UWorld* World = FindViewport() ? FindViewport()->GetWorld() : nullptr;
+		if (!World)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("no world; run this in PIE or in a game"));
+			return;
+		}
+
+		HideWorldTest();
+
+		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("/folio/dev/idle_animation.rml");
+
+		// Two metres ahead of the camera and turned to face it, so it is visible without anyone having
+		// to place an actor.
+		FVector Location = FVector::ZeroVector;
+		FRotator Rotation = FRotator::ZeroRotator;
+		if (const APlayerController* Player = FirstPlayer())
+		{
+			Player->GetPlayerViewPoint(Location, Rotation);
+		}
+
+		const FVector Forward = Rotation.Vector();
+
+		const FTransform SpawnAt(FRotator::ZeroRotator, Location + Forward * 200.0);
+		AActor* Actor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnAt);
+		if (!Actor)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("could not spawn the world document actor"));
+			return;
+		}
+
+		UFolioWorldDocument* Surface = NewObject<UFolioWorldDocument>(Actor);
+		Surface->DocumentPath = Document;
+
+		// The surface lies in local XY facing local Z, so facing the camera means pointing local Z back
+		// along the view direction.
+		Surface->SetWorldRotation((-Forward).Rotation() + FRotator(0.0, 0.0, 0.0));
+		Actor->SetRootComponent(Surface);
+		Surface->RegisterComponent();
+
+		WorldTestActor = Actor;
+
+		const FIntPoint Size = Surface->GetDocumentSize();
+		UE_LOG(LogFolio, Display,
+			TEXT("folio.WorldTest: '%s' on a %.0fx%.0f surface, laid out at %dx%d. Nothing draws it yet; ")
+			TEXT("folio.Invalidation.Trace 1 shows it updating. 'folio.WorldTest off' removes it."),
+			*Document, Surface->WorldSize.X, Surface->WorldSize.Y, Size.X, Size.Y);
+	}
+
+	/**
 	 * Reports what every keyed string in a document resolved to.
 	 *
 	 *   folio.Loc.Report [document]
@@ -848,6 +926,7 @@ namespace
 		static void Close()
 		{
 			Folio::Debug::Detach();
+			HideWorldTest();
 			CloseWindow();
 			HideDocument();
 			HideGate();
@@ -916,6 +995,12 @@ namespace
 		TEXT("folio.Debugger [on|off]. Opens RmlUi's element inspector on the focused document: "
 			"element tree, computed style, event log and every data model in the context."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunDebugger));
+
+	FAutoConsoleCommand WorldTestCommand(
+		TEXT("folio.WorldTest"),
+		TEXT("folio.WorldTest [document|off]. Puts a document on a surface in the world in front of the "
+			"camera. Nothing draws it yet; this is the host half."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunWorldTest));
 
 	FAutoConsoleCommand LocReportCommand(
 		TEXT("folio.Loc.Report"),

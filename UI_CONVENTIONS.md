@@ -510,6 +510,42 @@ them working inside a text field, where they mean something else.
 `Back` or `Invalid`. Folio owns no sound assets. `Invalid` is a click on something carrying
 `.is-disabled`, which is the case worth a different noise.
 
+### Putting a document inside a game's existing widget tree
+
+`UFolioWidget` is a UMG widget wrapping one document. It exists for the boundary, not for building
+anything: a game keeps the HUD layout, CommonUI stack or menu flow it already has and puts a
+document inside it, rather than porting the shell before the first screen exists.
+
+```cpp
+UPROPERTY(meta = (BindWidget))
+TObjectPtr<UFolioWidget> Document;
+```
+
+**If the project uses CommonUI, return it as the focus target.** CommonUI's action router owns
+focus. When it reapplies its input config — which `SetInputMode` and any gamepad press both cause —
+it asks its leaf-most activatable widget for a target, and if it gets none it can use it **focuses
+the game viewport instead**, silently taking focus off a document that had it. The symptom is
+keyboard working and the gamepad doing nothing at all, with no error logged. Look for:
+
+```
+LogUIActionRouter: [User 0] No focus target for leaf-most node [...], and the widget
+                   isn't focusable - focusing the game viewport.
+```
+
+One override fixes it for good:
+
+```cpp
+UWidget* UMyScreen::GetDesiredFocusTarget() const override { return Document; }
+```
+
+That works because `UWidget::SupportsKeyboardFocus` defers to the Slate widget underneath, and the
+canvas supports focus. **Folio links no CommonUI** and behaves the same in a project that has never
+heard of it — the integration is entirely on the game's side of the seam.
+
+`SetKeepFocus(true)` exists for documents with no activatable widget to hang that override on, and
+reclaims focus whenever input arrives. Prefer the override: `SetKeepFocus` wins the argument, rather
+than avoiding it.
+
 ### Which face button confirms
 
 South (A, Cross) confirms by default and east (B, Circle) goes back. Nintendo hardware and

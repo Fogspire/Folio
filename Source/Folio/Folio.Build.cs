@@ -19,6 +19,10 @@ public class Folio : ModuleRules
 			"Slate",
 			"SlateCore",
 			"InputCore",
+			// For UFolioWidget alone, which is how a document sits in a game's existing widget
+			// tree. Folio builds no UI with UMG; this is the boundary, not a dependency of the
+			// renderer or the text engine.
+			"UMG",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]

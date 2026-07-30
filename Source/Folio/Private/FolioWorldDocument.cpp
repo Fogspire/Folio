@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "Camera/PlayerCameraManager.h"
 #include "DrawDebugHelpers.h"
 #include "RHIGlobals.h"
@@ -351,6 +352,20 @@ bool UFolioWorldDocument::MovePointerAlong(const FVector Origin, const FVector D
 	return true;
 }
 
+bool UFolioWorldDocument::MovePointerToHit(const FHitResult& Hit)
+{
+	FVector2D UV = FVector2D::ZeroVector;
+	if (!UGameplayStatics::FindCollisionUV(Hit, 0, UV))
+	{
+		LastMiss = EPointerMiss::NoMeshUv;
+		return false;
+	}
+
+	LastMiss = EPointerMiss::Landed;
+	MovePointer(UV);
+	return true;
+}
+
 void UFolioWorldDocument::ClearPointer()
 {
 	if (!Pointer.IsSet())
@@ -494,6 +509,9 @@ void UFolioWorldDocument::DrawDebugSurface() const
 		"turn the component 180 degrees"); break;
 	case EPointerMiss::TooFar:    Why = TEXT("further away than Pointer Reach"); break;
 	case EPointerMiss::Outside:   Why = TEXT("aimed off the surface"); break;
+	case EPointerMiss::NoMesh:    Why = TEXT("no owning actor to trace against"); break;
+	case EPointerMiss::NoMeshUv:  Why = TEXT("the mesh hit gave no UV: switch on Support UV From Hit "
+		"Results in Project Settings > Physics, and give the mesh complex collision"); break;
 	}
 
 	// Logged on change rather than every frame: the interesting thing is the transition, and a line per
@@ -546,6 +564,38 @@ void UFolioWorldDocument::DrawDebugSurface() const
 #endif
 }
 
+bool UFolioWorldDocument::TracePointerToMesh(const FVector Origin, const FVector Direction)
+{
+	const UWorld* World = GetWorld();
+	const AActor* Owner = GetOwner();
+	if (!World || !Owner)
+	{
+		LastMiss = EPointerMiss::NoMesh;
+		return false;
+	}
+
+	// Complex, because the UV lookup reads the triangle that was hit and a simple shape has none.
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(FolioWorldPointer), /*bTraceComplex*/ true);
+	Params.bReturnFaceIndex = true;
+
+	FHitResult Hit;
+	if (!World->LineTraceSingleByChannel(Hit, Origin, Origin + Direction.GetSafeNormal() * PointerReach,
+		PointerTraceChannel, Params))
+	{
+		LastMiss = EPointerMiss::Outside;
+		return false;
+	}
+
+	// Something else in front of the screen is the player not pointing at it, not a failure.
+	if (Hit.GetActor() != Owner)
+	{
+		LastMiss = EPointerMiss::Outside;
+		return false;
+	}
+
+	return MovePointerToHit(Hit);
+}
+
 void UFolioWorldDocument::TickPlayerPointer()
 {
 	const UWorld* World = GetWorld();
@@ -559,7 +609,11 @@ void UFolioWorldDocument::TickPlayerPointer()
 	FRotator ViewRotation = FRotator::ZeroRotator;
 	Player->GetPlayerViewPoint(ViewLocation, ViewRotation);
 
-	if (!MovePointerAlong(ViewLocation, ViewRotation.Vector(), PointerReach))
+	const bool bLanded = bPointerUsesMeshUV
+		? TracePointerToMesh(ViewLocation, ViewRotation.Vector())
+		: MovePointerAlong(ViewLocation, ViewRotation.Vector(), PointerReach);
+
+	if (!bLanded)
 	{
 		ClearPointer();
 	}

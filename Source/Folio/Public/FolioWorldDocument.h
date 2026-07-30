@@ -130,6 +130,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input")
 	bool bPointerFromPlayerView = false;
 
+	/**
+	 * Traces against the mesh and uses its UVs, rather than intersecting the component's rectangle.
+	 *
+	 * What a curved or inset screen needs, and what a flat quad does not. See MovePointerToHit for the
+	 * project settings it depends on.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
+		meta = (EditCondition = "bPointerFromPlayerView"))
+	bool bPointerUsesMeshUV = false;
+
+	/** Which channel the mesh trace runs on, when the pointer comes from the mesh's UVs. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
+		meta = (EditCondition = "bPointerFromPlayerView && bPointerUsesMeshUV"))
+	TEnumAsByte<ECollisionChannel> PointerTraceChannel = ECC_Visibility;
+
 	/** How far the player can be from the surface and still point at it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
 		meta = (EditCondition = "bPointerFromPlayerView", ClampMin = "1.0"))
@@ -177,6 +192,20 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
 	bool MovePointerAlong(FVector Origin, FVector Direction, float Distance = 1000.0f);
+
+	/**
+	 * Puts the pointer where a line trace hit the mesh, using the mesh's own UVs.
+	 *
+	 * What a curved or inset screen needs. MovePointerAlong intersects a flat rectangle, which agrees
+	 * with a domed tube face only at its centre and drifts further off towards the edges, so a CRT reads
+	 * as accurate in the middle and wrong everywhere else.
+	 *
+	 * Needs Support UV From Hit Results in Project Settings > Physics, complex collision on the mesh, and
+	 * a trace that asked for complex geometry. Returns false and says so in the log if the UV is
+	 * unavailable, rather than pointing somewhere wrong.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	bool MovePointerToHit(const FHitResult& Hit);
 
 	/** Takes the pointer off the document, so nothing is left hovered. */
 	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
@@ -318,6 +347,9 @@ private:
 	/** Traces from the local player's view and drives the pointer and its button. */
 	void TickPlayerPointer();
 
+	/** Line traces the owner's mesh and points at the UV that was hit. */
+	bool TracePointerToMesh(FVector Origin, FVector Direction);
+
 	/** Draws the rectangle the pointer resolves against, for folio.World.ShowSurface. */
 	void DrawDebugSurface() const;
 
@@ -347,6 +379,8 @@ private:
 		Behind,
 		TooFar,
 		Outside,
+		NoMesh,
+		NoMeshUv,
 	};
 
 	EPointerMiss LastMiss = EPointerMiss::NotDriven;

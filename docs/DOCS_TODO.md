@@ -57,9 +57,11 @@ cannot be bound by reflection, so a game exposes those itself.
 
 ## Other pages needed
 
-- **Getting started.** A document on screen in a project that has none, with the smallest possible
-  markup. Should reach something visible before explaining anything.
-- **Hosting a document.** `UFolioWidget` in an existing widget tree, and the CommonUI focus-target
+- ~~**Getting started.**~~ Written: `hello_world.md`. Its markup and the `--strict` run were
+  verified in the preview; the clean-project setup steps (2 and 3) are accurate to the scripts but
+  have never been run on a project that did not already have Folio. Worth walking once.
+- **Hosting a document** (`hosting.md` — `hello_world.md` already links to it, so it is a dead link
+  until written). `UFolioWidget` in an existing widget tree, and the CommonUI focus-target
   override. The failure it prevents (gamepad silently doing nothing) is worth naming, since the
   symptom points nowhere near the cause.
 - **Input and navigation.** Which keys navigate, the per-scheme switches, rebinding, and the

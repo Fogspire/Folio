@@ -321,6 +321,9 @@ private:
 	/** Draws the rectangle the pointer resolves against, for folio.World.ShowSurface. */
 	void DrawDebugSurface() const;
 
+	/** The element under the pointer, as tag#id. What says whether a click landed where it looked. */
+	FString DescribeHover() const;
+
 	/** Takes or hands back Slate's keyboard focus, following whether a text field has it. */
 	void UpdateKeyboardFocus();
 
@@ -347,6 +350,10 @@ private:
 	};
 
 	EPointerMiss LastMiss = EPointerMiss::NotDriven;
+
+	/** What was last written to the log, so a steady state is not repeated every frame. */
+	mutable EPointerMiss LoggedMiss = EPointerMiss::Landed;
+	mutable double LoggedPointerAt = 0.0;
 
 	/** Whether PointerKey was down last tick, so the auto pointer sends edges rather than a state. */
 	bool bPointerKeyHeld = false;

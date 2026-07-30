@@ -377,6 +377,15 @@ void UFolioWorldDocument::PressPointer(const FKey Button)
 		return;
 	}
 
+	if (CVarShowSurface.GetValueOnGameThread())
+	{
+		// What was clicked matters more than where the pointer was: this is the line to compare against
+		// what the document actually did.
+		UE_LOG(LogFolio, Display, TEXT("world press on '%s' at %d,%d of %dx%d, on %s"), *DocumentPath,
+			Pointer.GetValue().X, Pointer.GetValue().Y, Host->GetSize().X, Host->GetSize().Y,
+			*DescribeHover());
+	}
+
 	Host->MarkDirty(TEXT("pointer down"));
 	Context->ProcessMouseButtonDown(Index, CurrentModifiers());
 }
@@ -446,6 +455,20 @@ void UFolioWorldDocument::ReleaseFocus()
 	UpdateKeyboardFocus();
 }
 
+FString UFolioWorldDocument::DescribeHover() const
+{
+	Rml::Context* Context = Host.IsValid() ? Host->GetContext() : nullptr;
+	Rml::Element* Hover = Context ? Context->GetHoverElement() : nullptr;
+	if (!Hover)
+	{
+		return TEXT("nothing");
+	}
+
+	const FString Tag = UTF8_TO_TCHAR(Hover->GetTagName().c_str());
+	const FString Id = UTF8_TO_TCHAR(Hover->GetId().c_str());
+	return Id.IsEmpty() ? Tag : FString::Printf(TEXT("%s#%s"), *Tag, *Id);
+}
+
 void UFolioWorldDocument::DrawDebugSurface() const
 {
 #if ENABLE_DRAW_DEBUG
@@ -473,17 +496,26 @@ void UFolioWorldDocument::DrawDebugSurface() const
 	case EPointerMiss::Outside:   Why = TEXT("aimed off the surface"); break;
 	}
 
-	if (GEngine)
+	// Logged on change rather than every frame: the interesting thing is the transition, and a line per
+	// frame buries it.
+	if (LastMiss != LoggedMiss)
 	{
-		const FIntPoint Size = Host->GetSize();
-		const FString Where = Pointer.IsSet()
-			? FString::Printf(TEXT(" at %d,%d of %dx%d"),
-				Pointer.GetValue().X, Pointer.GetValue().Y, Size.X, Size.Y)
-			: FString();
+		LoggedMiss = LastMiss;
+		UE_LOG(LogFolio, Display, TEXT("world pointer on '%s': %s"), *DocumentPath, Why);
+	}
 
-		GEngine->AddOnScreenDebugMessage(int32(GetUniqueID()), 0.0f,
-			LastMiss == EPointerMiss::Landed ? FColor::Green : FColor::Orange,
-			FString::Printf(TEXT("Folio '%s': %s%s"), *DocumentPath, Why, *Where));
+	if (Pointer.IsSet())
+	{
+		const double Now = World->GetTimeSeconds();
+		if (Now - LoggedPointerAt > 0.25)
+		{
+			LoggedPointerAt = Now;
+
+			const FIntPoint Size = Host->GetSize();
+			UE_LOG(LogFolio, Display, TEXT("world pointer on '%s': %d,%d of %dx%d, over %s"),
+				*DocumentPath, Pointer.GetValue().X, Pointer.GetValue().Y, Size.X, Size.Y,
+				*DescribeHover());
+		}
 	}
 
 	const FColor Colour = Pointer.IsSet() ? FColor::Green : FColor::Red;

@@ -21,7 +21,7 @@ namespace Rml
  *
  * What stays with the host that owns this: input, geometry, and how the thing reaches a screen.
  */
-class FFolioDocumentHost
+class FOLIO_API FFolioDocumentHost
 {
 public:
 	// Both out of line, for the members this header only forward declares. The destructor is the

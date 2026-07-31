@@ -135,16 +135,6 @@ See **[accessibility](accessibility.md)**.
 
 ## Engine integration
 
-### Public headers include private ones
-
-`SFolioCanvas.h` includes `FolioNavigation.h` and `FolioInputState.h`; `FolioWorldDocument.h` includes
-`FolioDrawList.h`. So **a game module cannot include either**, and Folio's own editor module only
-compiles against them by putting `Folio/Private` on its include path - which is a workaround, not a
-design.
-
-`FolioUiSounds.h` was the same and has been moved to `Public`, since a public header includes it.
-The rest is a header-layout change that touches everything else, which is why it has not been done.
-
 ### The marker component has not been profiled
 
 `UFolioMarkerDocument` works, but one document and one context per marker is a real cost and nobody

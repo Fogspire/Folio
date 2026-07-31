@@ -2,7 +2,6 @@
 
 #include "Components/SceneComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "FolioDrawList.h"
 #include "FolioDocumentPath.h"
 
 #include "CoreMinimal.h"
@@ -10,6 +9,10 @@
 #include "FolioWorldDocument.generated.h"
 
 class FFolioDocumentHost;
+
+// A recording is passed around by shared pointer and never opened here. Only the render pass reads
+// one, and it has the header.
+class FFolioDrawList;
 
 namespace Rml
 {

@@ -95,6 +95,10 @@ anything is found.
 `./scripts/check_world_path.sh` is for anyone changing the renderer rather than a document - it
 catches a property that the world-space path silently drops.
 
+`./scripts/check_headers.sh` catches a public header that includes a private one. The build cannot:
+a module's own sources have `Private` on their include path, so it compiles here and fails only for
+whoever consumes the plugin, naming the public header that looked fine.
+
 **`./scripts/check_tests.sh`** runs the engine-side automation tests headlessly, which is everything
 that needs a real UObject and so cannot live in the preview: today that is the view model bridge.
 It finds the editor from the `.uproject`'s engine association, or `UE_ROOT` if you set one.

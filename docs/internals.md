@@ -235,8 +235,10 @@ Two other pieces of that amalgam are worth knowing. It sets `MSDFGEN_DISABLE_VAR
 evidence that msdfgen needs neither RTTI nor exceptions, so `folio_set_msdfgen_options()` does not
 have to fight Unreal's flags. Skia is enabled only `WITH_EDITOR`, and without it
 `resolveShapeGeometry` is not compiled at all (the whole file is inside `#ifdef MSDFGEN_USE_SKIA`).
-Folio does not build Skia either, so `MsdfGlyphGenerator` uses `normalize()` and
-`orientContours()` instead; a font with self-intersecting contours will show artifacts there.
+Folio builds it unconditionally instead, from the amalgam vendored in
+`Source/ThirdParty/SkiaSimplify/`, because `MsdfGlyphGenerator` calls `resolveShapeGeometry` to
+union a glyph's overlapping contours. Left to `normalize()` and `orientContours()` alone, a heavy
+weight reconstructs a solid stem as two thin strokes.
 
 ## HarfBuzz is the engine's copy, and that decides three other things
 

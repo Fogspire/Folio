@@ -120,6 +120,25 @@ A path, a tile size, and an optional colour the pattern is multiplied by. Three 
 Not available inside a layer - text under a `filter`, a `mask-image`, or an `opacity` on an ancestor.
 Those paths bind one texture and the pattern is skipped.
 
+## Shaping
+
+Text is shaped with HarfBuzz, so a string becomes glyphs the way the font says it should rather than
+one glyph per character. That gets you ligatures, contextual forms, correctly attached combining
+marks, and the kerning a modern face actually ships, which lives in GPOS and is invisible to anything
+reading the old `kern` table.
+
+Nothing in markup asks for it and there is no property to turn it on. The one control is
+`font-kerning: none`, which switches off the `kern` feature and leaves everything else.
+
+Shaping is per script: a string is cut into runs of one script each and each run shaped on its own,
+with punctuation and digits staying with whatever they follow. Right-to-left text lays out right to
+left. Mixing the two directions in one paragraph does not work, and is the one gap - see
+[known gaps](known_gaps.md).
+
+`folio.Font.Shaping 0` (or `uipreview --simple-shaping`) drops back to one glyph per codepoint with
+legacy kerning, which is what a build without HarfBuzz does. It is there so a metrics diff has
+something to diff against; text reflows when it changes.
+
 ## Text properties
 
 `font` `font-family` `font-size` `font-style` `font-weight` `font-kerning` · `font-effect` ·

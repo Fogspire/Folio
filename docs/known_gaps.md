@@ -50,15 +50,21 @@ authoritative about everything else.
 
 ## Text
 
-### No RTL, no complex scripts, no ligatures
+### No bidirectional text
 
-Shaping is kerning only, from FreeType's own kerning table. There is no HarfBuzz, so Arabic, Hebrew,
-Thai and Devanagari will not shape correctly, and Latin ligatures do not form.
+Text is shaped with HarfBuzz, so ligatures, contextual forms, mark attachment and GPOS kerning all
+work, and a right-to-left string is laid out right to left. What is missing is the Unicode
+bidirectional algorithm: a paragraph that *mixes* directions, such as an Arabic sentence quoting a
+Latin product name, puts the runs in the wrong order. Each run is individually correct.
 
-The glyph cache is keyed by **glyph index rather than codepoint**, which is the design decision that
-makes HarfBuzz a drop-in later rather than a rewrite. Nothing else has to change.
+Bidi is a layer above a shaper and would have to sit between RmlUi's line breaking and the font
+engine. Nothing is stopping it; it has not been needed.
 
-Move this up the list if the game ships in any of those languages.
+### Script runs are split by character, not by itemization
+
+A string is cut into runs of one script each and shaped separately, with punctuation and digits
+staying with whatever they follow. That is a simplification of what a full text engine does, and it
+shows in one place: a font's shaping cannot reach across the boundary between two scripts.
 
 ### Small text has no hinting
 

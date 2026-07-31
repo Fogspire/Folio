@@ -1,5 +1,7 @@
 #include "FolioCore/FolioFontEngine.h"
 #include "FolioModule.h"
+#include "FolioWorldDocument.h"
+#include "SFolioCanvas.h"
 
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
@@ -7,6 +9,7 @@
 /**
  * folio.Font.Report      what the text engine is and what it has cost
  * folio.Font.ClearCache  discards generated fields on disk
+ * folio.Font.Shaping     turns OpenType shaping on or off
  */
 namespace
 {
@@ -66,6 +69,46 @@ namespace
 			UE_LOG(LogFolio, Warning, TEXT("could not clear %s"), *Directory);
 		}
 	}
+
+	/**
+	 * Every open document has to be told to lay out again: the widths change, so the line breaks
+	 * do, and nothing else would notice.
+	 */
+	void SetShaping(const TArray<FString>& Args)
+	{
+		Folio::FFolioFontEngine* Engine = GetEngine();
+		if (!Engine)
+		{
+			return;
+		}
+
+		if (Args.Num() < 1)
+		{
+			UE_LOG(LogFolio, Display, TEXT("folio.Font.Shaping <0|1>; shaping is %s in this build"),
+				Folio::FFolioFontEngine::IsComplexShapingAvailable() ? TEXT("available") : TEXT("unavailable"));
+			return;
+		}
+
+		const bool bEnabled = Args[0].ToBool() || Args[0] == TEXT("1");
+		Engine->SetComplexShaping(bEnabled);
+
+		// A copy of each live set: reloading a document can destroy the thing being iterated.
+		for (SFolioCanvas* Canvas : TArray<SFolioCanvas*>(SFolioCanvas::GetLiveCanvases()))
+		{
+			Canvas->ReloadDocument();
+		}
+		for (UFolioWorldDocument* Surface : TArray<UFolioWorldDocument*>(UFolioWorldDocument::GetLive()))
+		{
+			Surface->ReloadDocument();
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("shaping %s"), bEnabled ? TEXT("on") : TEXT("off"));
+	}
+
+	FAutoConsoleCommand ShapingCommand(
+		TEXT("folio.Font.Shaping"),
+		TEXT("Turns OpenType shaping on or off and lays every open document out again."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&SetShaping));
 
 	FAutoConsoleCommand ReportCommand(
 		TEXT("folio.Font.Report"),

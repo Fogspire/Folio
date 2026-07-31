@@ -52,7 +52,7 @@ namespace Folio
 
 		/// Opens the file and applies the coordinates. Passing none leaves the face at whatever
 		/// instance the file names as its default.
-		bool Load(FFontData Data, int FaceIndex, const FVariationCoords& Coords);
+		bool Load(FFontData Data, int InFaceIndex, const FVariationCoords& Coords);
 
 		/// Axes the file declares. Empty for a static face, or when FreeType was built without
 		/// variation support - probed rather than assumed, because that build option is the
@@ -60,6 +60,11 @@ namespace Folio
 		const std::vector<FVariationAxis>& GetAxes() const { return Axes; }
 		bool IsVariable() const { return !Axes.empty(); }
 		const FVariationCoords& GetCoords() const { return Coords; }
+
+		/// The file this instance was cut from, for a shaper that reads the tables itself rather
+		/// than through FreeType.
+		const FFontData& GetData() const { return Data; }
+		int GetFaceIndex() const { return FaceIndex; }
 
 		/// Attaches this instance to the store. Cached fields are read on the first glyph request
 		/// rather than here, so a face that is registered but never drawn costs nothing.
@@ -113,6 +118,7 @@ namespace Folio
 		FT_Library Library = nullptr;
 		FT_Face Face = nullptr;
 		FFontData Data;
+		int FaceIndex = 0;
 
 		std::vector<FVariationAxis> Axes;
 		FVariationCoords Coords;

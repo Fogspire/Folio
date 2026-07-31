@@ -1,0 +1,75 @@
+<rml>
+<head>
+	<title>shaping</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			What a shaper does that a per-codepoint loop cannot. Every row here renders
+			differently under --simple-shaping, which is the point: run it both ways and
+			compare the two images.
+
+			Inter carries its kerning in GPOS and has no legacy `kern` table, so the pairs
+			below are unkerned without a shaper. The ligature and mark rows are the other two
+			things a shaper decides.
+		*/
+		body
+		{
+			font-family: Inter;
+			font-size: 16dp;
+			color: #e8e8f0;
+			background-color: #16161c;
+			padding: 32dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			display: flex;
+			flex-direction: row;
+		}
+
+		.column { flex: 1 1 0; padding-right: 32dp; }
+
+		h1 { font-size: 22dp; font-weight: 600; color: #f0c674; margin-bottom: 12dp; }
+		h2 { font-size: 13dp; font-weight: 600; color: #6a6a7a; margin: 16dp 0 6dp 0; }
+
+		/* Large, because a kerning pair moves by a fraction of an em and 16dp hides it. */
+		.pairs { font-size: 48dp; }
+		.unkerned { font-kerning: none; }
+		.ligatures { font-size: 40dp; }
+		.marks { font-size: 40dp; }
+		.note { font-size: 12dp; color: #6a6a7a; }
+	</style>
+</head>
+<body>
+	<div class="column">
+		<h1>Kerning</h1>
+
+		<h2>Pairs, shaped</h2>
+		<div class="pairs">AV To Ta Wo LT P, F.</div>
+
+		<h2>The same pairs, font-kerning: none</h2>
+		<div class="pairs unkerned">AV To Ta Wo LT P, F.</div>
+		<div class="note">These two rows must differ. If they do not, no kerning is reaching
+		the glyphs at all.</div>
+
+		<h2>In a word</h2>
+		<div class="pairs">Yesterday</div>
+	</div>
+
+	<div class="column">
+		<h1>Substitution and marks</h1>
+
+		<h2>Ligatures</h2>
+		<div class="ligatures">office waffle fi fl ffi</div>
+		<div class="note">Under a shaper the f and the following letter become one glyph, and
+		the dot of the i goes with it.</div>
+
+		<h2>Combining marks</h2>
+		<div class="marks">e&#x301; a&#x300; n&#x303; o&#x304; e&#x323;</div>
+		<div class="note">Written decomposed: a letter followed by its mark, positioned by the
+		font rather than by its own advance.</div>
+
+		<h2>Letter spacing over a ligature</h2>
+		<div class="ligatures" style="letter-spacing: 4dp;">office waffle</div>
+	</div>
+</body>
+</rml>

@@ -55,6 +55,13 @@ FetchContent_Declare(msdfgen
 	GIT_TAG        "${FOLIO_MSDFGEN_TAG}"
 	PATCH_COMMAND  ${MSDFGEN_PATCH_COMMAND}
 )
+# Built by folio_add_harfbuzz below rather than by its own CMakeLists, so SOURCE_SUBDIR points at
+# a path with no CMakeLists.txt to suppress add_subdirectory.
+FetchContent_Declare(harfbuzz
+	GIT_REPOSITORY "${FOLIO_HARFBUZZ_REPOSITORY}"
+	GIT_TAG        "${FOLIO_HARFBUZZ_TAG}"
+	SOURCE_SUBDIR  "folio-no-cmake"
+)
 # Headers only, like lodepng.
 FetchContent_Declare(nanosvg
 	GIT_REPOSITORY "${FOLIO_NANOSVG_REPOSITORY}"
@@ -90,10 +97,12 @@ if(NOT TARGET Freetype::Freetype)
 	add_library(Freetype::Freetype ALIAS freetype)
 endif()
 
-FetchContent_MakeAvailable(glfw RmlUi nlohmann_json lodepng msdfgen nanosvg)
+FetchContent_MakeAvailable(glfw RmlUi nlohmann_json lodepng msdfgen nanosvg harfbuzz)
 
 add_library(lodepng STATIC "${lodepng_SOURCE_DIR}/lodepng.cpp")
 target_include_directories(lodepng PUBLIC "${lodepng_SOURCE_DIR}")
+
+folio_add_harfbuzz("${harfbuzz_SOURCE_DIR}")
 
 # nanosvg is header-only, and only the vector baking tool includes it.
 add_library(nanosvg INTERFACE)
@@ -110,7 +119,8 @@ target_include_directories(folio_core PUBLIC
 	"${FOLIO_ROOT}/Source/FolioCore/Public"
 	"${FOLIO_ROOT}/Source/FolioCore/Private"
 )
-target_link_libraries(folio_core PUBLIC RmlUi::Core Freetype::Freetype msdfgen::msdfgen)
+target_link_libraries(folio_core PUBLIC RmlUi::Core Freetype::Freetype msdfgen::msdfgen harfbuzz)
+target_compile_definitions(folio_core PRIVATE FOLIO_WITH_HARFBUZZ=1)
 target_compile_features(folio_core PUBLIC cxx_std_20)
 
 add_subdirectory(Tools/uipreview)

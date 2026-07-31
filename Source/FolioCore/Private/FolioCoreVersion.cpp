@@ -9,6 +9,10 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#if FOLIO_WITH_HARFBUZZ
+#include <hb.h>
+#endif
+
 namespace Folio
 {
 	namespace
@@ -59,6 +63,15 @@ namespace Folio
 
 			return std::to_string(Major) + "." + std::to_string(Minor) + "." + std::to_string(Patch);
 		}
+
+		std::string GetHarfBuzzVersion()
+		{
+#if FOLIO_WITH_HARFBUZZ
+			return hb_version_string();
+#else
+			return "none";
+#endif
+		}
 	}
 
 	std::string GetCoreVersionString()
@@ -68,6 +81,7 @@ namespace Folio
 		return "engine=FolioMsdf"
 			" rmlui=" + std::string(Rml::GetVersion())
 			+ " freetype=" + GetFreeTypeVersion()
+			+ " harfbuzz=" + GetHarfBuzzVersion()
 			+ " pxem=" + std::to_string(Defaults.PxPerEm)
 			+ " pxrange=" + std::to_string(Defaults.PxRange)
 			+ " selftest=" + (RunMsdfSelfTest() ? "ok" : "FAILED");

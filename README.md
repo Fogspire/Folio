@@ -126,6 +126,7 @@ submodules, nothing installed globally.
 | [RmlUi](https://github.com/mikke89/RmlUi) | 6.2 |
 | [GLFW](https://github.com/glfw/glfw) | 3.4 |
 | [FreeType](https://github.com/freetype/freetype) | 2.13.3 |
+| [HarfBuzz](https://github.com/harfbuzz/harfbuzz) | 2.4.0, matching the copy Unreal ships |
 | [nlohmann/json](https://github.com/nlohmann/json) | 3.11.3 |
 | [lodepng](https://github.com/lvandeve/lodepng) | pinned commit |
 | [msdfgen](https://github.com/Chlumsky/msdfgen) | 1.12 |

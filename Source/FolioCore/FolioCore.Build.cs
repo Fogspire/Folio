@@ -38,5 +38,26 @@ public class FolioCore : ModuleRules
 		// must be a build with TT_CONFIG_OPTION_GX_VAR_SUPPORT; FolioFontFace probes
 		// FT_Get_MM_Var rather than trusting the version number.
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2", "zlib", "UElibPNG");
+
+		// The engine's own HarfBuzz rather than a second copy, because it is a C library with no
+		// namespace: two builds of it in one monolithic executable is a duplicate symbol for every
+		// entry point. The version routing here mirrors HarfBuzz.Build.cs, which only ships a
+		// usable library on these platforms and only when FreeType and ICU are both compiled in.
+		// ICU comes with it: HarfBuzz gets its Unicode character properties from ICU, so the
+		// library does not link without it.
+		bool bHarfBuzz = Target.bCompileFreeType && Target.bCompileICU
+			&& Target.Type != TargetType.Server
+			&& (Target.Platform == UnrealTargetPlatform.IOS
+				|| Target.Platform == UnrealTargetPlatform.Mac
+				|| Target.IsInPlatformGroup(UnrealPlatformGroup.Windows)
+				|| Target.IsInPlatformGroup(UnrealPlatformGroup.Android)
+				|| Target.IsInPlatformGroup(UnrealPlatformGroup.Unix));
+
+		if (bHarfBuzz)
+		{
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "HarfBuzz", "ICU");
+		}
+
+		PrivateDefinitions.Add("FOLIO_WITH_HARFBUZZ=" + (bHarfBuzz ? "1" : "0"));
 	}
 }

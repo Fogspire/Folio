@@ -24,6 +24,12 @@ set(FOLIO_LODEPNG_TAG        ed6fe5825c6a4fbb7f58ab35a4231c7543cd452a)
 set(FOLIO_MSDFGEN_REPOSITORY "https://github.com/Chlumsky/msdfgen.git")
 set(FOLIO_MSDFGEN_TAG        85e8b3d47b3d1a42e4a5ebda0a24fb1cc2e669e0) # v1.12
 
+# The version Unreal ships in Engine/Source/ThirdParty/HarfBuzz. The engine build links that
+# prebuilt library rather than this one, so the two have to be the same release or the preview
+# tool would shape a string differently from the game.
+set(FOLIO_HARFBUZZ_REPOSITORY "https://github.com/harfbuzz/harfbuzz.git")
+set(FOLIO_HARFBUZZ_TAG        f519ec5ccf7b96fcd658062235bbb21ba9f16734) # 2.4.0
+
 # Only the vector baking tool parses SVG, so nanosvg is fetched by the root build alone.
 set(FOLIO_NANOSVG_REPOSITORY "https://github.com/memononen/nanosvg.git")
 set(FOLIO_NANOSVG_TAG        239e102ec2c691f2902e20ace2ed36ee4a35cfe6)
@@ -96,6 +102,38 @@ function(folio_add_skia)
 	# Slate's out entirely and only this one remains.
 	if(MSVC)
 		target_compile_options(skia PRIVATE /w)
+	endif()
+endfunction()
+
+# HarfBuzz, built here rather than through its own CMakeLists, which resolves FreeType with
+# find_package and would never see the copy this build compiles from source.
+#
+# The file list mirrors Unreal's BuildForUE script, because the engine links its prebuilt library
+# and the preview tool has to shape a string the same way. Two differences, both deliberate:
+# nothing here calls hb-ft, so the shaper reads the font tables itself and HarfBuzz needs no
+# FreeType at all; and character properties come from the UCDN tables HarfBuzz bundles rather than
+# from ICU, which is a dependency worth avoiding in a standalone tool. UCDN and ICU disagree only
+# about codepoints assigned after their respective Unicode versions.
+function(folio_add_harfbuzz source_dir)
+	file(GLOB sources "${source_dir}/src/*.cc")
+	list(FILTER sources EXCLUDE REGEX "hb-(coretext|directwrite|ft|glib|gobject-structs|graphite2|icu|uniscribe)\\.cc$")
+	list(FILTER sources EXCLUDE REGEX "/(main|test.*|dump-.*)\\.cc$")
+
+	add_library(harfbuzz STATIC ${sources} "${source_dir}/src/hb-ucdn/ucdn.c")
+	target_include_directories(harfbuzz PUBLIC "${source_dir}/src")
+	target_include_directories(harfbuzz PRIVATE "${source_dir}/src/hb-ucdn")
+	target_compile_definitions(harfbuzz PRIVATE HAVE_OT HAVE_FALLBACK HAVE_UCDN HAVE_ROUND)
+
+	# C++17, not the C++20 the rest of this build uses. HarfBuzz 2.4.0 compares two objects of the
+	# same type with a member operator== taking a non-const reference, which C++20's reversed
+	# candidates turn into an ambiguity. Its public interface is C, so the boundary is unaffected.
+	set_target_properties(harfbuzz PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+
+	if(MSVC)
+		target_compile_definitions(harfbuzz PRIVATE _CRT_SECURE_NO_WARNINGS)
+		target_compile_options(harfbuzz PRIVATE /w)
+	else()
+		target_compile_options(harfbuzz PRIVATE -w)
 	endif()
 endfunction()
 

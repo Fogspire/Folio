@@ -39,6 +39,7 @@ SHOTS = (
     ("weights.rml", "1920x1080", "1"),
     ("typography.rml", "1920x1080", "1"),
     ("typography.rml", "1920x1080", "2"),
+    ("shaping.rml", "1280x820", "1"),
     ("effects.rml", "1920x1080", "1"),
     ("effect_edges.rml", "800x480", "1"),
     ("vector_stack.rml", "600x400", "1"),

@@ -5,6 +5,7 @@
 #include "FolioCore/FolioTrace.h"
 
 #include "FolioFontFace.h"
+#include "FolioShaper.h"
 
 #include <algorithm>
 #include <cmath>
@@ -100,6 +101,9 @@ namespace Folio
 		std::vector<std::unique_ptr<FHandle>> Handles;
 
 		IMsdfCacheStore* CacheStore = nullptr;
+
+		std::unique_ptr<FShapedTextCache> Shaper;
+		bool bComplexShaping = true;
 
 		/// Effect sets, indexed by handle. Entry zero is "no effects", so a handle of 0 keeps
 		/// meaning plain text and RmlUi's default needs no special case.
@@ -206,6 +210,7 @@ namespace Folio
 		Impl->Params = InParams;
 		Impl->PageSize = InPageSize;
 		Impl->Atlas = std::make_unique<FMsdfAtlasSet>(InSink, InParams, InPageSize);
+		BuildShaper();
 
 		if (FT_Init_FreeType(&Impl->Library) != 0)
 		{
@@ -224,9 +229,40 @@ namespace Folio
 		Impl->CacheStore = Store;
 	}
 
+	void FFolioFontEngine::BuildShaper()
+	{
+		std::unique_ptr<IShaper> Shaper;
+		if (Impl->bComplexShaping)
+		{
+			Shaper = MakeHarfBuzzShaper();
+		}
+		if (!Shaper)
+		{
+			Shaper = MakeSimpleShaper();
+		}
+		Impl->Shaper = std::make_unique<FShapedTextCache>(std::move(Shaper));
+	}
+
+	void FFolioFontEngine::SetComplexShaping(bool bEnabled)
+	{
+		if (Impl->bComplexShaping == bEnabled)
+		{
+			return;
+		}
+
+		Impl->bComplexShaping = bEnabled;
+		BuildShaper();
+	}
+
+	bool FFolioFontEngine::IsComplexShapingAvailable()
+	{
+		return MakeHarfBuzzShaper() != nullptr;
+	}
+
 	FFolioFontEngine::~FFolioFontEngine()
 	{
 		// Faces hold FT_Face objects, so they must go before the library that owns them.
+		Impl->Shaper.reset();
 		Impl->Handles.clear();
 		Impl->Faces.clear();
 		Impl->Atlas.reset();
@@ -348,6 +384,9 @@ namespace Folio
 		// combination really does come back empty.
 		if (!Raw->Axes.empty())
 		{
+			// Shaped runs are keyed by face address, and this frees one, so anything measured
+			// against it has to go with it.
+			Impl->Shaper->Clear();
 			Raw->Instances.clear();
 		}
 
@@ -647,32 +686,36 @@ namespace Folio
 
 		FFolioFontFace& Face = *Resolved->Face;
 		const float Scale = float(Resolved->Size);
-		const bool bKerning = TextShapingContext.font_kerning != Rml::Style::FontKerning::None;
+		const FShapedRun& Run = Impl->Shaper->Get(Face, String, TextShapingContext);
 
 		// Advances accumulate as whole pixels, matching RmlUi's own engine. Layout, caret
 		// positions and hit testing are all integer, so accumulating in float here would put this
 		// engine half a pixel out from everything that measures text.
 		int Width = 0;
-		unsigned int PriorGlyph = PriorCharacter != Rml::Character::Null
-			? Face.GetGlyphIndex(char32_t(PriorCharacter)) : 0;
 
-		for (auto It = Rml::StringIteratorU8(String); It; ++It)
+		// The character before the string is the previous line's last, and it is not part of the
+		// run, so its kerning pair is resolved on its own. Only the `kern` table can answer that,
+		// which is what RmlUi's own engine does here too.
+		if (!Run.empty() && PriorCharacter != Rml::Character::Null
+			&& TextShapingContext.font_kerning != Rml::Style::FontKerning::None)
 		{
-			const unsigned int GlyphIndex = Face.GetGlyphIndex(char32_t(*It));
-			const FGlyphBox* Box = Face.GetOrAppendGlyph(GlyphIndex);
-			if (Box == nullptr)
+			const unsigned int PriorGlyph = Face.GetGlyphIndex(char32_t(PriorCharacter));
+			if (PriorGlyph != 0)
+			{
+				Width += RoundToPixels(Face.GetKerningEm(PriorGlyph, Run.front().GlyphIndex) * Scale);
+			}
+		}
+
+		for (const FShapedGlyph& Glyph : Run)
+		{
+			if (Face.GetOrAppendGlyph(Glyph.GlyphIndex) == nullptr)
 			{
 				continue;
 			}
 
-			if (bKerning && PriorGlyph != 0)
-			{
-				Width += RoundToPixels(Face.GetKerningEm(PriorGlyph, GlyphIndex) * Scale);
-			}
-
-			Width += RoundToPixels(Box->AdvanceEm * Scale);
+			Width += RoundToPixels(Glyph.KerningEm * Scale);
+			Width += RoundToPixels(Glyph.AdvanceEm * Scale);
 			Width += int(TextShapingContext.letter_spacing);
-			PriorGlyph = GlyphIndex;
 		}
 
 		return Rml::Math::Max(Width, 0);
@@ -738,28 +781,23 @@ namespace Folio
 	{
 		FFolioFontFace& Face = *Resolved.Face;
 		const float Scale = float(Resolved.Size);
-		const bool bKerning = TextShapingContext.font_kerning != Rml::Style::FontKerning::None;
+		const FShapedRun& Run = Impl->Shaper->Get(Face, String, TextShapingContext);
 
 		// One mesh per atlas page per pass. A string almost always sits on a single page, so this
 		// is usually one draw; it only splits when a face has outgrown a page.
 		std::vector<int> MeshForPage;
 
 		int Width = 0;
-		unsigned int PriorGlyph = 0;
 
-		for (auto It = Rml::StringIteratorU8(String); It; ++It)
+		for (const FShapedGlyph& Glyph : Run)
 		{
-			const unsigned int GlyphIndex = Face.GetGlyphIndex(char32_t(*It));
-			const FGlyphBox* Box = Face.GetOrAppendGlyph(GlyphIndex);
+			const FGlyphBox* Box = Face.GetOrAppendGlyph(Glyph.GlyphIndex);
 			if (Box == nullptr)
 			{
 				continue;
 			}
 
-			if (bKerning && PriorGlyph != 0)
-			{
-				Width += RoundToPixels(Face.GetKerningEm(PriorGlyph, GlyphIndex) * Scale);
-			}
+			Width += RoundToPixels(Glyph.KerningEm * Scale);
 
 			if (!Box->bEmpty)
 			{
@@ -804,9 +842,10 @@ namespace Folio
 				// slightly different ones. It is invisible at text sizes and unmistakable once a
 				// transform magnifies it.
 				//
-				// Plane bounds are y-up from the baseline; RmlUi's y runs down the screen.
-				const float PenX = std::round(Position.x + float(Width));
-				const float BaselineY = std::round(Position.y);
+				// Plane bounds are y-up from the baseline; RmlUi's y runs down the screen. So is
+				// the shaper's offset, which only a mark attached to another glyph carries.
+				const float PenX = std::round(Position.x + float(Width) + Glyph.OffsetXEm * Scale);
+				const float BaselineY = std::round(Position.y - Glyph.OffsetYEm * Scale);
 
 				const Rml::Vector2f Origin(
 					PenX + Box->PlaneLeft * Scale,
@@ -822,9 +861,8 @@ namespace Folio
 Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, BottomRightUv);
 			}
 
-			Width += RoundToPixels(Box->AdvanceEm * Scale);
+			Width += RoundToPixels(Glyph.AdvanceEm * Scale);
 			Width += int(TextShapingContext.letter_spacing);
-			PriorGlyph = GlyphIndex;
 		}
 
 		return Rml::Math::Max(Width, 0);
@@ -847,6 +885,7 @@ Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, Bo
 		// faces and their atlases stay: regenerating fields is expensive and they are the thing
 		// worth keeping.
 		Impl->Handles.clear();
+		Impl->Shaper->Clear();
 
 		// Write the fields back before anything is torn down, so a run that generated glyphs is
 		// the last one that has to.
@@ -868,6 +907,8 @@ Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, Bo
 	{
 		const FMsdfAtlas& Atlas = Impl->Atlas->GetAtlas();
 		std::string Report = "engine=FolioMsdf faces=" + std::to_string(Impl->Faces.size())
+			+ " shaper=" + Impl->Shaper->GetShaperName()
+			+ " runs=" + std::to_string(Impl->Shaper->GetSize())
 			+ " handles=" + std::to_string(Impl->Handles.size())
 			+ " pages=" + std::to_string(Atlas.GetPageCount())
 			+ " atlas=" + std::to_string(Atlas.GetByteSize() / (1024 * 1024)) + "MB"

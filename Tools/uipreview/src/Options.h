@@ -97,6 +97,9 @@ struct Options {
 	bool reload_textures = false;
 	/** Read and write generated fields under <root>/.folio-cache. */
 	bool font_cache = true;
+	/** Shape with HarfBuzz. Off measures one glyph per codepoint with legacy kerning, which is
+	    what a build without HarfBuzz does and what a metrics diff is taken against. */
+	bool complex_shaping = true;
 
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty()

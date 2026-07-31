@@ -238,6 +238,37 @@ have to fight Unreal's flags. Skia is enabled only `WITH_EDITOR`, and without it
 Folio does not build Skia either, so `MsdfGlyphGenerator` uses `normalize()` and
 `orientContours()` instead; a font with self-intersecting contours will show artifacts there.
 
+## HarfBuzz is the engine's copy, and that decides three other things
+
+msdfgen could be built twice because it is C++ and Slate's copy hides in a namespace. HarfBuzz is a
+C library with no such escape, so two builds of it in one monolithic executable is a duplicate symbol
+for every entry point. Folio therefore links the prebuilt
+`Engine/Source/ThirdParty/HarfBuzz/harfbuzz-2.4.0` rather than pinning its own, and three
+consequences follow:
+
+- **ICU comes with it.** That build takes its Unicode character properties from ICU, so
+  `FolioCore.Build.cs` has to name ICU as well or the library does not link.
+- **The allocator has to be supplied.** It is compiled with `hb_malloc_impl` and friends redirected
+  to `HarfBuzzMalloc`/`Calloc`/`Realloc`/`Free`, which Slate defines in
+  `FontCacheHarfBuzz.cpp` **without exporting**. A second module linking the same static library gets
+  an unresolved external, so `FolioCoreModule.cpp` defines its own four - under `!IS_MONOLITHIC`,
+  because a monolithic build has one copy of the library and takes Slate's.
+- **`bCompileFreeType` and `bCompileICU` gate it.** `HarfBuzz.Build.cs` returns an unusable module
+  when either is off, and only routes to 2.4.0 on Windows, Mac, iOS, Android and Unix. The same
+  condition is repeated in `FolioCore.Build.cs`, which sets `FOLIO_WITH_HARFBUZZ` from it. A build
+  without it falls back to one glyph per codepoint, which is what RmlUi's own engine does.
+
+The preview tool cannot link the engine's library, so `folio_add_harfbuzz()` builds the same release
+from source. Its file list mirrors Unreal's `BuildForUE` script with two differences. Nothing calls
+`hb-ft`, so HarfBuzz needs no FreeType and that file is left out; and character properties come from
+the UCDN tables HarfBuzz bundles rather than from ICU, which is a dependency worth avoiding in a
+standalone tool. The two disagree only about codepoints assigned after their respective Unicode
+versions.
+
+It compiles as **C++17 while everything else here is C++20**. HarfBuzz 2.4.0 compares two objects of
+one type with a member `operator==` taking a non-const reference, and C++20's reversed candidates
+make that ambiguous. Its public interface is C, so the standard does not cross the boundary.
+
 ## Texture formats
 
 **RmlUi's own texture loader reads uncompressed TGA and nothing else.** Not PNG. Every real
@@ -579,6 +610,11 @@ Things that read engine internals and would fail quietly rather than loudly if t
 - **msdfgen is vendored by SlateCore too.** Both copies link into a monolithic build, so ours
   compiles under `MSDFGEN_PARENT_NAMESPACE` and the macro must match between the library build
   and `MsdfgenLibrary.Build.cs`. Mismatched, it links in the editor and fails at packaging.
+- **HarfBuzz's allocator names and its version routing.** Folio defines
+  `HarfBuzzMalloc` and friends for modular builds and skips them for monolithic ones, on the
+  assumption that Slate still defines them and still does not export them. If the engine moves to
+  the 12.2.0 copy that also sits in that directory, check whether the allocator redirect and the
+  ICU dependency survived it, and pin the preview tool to the same release.
 
 ## Releasing a texture can delete a live glyph atlas
 

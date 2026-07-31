@@ -201,6 +201,7 @@ bool App::Initialise()
 	msdf_params.PxRange = options.msdf_px_range;
 	render_interface->SetMsdfSharpen(options.msdf_sharpen);
 	font_engine = std::make_unique<Folio::FFolioFontEngine>(*render_interface, msdf_params);
+	font_engine->SetComplexShaping(options.complex_shaping);
 
 	if (options.font_cache)
 	{

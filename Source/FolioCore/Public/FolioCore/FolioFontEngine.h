@@ -82,6 +82,17 @@ namespace Folio
 		bool RegisterVariableFace(const Rml::String& FileName, const Rml::String& Family,
 			Rml::Style::FontStyle Style, const FVariationCoords& PinnedAxes, bool bFallbackFace = false);
 
+		/// Turns OpenType shaping on or off, which is what decides whether ligatures, GPOS
+		/// kerning, contextual forms and mark attachment happen at all.
+		///
+		/// On by default wherever HarfBuzz is available. Off falls back to one glyph per codepoint
+		/// kerned from the legacy `kern` table, which is what RmlUi's own engine does. Text will
+		/// reflow when this changes, so it is a diagnostic, not a setting to animate.
+		void SetComplexShaping(bool bEnabled);
+
+		/// Whether this build has a shaper at all.
+		static bool IsComplexShapingAvailable();
+
 		/// One line naming the engine, its faces and what they have cost so far. Behind
 		/// uipreview --font-report and the folio.Font.Report console command, so that "is the
 		/// distance-field engine actually running" has an answer that is not a debugger.
@@ -108,6 +119,7 @@ namespace Folio
 			const FVariationCoords& PinnedAxes);
 		/// Reads a file through RmlUi's file interface, so mounts resolve and a packaged build works.
 		FFontData ReadFontFile(const Rml::String& FileName) const;
+		void BuildShaper();
 
 		struct FImpl;
 		std::unique_ptr<FImpl> Impl;

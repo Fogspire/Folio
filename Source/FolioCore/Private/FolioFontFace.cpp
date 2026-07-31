@@ -46,11 +46,12 @@ namespace Folio
 		}
 	}
 
-	bool FFolioFontFace::Load(FFontData InData, int FaceIndex, const FVariationCoords& InCoords)
+	bool FFolioFontFace::Load(FFontData InData, int InFaceIndex, const FVariationCoords& InCoords)
 	{
 		FOLIO_TRACE_SCOPE("Folio/LoadFaceInstance");
 
 		Data = std::move(InData);
+		FaceIndex = InFaceIndex;
 		if (!Data || Data->empty())
 		{
 			return false;

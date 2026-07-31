@@ -102,6 +102,8 @@ void PrintUsage(std::FILE* stream)
 		"  -v, --verbose         Show informational messages\n"
 		"  --font-report         Report the text engine. Without a document, prints what this\n"
 		"                        binary was built against and exits\n"
+		"  --simple-shaping      Measure one glyph per codepoint with legacy kerning instead of\n"
+		"                        shaping with HarfBuzz\n"
 		"  -h, --help            This text\n"
 		"\n"
 		"Exit codes: 0 ok, 1 document errors, 2 usage, 3 init failure, 4 runtime failure,\n"
@@ -136,6 +138,8 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			o.watch = false;
 		else if (arg == "--no-font-cache")
 			o.font_cache = false;
+		else if (arg == "--simple-shaping")
+			o.complex_shaping = false;
 		else if (arg == "--no-assets-wanted")
 			o.write_assets_wanted = false;
 		else if (arg == "--reload-textures")

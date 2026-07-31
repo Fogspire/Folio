@@ -81,10 +81,13 @@ box it is given and `body` is almost always `100%`, so laying one out to ask how
 ever return the size it was already laid out at. Asking the markup is the only answer that is not a
 guess.
 
-Nothing is filled in for a document that stays silent, and a size that is already set is only ever
-replaced by an explicit declaration — so a size someone deliberately chose is never quietly
-overwritten. Both numbers must be positive; a malformed value is logged and ignored rather than half
-applied.
+Nothing is filled in for a document that stays silent, and **nothing is filled in over a size that has
+already been changed from its default** — only an untouched field is written. That matters most for
+`UFolioWorldDocument`, whose `World Size` is the mesh it sits on: it is measured against geometry the
+document knows nothing about, and replacing it with whatever the markup declares would be worse than
+filling nothing in.
+
+Both numbers must be positive; a malformed value is logged and ignored rather than half applied.
 
 ## Hiding things from the picker
 

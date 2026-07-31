@@ -101,6 +101,20 @@ void FFolioDocumentPathCustomization::ApplyDeclaredSize(const FString& Path)
 			continue;
 		}
 
+		FVector2D* Current = Target->ContainerPtrToValuePtr<FVector2D>(Object);
+
+		// Never over a size someone chose. A world document's size is the mesh it sits on, measured
+		// against geometry the document knows nothing about, and replacing it with whatever the markup
+		// declares is worse than filling nothing in.
+		if (const UObject* Archetype = Object->GetArchetype())
+		{
+			const FVector2D* Default = Target->ContainerPtrToValuePtr<FVector2D>(Archetype);
+			if (Default && !Current->Equals(*Default))
+			{
+				continue;
+			}
+		}
+
 		FVector2D Size = Declared;
 
 		// Read as it stands, so changing the divisor afterwards does not retroactively rescale a size
@@ -119,7 +133,7 @@ void FFolioDocumentPathCustomization::ApplyDeclaredSize(const FString& Path)
 		}
 
 		Object->Modify();
-		*Target->ContainerPtrToValuePtr<FVector2D>(Object) = Size;
+		*Current = Size;
 
 		FPropertyChangedEvent Changed(Target, EPropertyChangeType::ValueSet);
 		Object->PostEditChangeProperty(Changed);

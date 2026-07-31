@@ -974,12 +974,21 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	// order that makes a blurred shadow a blurred shadow rather than a blurred everything.
 	float Sigma = 0.0f;
 	bool bOutside = false;
+	TArray<Folio::FColourFilter> Colour;
+
 	for (const Rml::CompiledFilterHandle Handle : AppliedFilters)
 	{
 		if (const FFilter* Filter = Filters.Find(Handle))
 		{
 			Sigma = FMath::Max(Sigma, Filter->Sigma);
 			bOutside = bOutside || Filter->bOutside;
+
+			// Order is kept, because `saturate(0) brightness(2)` and `brightness(2) saturate(0)` are
+			// different pictures and CSS says the first named runs first.
+			if (Filter->Colour.IsSet())
+			{
+				Colour.Add(Filter->Colour.GetValue());
+			}
 		}
 	}
 
@@ -1011,11 +1020,11 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	// Below the bottom layer is Slate, not another target.
 	if (Layers.Num() <= 1)
 	{
-		CompositeLayerToSlate(Sigma);
+		CompositeLayerToSlate(Sigma, Colour);
 		return;
 	}
 
-	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma);
+	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma, Colour);
 }
 
 void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
@@ -1129,9 +1138,10 @@ void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
 	MaxLayerId = FMath::Max(MaxLayerId, LayerId);
 }
 
-void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma)
+void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma,
+	const TArrayView<const Folio::FColourFilter> Colour)
 {
-	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma);
+	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma, Colour);
 	if (!Target || !ElementList || !FSlateApplication::IsInitialized())
 	{
 		return;
@@ -1222,6 +1232,26 @@ Rml::TextureHandle FFolioRenderInterface::SaveLayerAsTexture()
 	return RegisterRenderTarget(Detached);
 }
 
+namespace
+{
+	/** The RCSS names, which are CSS's, mapped onto the shader's modes. */
+	const TMap<FString, Folio::EColourFilter>& ColourFilterNames()
+	{
+		static const TMap<FString, Folio::EColourFilter> Names = {
+			{ TEXT("brightness"), Folio::EColourFilter::Brightness },
+			{ TEXT("contrast"),   Folio::EColourFilter::Contrast },
+			{ TEXT("grayscale"),  Folio::EColourFilter::Grayscale },
+			{ TEXT("invert"),     Folio::EColourFilter::Invert },
+			{ TEXT("opacity"),    Folio::EColourFilter::Opacity },
+			{ TEXT("saturate"),   Folio::EColourFilter::Saturate },
+			{ TEXT("sepia"),      Folio::EColourFilter::Sepia },
+			{ TEXT("hue-rotate"), Folio::EColourFilter::HueRotate },
+		};
+
+		return Names;
+	}
+}
+
 Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String& Name,
 	const Rml::Dictionary& Parameters)
 {
@@ -1239,6 +1269,29 @@ Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String
 
 		// Folio's own. The element's box becomes a hole rather than the region blurred.
 		Filter.bOutside = Name == "outside-blur";
+	}
+	else if (const Folio::EColourFilter* Kind = ColourFilterNames().Find(Folio::ToFString(Name)))
+	{
+		Folio::FColourFilter Colour;
+		Colour.Kind = *Kind;
+
+		// RmlUi normalises every one of these to a single "value" parameter, and hands hue-rotate's
+		// over already converted to radians. The default is what CSS says the filter does with no
+		// argument, which is not the same number for all of them: an invert of 1 inverts, a brightness
+		// of 1 does nothing.
+		Colour.Amount = *Kind == Folio::EColourFilter::Grayscale
+			|| *Kind == Folio::EColourFilter::Invert
+			|| *Kind == Folio::EColourFilter::Sepia
+			|| *Kind == Folio::EColourFilter::HueRotate
+			? 0.0f : 1.0f;
+
+		const auto It = Parameters.find("value");
+		if (It != Parameters.end())
+		{
+			It->second.GetInto(Colour.Amount);
+		}
+
+		Filter.Colour = Colour;
 	}
 	else
 	{

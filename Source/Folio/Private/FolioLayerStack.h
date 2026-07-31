@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FolioColourShader.h"
+
 #include "CoreMinimal.h"
 #include "FolioDrawList.h"
 #include "FolioRmlUi.h"
@@ -73,7 +75,8 @@ public:
 	void EnableClipMask(bool bEnable);
 
 	/** Resolves the current layer and composites it into the one below. */
-	void CompositeDown(bool bBlend, float BlurSigma);
+	void CompositeDown(bool bBlend, float BlurSigma,
+		TArrayView<const Folio::FColourFilter> Colour = {});
 
 	/**
 	 * Resolves the current layer, hands its target to the caller and replaces it.
@@ -85,7 +88,8 @@ public:
 	 * target: Slate reads the texture at the end of the frame, long after the pool would have
 	 * handed it to the next layer and cleared it.
 	 */
-	UTextureRenderTarget2D* DetachCurrent(float BlurSigma = 0.0f);
+	UTextureRenderTarget2D* DetachCurrent(float BlurSigma = 0.0f,
+		TArrayView<const Folio::FColourFilter> Colour = {});
 
 	void Reset();
 

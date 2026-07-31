@@ -3,6 +3,7 @@
 #include "FolioGradient.h"
 
 #include "FolioCore/FolioShaderEffects.h"
+#include "FolioColourShader.h"
 #include "FolioDrawList.h"
 #include "FolioLayerStack.h"
 #include "FolioRmlUi.h"
@@ -237,7 +238,7 @@ private:
 	 * first PushLayer into is the screen. Without this a filter at the top of a document resolves
 	 * correctly and is then dropped, so the element and everything inside it renders as nothing.
 	 */
-	void CompositeLayerToSlate(float BlurSigma);
+	void CompositeLayerToSlate(float BlurSigma, TArrayView<const Folio::FColourFilter> Colour = {});
 
 	/** backdrop-filter: blur, through Slate's post-process element, which reads the backbuffer. */
 	void BlurBackdrop(float Sigma, bool bOutside);
@@ -351,6 +352,8 @@ private:
 		float Sigma = 0.0f;
 		/** Folio's outside-blur: the element's box is a hole, not the region blurred. */
 		bool bOutside = false;
+		/** Set for the eight per-texel filters, which run on the resolved layer before the blur. */
+		TOptional<Folio::FColourFilter> Colour;
 	};
 
 	TMap<Rml::CompiledFilterHandle, FFilter> Filters;

@@ -1,5 +1,7 @@
 #include "FolioLayerStack.h"
 
+#include "FolioColourShader.h"
+
 #include "FolioInsights.h"
 
 #include "CommonRenderResources.h"
@@ -180,7 +182,8 @@ void FFolioLayerStack::EnableClipMask(const bool bEnable)
 	}
 }
 
-UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma)
+UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
+	const TArrayView<const Folio::FColourFilter> Colour)
 {
 	if (Stack.IsEmpty())
 	{
@@ -189,6 +192,8 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma)
 
 	FLayer& Layer = Stack.Last();
 	Resolve(Layer);
+
+	Folio::ApplyColourFilters(Layer.Target.Get(), Colour);
 
 	if (BlurSigma > 0.0f)
 	{
@@ -211,7 +216,8 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma)
 	return Detached;
 }
 
-void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma)
+void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
+	const TArrayView<const Folio::FColourFilter> Colour)
 {
 	if (Stack.Num() < 2)
 	{
@@ -220,6 +226,10 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma)
 
 	FLayer& Source = Stack.Last();
 	Resolve(Source);
+
+	// Colour before blur, which is the order CSS gives and the order that matters: blurring a
+	// desaturated layer and desaturating a blurred one differ wherever the blur crosses an edge.
+	Folio::ApplyColourFilters(Source.Target.Get(), Colour);
 
 	if (BlurSigma > 0.0f)
 	{

@@ -1,0 +1,127 @@
+// The colour filters: brightness, contrast, grayscale, invert, opacity, saturate, sepia, hue-rotate.
+//
+// One shader with a mode rather than eight, because every one of them is a handful of instructions
+// over the same texel and a permutation each would cost more to compile than to run.
+//
+// Everything here is premultiplied alpha, matching RmlUi 6.x. That is not incidental: a filter that
+// operates on colour has to divide alpha out first, or a half-transparent red darkens as it fades
+// rather than staying red. The unpremultiply and re-premultiply around the maths is the whole reason
+// this is not a one-liner.
+//
+// The matrices are CSS's, from the Filter Effects specification, so a document filtered here and in
+// a browser agree.
+
+#include "/Engine/Public/Platform.ush"
+
+Texture2D SourceTexture;
+SamplerState SourceSampler;
+
+// x: mode. y: amount. Meaning depends on the mode.
+float4 ColourParameters;
+
+float2 InvSize;
+
+#define MODE_BRIGHTNESS 0
+#define MODE_CONTRAST   1
+#define MODE_GRAYSCALE  2
+#define MODE_INVERT     3
+#define MODE_OPACITY    4
+#define MODE_SATURATE   5
+#define MODE_SEPIA      6
+#define MODE_HUE_ROTATE 7
+
+// Rec. 709, which is what the CSS filter matrices are built on.
+static const float3 LumaWeights = float3(0.2126f, 0.7152f, 0.0722f);
+
+float3 ApplySaturate(float3 Colour, float Amount)
+{
+	const float Luma = dot(Colour, LumaWeights);
+	return lerp(float3(Luma, Luma, Luma), Colour, Amount);
+}
+
+float3 ApplySepia(float3 Colour, float Amount)
+{
+	const float3 Sepia = float3(
+		dot(Colour, float3(0.393f, 0.769f, 0.189f)),
+		dot(Colour, float3(0.349f, 0.686f, 0.168f)),
+		dot(Colour, float3(0.272f, 0.534f, 0.131f)));
+
+	return lerp(Colour, Sepia, Amount);
+}
+
+float3 ApplyHueRotate(float3 Colour, float Radians)
+{
+	const float C = cos(Radians);
+	const float S = sin(Radians);
+
+	// The CSS hue-rotate matrix, which rotates about the luma axis rather than converting to HSL.
+	// It is not a true hue rotation and is allowed to leave the gamut; that is what browsers do, and
+	// matching them matters more than being right.
+	const float3x3 Rotation = float3x3(
+		0.213f + C * 0.787f - S * 0.213f, 0.715f - C * 0.715f - S * 0.715f, 0.072f - C * 0.072f + S * 0.928f,
+		0.213f - C * 0.213f + S * 0.143f, 0.715f + C * 0.285f + S * 0.140f, 0.072f - C * 0.072f - S * 0.283f,
+		0.213f - C * 0.213f - S * 0.787f, 0.715f - C * 0.715f + S * 0.715f, 0.072f + C * 0.928f + S * 0.072f);
+
+	return mul(Rotation, Colour);
+}
+
+float4 MainPS(float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	const float2 UV = SvPosition.xy * InvSize;
+	const float4 Source = SourceTexture.SampleLevel(SourceSampler, UV, 0);
+
+	const int Mode = (int)ColourParameters.x;
+	const float Amount = ColourParameters.y;
+
+	// Opacity scales the premultiplied texel whole, so it needs none of the unpremultiply dance and
+	// would be wrong if it went through it - dividing alpha out and scaling it back is a no-op.
+	if (Mode == MODE_OPACITY)
+	{
+		return Source * Amount;
+	}
+
+	const float Alpha = Source.a;
+	if (Alpha <= 0.0f)
+	{
+		return Source;
+	}
+
+	float3 Colour = Source.rgb / Alpha;
+
+	if (Mode == MODE_BRIGHTNESS)
+	{
+		Colour *= Amount;
+	}
+	else if (Mode == MODE_CONTRAST)
+	{
+		// About 0.5, which is what CSS specifies - not about the texel's own luma.
+		Colour = (Colour - 0.5f) * Amount + 0.5f;
+	}
+	else if (Mode == MODE_GRAYSCALE)
+	{
+		// Grayscale is saturate run backwards, so one implementation serves both.
+		Colour = ApplySaturate(Colour, 1.0f - Amount);
+	}
+	else if (Mode == MODE_INVERT)
+	{
+		Colour = lerp(Colour, 1.0f - Colour, Amount);
+	}
+	else if (Mode == MODE_SATURATE)
+	{
+		Colour = ApplySaturate(Colour, Amount);
+	}
+	else if (Mode == MODE_SEPIA)
+	{
+		Colour = ApplySepia(Colour, Amount);
+	}
+	else if (Mode == MODE_HUE_ROTATE)
+	{
+		Colour = ApplyHueRotate(Colour, Amount);
+	}
+
+	// Clamped before re-premultiplying, or a value pushed past one by contrast or hue-rotate comes
+	// back as a colour brighter than its own alpha, which composites as a glow.
+	Colour = saturate(Colour);
+
+	return float4(Colour * Alpha, Alpha);
+}

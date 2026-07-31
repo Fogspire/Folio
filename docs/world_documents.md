@@ -99,8 +99,9 @@ behind.
 **3. Point the material at the target.** Create a dynamic material instance on the mesh and set
 `Element` from the component's **On Surface Changed** event.
 
-The target is *replaced*, not resized, when the resolution changes, so a material given it once will
-eventually be holding a stale texture. Bind the event rather than reading the target at Begin Play.
+The target is resized in place when the resolution changes, so the same object stays bound and a
+material given it once keeps working. `On Surface Changed` still fires, for anything that tracks the
+size rather than the pointer.
 
 One wrinkle: with `Update In Editor` on, the first target is created before Begin Play, so the event
 has already fired by the time your Blueprint binds to it. After binding, call **Get Render Target**
@@ -116,6 +117,8 @@ size is cheap: geometry is compiled once and glyphs are size-independent, so not
 
 - **Max Surface Scale** bounds it, as a multiple of the document's own size. The default of 2 lets a
   1000x600 document reach 2000x1200.
+- Resolution rises the moment it is wanted and falls only after a whole step has been given up, so
+  standing near a boundary does not flip it every frame.
 - `folio.World.SurfaceAutoResolution 0` pins the target to the document's size instead, which is the
   fixed-resolution behaviour a `UWidgetComponent` has. Useful for an A/B.
 

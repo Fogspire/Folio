@@ -803,9 +803,17 @@ FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const
 	// Rounded up to a step, so approaching the surface raises the resolution before it looks soft rather
 	// than after. Never above the document's own size times the cap, and never above what it lands at.
 	const float Ratio = FMath::Clamp(ScreenPixels / float(FMath::Max(1, Document.Y)), 0.25f, MaxSurfaceScale);
-	const int32 Height = FMath::Clamp(
+	int32 Height = FMath::Clamp(
 		FMath::DivideAndRoundUp(FMath::RoundToInt(float(Document.Y) * Ratio), SurfaceSizeStep) * SurfaceSizeStep,
 		SurfaceSizeStep, MaxEdge);
+
+	// Growing happens at once, because that is the mode's whole promise. Shrinking waits until a step has
+	// been given up completely: standing near a boundary otherwise flips the resolution every frame, and
+	// each flip costs a reallocation.
+	if (SurfaceSize.Y > 0 && Height < SurfaceSize.Y && SurfaceSize.Y - Height <= SurfaceSizeStep)
+	{
+		Height = SurfaceSize.Y;
+	}
 
 	// The document's aspect ratio is what decides the width: a target that did not match it would stretch.
 	const int32 Width = FMath::Max(SurfaceSizeStep,
@@ -823,9 +831,7 @@ void UFolioWorldDocument::RenderToSurface(const FIntPoint Size)
 		return;
 	}
 
-	// Replaced rather than resized: resizing a render target in place reallocates its resource anyway, and a
-	// new object is what tells a material holding the old one that it has to rebind.
-	if (!SurfaceTarget.IsValid() || SurfaceSize != Size)
+	if (!SurfaceTarget.IsValid())
 	{
 		UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>(this);
 		Target->RenderTargetFormat = RTF_RGBA8;
@@ -842,9 +848,19 @@ void UFolioWorldDocument::RenderToSurface(const FIntPoint Size)
 		SurfaceSize = Size;
 		OnSurfaceChanged.Broadcast(Target);
 	}
+	else if (SurfaceSize != Size)
+	{
+		// Resized rather than replaced. A new object would mean every material sampling it has to rebind,
+		// and until it does the mesh shows the target it was given last - so changing resolution while
+		// anything is animating drops a frame or two of it. The resource is reallocated either way; what
+		// this keeps is the binding.
+		SurfaceTarget->ResizeTarget(Size.X, Size.Y);
+		SurfaceSize = Size;
 
-	// The document's own size, not the target's: that is the space the geometry is recorded in, and what
-	// the replay scales from.
+		// Still announced, for anything that tracks the size rather than the pointer. Same object.
+		OnSurfaceChanged.Broadcast(SurfaceTarget.Get());
+	}
+
 	if (!Renderer->BeginSurface(GetDocumentSize(), SurfaceTarget.Get()))
 	{
 		return;

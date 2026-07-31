@@ -18,9 +18,7 @@ namespace Folio
 	struct FShapedGlyph
 	{
 		unsigned int GlyphIndex = 0;
-		/// The pen moves by this before the glyph is placed. Only a shaper that resolves kerning
-		/// separately from the advance fills it in.
-		float KerningEm = 0.0f;
+		/// Includes the kerning against whatever follows, which is where a shaper puts it.
 		float AdvanceEm = 0.0f;
 		/// Where the glyph sits relative to the pen, y up. Nonzero for attached marks.
 		float OffsetXEm = 0.0f;

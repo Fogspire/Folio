@@ -713,7 +713,6 @@ namespace Folio
 				continue;
 			}
 
-			Width += RoundToPixels(Glyph.KerningEm * Scale);
 			Width += RoundToPixels(Glyph.AdvanceEm * Scale);
 			Width += int(TextShapingContext.letter_spacing);
 		}
@@ -796,8 +795,6 @@ namespace Folio
 			{
 				continue;
 			}
-
-			Width += RoundToPixels(Glyph.KerningEm * Scale);
 
 			if (!Box->bEmpty)
 			{

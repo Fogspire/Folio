@@ -29,13 +29,16 @@ namespace Folio
 						continue;
 					}
 
+					// Onto the glyph before it, which is where GPOS puts kerning and therefore
+					// where the caller expects to find it.
+					if (bKerning && PriorGlyph != 0)
+					{
+						OutGlyphs.back().AdvanceEm += Face.GetKerningEm(PriorGlyph, GlyphIndex);
+					}
+
 					FShapedGlyph& Glyph = OutGlyphs.emplace_back();
 					Glyph.GlyphIndex = GlyphIndex;
 					Glyph.AdvanceEm = Box->AdvanceEm;
-					if (bKerning && PriorGlyph != 0)
-					{
-						Glyph.KerningEm = Face.GetKerningEm(PriorGlyph, GlyphIndex);
-					}
 
 					PriorGlyph = GlyphIndex;
 				}

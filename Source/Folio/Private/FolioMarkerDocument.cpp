@@ -2,6 +2,7 @@
 
 #include "FolioDocumentHost.h"
 
+#include "FolioDocumentPath.h"
 #include "FolioMarkerLayer.h"
 #include "FolioModule.h"
 
@@ -27,6 +28,28 @@ UFolioMarkerDocument::UFolioMarkerDocument()
 	// view by a frame, which reads as the whole HUD lagging rather than as a marker being wrong.
 	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
 }
+
+#if WITH_EDITOR
+void UFolioMarkerDocument::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.GetPropertyName()
+		!= GET_MEMBER_NAME_CHECKED(UFolioMarkerDocument, DocumentPath))
+	{
+		return;
+	}
+
+	// An absolute path is wrong the moment anyone else opens the level, so it is rewritten here rather
+	// than left to fail on someone else's machine.
+	DocumentPath = UFolioDocumentPathLibrary::MakeDocumentPathPortable(DocumentPath);
+
+	if (!DocumentPath.IsEmpty() && !UFolioDocumentPathLibrary::DocumentExists(DocumentPath))
+	{
+		UFolioDocumentPathLibrary::ReportMissingDocument(DocumentPath, TEXT("Folio Marker Document"));
+	}
+}
+#endif
 
 void UFolioMarkerDocument::OnRegister()
 {

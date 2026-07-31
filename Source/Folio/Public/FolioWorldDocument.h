@@ -83,7 +83,8 @@ public:
 	 *
 	 * A leading /folio/ resolves inside the plugin instead.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (GetOptions = "/Script/Folio.FolioDocumentPathLibrary.GetDocumentOptions"))
 	FString DocumentPath;
 
 	/**

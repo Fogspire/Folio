@@ -55,13 +55,13 @@ FString FFolioFileInterface::ResolveInPackage(const Rml::String& Path) const
 	FString Relative = Folio::ToFString(Path);
 	FPaths::NormalizeFilename(Relative);
 
-	// Dev documents live outside rcss/ because rcss/ is what a packaged build stages, and a test
-	// document is not something to ship. The mount hides that: /folio/dev/ reads the same either way.
-	for (const TCHAR* Prefix : { TEXT("/folio/dev/"), TEXT("folio/dev/") })
+	// Examples live outside rcss/ because rcss/ is what a packaged build stages, and a demo document
+	// is not something to ship. The mount hides that: /folio/examples/ reads the same either way.
+	for (const TCHAR* Prefix : { TEXT("/folio/examples/"), TEXT("folio/examples/") })
 	{
 		if (Relative.StartsWith(Prefix))
 		{
-			return FPaths::Combine(PluginRoot, TEXT("dev"), Relative.RightChop(FCString::Strlen(Prefix)));
+			return FPaths::Combine(PluginRoot, TEXT("examples"), Relative.RightChop(FCString::Strlen(Prefix)));
 		}
 	}
 

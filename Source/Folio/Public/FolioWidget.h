@@ -54,7 +54,8 @@ public:
 	 * A leading /folio/ resolves inside the plugin instead, which is how its own diagnostic
 	 * documents are reachable from any project.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (GetOptions = "/Script/Folio.FolioDocumentPathLibrary.GetDocumentOptions"))
 	FString DocumentPath;
 
 	/** Reported to Slate layout. A document is laid out to whatever size it ends up with. */

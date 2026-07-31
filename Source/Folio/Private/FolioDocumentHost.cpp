@@ -1,6 +1,7 @@
 #include "FolioDocumentHost.h"
 
 #include "FolioDataModel.h"
+#include "FolioDocumentPath.h"
 #include "FolioInsights.h"
 #include "FolioInvalidation.h"
 #include "FolioLocalization.h"
@@ -209,10 +210,18 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 
 	MountDataModel(RelativePath);
 
+	// Checked before the load rather than after it, so "the file is not there" is told apart from "the
+	// file is there and did not parse". Both render nothing, and guessing which is the whole problem.
+	if (!UFolioDocumentPathLibrary::DocumentExists(RelativePath))
+	{
+		UFolioDocumentPathLibrary::ReportMissingDocument(RelativePath, TEXT("Folio"));
+		return;
+	}
+
 	Document = Context->LoadDocument(Folio::ToRmlString(RelativePath));
 	if (!Document)
 	{
-		UE_LOG(LogFolio, Error, TEXT("could not load document '%s'"), *RelativePath);
+		UE_LOG(LogFolio, Error, TEXT("could not load document '%s': it exists but did not parse"), *RelativePath);
 		return;
 	}
 

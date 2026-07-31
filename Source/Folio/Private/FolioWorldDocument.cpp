@@ -1,6 +1,7 @@
 #include "FolioWorldDocument.h"
 
 #include "FolioDocumentHost.h"
+#include "FolioDocumentPath.h"
 #include "FolioInput.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
@@ -978,12 +979,24 @@ void UFolioWorldDocument::PostEditChangeProperty(FPropertyChangedEvent& Property
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	const FName Property = PropertyChangedEvent.GetPropertyName();
+
+	// Before the early-out, so a path is made portable whether or not there is a host to load it. An
+	// absolute path is wrong the moment anyone else opens the level.
+	if (Property == GET_MEMBER_NAME_CHECKED(UFolioWorldDocument, DocumentPath))
+	{
+		DocumentPath = UFolioDocumentPathLibrary::MakeDocumentPathPortable(DocumentPath);
+
+		if (!DocumentPath.IsEmpty() && !UFolioDocumentPathLibrary::DocumentExists(DocumentPath))
+		{
+			UFolioDocumentPathLibrary::ReportMissingDocument(DocumentPath, TEXT("Folio World Document"));
+		}
+	}
+
 	if (!Host.IsValid())
 	{
 		return;
 	}
-
-	const FName Property = PropertyChangedEvent.GetPropertyName();
 
 	if (Property == GET_MEMBER_NAME_CHECKED(UFolioWorldDocument, DocumentPath))
 	{

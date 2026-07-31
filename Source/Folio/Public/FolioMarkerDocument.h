@@ -37,7 +37,8 @@ public:
 	 *
 	 * A leading /folio/ resolves inside the plugin instead.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (GetOptions = "/Script/Folio.FolioDocumentPathLibrary.GetDocumentOptions"))
 	FString DocumentPath;
 
 	/** The document's size in dp. It is laid out at this size wherever it ends up on screen. */
@@ -160,6 +161,10 @@ public:
 
 	/** Null when the marker did not draw this frame. */
 	const FPlacement* GetPlacement() const { return bOnScreen ? &Placement : nullptr; }
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 	virtual void OnRegister() override;
 	virtual void OnUnregister() override;

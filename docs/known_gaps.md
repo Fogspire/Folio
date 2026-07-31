@@ -21,13 +21,18 @@ exact falloff of a gradient at its edge.
 
 A document using one gets a note in the VSCode preview saying so. Judge those in the engine.
 
-### `mask-image`
+### Layer effects need a layer, which a world-space document has none of
 
-**Parses, logs once, and renders nothing in the engine.** It works in `uipreview`.
+`box-shadow`, `filter`, `backdrop-filter` and `mask-image` are all built on drawing into an offscreen
+target and reading it back. A `UFolioWorldDocument` in Draw List mode records its geometry and
+replays it into scene colour after the tonemapper, and there is nothing offscreen to read.
 
-The layer machinery is in place and clip masks are a real stencil, so this is close - but a stencil
-records coverage rather than alpha, so an image mask with a soft edge would come out hard. That is
-the part still to design, not the plumbing.
+So on that path they are **skipped, with one warning naming the four properties**. The element still
+draws, unfiltered and unmasked - the lesser wrong, since dropping it would hide the element itself.
+
+`ui/examples/mask_image.rml` is the document to judge them by. Put it on a **render-target surface**,
+where the whole layer stack is available and all four work. Seeing an unfiltered element in the world
+with the mask painted over it means Draw List mode, not a broken effect.
 
 ### A layer costs about 3/255 of brightness
 

@@ -389,6 +389,16 @@ private:
 	FIntPoint LayerOrigin = FIntPoint::ZeroValue;
 
 	int32 LayerDepth = 0;
+
+	/**
+	 * Where the recording stood when each layer the direct path refused was pushed.
+	 *
+	 * A refused layer's geometry still reaches the recording, which is what keeps a filtered element
+	 * visible rather than dropping it. A mask layer is the one case where that is wrong: its decorators
+	 * are not the element, and left in the recording they paint over it.
+	 */
+	TArray<int32> RecordedLayerMarks;
+
 	Rml::TextureHandle TransparentTexture = 0;
 
 	/** Reused every draw call so a frame of UI does not allocate per element. */

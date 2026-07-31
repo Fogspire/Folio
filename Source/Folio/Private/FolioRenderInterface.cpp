@@ -85,6 +85,7 @@ void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, c
 	bHasTransform = false;
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
+	RecordedLayerMarks.Reset();
 	RmlTransform = FSlateRenderTransform();
 	PendingBackdropSigma = 0.0f;
 
@@ -111,6 +112,7 @@ void FFolioRenderInterface::BeginRecording(FFolioDrawList& InDrawList, const FIn
 	bHasTransform = false;
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
+	RecordedLayerMarks.Reset();
 	RmlTransform = FSlateRenderTransform();
 	PendingBackdropSigma = 0.0f;
 	LayerComposites.Reset();
@@ -133,6 +135,7 @@ bool FFolioRenderInterface::BeginSurface(const FIntPoint InContextSize, UTexture
 	bHasTransform = false;
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
+	RecordedLayerMarks.Reset();
 	RmlTransform = FSlateRenderTransform();
 	PendingBackdropSigma = 0.0f;
 	LayerComposites.Reset();
@@ -174,6 +177,7 @@ void FFolioRenderInterface::EndFrame()
 		Layers.Pop();
 	}
 	LayerDepth = 0;
+	RecordedLayerMarks.Reset();
 
 	ElementList = nullptr;
 	DrawList = nullptr;
@@ -934,6 +938,8 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 					"skipped and the element still draws. Use a render-target surface for a document that "
 					"needs them."));
 		}
+
+		RecordedLayerMarks.Add(DrawList->Num());
 		return 0;
 	}
 
@@ -1205,6 +1211,10 @@ void FFolioRenderInterface::PopLayer()
 {
 	if (DrawList)
 	{
+		if (!RecordedLayerMarks.IsEmpty())
+		{
+			RecordedLayerMarks.Pop();
+		}
 		return;
 	}
 
@@ -1245,7 +1255,22 @@ Rml::CompiledFilterHandle FFolioRenderInterface::SaveLayerAsMaskImage()
 	// image used as a mask would come out with hard edges.
 	FFilter Filter;
 	Filter.Name = "mask-image";
-	Filter.Mask.Reset(Layers.DetachCurrent());
+
+	if (DrawList)
+	{
+		// No layer to detach, and the mask decorators went into the recording. They are not the
+		// element and nothing will consume them, so they come back out; leaving them paints the mask
+		// itself over what it was meant to mask. The filter is still registered, so the release RmlUi
+		// pairs with this has something to find.
+		if (!RecordedLayerMarks.IsEmpty())
+		{
+			DrawList->GetDraws().SetNum(RecordedLayerMarks.Last(), EAllowShrinking::No);
+		}
+	}
+	else
+	{
+		Filter.Mask.Reset(Layers.DetachCurrent());
+	}
 
 	const Rml::CompiledFilterHandle Handle = NextHandle++;
 	Filters.Add(Handle, MoveTemp(Filter));

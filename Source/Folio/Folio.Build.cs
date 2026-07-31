@@ -66,6 +66,10 @@ public class Folio : ModuleRules
 		if (Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.Add("DirectoryWatcher");
+
+			// The staging list, so a document that will not be in a packaged build can be reported
+			// while there is still someone at a keyboard to fix it.
+			PrivateDependencyModuleNames.Add("DeveloperToolSettings");
 		}
 	}
 }

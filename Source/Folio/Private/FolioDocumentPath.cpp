@@ -17,6 +17,7 @@
 #include "Logging/MessageLog.h"
 #include "Misc/DataValidation.h"
 #include "Misc/UObjectToken.h"
+#include "Settings/ProjectPackagingSettings.h"
 #endif
 
 namespace
@@ -406,6 +407,48 @@ void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPat
 
 #if WITH_EDITOR
 
+namespace
+{
+	/**
+	 * Whether a packaged build will contain this file.
+	 *
+	 * DirectoriesToAlwaysStageAsUFS is what puts a loose file in a package, and its entries are
+	 * relative to Content rather than to the project, so `../UI` means the project's UI tree. A
+	 * document outside every one of them loads in the editor and in a standalone run, which read the
+	 * disk, and is simply absent once packaged.
+	 */
+	bool IsStaged(const FString& AbsoluteFile)
+	{
+		const UProjectPackagingSettings* Packaging = GetDefault<UProjectPackagingSettings>();
+		if (!Packaging)
+		{
+			return true;
+		}
+
+		FString File = AbsoluteFile;
+		FPaths::NormalizeFilename(File);
+
+		for (const FDirectoryPath& Staged : Packaging->DirectoriesToAlwaysStageAsUFS)
+		{
+			if (Staged.Path.IsEmpty())
+			{
+				continue;
+			}
+
+			FString Root = FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir() / Staged.Path);
+			FPaths::NormalizeDirectoryName(Root);
+			Root += TEXT("/");
+
+			if (File.StartsWith(Root, ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
+
 EFolioDocumentPathIssue UFolioDocumentPathLibrary::DescribeDocumentPathIssue(
 	const UActorComponent& Component, const FString& DocumentPath, FText& OutMessage)
 {
@@ -459,6 +502,18 @@ EFolioDocumentPathIssue UFolioDocumentPathLibrary::DescribeDocumentPathIssue(
 			Where,
 			FText::FromString(DocumentPath));
 	}
+	else if (!IsStaged(ResolveDocumentPath(DocumentPath)))
+	{
+		Message = FText::Format(
+			NSLOCTEXT("Folio", "UnstagedDocument",
+				"{0} names '{1}', which is not in a directory packaging stages. It loads in the editor "
+				"and in a standalone run and will be missing from a packaged build. Add its directory "
+				"to Project Settings > Packaging > Additional Non-Asset Directories to Package."),
+			Where,
+			FText::FromString(DocumentPath));
+
+		return EFolioDocumentPathIssue::Unstaged;
+	}
 	else
 	{
 		return EFolioDocumentPathIssue::None;
@@ -473,10 +528,17 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 	const FString& DocumentPath, FDataValidationContext* Validation)
 {
 	FText Message;
-	if (DescribeDocumentPathIssue(Component, DocumentPath, Message) == EFolioDocumentPathIssue::None)
+	const EFolioDocumentPathIssue Issue = DescribeDocumentPathIssue(Component, DocumentPath, Message);
+	if (Issue == EFolioDocumentPathIssue::None)
 	{
 		return false;
 	}
+
+	// A document that will not be staged still works everywhere it is being looked at today, so it is
+	// a warning. Everything else renders nothing right now.
+	const EMessageSeverity::Type Severity = Issue == EFolioDocumentPathIssue::Unstaged
+		? EMessageSeverity::Warning
+		: EMessageSeverity::Error;
 
 	AActor* Owner = const_cast<AActor*>(Component.GetOwner());
 
@@ -485,8 +547,7 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 	// person wanting the same actor.
 	if (Validation)
 	{
-		const TSharedRef<FTokenizedMessage> Entry =
-			Validation->AddMessage(EMessageSeverity::Error, FText::GetEmpty());
+		const TSharedRef<FTokenizedMessage> Entry = Validation->AddMessage(Severity, FText::GetEmpty());
 
 		if (Owner)
 		{
@@ -496,7 +557,7 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 	}
 	else if (Owner)
 	{
-		FMessageLog(TEXT("MapCheck")).Error()
+		FMessageLog(TEXT("MapCheck")).Message(Severity)
 			->AddToken(FUObjectToken::Create(Owner))
 			->AddToken(FTextToken::Create(Message));
 	}

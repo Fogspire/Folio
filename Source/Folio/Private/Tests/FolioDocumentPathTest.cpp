@@ -163,6 +163,20 @@ bool FFolioDocumentValidationTest::RunTest(const FString&)
 	// Unplaced, so an empty path is a component waiting to be given one from code.
 	TestEqual(TEXT("an empty path on an unplaced component"), Errors(TEXT("")), 0);
 
+	// A document outside every staged directory is a warning, not an error: it renders today and
+	// will be missing from a package. The recipes are staged, the examples deliberately are not.
+	const auto Warnings = [Component](const TCHAR* Path)
+	{
+		FDataValidationContext Context;
+		UFolioDocumentPathLibrary::ValidateDocumentPath(*Component, Path, &Context);
+		return Context.GetNumWarnings();
+	};
+
+	TestEqual(TEXT("a staged document is not warned about"),
+		Warnings(TEXT("/folio/recipes/nameplate.rml")), 0);
+	TestEqual(TEXT("a staged document is not an error either"),
+		Errors(TEXT("/folio/recipes/nameplate.rml")), 0);
+
 	return true;
 }
 

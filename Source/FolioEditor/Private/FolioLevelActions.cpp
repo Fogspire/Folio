@@ -76,6 +76,7 @@ void FolioLevelActions::SelectActorsWithBrokenDocuments()
 	TArray<AActor*> Broken;
 	int32 Unassigned = 0;
 	int32 Unresolved = 0;
+	int32 Unstaged = 0;
 
 	FMessageLog Log(FolioMessageLogName);
 	Log.NewPage(LOCTEXT("BrokenDocumentsPage", "Documents"));
@@ -99,11 +100,14 @@ void FolioLevelActions::SelectActorsWithBrokenDocuments()
 				continue;
 			}
 
-			(Issue == EFolioDocumentPathIssue::Unassigned ? Unassigned : Unresolved)++;
+			const bool bUnstaged = Issue == EFolioDocumentPathIssue::Unstaged;
+			if (bUnstaged) { Unstaged++; }
+			else if (Issue == EFolioDocumentPathIssue::Unassigned) { Unassigned++; }
+			else { Unresolved++; }
 
 			// Every issue listed, but the actor selected once: one actor can carry several documents
 			// and selecting it twice does nothing useful.
-			Log.Error()
+			Log.Message(bUnstaged ? EMessageSeverity::Warning : EMessageSeverity::Error)
 				->AddToken(FUObjectToken::Create(Actor))
 				->AddToken(FTextToken::Create(Message));
 
@@ -137,8 +141,10 @@ void FolioLevelActions::SelectActorsWithBrokenDocuments()
 	// somebody who has just fixed the other kind needs to see that it went.
 	Notify(FText::Format(
 		LOCTEXT("BrokenDocumentsFound",
-			"Selected {0} {0}|plural(one=actor,other=actors): {1} unassigned, {2} naming nothing."),
-		FText::AsNumber(Broken.Num()), FText::AsNumber(Unassigned), FText::AsNumber(Unresolved)),
+			"Selected {0} {0}|plural(one=actor,other=actors): {1} unassigned, {2} naming nothing, "
+			"{3} that packaging will not stage."),
+		FText::AsNumber(Broken.Num()), FText::AsNumber(Unassigned), FText::AsNumber(Unresolved),
+		FText::AsNumber(Unstaged)),
 		/*bFailed*/ true);
 }
 

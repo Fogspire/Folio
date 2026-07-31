@@ -60,6 +60,14 @@ enum class EFolioDocumentPathIssue : uint8
 	Unassigned,
 	/** A path that names no file, or one that only exists on the machine it was typed on. */
 	Unresolved,
+	/**
+	 * A document that exists, in a directory packaging will not stage.
+	 *
+	 * A warning rather than an error: it is correct in the editor and in a standalone run, both of
+	 * which read loose files, and only renders nothing once packaged. That is a long way to carry a
+	 * mistake, which is why it is worth saying now.
+	 */
+	Unstaged,
 };
 
 /**

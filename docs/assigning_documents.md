@@ -61,6 +61,18 @@ selection is transacted, so undo puts back whatever was selected before.
 The result arrives as a notification counting each kind, with the details a click away in the log.
 It does not raise a window to tell you nothing is wrong.
 
+## A path that will not survive packaging
+
+A document outside every directory listed under **Project Settings > Packaging > Additional
+Non-Asset Directories to Package** is reported as a *warning* rather than an error, because it is
+correct everywhere you are looking: the editor and a standalone run both read loose files, and it is
+only missing once packaged.
+
+Folio's own `examples/` are the usual way to hit this. They sit outside `rcss/` so that a game does
+not ship the demos, which also means a component pointing at `/folio/examples/` renders nothing in a
+packaged build. Stage that directory too while you are prototyping against them - see
+[hello world](hello_world.md).
+
 ## Resetting the field
 
 The reset arrow restores the class default, as it does anywhere else — **unless that default names a

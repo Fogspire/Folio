@@ -73,6 +73,11 @@ the first thing a reader will want after this.
   is and is not worth trusting. Every step was run: the extension installs, highlights and previews,
   and the warning path was checked against `ui/examples/button.rml`.
 
+- **Generating a view model.** `Tools/codegen/viewmodel.py` and `scripts/viewmodel.sh`. The page
+  should lead with the base-class rule, since that is what makes regenerating safe, and with the fact
+  that the mock is the type source - which is the part that sounds odd until you notice the mock
+  already exists for every screen anyone has looked at.
+
 ## Things to check before publishing any of it
 
 - Every code sample compiles or is copied from something that does. Samples in `UI_CONVENTIONS.md`

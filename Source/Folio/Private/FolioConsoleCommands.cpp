@@ -13,6 +13,11 @@
 #include "FolioDocumentHost.h"
 #include "FolioTheme.h"
 
+#include "FolioCore/FolioElementPath.h"
+
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
 #include "Modules/ModuleManager.h"
@@ -31,6 +36,9 @@
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/ComputedValues.h>
+#include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/ElementText.h>
 #include <RmlUi/Core/Elements/ElementFormControl.h>
 
 // None of this exists in a retail build. Every command here puts a document on screen, drives it or
@@ -1562,6 +1570,181 @@ namespace
 		UE_LOG(LogFolio, Display, TEXT("folio surface shot: '%s' at %dx%d -> %s"),
 			*Args[0], Size.X, Size.Y, *Out);
 	}
+
+	/** Two decimals, matching the preview: layout is float maths and the last bits are noise. */
+	double RoundTo2(const float Value)
+	{
+		return FMath::RoundToDouble(double(Value) * 100.0) / 100.0;
+	}
+
+	TSharedRef<FJsonObject> DescribeFontForMetrics(Rml::Element* Element)
+	{
+		const auto& Computed = Element->GetComputedValues();
+
+		const TSharedRef<FJsonObject> Font = MakeShared<FJsonObject>();
+		Font->SetStringField(TEXT("family"), UTF8_TO_TCHAR(Computed.font_family().c_str()));
+		Font->SetNumberField(TEXT("size"), RoundTo2(Computed.font_size()));
+		Font->SetNumberField(TEXT("weight"), int32(Computed.font_weight()));
+		Font->SetStringField(TEXT("style"),
+			Computed.font_style() == Rml::Style::FontStyle::Italic ? TEXT("italic") : TEXT("normal"));
+		Font->SetNumberField(TEXT("line_height"), RoundTo2(Computed.line_height().value));
+		Font->SetNumberField(TEXT("letter_spacing"), RoundTo2(Computed.letter_spacing()));
+		return Font;
+	}
+
+	TArray<TSharedPtr<FJsonValue>> DescribeRectForMetrics(Rml::Element* Element)
+	{
+		const Rml::Vector2f Offset = Element->GetAbsoluteOffset(Rml::BoxArea::Border);
+		const Rml::Vector2f Size = Element->GetBox().GetSize(Rml::BoxArea::Border);
+		return {
+			MakeShared<FJsonValueNumber>(RoundTo2(Offset.x)),
+			MakeShared<FJsonValueNumber>(RoundTo2(Offset.y)),
+			MakeShared<FJsonValueNumber>(RoundTo2(Size.x)),
+			MakeShared<FJsonValueNumber>(RoundTo2(Size.y)),
+		};
+	}
+
+	void WalkForMetrics(Rml::Element* Element, TArray<TSharedPtr<FJsonValue>>& OutEntries, int32& OutLines)
+	{
+		if (!Element)
+		{
+			return;
+		}
+
+		if (Rml::ElementText* Text = rmlui_dynamic_cast<Rml::ElementText*>(Element))
+		{
+			// The parent carries the id, the classes and the styling. A text node has none of them, so
+			// naming it by its own path would produce something nobody could act on.
+			Rml::Element* Owner = Text->GetParentNode() ? Text->GetParentNode() : Text;
+
+			TArray<TSharedPtr<FJsonValue>> Lines;
+			const Rml::Vector2f Origin = Text->GetAbsoluteOffset(Rml::BoxArea::Border);
+			for (const Rml::ElementText::Line& Line : Text->GetLines())
+			{
+				const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+				Entry->SetStringField(TEXT("text"), UTF8_TO_TCHAR(Line.text.c_str()));
+				Entry->SetNumberField(TEXT("x"), RoundTo2(Origin.x + Line.position.x));
+				Entry->SetNumberField(TEXT("y"), RoundTo2(Origin.y + Line.position.y));
+				Entry->SetNumberField(TEXT("width"), Line.width);
+				Lines.Add(MakeShared<FJsonValueObject>(Entry));
+				++OutLines;
+			}
+
+			const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+			Entry->SetStringField(TEXT("path"), UTF8_TO_TCHAR(Folio::ComputeElementPath(Owner).c_str()));
+			Entry->SetStringField(TEXT("tag"), UTF8_TO_TCHAR(Owner->GetTagName().c_str()));
+			Entry->SetStringField(TEXT("classes"), UTF8_TO_TCHAR(Owner->GetClassNames().c_str()));
+			Entry->SetArrayField(TEXT("rect"), DescribeRectForMetrics(Owner));
+			Entry->SetObjectField(TEXT("font"), DescribeFontForMetrics(Text));
+			Entry->SetStringField(TEXT("text"), UTF8_TO_TCHAR(Text->GetText().c_str()));
+			Entry->SetArrayField(TEXT("lines"), Lines);
+			OutEntries.Add(MakeShared<FJsonValueObject>(Entry));
+		}
+
+		for (int32 i = 0; i < Element->GetNumChildren(); ++i)
+		{
+			WalkForMetrics(Element->GetChild(i), OutEntries, OutLines);
+		}
+	}
+
+	/**
+	 * Writes the same metrics report `uipreview --metrics-report` writes, from the engine.
+	 *
+	 *   folio.Metrics.Report ui/examples/panel.rml Saved/panel.engine.json 1280 720
+	 *
+	 * The point of the whole exercise: two renderers can only be held to each other by something
+	 * exact, and pixels are not it. The colour pipelines differ by design - the preview does no sRGB
+	 * conversion where Slate linearises vertex colour and applies display gamma - so an image diff
+	 * reports a difference on every document and means nothing. Where text was laid out does not
+	 * differ by design, and a report of it diffs to nothing when the two agree.
+	 *
+	 * The schema is uipreview's, field for field, so one comparison reads both.
+	 */
+	void RunMetricsReport(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 2)
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("usage: folio.Metrics.Report <document> <out.json> [width] [height] [dp]"));
+			return;
+		}
+
+		const FIntPoint Size(
+			Args.Num() > 2 ? FMath::Max(1, FCString::Atoi(*Args[2])) : 1280,
+			Args.Num() > 3 ? FMath::Max(1, FCString::Atoi(*Args[3])) : 720);
+		const float DpRatio = Args.Num() > 4 ? FCString::Atof(*Args[4]) : 1.0f;
+
+		FFolioDocumentHost Host;
+		if (!Host.Create(TEXT("metrics"), Size))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio metrics: could not create a context"));
+			return;
+		}
+
+		Host.LoadDocument(Args[0]);
+		Rml::ElementDocument* Document = Host.GetDocument();
+		if (!Document)
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio metrics: could not load '%s'"), *Args[0]);
+			return;
+		}
+
+		// Twice, as the shot command does: the first lays out and the second lets anything that
+		// reacted to layout settle.
+		Host.MarkDirty(TEXT("metrics"));
+		Host.Update(0.0f, DpRatio, 1.0f);
+		Host.MarkDirty(TEXT("metrics"));
+		Host.Update(0.0f, DpRatio, 1.0f);
+
+		TArray<TSharedPtr<FJsonValue>> Entries;
+		int32 Lines = 0;
+		WalkForMetrics(Document, Entries, Lines);
+
+		const TSharedRef<FJsonObject> Report = MakeShared<FJsonObject>();
+		Report->SetNumberField(TEXT("schema"), 1);
+
+		const TSharedRef<FJsonObject> Tool = MakeShared<FJsonObject>();
+		Tool->SetStringField(TEXT("name"), TEXT("folio-engine"));
+		Tool->SetStringField(TEXT("rmlui"), UTF8_TO_TCHAR(Rml::GetVersion().c_str()));
+		Report->SetObjectField(TEXT("tool"), Tool);
+
+		const TSharedRef<FJsonObject> Command = MakeShared<FJsonObject>();
+		Command->SetStringField(TEXT("document"), Args[0]);
+		Command->SetArrayField(TEXT("size"), {
+			MakeShared<FJsonValueNumber>(Size.X), MakeShared<FJsonValueNumber>(Size.Y) });
+		Command->SetNumberField(TEXT("dp_ratio"), RoundTo2(DpRatio));
+		Report->SetObjectField(TEXT("command"), Command);
+
+		const TSharedRef<FJsonObject> Totals = MakeShared<FJsonObject>();
+		Totals->SetNumberField(TEXT("text_elements"), Entries.Num());
+		Totals->SetNumberField(TEXT("lines"), Lines);
+		Report->SetObjectField(TEXT("totals"), Totals);
+
+		Report->SetArrayField(TEXT("text"), Entries);
+
+		FString Json;
+		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
+		FJsonSerializer::Serialize(Report, Writer);
+
+		const FString Out = FPaths::IsRelative(Args[1])
+			? FPaths::Combine(FPaths::ProjectDir(), Args[1]) : Args[1];
+
+		if (!FFileHelper::SaveStringToFile(Json, *Out))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio metrics: could not write '%s'"), *Out);
+			return;
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("folio metrics: '%s' -> %s, %d text element(s), %d line(s)"),
+			*Args[0], *Out, Entries.Num(), Lines);
+	}
+
+	FAutoConsoleCommand MetricsReportCommand(
+		TEXT("folio.Metrics.Report"),
+		TEXT("folio.Metrics.Report <document> <out.json> [width] [height] [dp]. Writes the same report "
+			"uipreview --metrics-report writes, so the two renderers can be compared on where text "
+			"landed rather than on pixels."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunMetricsReport));
 
 	FAutoConsoleCommand SurfaceShotCommand(
 		TEXT("folio.Surface.Shot"),

@@ -1,5 +1,7 @@
 #include "ElementPath.h"
 
+#include "FolioCore/FolioElementPath.h"
+
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -23,46 +25,11 @@ std::string Escape(const std::string& text)
 
 } // namespace
 
+// Delegates, so the engine and the preview cannot disagree about what names an element. A comparison
+// between their reports keys on this string.
 std::string ComputeElementPath(Rml::Element* element)
 {
-	if (!element)
-		return {};
-
-	// An id is both cheaper and far more robust across edits than a structural path.
-	if (const Rml::String& id = element->GetId(); !id.empty())
-		return "#" + id;
-
-	std::vector<std::string> segments;
-	for (Rml::Element* current = element; current && current->GetParentNode(); current = current->GetParentNode())
-	{
-		if (const Rml::String& id = current->GetId(); !id.empty())
-		{
-			segments.push_back("#" + id);
-			break;
-		}
-
-		int index = 1;
-		Rml::Element* parent = current->GetParentNode();
-		for (int i = 0; i < parent->GetNumChildren(); ++i)
-		{
-			Rml::Element* sibling = parent->GetChild(i);
-			if (sibling == current)
-				break;
-			if (sibling->GetTagName() == current->GetTagName())
-				++index;
-		}
-
-		segments.push_back(current->GetTagName() + ":nth-of-type(" + std::to_string(index) + ")");
-	}
-
-	std::string path;
-	for (auto it = segments.rbegin(); it != segments.rend(); ++it)
-	{
-		if (!path.empty())
-			path += " > ";
-		path += *it;
-	}
-	return path;
+	return Folio::ComputeElementPath(element);
 }
 
 Rml::Element* ResolveElementPath(Rml::ElementDocument* document, const std::string& path)

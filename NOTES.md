@@ -1436,6 +1436,14 @@ Two things have to be right before a comparison means anything:
   colour and applies display gamma. The same document is therefore a different colour in each and the
   same shape in both.
 
+`./scripts/compare_renderers.sh` does the comparison, and does not diff images at all. Both sides emit
+the same metrics schema - `uipreview --metrics-report` and `folio.Metrics.Report` - and it compares
+boxes, font sizes and where every text line landed. Exact, no tolerance to tune, and a failure names
+the element rather than a pixel count. `Folio::ComputeElementPath` is shared between the two so they
+cannot disagree about what names an element, which would report a naming difference as a divergence.
+
+First run: all five documents agree exactly, 109 text elements between them.
+
 ## A generated image has no UTexture, and the non-Slate paths bind white without one
 
 `RegisterPixels` builds an `FSlateDynamicImageBrush` and a Slate resource handle, and deliberately

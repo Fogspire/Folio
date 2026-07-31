@@ -55,7 +55,8 @@ the first thing a reader will want after this.
   what actually makes a screen slow. The numbers quoted in it were measured, not estimated.
 - **Testing a document.** `uipreview`, `--strict`, and the screenshot and metrics reports. Cheap to
   write and the thing most likely to be skipped. Mention `check_world_path.sh` for anyone touching
-  the renderer rather than a document.
+  the renderer rather than a document, and `compare_renderers.sh` for anyone who needs to trust that
+  the preview shows what the game will.
 - ~~**Documents in the world.**~~ Written: `world_documents.md`. The three draw modes, the Surface
   setup against `/Folio/M_FolioSurface`, and the console commands. After-tonemap and in-scene were
   confirmed in PIE; the Surface walkthrough was followed start to finish by someone other than its

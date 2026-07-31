@@ -52,13 +52,15 @@ past. `ui/examples/button.rml` has one, if you want to see what that looks like.
 
 `Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`.
 
-**Zooming re-renders rather than magnifying.** It multiplies the render size and the dp ratio
-together, which holds the layout still while raising the resolution - the same thing running the game
-at a higher resolution does. So text and vector art get *sharper* as you zoom in, which is the whole
-point of them being distance fields, and it is the only way the preview can tell you anything about
-whether the real thing is crisp. Scaling a screenshot would show you the scaler's work instead.
+**Zooming re-renders rather than magnifying.** It scales the dp ratio, which is what a browser's zoom
+does: the viewport stays the size `folio.size` asks for and the content within it grows, so you see
+less of the document at more detail. Text and vector art get *sharper* as they grow, because they are
+distance fields - and that is the only way a preview can tell you whether the real thing is crisp.
+Scaling a screenshot would show you the scaler's work instead.
 
-The cost is that a zoom is a render, so it takes as long as a save does.
+Two consequences worth knowing. A zoom is a render, so it takes as long as a save does. And zoom does
+not change the render *size*: `folio.size` does, and pushing that past your display silently clamps,
+because the preview renders through a real window.
 
 ## What the preview is worth trusting
 

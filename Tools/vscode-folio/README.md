@@ -42,11 +42,11 @@ where Slate linearises vertex colour and applies display gamma. Judge colour in 
 
 `Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`.
 
-**Zooming re-renders.** It does not magnify the image: it multiplies the render size and the dp ratio
-together, which holds the layout still and raises the resolution, exactly as running the game at a
-higher resolution does. Scaling a screenshot would throw away the one thing Folio exists for - glyphs
-and vector art are distance fields and are sharp at any size - and an enlarged screenshot shows none
-of that. Zoom in and text gets *sharper*, as it will in the game.
+**Zooming re-renders.** It scales the dp ratio rather than magnifying the image, which is what a
+browser's zoom does: the viewport stays the size you configured and the content within it grows, so
+you see less of the document at more detail. Text and vector art get *sharper* as they grow, because
+they are distance fields - which is the only way a preview can tell you whether the real thing is
+crisp. Scaling a screenshot would show you the scaler's work instead.
 
 ## Syntax highlighting
 

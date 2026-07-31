@@ -35,10 +35,13 @@ let currentDocument = null;
  * fields, so they are sharp at any size, and an upscaled screenshot shows none of that. Zooming in on
  * a blurry enlargement tells you nothing about whether the real thing is crisp.
  *
- * So a zoom multiplies both the render size and the dp ratio. Both together is what keeps the layout
- * identical while raising the resolution: size alone would show more of the document, and dp alone
- * would make everything bigger in the same viewport. This is what changing resolution in the game
- * does, which is the point.
+ * So a zoom scales the dp ratio and leaves the render size alone, which is what a browser's zoom does:
+ * the viewport stays as configured and the content within it grows, so you see less of the document
+ * at more detail. Every step is a fresh render, so text sharpens as it grows rather than blurring.
+ *
+ * Scaling the render size instead is the other reading of "zoom", and it does not work here: the
+ * preview renders through a real window, so a size past the display is silently clamped and the zoom
+ * stops having any effect at exactly the point it starts being interesting.
  *
  * Held here rather than in the page because the HTML is rebuilt on every render.
  */
@@ -94,15 +97,13 @@ function buildArguments(document, output) {
 	const settings = config();
 	const args = [document, "--root", rootArgument(), "--screenshot", output];
 
-	const size = String(settings.get("size") || "1280x720");
-	const match = /^(\d+)\s*x\s*(\d+)$/.exec(size.trim());
-	const base = match ? [Number(match[1]), Number(match[2])] : [1280, 720];
+	const size = settings.get("size");
+	if (size) {
+		args.push("--size", size);
+	}
 
-	// Both scaled together, which is what holds the layout still while raising the resolution.
-	args.push("--size", `${Math.round(base[0] * zoom)}x${Math.round(base[1] * zoom)}`);
-
-	// Pinned by default. The preview's ratio otherwise follows its viewport, and an unpinned ratio is
-	// the difference that reads as a layout bug rather than a setting.
+	// Pinned by default, and the zoom rides on it. The preview's ratio otherwise follows its viewport,
+	// and an unpinned ratio is the difference that reads as a layout bug rather than a setting.
 	const dp = Number(settings.get("dpRatio"));
 	if (Number.isFinite(dp) && dp > 0) {
 		args.push("--dp-ratio", String(dp * zoom));
@@ -296,11 +297,15 @@ function openPreview() {
 	}
 
 	if (panel) {
-		panel.reveal(vscode.ViewColumn.Beside);
+		panel.reveal(vscode.ViewColumn.Beside, /*preserveFocus*/ true);
 	} else {
+		// preserveFocus matters more than it looks: without it the preview's column becomes the active
+		// one, and VSCode then opens every file you click into it, on top of the preview.
 		panel = vscode.window.createWebviewPanel(
-			"folioPreview", "Folio", vscode.ViewColumn.Beside,
-			{ enableScripts: true, localResourceRoots: [vscode.Uri.file(os.tmpdir())] });
+			"folioPreview", "Folio",
+			{ viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+			{ enableScripts: true, retainContextWhenHidden: true,
+				localResourceRoots: [vscode.Uri.file(os.tmpdir())] });
 
 		panel.webview.onDidReceiveMessage((message) => {
 			if (!message || typeof message.zoom !== "string") {

@@ -50,8 +50,8 @@ diffs remain readable across an RmlUi bump.
 
 ## Which advanced rendering features Folio implements
 
-**Target: all of them.** Everything except the non-blur filters and `mask-image` is in. Status
-table at the end of this section.
+**Target: all of them.** Everything except the non-blur backdrop filters is in. Status table at
+the end of this section.
 
 The Unreal render interface implements the complete RmlUi 6.x optional
 feature set, not a subset. Decided deliberately: a feature that is absent does not fail
@@ -83,7 +83,8 @@ mask paths, so it comes with them.
 | `backdrop-filter: blur` | Done, via a Slate post-process pass, so the 3D scene behind a panel blurs with it. The region is a rectangle, so a rounded corner blurs square |
 | `box-shadow` | Done |
 | Text, font effects, vector sprites | Done. Distance fields through a UI-domain material |
-| Other filters, `mask-image` | Accepted and ignored. The layer machinery is there; only the shaders are missing |
+| `mask-image` | Done. `SaveLayerAsMaskImage` resolves the mask into its own layer and the composite multiplies by it |
+| `backdrop-filter` other than blur | Accepted and ignored. The backdrop belongs to Slate, and the only thing Slate will do to it in place is blur |
 | `decorator: shader(...)` | Done. additive, scanlines and sweep, rasterised rather than shaded |
 
 ### box-shadow, and why the layer path draws with RHI rather than FCanvas

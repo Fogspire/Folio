@@ -278,7 +278,8 @@ some preview correctly and render as nothing in engine:
 | Text, at any size or transform scale | Works. See §6 |
 | `font-effect`, all four | Works, in both renderers, resolved from the field. Bounded in reach - see §6 |
 | `filter`: `brightness`, `contrast`, `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate` | Works. Applied to the resolved layer in the order named, before any blur |
-| **`mask-image`, `backdrop-filter` other than `blur`** | **Banned.** These parse, log once and render nothing in engine |
+| `mask-image` | Works. The masked subtree and the mask decorator are each drawn into a layer and composited, so text under a mask goes through the layer path rather than straight to the target. `examples/mask_image.rml` covers every decorator that can be a mask |
+| **`backdrop-filter` other than `blur` and `outside-blur`** | **Banned.** These parse, log once and render nothing in engine |
 
 A surface drawn through a layer lands about 3/255 darker than the same colour drawn directly,
 from the 8-bit sRGB round trip through the render target. Visible only side by side, and not

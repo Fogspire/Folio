@@ -102,8 +102,9 @@ msdfbake:   has neither. Export that fill as a PNG and use it as a raster sprite
 msdfbake:   Gradients that do bake: linear, radial and elliptical.
 ```
 
-The same check catches `<pattern>` fills, SVG `<filter>` effects, `<meshgradient>`, and live
-`<text>` that was never converted to curves. Pass **`--strict`** to make any of them fail the run,
+The same check catches `<pattern>` fills, SVG `<filter>` effects, `<meshgradient>`, live `<text>`
+that was never converted to curves, and `<use>` - which the parser drops entirely, so an instanced
+shape simply goes missing. Pass **`--strict`** to make any of them fail the run,
 which is what you want in a build.
 
 ## What the baker handles

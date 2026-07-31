@@ -83,12 +83,11 @@ Raising it means raising `pxrange` when baking, at a quadratic cost in atlas are
 
 ## Vector art
 
-### A clip path needs the shapes in document order
+### `<use>` is dropped
 
-`clip-path` is honoured, but the relationship is recovered by counting drawables in the source text
-and matching that against nanosvg's shape order. `<use>` clones a shape and breaks the
-correspondence, so a drawing using it would clip the wrong things. Nothing in the pipeline handles
-`<use>` yet.
+The parser has no `<use>` handling at all, so an instanced shape contributes nothing and the drawing
+bakes with pieces missing. The baker reports it by name, and `--strict` fails the run. Expand the
+instances before exporting.
 
 ### Filled paths bake coarser than their own strokes
 

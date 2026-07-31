@@ -407,8 +407,10 @@ namespace msdfbake
 		/// geometry was drawn as an ordinary black layer over everything beneath it.
 		///
 		/// Document order is safe to rely on because nanosvg appends each drawable to the tail of its
-		/// list as it parses. `<use>` is the exception - it clones a shape and so breaks the
-		/// correspondence - and nothing in the pipeline handles that yet.
+		/// list as it parses, and every tag it turns into a shape is one this counts. `<use>` is not one
+		/// of them - the parser has no handling for it whatsoever - so an instance contributes no shape
+		/// on either side and the correspondence holds. It is reported as unsupported instead, since a
+		/// drawing that relies on one bakes with pieces missing.
 		struct FClipPlan
 		{
 			/// Shape index to the clip it belongs to. These are geometry, and are never drawn.
@@ -873,6 +875,9 @@ namespace msdfbake
 			{"<text", "<text>",
 				"live text. Convert it to curves before exporting, or set it in the document as real "
 				"text - which will be sharper and translatable"},
+			{"<use", "<use>",
+				"an instanced shape. The parser has no <use> at all, so the instance is dropped and the "
+				"drawing bakes with pieces missing. Expand the instances before exporting"},
 		};
 
 		for (const FCheck& Check : Checks)

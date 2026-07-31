@@ -32,9 +32,7 @@ SUMMARY = re.compile(r"folio world verify: (passed|FAILED) on '([^']*)', "
 # touching this file. Any document with geometry will do; these are the ones that exercise text,
 # vector art and a background between them.
 DOCUMENTS = (
-    "/folio/dev/verify_surface.rml",
-    "/folio/dev/idle_test.rml",
-    "/folio/dev/idle_animation.rml",
+    "/folio/examples/nav_test.rml",
     "/folio/examples/crt_terminal.rml",
 )
 

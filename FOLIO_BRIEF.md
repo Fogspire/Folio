@@ -468,31 +468,18 @@ Begin by reading the RmlUi documentation and giving me your Phase 1 plan.
 Wanted, not scheduled. Nothing here blocks a phase gate; pick them up between phases or after
 Phase 9.
 
-### Move dev tooling into a module that Shipping never builds
+### Split the private headers out of the public ones
 
-`FolioConsoleCommands.cpp` is already wrapped in `#if !UE_BUILD_SHIPPING`, so the commands are gone
-from retail. `UFolioBindTest` is not, because UnrealHeaderTool generates reflection code for a `UCLASS`
-regardless of any preprocessor block around it and gating one fails at link. So a retail build carries
-one unreferenced class registration, which costs nothing but is untidy.
-
-**Not a deletion.** `UFolioBindTest` is the only thing exercising the change-notification path in the
-data binding bridge, so it is a permanent test fixture; the goal is to move it out of the shipping
-module, not to remove it.
-
-The supported route is a second module in `Folio.uplugin`:
-
-```json
-{ "Name": "FolioDev", "Type": "Runtime", "PlatformAllowList": ["Win64"],
-  "TargetConfigurationDenyList": ["Shipping"] }
-```
-
-**There is a prerequisite, and it is the real work.** Folio's public headers currently include private
-ones - `SFolioCanvas.h` includes `FolioNavigation.h` and `FolioInputState.h` - so no separate module
-can compile against them today. That is worth fixing on its own merits, since it also means no game
-module can include `SFolioCanvas.h`. Either move those headers to `Public/` or stop including them from
-public headers.
+Folio's public headers include private ones - `SFolioCanvas.h` includes `FolioNavigation.h` and
+`FolioInputState.h` - so no game module can include `SFolioCanvas.h`, and no second module could
+compile against Folio if one were ever wanted. Either move those headers to `Public/` or stop
+including them from public headers.
 
 Do this after the phases, not during: it touches the header layout everything else builds on.
+
+**No change-notification fixture.** `UFolioBindTest` was the only thing exercising the
+FieldNotification path in the binding bridge, and it went with the dev documents. Nothing covers that
+path now, so a regression in it would surface in a game rather than in the harness.
 
 ### Long lists: bind a window, do not pool widgets
 

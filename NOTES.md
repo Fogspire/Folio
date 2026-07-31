@@ -906,7 +906,7 @@ settling, data model updates from gameplay and `@media` re-evaluation all change
 ## Dev tooling is compiled out of Shipping, except one UCLASS
 
 `FolioConsoleCommands.cpp` and `FolioDebugger.cpp` are wrapped in `#if !UE_BUILD_SHIPPING`, so
-`folio.Show`, `folio.ShowWindow`, `folio.Gate`, `folio.NavTest`, `folio.MvvmTest`, `folio.Debugger`,
+`folio.Show`, `folio.ShowWindow`, `folio.Gate`, `folio.NavTest`, `folio.Debugger`,
 `folio.MouseMode`, `folio.ReloadTextures` and `folio.Nav.Bind*` do not exist in a retail build. The `folio.Nav.*` console *variables* are not affected - they are runtime
 settings and live in `FolioNavigation.cpp`.
 
@@ -1233,7 +1233,7 @@ Three things about it that are not obvious:
 
 **Driving a control from code needs the change event, not just the value.** `DataControllerValue`
 listens for `EventId::Change` and reads its `value` parameter, so `SetValue` alone updates the control
-and announces nothing - the model never hears. `folio.MvvmTest set <id> <value>` therefore sets the
+and announces nothing - the model never hears. setting a control from the console therefore sets the
 control and then dispatches `change` itself, which is what a widget does when a person moves it. A
 checkbox is different again: its state is the `checked` attribute, so that is what a click toggles.
 
@@ -1329,7 +1329,7 @@ draws nothing, silently, with no warning anywhere.
 This is upstream behaviour, not something Folio's recording does, and it is not configurable without
 setting a scissor region. If a document needs something to appear clear of its own background, the
 background has to be a panel inset inside the document rather than the document itself - which is
-what `dev/idle_animation.rml` does for its banner.
+what `examples/crt_terminal.rml` does for its banner.
 
 Backgrounds and images are not culled this way, only text. That asymmetry is what makes it confusing
 to diagnose: a `div` with a colour appears outside the bounds and the text inside it does not.

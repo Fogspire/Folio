@@ -45,9 +45,9 @@ class Case:
 CASES = (
     Case("static", "folio.Show", "ui/examples/panel.rml", 20,
          min_updates=1, max_updates=12, expect_delay="never"),
-    Case("animated", "folio.Show", "/folio/dev/idle_animation.rml", 20,
+    Case("animated", "folio.Show", "/folio/examples/crt_terminal.rml", 20,
          min_updates=200, max_updates=10 ** 9, expect_delay="0.000s"),
-    Case("caret", "folio.NavTest", "/folio/dev/idle_caret.rml", 20,
+    Case("caret", "folio.NavTest", "/folio/examples/crt_terminal.rml", 20,
          min_updates=10, max_updates=400, expect_delay="timer"),
 )
 

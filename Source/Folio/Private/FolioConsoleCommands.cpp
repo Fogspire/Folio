@@ -3,7 +3,6 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "FolioModule.h"
-#include "FolioBindTest.h"
 #include "FolioDebugger.h"
 #include "FolioLocalization.h"
 #include "FolioNavBindings.h"
@@ -43,9 +42,7 @@
 
 // None of this exists in a retail build. Every command here puts a document on screen, drives it or
 // reloads it, which is development tooling: shipping it would leave a player able to open a test
-// document over the game. UFolioBindTest is the exception and stays compiled, because a UCLASS inside
-// a preprocessor block is not something UnrealHeaderTool handles - it generates the reflection code
-// regardless and the link then fails. An unreferenced class registration costs nothing.
+// document over the game.
 #if !UE_BUILD_SHIPPING
 
 /**
@@ -466,204 +463,6 @@ namespace
 	}
 
 	/**
-	 * Proves the view model bridge, with a plain UObject whose values move every frame.
-	 *
-	 *   folio.MvvmTest [off]
-	 */
-	TSharedPtr<SFolioCanvas> MvvmCanvas;
-	TSharedPtr<SWidget> MvvmContainer;
-	TStrongObjectPtr<UFolioBindTest> MvvmSource;
-	FTSTicker::FDelegateHandle MvvmTicker;
-	/** One per `set` still waiting for the document, so closing the test cancels them. */
-	TArray<FTSTicker::FDelegateHandle> PendingSets;
-
-	void HideMvvmTest()
-	{
-		for (FTSTicker::FDelegateHandle& Pending : PendingSets)
-		{
-			if (Pending.IsValid())
-			{
-				FTSTicker::GetCoreTicker().RemoveTicker(Pending);
-			}
-		}
-		PendingSets.Empty();
-
-		if (MvvmTicker.IsValid())
-		{
-			FTSTicker::GetCoreTicker().RemoveTicker(MvvmTicker);
-			MvvmTicker.Reset();
-		}
-
-		UGameViewportClient* Viewport = FindViewport();
-		if (Viewport && MvvmContainer.IsValid())
-		{
-			Viewport->RemoveViewportWidgetContent(MvvmContainer.ToSharedRef());
-		}
-
-		MvvmContainer.Reset();
-		MvvmCanvas.Reset();
-		MvvmSource.Reset();
-	}
-
-	/**
-	 * Drives a control the way a drag would, so the write path can be checked without a hand on a mouse.
-	 *
-	 * Setting the value attribute is what RmlUi's own slider does when it moves, so this exercises the
-	 * real route: control, change event, data controller, our variable definition, the property.
-	 */
-	void SetMvvmControlNow(const FString& ElementId, const FString& Value)
-	{
-		Rml::Element* Element = MvvmCanvas->GetDocument()->GetElementById(Folio::ToRmlString(ElementId));
-		if (!Element)
-		{
-			UE_LOG(LogFolio, Warning, TEXT("no element '%s' in the test document"), *ElementId);
-			return;
-		}
-
-		// A checkbox's state is its `checked` attribute, not its value, so a click toggles that.
-		const Rml::String Type = Element->GetAttribute<Rml::String>("type", "");
-		if (Type == "checkbox" || Type == "radio")
-		{
-			const bool bOn = Value == TEXT("1") || Value.Equals(TEXT("true"), ESearchCase::IgnoreCase);
-			if (bOn)
-			{
-				Element->SetAttribute("checked", "");
-			}
-			else
-			{
-				Element->RemoveAttribute("checked");
-			}
-		}
-		else if (Rml::ElementFormControl* Control = rmlui_dynamic_cast<Rml::ElementFormControl*>(Element))
-		{
-			Control->SetValue(Folio::ToRmlString(Value));
-		}
-
-		// The data controller listens for `change` carrying a `value` parameter, which is what a widget
-		// dispatches when a person moves it. SetValue alone updates the control and announces nothing, so
-		// without this the model never hears about a programmatic change.
-		Rml::Dictionary Parameters;
-		Parameters["value"] = Rml::Variant(Folio::ToRmlString(Value));
-		Element->DispatchEvent(Rml::EventId::Change, Parameters);
-
-		MvvmCanvas->GetContext()->Update();
-
-		UFolioBindTest* Source = MvvmSource.Get();
-		UE_LOG(LogFolio, Display,
-			TEXT("folio.MvvmTest: after setting %s to '%s' the object holds Volume=%d Gamma=%.3f ")
-			TEXT("bSubtitles=%s PlayerName='%s' Health=%.3f"),
-			*ElementId, *Value, Source->Volume, Source->Gamma,
-			Source->bSubtitles ? TEXT("true") : TEXT("false"), *Source->PlayerName, Source->Health);
-	}
-
-	/**
-	 * Waits for the document before driving it.
-	 *
-	 * folio.MvvmTest defers opening until a game viewport exists, so a `set` issued in the same breath -
-	 * from -ExecCmds, or by anyone typing quickly - would otherwise arrive before there is anything to
-	 * drive and report only that the test is not open.
-	 */
-	void SetMvvmControl(const FString& ElementId, const FString& Value)
-	{
-		if (MvvmCanvas.IsValid() && MvvmCanvas->GetDocument() && MvvmSource.IsValid())
-		{
-			SetMvvmControlNow(ElementId, Value);
-			return;
-		}
-
-		if (!MvvmTicker.IsValid())
-		{
-			UE_LOG(LogFolio, Warning, TEXT("folio.MvvmTest is not open"));
-			return;
-		}
-
-		const double Deadline = FPlatformTime::Seconds() + 30.0;
-		PendingSets.Add(FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
-			[ElementId, Value, Deadline](float) -> bool
-			{
-				if (MvvmCanvas.IsValid() && MvvmCanvas->GetDocument() && MvvmSource.IsValid())
-				{
-					SetMvvmControlNow(ElementId, Value);
-					return false;
-				}
-
-				if (FPlatformTime::Seconds() > Deadline)
-				{
-					UE_LOG(LogFolio, Warning, TEXT("gave up waiting for the test document to open"));
-					return false;
-				}
-
-				return true;
-			}), 0.0f));
-	}
-
-	void RunMvvmTest(const TArray<FString>& Args)
-	{
-		if (Args.Num() > 0 && Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
-		{
-			HideMvvmTest();
-			return;
-		}
-
-		if (Args.Num() >= 3 && Args[0].Equals(TEXT("set"), ESearchCase::IgnoreCase))
-		{
-			SetMvvmControl(Args[1], Args[2]);
-			return;
-		}
-
-		HideMvvmTest();
-
-		MvvmTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
-			[](float) -> bool
-			{
-				UGameViewportClient* Viewport = FindViewport();
-				if (!Viewport || !Viewport->GetWorld() || !Viewport->GetWorld()->HasBegunPlay())
-				{
-					return true;
-				}
-
-				if (!MvvmCanvas.IsValid())
-				{
-					const FVector2D Size(520.0, 400.0);
-
-					MvvmSource.Reset(NewObject<UFolioBindTest>());
-					MvvmCanvas = SNew(SFolioCanvas).DesiredSize(Size);
-
-					// Bound before the document loads, so its bindings resolve on the first layout
-					// rather than rendering literal braces for a frame.
-					MvvmCanvas->BindObjectModel(TEXT("test"), MvvmSource.Get());
-					MvvmCanvas->LoadDocument(TEXT("/folio/dev/mvvm_test.rml"));
-
-					MvvmContainer = SNew(SBox)
-						.HAlign(HAlign_Left)
-						.VAlign(VAlign_Top)
-						.Padding(FMargin(830.0f, 60.0f, 0.0f, 0.0f))
-						[
-							SNew(SBox)
-								.WidthOverride(Size.X)
-								.HeightOverride(Size.Y)
-								[
-									SNew(SWeakWidget).PossiblyNullContent(MvvmCanvas)
-								]
-						];
-
-					Viewport->AddViewportWidgetContent(MvvmContainer.ToSharedRef(), 100);
-
-					UE_LOG(LogFolio, Display,
-						TEXT("folio.MvvmTest: bound a UObject as data model 'test'. The values must move ")
-						TEXT("and Hidden must stay unbound. folio.MvvmTest off to close."));
-				}
-
-				if (MvvmSource.IsValid())
-				{
-					MvvmSource->Advance();
-				}
-
-				return true;
-			}), 0.0f);
-	}
-
-	/**
 	 * Rebinding by hand, so a binding table is not needed to try one.
 	 *
 	 *   folio.Nav.Bind Q Left
@@ -954,7 +753,7 @@ namespace
 
 		if (Document.IsEmpty())
 		{
-			Document = TEXT("/folio/dev/idle_animation.rml");
+			Document = TEXT("/folio/examples/crt_terminal.rml");
 		}
 
 		// Two metres ahead of the camera, so it is visible without anyone having to place an actor.
@@ -1235,7 +1034,7 @@ namespace
 
 	void RunWorldVerify(const TArray<FString>& Args)
 	{
-		const FString DocumentPath = Args.Num() > 0 ? Args[0] : TEXT("/folio/dev/idle_test.rml");
+		const FString DocumentPath = Args.Num() > 0 ? Args[0] : TEXT("/folio/examples/crt_terminal.rml");
 
 		FFolioDocumentHost Host;
 		if (!Host.Create(TEXT("verify"), FIntPoint(1000, 600)))
@@ -1391,7 +1190,6 @@ namespace
 			HideDocument();
 			HideGate();
 			HideNavTest();
-			HideMvvmTest();
 		}
 	};
 
@@ -1427,12 +1225,6 @@ namespace
 			"so arrows, WASD, IJKL and the gamepad can be tried by hand."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunNavTest));
 
-	FAutoConsoleCommand MvvmTestCommand(
-		TEXT("folio.MvvmTest"),
-		TEXT("folio.MvvmTest [off|set <id> <value>]. Binds a UObject whose values move every frame as a "
-			"data model, which is the view model path without needing a view model. 'set' drives a "
-			"control the way a drag would, so the write-back path can be checked from the console."),
-		FConsoleCommandWithArgsDelegate::CreateStatic(&RunMvvmTest));
 
 	FAutoConsoleCommand BindNavCommand(
 		TEXT("folio.Nav.Bind"),

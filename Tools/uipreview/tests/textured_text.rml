@@ -33,9 +33,9 @@
 		.row { margin-bottom: 14dp; }
 
 		.plain   { }
-		.striped { font-effect: fill-image("/ui/art/scanlines.png" 6dp); }
-		.fine    { font-effect: fill-image("/ui/art/scanlines.png" 3dp); }
-		.tinted  { color: #4aa3df; font-effect: fill-image("/ui/art/scanlines.png" 6dp); }
+		.striped { font-effect: fill-image("/UI/art/scanlines.png" 6dp); }
+		.fine    { font-effect: fill-image("/UI/art/scanlines.png" 3dp); }
+		.tinted  { color: #4aa3df; font-effect: fill-image("/UI/art/scanlines.png" 6dp); }
 	</style>
 </head>
 <body>

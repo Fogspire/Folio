@@ -94,7 +94,7 @@ public:
 	 * Turns an absolute path into the portable form, and leaves anything already portable alone.
 	 *
 	 * A path typed or dragged in is absolute, and an absolute path is wrong the moment anyone else
-	 * opens the level. Under the project it becomes `ui/screens/x.rml`; under the plugin it becomes
+	 * opens the level. Under the project it becomes `UI/screens/x.rml`; under the plugin it becomes
 	 * `/folio/...`, which resolves from any content root.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")

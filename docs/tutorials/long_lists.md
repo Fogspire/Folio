@@ -225,7 +225,7 @@ ten-thousand-row list does.
 ## Proving it
 
 ```bash
-./bin/win64/uipreview.exe ui/screens/questlog.rml --root . --data ui/mock/questlog.json --strict
+./bin/win64/uipreview.exe UI/screens/questlog.rml --root . --data UI/mock/questlog.json --strict
 ```
 
 In the engine, `stat Folio` is the measurement that matters, and the number to watch is elements

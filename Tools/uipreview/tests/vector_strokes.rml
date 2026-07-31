@@ -2,7 +2,7 @@
 <head>
 	<title>vector strokes</title>
 	<link type="text/rcss" href="/folio/folio.rcss"/>
-	<link type="text/rcss" href="/ui/vectors.rcss"/>
+	<link type="text/rcss" href="/UI/vectors.rcss"/>
 	<style>
 		/*
 			Strokes baked as area, since a distance field has no notion of a line.
@@ -22,8 +22,8 @@
 
 			  msdfbake vector --in Tools/uipreview/tests/vectors/wide.svg
 			                  --in Tools/uipreview/tests/vectors/strokes.svg
-			                  --out Tools/uipreview/tests/ui/art
-			                  --rcss Tools/uipreview/tests/ui/vectors.rcss --layers
+			                  --out Tools/uipreview/tests/UI/art
+			                  --rcss Tools/uipreview/tests/UI/vectors.rcss --layers
 		*/
 		body
 		{

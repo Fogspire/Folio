@@ -5,7 +5,7 @@
 	<style>
 		/*
 		 * Self-contained on purpose. It ships with the plugin and has to work in a project that
-		 * has no ui/lib and no tokens yet, so nothing here imports anything but folio.rcss and no
+		 * has no UI/lib and no tokens yet, so nothing here imports anything but folio.rcss and no
 		 * font family is named - the first face a host registered is the fallback.
 		 */
 		body {

@@ -104,7 +104,7 @@ void FFolioHotReload::Start()
 	// The project's own UI tree and Folio's shipped stylesheets. Fonts are deliberately not watched:
 	// a face change means re-registering it and rebuilding its field cache, which is not a reload.
 	TArray<FString> Roots;
-	Roots.Add(Folio.GetContentRoot() / TEXT("ui"));
+	Roots.Add(Folio.GetUiRoot());
 	if (!Folio.GetPluginRoot().IsEmpty())
 	{
 		Roots.Add(Folio.GetPluginRoot() / TEXT("rcss"));
@@ -207,7 +207,7 @@ bool FFolioHotReload::Flush(float)
 	for (const FString& Path : Changed)
 	{
 		// Only files a document actually pulled in. Without this, saving anything anywhere under
-		// ui/ reloads every open document, including the mock data and notes nothing reads.
+		// UI/ reloads every open document, including the mock data and notes nothing reads.
 		if (!Dependencies.Contains(Path))
 		{
 			continue;

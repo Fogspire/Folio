@@ -16,7 +16,7 @@ a filter box focused on open.
 ## Absolute paths are rewritten
 
 Paste or drag in an absolute path and it is rewritten to the portable form the moment the field
-commits. Under the project it becomes `ui/screens/hud.rml`; under the plugin it becomes
+commits. Under the project it becomes `UI/screens/hud.rml`; under the plugin it becomes
 `/folio/examples/...`, which resolves from any content root.
 
 This is not cosmetic. **An absolute path is wrong the moment anyone else opens the level**, and the
@@ -32,11 +32,11 @@ A warning icon appears in the field, with the resolved path in its tooltip.
 The same thing is reported when the document is loaded, and it names what it tried:
 
 ```
-Folio: 'ui/screens/hud.rml' does not exist. It resolved to 'X:/Game/ui/screens/hud.rml'.
+Folio: 'UI/screens/hud.rml' does not exist. It resolved to 'X:/Game/UI/screens/hud.rml'.
 Folio: a relative path is read against the content root, which is 'X:/Game'.
 Folio: documents that do exist:
-    ui/screens/settings.rml
-    ui/hud/nameplate.rml
+    UI/screens/settings.rml
+    UI/hud/nameplate.rml
     ...
 ```
 
@@ -108,7 +108,7 @@ comparison and the Blueprint node all take an `FString`, and `*DocumentPath` is 
 `*FString` is.
 
 ```cpp
-Document->LoadDocument(TEXT("ui/screens/hud.rml"));
+Document->LoadDocument(TEXT("UI/screens/hud.rml"));
 ```
 
 `UFolioDocumentPathLibrary` exposes the same helpers the editor uses, and they are Blueprint-callable:

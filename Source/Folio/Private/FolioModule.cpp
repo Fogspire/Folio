@@ -172,11 +172,23 @@ void FFolioModule::ShutdownModule()
 	SystemInterface.Reset();
 }
 
+FString FFolioModule::GetUiRoot() const
+{
+	const FString Upper = ContentRoot / TEXT("UI");
+	if (FPaths::DirectoryExists(Upper))
+	{
+		return Upper;
+	}
+
+	const FString Lower = ContentRoot / TEXT("ui");
+	return FPaths::DirectoryExists(Lower) ? Lower : Upper;
+}
+
 void FFolioModule::RegisterFonts()
 {
 	// The same order the preview tool uses, so a document looks the same in both: the game's own
 	// faces first, then the ones Folio ships, then the engine's Roboto as a last resort. Anything
-	// the game puts under ui/fonts wins outright.
+	// the game puts under UI/fonts wins outright.
 	//
 	// Paths are absolute because font loading goes through our file interface, and both the engine
 	// and plugin directories are relative to the binary rather than the content root; left
@@ -211,7 +223,7 @@ void FFolioModule::RegisterFonts()
 		}
 	};
 
-	LoadFacesIn(ContentRoot / TEXT("ui") / TEXT("fonts"));
+	LoadFacesIn(GetUiRoot() / TEXT("fonts"));
 
 	if (Loaded == 0)
 	{

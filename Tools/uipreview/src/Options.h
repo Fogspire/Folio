@@ -16,7 +16,7 @@ struct Options {
 
 	/**
 	 * Font faces to register. Folio bundles no typeface: the choice belongs to the game, so
-	 * fonts are configuration. When empty, any font found under <root>/ui/fonts is used.
+	 * fonts are configuration. When empty, any font found under <root>/UI/fonts is used.
 	 */
 	std::vector<std::string> fonts;
 	/** Unreal engine directory, used to find Roboto when no font is given. */

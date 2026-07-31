@@ -43,7 +43,7 @@ class Case:
 # folio.Show does not take focus, which is what the static case needs; folio.NavTest does, which is what
 # the caret needs, since the blink timer only runs while the field has focus.
 CASES = (
-    Case("static", "folio.Show", "ui/examples/panel.rml", 20,
+    Case("static", "folio.Show", "UI/examples/panel.rml", 20,
          min_updates=1, max_updates=12, expect_delay="never"),
     Case("animated", "folio.Show", "/folio/examples/crt_terminal.rml", 20,
          min_updates=200, max_updates=10 ** 9, expect_delay="0.000s"),

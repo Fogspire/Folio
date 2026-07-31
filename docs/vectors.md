@@ -5,11 +5,11 @@ uses. Markup does not change: `<img sprite="icon_sword">` and `decorator: image(
 exactly as they do for a raster sprite.
 
 ```bash
-./bin/win64/msdfbake.exe vector --in art/ui/vector --out ui/art --rcss ui/vectors.rcss --layers
+./bin/win64/msdfbake.exe vector --in art/ui/vector --out UI/art --rcss UI/vectors.rcss --layers
 ```
 
 That reads the SVGs, packs the fields into an atlas, and writes a `@spritesheet` block between
-markers in `ui/vectors.rcss`. Link that stylesheet and the sprites are available.
+markers in `UI/vectors.rcss`. Link that stylesheet and the sprites are available.
 
 ## When
 
@@ -74,7 +74,7 @@ any other vector layer; only the fill is a raster.
 
 That is the right trade rather than a compromise: a gradient is low-frequency and upscales almost
 invisibly, where an edge is high-frequency and is the thing the field exists for. Zoom in on
-`ui/examples/vector_gradient.rml` to see both halves of it.
+`UI/examples/vector_gradient.rml` to see both halves of it.
 
 Nothing changes in the markup - a gradient layer is a sprite like any other, and carries no
 `image-color`, because it already has its colours. Setting one would multiply the gradient and flatten

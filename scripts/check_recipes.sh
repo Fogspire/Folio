@@ -27,7 +27,7 @@ for recipe in "$here"/rcss/recipes/*.rml; do
 	checked=$((checked + 1))
 
 	# Rooted at the plugin, which is where a recipe's own mocks live. A game copying one supplies its
-	# own under its ui/mock.
+	# own under its UI/mock.
 	if output="$("$uipreview" "$recipe" --root "$here" --strict --a11y 2>&1)"; then
 		echo "ok   $(basename "$recipe")"
 	else

@@ -17,7 +17,7 @@ namespace
 	struct FScopedDocument
 	{
 		FScopedDocument(const TCHAR* Name, const FString& Markup)
-			: FScopedDocument(TEXT("ui/"), Name, Markup)
+			: FScopedDocument(TEXT("UI/"), Name, Markup)
 		{
 		}
 
@@ -93,7 +93,7 @@ bool FFolioDeclaredSizeTest::RunTest(const FString&)
 	}
 
 	TestFalse(TEXT("a document that does not exist"),
-		UFolioDocumentPathLibrary::GetDeclaredDocumentSize(TEXT("ui/nothing_here.rml"), Size));
+		UFolioDocumentPathLibrary::GetDeclaredDocumentSize(TEXT("UI/nothing_here.rml"), Size));
 
 	return true;
 }
@@ -111,7 +111,7 @@ bool FFolioDocumentOptionsTest::RunTest(const FString&)
 
 	const TArray<FString> Options = UFolioDocumentPathLibrary::GetDocumentOptions();
 
-	TestTrue(TEXT("a document under ui/ is offered"), Options.Contains(Content.Relative));
+	TestTrue(TEXT("a document under UI/ is offered"), Options.Contains(Content.Relative));
 
 	// The reason the walk prunes rather than filters: a build directory holds real documents - the
 	// vendored RmlUi samples are .rml files - so nothing about a result tells them from the game's.
@@ -156,9 +156,9 @@ bool FFolioDocumentValidationTest::RunTest(const FString&)
 	TestEqual(TEXT("a /folio/ mount is portable"), Errors(TEXT("/folio/examples/mask_image.rml")), 0);
 
 	TestTrue(TEXT("a path on this machine is not"),
-		Errors(TEXT("X:/Kaboom/Kaboom/ui/screens/hud.rml")) > 0);
+		Errors(TEXT("X:/Kaboom/Kaboom/UI/screens/hud.rml")) > 0);
 	TestTrue(TEXT("a document that does not exist is reported"),
-		Errors(TEXT("ui/screens/nothing_here.rml")) > 0);
+		Errors(TEXT("UI/screens/nothing_here.rml")) > 0);
 
 	// Unplaced, so an empty path is a component waiting to be given one from code.
 	TestEqual(TEXT("an empty path on an unplaced component"), Errors(TEXT("")), 0);

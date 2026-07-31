@@ -1,5 +1,7 @@
 #include "Localization.h"
 
+#include "Paths.h"
+
 #include "Diagnostics.h"
 
 #include <RmlUi/Core/Element.h>
@@ -82,7 +84,7 @@ bool Localizer::Load(const std::string& root, const std::string& culture)
 		return true;
 	}
 
-	path = root + "/ui/loc/" + culture + ".json";
+	path = UiDirectory(root) + "/loc/" + culture + ".json";
 	std::ifstream file(path);
 	if (!file)
 	{

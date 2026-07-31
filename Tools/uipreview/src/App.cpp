@@ -100,7 +100,7 @@ bool App::ResolveRoot()
 		root.clear();
 		for (fs::path dir = document_absolute.parent_path(); !dir.empty(); dir = dir.parent_path())
 		{
-			if (fs::exists(dir / ".folio-root") || fs::is_directory(dir / "ui"))
+			if (fs::exists(dir / ".folio-root") || fs::is_directory(dir / "UI") || fs::is_directory(dir / "ui"))
 			{
 				root = ToForwardSlashes(dir.string());
 				break;
@@ -295,7 +295,7 @@ std::string App::FindConventionalDataFile(const std::string& model_name) const
 	// A bound document with no data renders its bindings as literal {{ }}, which reads as
 	// broken markup rather than as a missing argument. Mock data named after the model is
 	// picked up without being asked for, so the common case just works; --data still wins.
-	const fs::path candidate = fs::path(root) / "ui" / "mock" / (model_name + ".json");
+	const fs::path candidate = fs::path(UiDirectory(root)) / "mock" / (model_name + ".json");
 
 	std::error_code ec;
 	if (!fs::is_regular_file(candidate, ec))
@@ -358,7 +358,7 @@ void App::MountDataModel()
 		// missing data file rather than a warning per bound element.
 		diagnostics.Report(Severity::Warning, "W-DATA-NODATA",
 			"the document declares data-model=\"" + model_name + "\" but no --data file was given "
-			"and none was found at ui/mock/" + model_name + ".json");
+			"and none was found at UI/mock/" + model_name + ".json");
 		data_model.MountEmpty(context, model_name);
 	}
 	else
@@ -384,7 +384,7 @@ bool App::LoadFonts()
 			diagnostics.Report(Severity::Error, "E-FONT-LOAD", "could not load font face: " + font);
 	}
 
-	const fs::path fonts_dir = fs::path(root) / "ui" / "fonts";
+	const fs::path fonts_dir = fs::path(UiDirectory(root)) / "fonts";
 	if (loaded == 0)
 	{
 		std::vector<fs::path> found;
@@ -401,13 +401,14 @@ bool App::LoadFonts()
 
 		for (const fs::path& font : found)
 		{
-			if (Rml::LoadFontFace("/ui/fonts/" + ToForwardSlashes(font.filename().string())))
+			if (Rml::LoadFontFace("/" + ToForwardSlashes(fs::path(UiDirectory(root)).filename().string())
+					+ "/fonts/" + ToForwardSlashes(font.filename().string())))
 				++loaded;
 		}
 	}
 
 	// Then the typefaces Folio ships. These are variable, so one file covers every weight the
-	// markup can ask for, and a game overrides them simply by putting its own under ui/fonts.
+	// markup can ask for, and a game overrides them simply by putting its own under UI/fonts.
 	if (loaded == 0)
 	{
 		const fs::path bundled = fs::path(FolioRoot()) / "fonts";

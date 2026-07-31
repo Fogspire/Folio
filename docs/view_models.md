@@ -5,7 +5,7 @@ names a value, `data-event-click="Reload"` names a command. Writing the matching
 transcription, so it is generated.
 
 ```bash
-./scripts/viewmodel.sh ui/screens/settings.rml \
+./scripts/viewmodel.sh UI/screens/settings.rml \
     --out Source/MyGame/UI/Generated/SettingsViewModelBase.h --api MYGAME_API
 ```
 
@@ -19,7 +19,7 @@ holds the fields and the command stubs; `USettingsViewModel : USettingsViewModel
 holds the logic. Regenerating the base is then always safe. Generating one file a person is expected
 to then edit is the version that eventually overwrites somebody's work.
 
-**Types come from the mock, names come from the markup.** `ui/mock/settings.json` already holds typed
+**Types come from the mock, names come from the markup.** `UI/mock/settings.json` already holds typed
 values, because someone wrote it to see the screen before the game could fill it in. So `"Health":
 0.75` is a float and `"bAlive": true` is a bool - no inference from expressions, and no type
 annotations cluttering the markup.

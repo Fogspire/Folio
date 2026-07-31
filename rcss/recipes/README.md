@@ -3,7 +3,7 @@
 Complete documents to copy, not components to link.
 
 A settings screen differs too much between games to parameterise, and most of the way it does not
-differ at all. So these are working documents: copy one into your own `ui/screens/`, change the
+differ at all. So these are working documents: copy one into your own `UI/screens/`, change the
 strings and the ids, and delete what you do not need. Nothing links them at runtime.
 
 | | |

@@ -20,7 +20,7 @@ Known cases:
 
 - **CSS custom properties and `var()` do not exist in 6.2.** Merged to master 2026-06-07
   (PR #947) with follow-up bugs still open (#965 transitions with `var()`, #966 `var()` with
-  dp-ratio changes). `ui/tokens.rcss` therefore expresses design tokens as **concrete classes**,
+  dp-ratio changes). `UI/tokens.rcss` therefore expresses design tokens as **concrete classes**,
   not variables. Revisit at RmlUi 7.0.
 - **`:disabled` is not an RCSS pseudo-class.** Use a `.is-disabled` class. `:focus`,
   `:focus-visible`, `:checked`, `:hover`, `:active`, `:nth-child()`, `:not()` and `:scope` are
@@ -305,8 +305,8 @@ Verified that this **does** suppress RmlUi's own message, so the wording is ours
 The rendered size is captured instead from the compiled geometry's bounding box at draw time.
 
 **The name arriving at `LoadTexture` is already joined against the document directory.** An
-undeclared sprite `icon_sword` referenced from `/ui/examples/hud.rml` arrives as
-`/ui/examples/icon_sword`, not as the bare name. So "contains a path separator, therefore it
+undeclared sprite `icon_sword` referenced from `/UI/examples/hud.rml` arrives as
+`/UI/examples/icon_sword`, not as the bare name. So "contains a path separator, therefore it
 was a file reference" is wrong, because every unresolved sprite looks like that. Classify on
 the **file extension** instead: no extension means it was a sprite name, an extension means it
 was a file or spritesheet `src` reference.
@@ -530,8 +530,8 @@ face, so shipping one that has axes is what makes the feature reachable by defau
 only after a game supplies its own faces.
 
 Resolution order is unchanged in spirit and is the same in both renderers: the game's own
-`ui/fonts/` first, then the faces Folio ships, then the engine's Roboto as a last resort. A game
-that drops faces in `ui/fonts/` still wins outright, which was the part of the original intent
+`UI/fonts/` first, then the faces Folio ships, then the engine's Roboto as a last resort. A game
+that drops faces in `UI/fonts/` still wins outright, which was the part of the original intent
 that mattered.
 
 The first face registered becomes the fallback. Without one, a document naming a family nobody
@@ -832,7 +832,7 @@ the orders game UI actually uses - waits for the game to be up, then screenshots
 
 ```
 UnrealEditor.exe <project>.uproject -game -windowed -resx=1280 -resy=720 -nosplash \
-    -ExecCmds="folio.Gate ui/examples/panel.rml 6"
+    -ExecCmds="folio.Gate UI/examples/panel.rml 6"
 ```
 
 The image lands in `Saved/Screenshots/WindowsEditor/FolioGate.png`. Passing means the document
@@ -844,7 +844,7 @@ version ran, found nothing, and logged nothing. The first attempt at this screen
 game's own loading screen. It now waits on `GetWorld()->HasBegunPlay()` and then gives the
 document a few seconds to load its stylesheet, generate its glyphs and draw.
 
-Verified with `ui/examples/panel.rml`: borders, radii, drop shadows, a vertical gradient, a
+Verified with `UI/examples/panel.rml`: borders, radii, drop shadows, a vertical gradient, a
 button and distance-field text, all in a running game, composited in the right place.
 
 
@@ -1016,7 +1016,7 @@ Two more traps worth knowing:
 - **A single save arrives as several notifications** and an atlas re-bake touches many files, so
   changes accumulate and apply once on the next tick rather than per notification.
 
-**Mock data does not hot reload.** `ui/mock/<model>.json` is read with `FFileHelper`, not through the
+**Mock data does not hot reload.** `UI/mock/<model>.json` is read with `FFileHelper`, not through the
 file interface, so it is not in the dependency list and a change is ignored. Making it work needs a
 change to `FFolioDataModel`: it binds the address of the parsed `FJsonValue` node, so a re-parse would
 leave RmlUi holding a freed pointer. The fix is to bind a stable slot that the definitions dereference,
@@ -1082,8 +1082,8 @@ faces is the obvious improvement.
 
 `-uidev` (or `-uidev=<path>`) makes `FFolioFileInterface` check an override directory before the
 package, so UI can be changed on a device - a console, a Steam Deck - without cooking again. The
-directory mirrors the project, which is also the staged layout, so `uidev/ui/screens/hud.rml` overrides
-`ui/screens/hud.rml`. A file that is not there falls through, so a directory holding one document
+directory mirrors the project, which is also the staged layout, so `uidev/UI/screens/hud.rml` overrides
+`UI/screens/hud.rml`. A file that is not there falls through, so a directory holding one document
 works. Compiled out of Shipping.
 
 Bare `-uidev` resolves to `FPaths::ProjectDir()/uidev`, which in a staged build is
@@ -1136,7 +1136,7 @@ preview, re-add to the viewport, hot reload - puts the same models back), applie
 exists, and rebuilds the document if one was already up. That last case logs, because it is not free.
 
 **Mock data is compiled out of Shipping and yields to game code.** `SFolioCanvas::MountDataModel` used to
-mount `ui/mock/<model>.json` in every configuration. Two consequences, both live: a retail build rendered
+mount `UI/mock/<model>.json` in every configuration. Two consequences, both live: a retail build rendered
 invented values for any screen whose model the game forgot to bind, instead of failing visibly; and the
 mock occupied the name, so `BindObjectModel` on it failed. Now the whole path is `#if !UE_BUILD_SHIPPING`,
 gated on `folio.MockData`, and skipped outright when `HasObjectModel` says game code got there first.
@@ -1177,10 +1177,10 @@ never to use the Dashboard for gather settings, because it regenerates that file
 
 **The namespace rule is duplicated across two languages and both must agree.**
 `Folio::Loc::NamespaceForDocument` and `namespace_for` in the script both derive `Folio.MainMenu` from
-`ui/screens/main_menu.rml`, and `Folio.Common` from anything under `ui/lib/`. If they disagree, every
+`UI/screens/main_menu.rml`, and `Folio.Common` from anything under `UI/lib/`. If they disagree, every
 lookup misses and every string falls back to English with nothing logged. The script fails on two
 documents deriving the same namespace, which is what stops the file-stem rule silently merging
-`ui/hud/player.rml` and `ui/screens/player.rml`.
+`UI/hud/player.rml` and `UI/screens/player.rml`.
 
 **Runtime resolution is a document pass, not `TranslateString`.** That hook receives a string with no
 element context, so it cannot tell whether the owning element carries a key: it can neither look one up
@@ -1206,7 +1206,7 @@ exists at all rather than what to display.
 
 ```bash
 UnrealEditor.exe <project>.uproject -game -windowed -resx=640 -resy=360 `
-  -ExecCmds="folio.Loc.Report ui/screens/settings.rml" -log=Loc.log
+  -ExecCmds="folio.Loc.Report UI/screens/settings.rml" -log=Loc.log
 ```
 
 To prove text actually swaps, patch a translation into `Content/Localization/Folio/en/Folio.archive`
@@ -1354,7 +1354,7 @@ argument and there is no equivalent step here.
 returns whether it did, which is what makes a settled world document cost nothing - the same reason the
 screen path lets Slate keep its cached draw elements.
 
-Verified with `folio.WorldTest ui/screens/settings.rml` then `folio.WorldTest report`: 48 draws, 1916
+Verified with `folio.WorldTest UI/screens/settings.rml` then `folio.WorldTest report`: 48 draws, 1916
 triangles at 1000x600, from the project's real settings screen. Note the report has to wait for the
 component's first tick, or it reports zero and means nothing.
 
@@ -1491,7 +1491,7 @@ Two things have to be right before a comparison means anything:
 - **Pin the dp ratio on both.** The preview's ratio follows its viewport by default (`--dp-reference`,
   1080), and the engine host is told one directly. Unmatched, every length differs and the images look
   like a layout bug rather than a settings mismatch. `uipreview --dp-ratio 1` against a host updated
-  with a ratio of 1 lines the two up exactly - verified on `ui/examples/panel.rml`, where every text
+  with a ratio of 1 lines the two up exactly - verified on `UI/examples/panel.rml`, where every text
   baseline and panel edge agrees.
 - **Compare coverage, not RGB.** The engine writes premultiplied colour on a transparent ground; the
   preview composites onto an opaque one, and does no sRGB conversion where Slate linearises vertex

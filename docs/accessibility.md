@@ -16,13 +16,13 @@ controls later is the reason projects abandon this.
 ## Running the checks
 
 ```bash
-./bin/win64/uipreview.exe ui/screens/settings.rml --root . --a11y
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --a11y
 ```
 
 Findings are warnings, so `--strict` turns them into a failing exit code:
 
 ```bash
-./bin/win64/uipreview.exe ui/screens/settings.rml --root . --a11y --strict
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --a11y --strict
 ```
 
 `--a11y-report <file>` writes the same findings as JSON, with the numbers rather than the prose, for

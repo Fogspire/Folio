@@ -29,7 +29,7 @@ RCSS has **no `@import`**. A stylesheet cannot pull in another one. There are ex
 rules into a document:
 
 ```html
-<link type="text/rcss" href="/ui/lib/button.rcss"/>   <!-- one per stylesheet -->
+<link type="text/rcss" href="/UI/lib/button.rcss"/>   <!-- one per stylesheet -->
 <style> /* document-local rules */ </style>
 ```
 
@@ -71,7 +71,7 @@ The utility classes in `tokens` are the vocabulary the recipes are written in:
 ## Recipes
 
 `/folio/rcss/recipes/` holds complete, working screens - a main menu, a pause menu, a confirmation
-dialog, a nameplate. They are **meant to be copied into your own `ui/`, not linked**.
+dialog, a nameplate. They are **meant to be copied into your own `UI/`, not linked**.
 
 That is deliberate. A recipe is a starting point you own and edit; a linked one is a dependency you
 cannot change. Nothing in a recipe names Folio's directory except the library link.
@@ -79,7 +79,7 @@ cannot change. Nothing in a recipe names Folio's directory except the library li
 All four pass `--strict --a11y` with no findings, and `./scripts/check_recipes.sh` keeps it that way.
 
 **A recipe that binds a model needs a mock beside it.** `nameplate.rml` reads `Name` and `Health`, and
-previews against `ui/mock/nameplate.json` in the plugin. Copy it into your own `ui/mock/` along with
+previews against `UI/mock/nameplate.json` in the plugin. Copy it into your own `UI/mock/` along with
 the document, or the preview reports the binding as a missing variable.
 
 Every recipe passes `--strict` and `--a11y` with no findings, so what you copy starts clean.
@@ -114,7 +114,7 @@ alone.
 Your stylesheet loads last, so a plain restatement wins:
 
 ```css
-/* ui/theme.rcss - loaded after the plugin's default */
+/* UI/theme.rcss - loaded after the plugin's default */
 .btn         { background-color: #2a1f14; border-color: #6b4a25; }
 .btn:hover   { background-color: #3a2a1c; }
 .c-accent    { color: #d9a441; }
@@ -127,7 +127,7 @@ recipe is written against `.c-accent` and `.s-pad-m`; changing what those mean r
 library at once.
 
 **Re-run `--a11y` after retuning colours.** The shipped theme passes contrast on every surface it
-puts text on; your palette has not been checked. `./scripts/check_a11y.sh ui/` does the sweep.
+puts text on; your palette has not been checked. `./scripts/check_a11y.sh UI/` does the sweep.
 
 ## Templates for markup
 
@@ -137,7 +137,7 @@ a screen frame, a header bar - is written once:
 ```html
 <template name="screen" content="content">
 <head>
-	<link type="text/rcss" href="/ui/theme.rcss"/>
+	<link type="text/rcss" href="/UI/theme.rcss"/>
 </head>
 <body class="screen">
 	<div class="topbar">…</div>

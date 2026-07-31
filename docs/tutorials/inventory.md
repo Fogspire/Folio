@@ -42,10 +42,10 @@ way to attach a model afterwards:
 
 ```cpp
 Document->BindViewModel(TEXT("inventory"), Model);
-Document->LoadDocument(TEXT("ui/screens/inventory.rml"));
+Document->LoadDocument(TEXT("UI/screens/inventory.rml"));
 ```
 
-For previewing, put the same shape in `ui/mock/inventory.json` and the preview picks it up
+For previewing, put the same shape in `UI/mock/inventory.json` and the preview picks it up
 automatically. Build the whole screen against the mock before any of the C++ exists.
 
 See **[data binding](../data_binding.md)**.
@@ -241,9 +241,9 @@ Item names come from the model and were already `FText` in C++, so they need nei
 ## 8. Check it
 
 ```bash
-./bin/win64/uipreview.exe ui/screens/inventory.rml --root . --strict --a11y
-./bin/win64/uipreview.exe ui/screens/inventory.rml --root . --culture pseudo --strict
-./bin/win64/uipreview.exe ui/screens/inventory.rml --root . --keys "right,right,down,enter" --shot-each out/
+./bin/win64/uipreview.exe UI/screens/inventory.rml --root . --strict --a11y
+./bin/win64/uipreview.exe UI/screens/inventory.rml --root . --culture pseudo --strict
+./bin/win64/uipreview.exe UI/screens/inventory.rml --root . --keys "right,right,down,enter" --shot-each out/
 ```
 
 The pseudo run is the one that catches an inventory laid out for English. Translated strings run

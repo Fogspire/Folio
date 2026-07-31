@@ -114,7 +114,7 @@ public:
 	FFolioInputModel& GetInputModel() { return InputModel; }
 
 private:
-	/** Mounts ui/mock/<model>.json if the document declares a model, so bindings resolve. */
+	/** Mounts UI/mock/<model>.json if the document declares a model, so bindings resolve. */
 	void MountDataModel(const FString& RelativePath);
 
 	Rml::Context* Context = nullptr;

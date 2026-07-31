@@ -85,7 +85,7 @@ std::string Basename(const std::string& path)
 
 /**
  * An unresolved sprite name arrives here already joined against the document directory, so
- * `icon_sword` becomes `/ui/screens/icon_sword`. Path separators therefore say nothing about
+ * `icon_sword` becomes `/UI/screens/icon_sword`. Path separators therefore say nothing about
  * what the markup wrote. A file extension does: sprite names do not carry one.
  */
 bool LooksLikeFileReference(const std::string& source)

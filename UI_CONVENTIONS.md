@@ -101,7 +101,7 @@ shrink-to-fit against the context regardless of `display`. `folio.rcss` sets `wi
 
 - `text-align: justify` parses without complaint and then does nothing — justification is not implemented, and the line falls back to left-aligned
 - `line-height` has no `normal` — always give a number, length or percentage
-- `font-family` accepts **one** family only, no fallback stack. A family name is one Folio registered, not a filename: the faces shipped with the plugin, anything the game drops in `ui/fonts/`, or a variable face registered under its own name with axes pinned
+- `font-family` accepts **one** family only, no fallback stack. A family name is one Folio registered, not a filename: the faces shipped with the plugin, anything the game drops in `UI/fonts/`, or a variable face registered under its own name with axes pinned
 - `font-weight` has no relative weights (`bolder`, `lighter`); use `normal`, `bold`, or 1–1000. On a variable face any value in that range is real — it drives the `wght` axis directly rather than snapping to the nearest cut. Values are quantised in steps of 50, so `375` and `425` are distinct instances and `375` and `380` are not
 - `font-style` has no `oblique`
 - `border-radius` takes lengths only — no percentages, no two-axis (`/`) radii
@@ -400,7 +400,7 @@ cost in atlas area.
 gold-leaf sheet:
 
 ```css
-.crt { font-effect: fill-image("/ui/art/scanlines.png" 4dp); }
+.crt { font-effect: fill-image("/UI/art/scanlines.png" 4dp); }
 ```
 
 The arguments are a path, a tile size, and an optional colour the pattern is multiplied by.
@@ -721,7 +721,7 @@ Inside a `data-for`, `it_index` is the zero-based index and is always available.
 to get rules into a document:
 
 ```html
-<link type="text/rcss" href="/ui/lib/button.rcss"/>   <!-- one per stylesheet -->
+<link type="text/rcss" href="/UI/lib/button.rcss"/>   <!-- one per stylesheet -->
 <style> /* document-local rules */ </style>
 ```
 
@@ -730,7 +730,7 @@ the one aggregation mechanism RmlUi does have: **a template's head is merged int
 that links it.**
 
 ```html
-<link type="text/template" href="/ui/lib/lib.rml"/>
+<link type="text/template" href="/UI/lib/lib.rml"/>
 ```
 
 A template whose `<head>` links every component stylesheet gives a document the whole library in

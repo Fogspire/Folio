@@ -5,7 +5,7 @@
 	<!--
 		A confirmation dialog: the one screen every game needs and nobody wants to write.
 
-		Copy into your own ui/screens/ and edit. The parts worth keeping:
+		Copy into your own UI/screens/ and edit. The parts worth keeping:
 		  - the dialog is a child of .modal-scrim, which is what centres it. A scrim beside the dialog
 		    dims the dialog too
 		  - .is-inert on the content behind, which takes it out of navigation as well as out of the

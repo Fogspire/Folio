@@ -11,7 +11,7 @@ There is no `background-image`. It parses and does nothing.
 ```css
 @spritesheet hud
 {
-	src: /ui/art/hud.png;
+	src: /UI/art/hud.png;
 	resolution: 1x;
 
 	icon_health:  0px   0px  48px 48px;
@@ -30,8 +30,8 @@ sprite's natural size, so `<img sprite="icon_health"/>` is 24dp either way.
 
 ```html
 <img sprite="icon_health"/>
-<img src="/ui/art/loose.png"/>
-<img src="/ui/art/sheet.png" rect="0 0 48 48"/>
+<img src="/UI/art/loose.png"/>
+<img src="/UI/art/sheet.png" rect="0 0 48 48"/>
 ```
 
 An `<img>` has an **intrinsic size**, and it is the only thing in RCSS that carries an aspect ratio -

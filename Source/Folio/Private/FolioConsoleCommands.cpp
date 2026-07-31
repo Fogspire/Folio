@@ -48,7 +48,7 @@
 /**
  * Dev-only commands for putting a document on screen without any game code.
  *
- * folio.Show ui/screens/settings.rml
+ * folio.Show UI/screens/settings.rml
  * folio.Hide
  */
 namespace
@@ -184,7 +184,7 @@ namespace
 	 * document renders in a running game and composites in the right place in the widget stack -
 	 * over the world and whatever the game drew, under anything added later at a higher order.
 	 *
-	 *   folio.Gate ui/examples/panel.rml
+	 *   folio.Gate UI/examples/panel.rml
 	 */
 	TSharedPtr<SWidget> GateBelow;
 	TSharedPtr<SWidget> GateAbove;
@@ -250,7 +250,7 @@ namespace
 			return;
 		}
 
-		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("ui/examples/panel.rml");
+		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("UI/examples/panel.rml");
 		const bool bShot = Args.ContainsByPredicate([](const FString& Arg)
 			{ return Arg.Equals(TEXT("shot"), ESearchCase::IgnoreCase); });
 
@@ -1313,7 +1313,7 @@ namespace
 	/**
 	 * Renders a document the way a surface does and writes it to a PNG.
 	 *
-	 *   folio.Surface.Shot ui/examples/panel.rml Saved/panel.png 1280 720
+	 *   folio.Surface.Shot UI/examples/panel.rml Saved/panel.png 1280 720
 	 *
 	 * The engine's answer to `uipreview --screenshot`, and the reason it exists: the two renderers can
 	 * only be compared if both can be asked the same question without a person watching. A screenshot
@@ -1469,7 +1469,7 @@ namespace
 	/**
 	 * Writes the same metrics report `uipreview --metrics-report` writes, from the engine.
 	 *
-	 *   folio.Metrics.Report ui/examples/panel.rml Saved/panel.engine.json 1280 720
+	 *   folio.Metrics.Report UI/examples/panel.rml Saved/panel.engine.json 1280 720
 	 *
 	 * The point of the whole exercise: two renderers can only be held to each other by something
 	 * exact, and pixels are not it. The colour pipelines differ by design - the preview does no sRGB

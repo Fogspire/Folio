@@ -25,7 +25,7 @@ class Localizer {
 public:
 	explicit Localizer(Diagnostics& diagnostics) : diagnostics(diagnostics) {}
 
-	/** `pseudo` needs no file; any other code reads <root>/ui/loc/<code>.json. */
+	/** `pseudo` needs no file; any other code reads <root>/UI/loc/<code>.json. */
 	bool Load(const std::string& root, const std::string& culture);
 
 	bool IsActive() const { return active; }

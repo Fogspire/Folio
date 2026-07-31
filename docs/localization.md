@@ -29,9 +29,9 @@ it is never something you decide:
 
 | Document | Namespace |
 |---|---|
-| `ui/screens/settings.rml` | `Folio.Settings` |
-| `ui/screens/main_menu.rml` | `Folio.MainMenu` |
-| anything under `ui/lib/` | `Folio.Common` |
+| `UI/screens/settings.rml` | `Folio.Settings` |
+| `UI/screens/main_menu.rml` | `Folio.MainMenu` |
+| anything under `UI/lib/` | `Folio.Common` |
 
 Shared components all land in `Folio.Common` on purpose: a button's label belongs to every screen that
 uses it, not to one of them.
@@ -143,13 +143,13 @@ The Translation Editor in the Localization Dashboard works normally.
 ## 5. Check it
 
 ```
-folio.Loc.Report ui/screens/settings.rml
+folio.Loc.Report UI/screens/settings.rml
 ```
 
 Every key in the document, with what it resolved to:
 
 ```
-localisation of 'ui/screens/settings.rml' in namespace 'Folio.Settings', culture 'fr':
+localisation of 'UI/screens/settings.rml' in namespace 'Folio.Settings', culture 'fr':
   title                    [loc]    Paramètres
   apply                    [loc]    Appliquer
   raytracing_hint          [source] Not supported on this device

@@ -30,7 +30,7 @@ FString FFolioFileInterface::Resolve(const Rml::String& Path) const
 
 #if !UE_BUILD_SHIPPING
 	// The override directory mirrors the project, which is also the staged layout, so
-	// ui/screens/x.rml overrides as <override>/ui/screens/x.rml and the plugin's own stylesheet as
+	// UI/screens/x.rml overrides as <override>/UI/screens/x.rml and the plugin's own stylesheet as
 	// <override>/Plugins/Folio/rcss/folio.rcss. A file that is not there falls through to the pak,
 	// so an override directory holding one document is enough.
 	if (!OverrideRoot.IsEmpty())
@@ -66,13 +66,13 @@ FString FFolioFileInterface::ResolveInPackage(const Rml::String& Path) const
 	}
 
 	// /folio/ is the plugin's own mount, so folio.rcss is reachable from any content root.
-	// It has to be checked before the content root, or a game with a ui/folio directory
+	// It has to be checked before the content root, or a game with a UI/folio directory
 	// would shadow the base stylesheet.
 	//
 	// The leading slash is optional because it does not survive the trip: RmlUi joins a
 	// stylesheet reference against the document that made it, and joining a root-absolute
 	// path against a relative document path yields a relative one. So "/folio/folio.rcss"
-	// referenced from "ui/examples/panel.rml" arrives here as "folio/folio.rcss". Matching
+	// referenced from "UI/examples/panel.rml" arrives here as "folio/folio.rcss". Matching
 	// only the slashed form meant the base stylesheet silently never loaded in engine, and
 	// every div and p stayed inline as though there were no user-agent stylesheet at all -
 	// which is exactly what RmlUi does without one.

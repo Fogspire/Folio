@@ -33,8 +33,8 @@ nothing, look there before debugging. It is usually on the banned list.
 ### 1. Check what the project already has
 
 ```bash
-ls ui/                      # screens, lib, art, fonts, mock
-cat ui/theme.rcss           # the game's palette, if it has one
+ls UI/                      # screens, lib, art, fonts, mock
+cat UI/theme.rcss           # the game's palette, if it has one
 ls Plugins/Folio/rcss/recipes/
 ```
 
@@ -43,7 +43,7 @@ If the project has its own conventions document, it governs taste and this one g
 ### 2. Start from a recipe, not from nothing
 
 `Plugins/Folio/rcss/recipes/` has complete working screens - `main_menu.rml`, `pause.rml`,
-`confirm.rml`, `nameplate.rml`. **Copy one into `ui/screens/` and edit it.** They pass `--strict` and
+`confirm.rml`, `nameplate.rml`. **Copy one into `UI/screens/` and edit it.** They pass `--strict` and
 `--a11y` with no findings, so what you start from is already clean.
 
 ### 3. Link the library in one line
@@ -117,7 +117,7 @@ to retrofit across a finished game.
 ### 8. Verify before you say it is done
 
 ```bash
-./Plugins/Folio/bin/win64/uipreview.exe ui/screens/yours.rml --root . --strict --a11y
+./Plugins/Folio/bin/win64/uipreview.exe UI/screens/yours.rml --root . --strict --a11y
 ```
 
 **Non-zero exit means it is not right.** Nearly every RCSS mistake is a warning rather than an error,
@@ -126,7 +126,7 @@ so a check that only looks at errors passes a thoroughly broken stylesheet.
 Then take a look at it:
 
 ```bash
-./Plugins/Folio/bin/win64/uipreview.exe ui/screens/yours.rml --root . --screenshot out.png
+./Plugins/Folio/bin/win64/uipreview.exe UI/screens/yours.rml --root . --screenshot out.png
 ```
 
 Actually look at the screenshot. It is the only way to catch a layout that is valid and wrong.
@@ -161,7 +161,7 @@ variants.
 ## Where things go
 
 ```
-ui/
+UI/
   screens/     documents the game opens
   lib/         the game's own components, if it has any
   art/         packed atlases and the stylesheets that declare them

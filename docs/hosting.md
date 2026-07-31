@@ -10,7 +10,7 @@ is no step where the shell has to be ported before the first screen can exist.
 ## Putting one in a widget tree
 
 In the UMG designer the palette has **Folio Document** under Folio. Drop it in, set **Document Path**
-to the same kind of path `folio.Show` takes — `ui/screens/pause.rml`, relative to the project
+to the same kind of path `folio.Show` takes — `UI/screens/pause.rml`, relative to the project
 directory, or `/folio/...` to reach inside the plugin.
 
 **Desired Size** is what the widget reports to Slate layout, not a limit on the document. A document
@@ -97,7 +97,7 @@ the menu. So navigation keys are claimed whether or not they did anything.
   logs every event and which document took it, which is how you tell "the pad is not reaching Folio"
   from "the pad is not reaching the game at all".
 - **`{{ braces }}` render literally.** Nothing is bound under that name, or the bind happened after
-  the document loaded. Add `ui/mock/<model>.json` and the document at least shows plausible values at
+  the document loaded. Add `UI/mock/<model>.json` and the document at least shows plausible values at
   design time.
 - **The screen is there but nothing responds.** The canvas does not have focus. `Take Focus`, or the
   `GetDesiredFocusTarget` override.

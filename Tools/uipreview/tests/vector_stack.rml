@@ -2,7 +2,7 @@
 <head>
 	<title>vector stack</title>
 	<link type="text/rcss" href="/folio/folio.rcss"/>
-	<link type="text/rcss" href="/ui/vectors.rcss"/>
+	<link type="text/rcss" href="/UI/vectors.rcss"/>
 	<style>
 		/*
 			A multi-colour drawing rebuilt from stacked distance fields, sized by width alone.
@@ -17,8 +17,8 @@
 			disagree. Re-bake with:
 
 			  msdfbake vector --in Tools/uipreview/tests/vectors/wide.svg
-			                  --out Tools/uipreview/tests/ui/art
-			                  --rcss Tools/uipreview/tests/ui/vectors.rcss --layers
+			                  --out Tools/uipreview/tests/UI/art
+			                  --rcss Tools/uipreview/tests/UI/vectors.rcss --layers
 		*/
 		body
 		{

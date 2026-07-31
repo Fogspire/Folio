@@ -6,7 +6,7 @@ properties, so the layout vocabulary is small and you will use all of it.
 ## Copy a screen before you lay one out
 
 `rcss/recipes/` holds complete working screens — `main_menu.rml`, `pause.rml`, `confirm.rml`,
-`nameplate.rml`. **Copy one into your own `ui/` and edit it.** They pass `--strict` and `--a11y` with
+`nameplate.rml`. **Copy one into your own `UI/` and edit it.** They pass `--strict` and `--a11y` with
 no findings, so what you start from already has the `box-sizing`, flex bases, scrollbar geometry,
 `tab-index` and `nav` right — and every one of those is a trap documented further down this page.
 

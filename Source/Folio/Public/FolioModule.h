@@ -54,6 +54,15 @@ public:
 	/** Absolute path to the plugin, which is where Folio's own stylesheets and fonts live. */
 	const FString& GetPluginRoot() const { return PluginRoot; }
 
+	/**
+	 * The content root's UI tree, holding fonts, mock data, localisation and the documents.
+	 *
+	 * `UI` to match Content and every other directory Unreal puts beside it, but a lower-case one
+	 * is taken if that is what is there. Windows cannot tell them apart and Linux can, so a
+	 * project written on one and packaged on the other would otherwise lose its fonts.
+	 */
+	FString GetUiRoot() const;
+
 	/** Also the hot reload dependency list: it records every file RmlUi has opened. */
 	FFolioFileInterface* GetFileInterface() const { return FileInterface.Get(); }
 

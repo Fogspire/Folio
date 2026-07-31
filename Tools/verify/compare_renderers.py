@@ -28,16 +28,16 @@ import sys
 # Documents the game ships, not a special one. A divergence that only a test document provokes is a
 # divergence nobody meets.
 DOCUMENTS = (
-    "ui/examples/panel.rml",
-    "ui/examples/button.rml",
-    "ui/examples/list.rml",
-    "ui/examples/modal.rml",
-    "ui/screens/settings.rml",
+    "UI/examples/panel.rml",
+    "UI/examples/button.rml",
+    "UI/examples/list.rml",
+    "UI/examples/modal.rml",
+    "UI/screens/settings.rml",
     # Layer effects. Only the text in them is compared - nothing here checks what a box-shadow or a
     # backdrop-filter looks like, because the preview draws those in OpenGL and the engine replays
     # them through RHI. Layout under an effect agreeing is worth having; it is not the whole claim.
-    "ui/examples/effects.rml",
-    "ui/examples/backdrop.rml",
+    "UI/examples/effects.rml",
+    "UI/examples/backdrop.rml",
 )
 
 SIZE = (1280, 720)

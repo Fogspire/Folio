@@ -345,12 +345,12 @@ void FFolioDocumentHost::MountDataModel(const FString& RelativePath)
 		return;
 	}
 
-	const FString MockPath = FFolioDataModel::FindMockFile(ContentRoot, ModelName);
+	const FString MockPath = FFolioDataModel::FindMockFile(ModelName);
 	if (MockPath.IsEmpty())
 	{
 		UE_LOG(LogFolio, Warning,
 			TEXT("'%s' declares data-model=\"%s\" and nothing is bound, so its bindings render as literal ")
-			TEXT("{{ }}. Provide the model from game code, or put mock values in ui/mock/%s.json."),
+			TEXT("{{ }}. Provide the model from game code, or put mock values in UI/mock/%s.json."),
 			*RelativePath, *ModelName, *ModelName);
 		return;
 	}

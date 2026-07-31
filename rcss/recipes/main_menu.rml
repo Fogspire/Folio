@@ -5,7 +5,7 @@
 	<!--
 		A main menu, complete and working.
 
-		Copy this into your own ui/screens/ and edit it. It is not meant to be linked from the plugin
+		Copy this into your own UI/screens/ and edit it. It is not meant to be linked from the plugin
 		at runtime: a recipe is a starting point, not a component, and the first thing any game does is
 		change it. Nothing here names Folio's directory except the library link.
 

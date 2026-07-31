@@ -8,7 +8,7 @@ cleanly and produce nothing. A check that only looks at errors will pass a thoro
 stylesheet and you will find out in the engine, days later.
 
 ```bash
-./bin/win64/uipreview.exe ui/screens/settings.rml --root . --strict
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --strict
 ```
 
 Non-zero exit means the document is not right. That is the whole contract.
@@ -20,16 +20,16 @@ watches the files it loaded and re-renders on save, so it is a live preview by d
 
 ```bash
 # Look at it.
-./bin/win64/uipreview.exe ui/screens/settings.rml --root . --size 1920x1080
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --size 1920x1080
 
 # Take a picture and exit.
-./bin/win64/uipreview.exe ui/screens/settings.rml --root . --screenshot out.png
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --screenshot out.png
 
 # Walk it with the keyboard, shooting each step.
-./bin/win64/uipreview.exe ui/screens/settings.rml --root . --keys "down,down,right,enter" --shot-each out/
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --keys "down,down,right,enter" --shot-each out/
 ```
 
-`--root` is the project directory, and it is what makes `/ui/...` and `/folio/...` resolve. Getting it
+`--root` is the project directory, and it is what makes `/UI/...` and `/folio/...` resolve. Getting it
 wrong is the most common reason nothing appears.
 
 Most of the time you will not type any of this - the **[VSCode extension](vscode.md)** runs it beside
@@ -52,7 +52,7 @@ save would be slow for no gain.
 Run the two that matter together before committing a screen:
 
 ```bash
-./bin/win64/uipreview.exe ui/screens/settings.rml --root . --strict --a11y --culture pseudo
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --strict --a11y --culture pseudo
 ```
 
 ## The reports

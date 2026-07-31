@@ -19,7 +19,7 @@ feature:
 
 | | |
 |---|---|
-| `Document Path` | `ui/hud/nameplate.rml` |
+| `Document Path` | `UI/hud/nameplate.rml` |
 | `Size` | `256 x 96` (dp) |
 | `Anchor` | `0.5, 1` - the bottom centre sits on the point |
 | `Screen Offset` | `0, -16` - lift it clear of the head |
@@ -29,7 +29,7 @@ offset in dp is the same at every distance, and a marker that should sit *on* so
 with it.
 
 `rcss/recipes/nameplate.rml` is a complete one - name, health bar, tail - ready to copy into your own
-`ui/`.
+`UI/`.
 
 ## Distance
 
@@ -63,7 +63,7 @@ void AEnemy::BeginPlay()
     // Before the document loads. RmlUi resolves a document's bindings as it loads and offers no way
     // to attach a model afterwards, which is why this is not "bind whenever".
     Nameplate->BindViewModel(TEXT("nameplate"), NameplateModel);
-    Nameplate->LoadDocument(TEXT("ui/hud/nameplate.rml"));
+    Nameplate->LoadDocument(TEXT("UI/hud/nameplate.rml"));
 }
 ```
 

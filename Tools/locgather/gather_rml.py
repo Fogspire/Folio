@@ -29,7 +29,7 @@ SKIP_TAGS = {"style", "script", "head", "title"}
 
 
 def namespace_for(relative: pathlib.PurePosixPath) -> str:
-    """ui/screens/main_menu.rml -> Folio.MainMenu; anything under ui/lib/ -> Folio.Common.
+    """UI/screens/main_menu.rml -> Folio.MainMenu; anything under UI/lib/ -> Folio.Common.
 
     Must stay in step with Folio::Loc::NamespaceForDocument in FolioLocalization.cpp.
     """
@@ -148,7 +148,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", required=True, help="project directory holding the ui tree")
-    parser.add_argument("--ui", default="ui", help="ui tree, relative to root (default: ui)")
+    parser.add_argument("--ui", default="UI", help="UI tree, relative to root (default: UI)")
     parser.add_argument("--out", required=True, help="generated header to write")
     parser.add_argument("--exclude", action="append", default=[],
                         help="path fragment to skip, repeatable (e.g. examples)")

@@ -15,7 +15,7 @@ Type `folio.` in the console and Unreal will complete the rest.
 | `folio.HotReload` | Rebuilds the open documents from disk. An `.rcss` edit reloads stylesheets only, keeping the DOM, focus and scroll; an `.rml` edit rebuilds. |
 | `folio.ReloadTextures` | Picks up a re-baked atlas. **RmlUi caches a texture by path forever**, so this is what makes `msdfbake` output appear without reopening. `folio.ReloadTextures all` releases every texture whether or not it looks changed. |
 | `folio.Debugger [on\|off]` | RmlUi's element inspector on the focused document: the live DOM, computed properties, and which rule set what. |
-| `folio.MockData` | Mounts the `ui/mock/<model>.json` a document names, so a screen shows data in PIE without the gameplay behind it. |
+| `folio.MockData` | Mounts the `UI/mock/<model>.json` a document names, so a screen shows data in PIE without the gameplay behind it. |
 | `folio.MouseMode [on\|off]` | Shows the cursor and stops the game consuming the mouse. What you want before clicking anything in a HUD. |
 
 ## Themes and localisation

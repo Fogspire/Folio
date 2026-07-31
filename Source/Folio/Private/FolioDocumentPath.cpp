@@ -158,7 +158,7 @@ TArray<FString> UFolioDocumentPathLibrary::GetDocumentOptions()
 			}
 
 			// A prefix rather than an exact path, so one entry hides a tree. The trailing slash stops
-			// "ui/frag" from also hiding "ui/fragments_used".
+			// "UI/frag" from also hiding "UI/fragments_used".
 			if (!Prefix.EndsWith(TEXT("/")))
 			{
 				Prefix += TEXT("/");
@@ -351,7 +351,7 @@ void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPat
 	{
 		UE_LOG(LogFolio, Error,
 			TEXT("%s: that is an absolute path. It will not resolve on anyone else's machine either - ")
-			TEXT("use a project-relative one such as ui/screens/hud.rml."),
+			TEXT("use a project-relative one such as UI/screens/hud.rml."),
 			Context);
 	}
 
@@ -415,7 +415,7 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 		Message = FText::Format(
 			NSLOCTEXT("Folio", "AbsoluteDocument",
 				"{0} names '{1}', an absolute path. It will not resolve on another machine - use a "
-				"project-relative path such as ui/screens/hud.rml."),
+				"project-relative path such as UI/screens/hud.rml."),
 			FText::FromString(Component.GetName()),
 			FText::FromString(DocumentPath));
 	}

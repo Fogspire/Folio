@@ -100,7 +100,8 @@ namespace Folio::Loc
 
 		// A component's strings belong to every screen that uses it, so they share one namespace
 		// rather than being duplicated per screen.
-		if (Path.StartsWith(TEXT("ui/lib/")) || Path.Contains(TEXT("/ui/lib/")))
+		if (Path.StartsWith(TEXT("UI/lib/"), ESearchCase::IgnoreCase)
+			|| Path.Contains(TEXT("/UI/lib/"), ESearchCase::IgnoreCase))
 		{
 			return TEXT("Folio.Common");
 		}

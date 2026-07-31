@@ -111,7 +111,7 @@ from each dialog.
 ## Checking it
 
 ```bash
-uipreview ui/screens/confirm.rml --root . --keys "down,right,up,left" --shot-each out/
+uipreview UI/screens/confirm.rml --root . --keys "down,right,up,left" --shot-each out/
 ```
 
 If any shot shows focus behind the dialog, the trapping is wrong. This is worth doing every time —

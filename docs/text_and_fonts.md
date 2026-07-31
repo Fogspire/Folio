@@ -14,7 +14,7 @@ DPI. Pick sizes for the design, not for what an atlas was baked at.
 faces are registered by the host.
 
 Folio bundles Inter and Roboto Mono, so `font-family: Inter` works in a new project with no setup. A
-game adds its own by dropping files in `ui/fonts/`; the preview takes `--font <path>`.
+game adds its own by dropping files in `UI/fonts/`; the preview takes `--font <path>`.
 
 ```css
 body { font-family: Inter; font-size: 16dp; }
@@ -22,7 +22,7 @@ body { font-family: Inter; font-size: 16dp; }
 ```
 
 A family name is one Folio registered, not a filename. Resolution order is `--font` → the game's
-`ui/fonts/` → the plugin's bundled faces → the engine's Roboto.
+`UI/fonts/` → the plugin's bundled faces → the engine's Roboto.
 
 **Nothing renders at all until a family is named.** RCSS's initial `font-family` is empty, so a
 document with no family set is blank rather than wrong-looking.
@@ -104,7 +104,7 @@ specifically. To go wider, raise `pxrange` when baking, at a quadratic cost in a
 leaf:
 
 ```css
-.crt { font-effect: fill-image("/ui/art/scanlines.png" 4dp); }
+.crt { font-effect: fill-image("/UI/art/scanlines.png" 4dp); }
 ```
 
 A path, a tile size, and an optional colour the pattern is multiplied by. Three things to know:

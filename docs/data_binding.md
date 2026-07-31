@@ -39,7 +39,7 @@ float MaxHealth = 100.0f;
 
 ## 2. Write the document
 
-`<YourProject>/ui/healthbar.rml`:
+`<YourProject>/UI/healthbar.rml`:
 
 ```html
 <rml>
@@ -84,8 +84,8 @@ Note `&lt;` for the less-than sign, since this is inside an XML attribute.
 
 ## 3. See it before writing any C++
 
-Folio looks for `ui/mock/<model>.json` and mounts it if game code has not bound anything. Create
-`<YourProject>/ui/mock/player.json`:
+Folio looks for `UI/mock/<model>.json` and mounts it if game code has not bound anything. Create
+`<YourProject>/UI/mock/player.json`:
 
 ```json
 { "Health": 72.0, "MaxHealth": 100.0 }
@@ -94,7 +94,7 @@ Folio looks for `ui/mock/<model>.json` and mounts it if game code has not bound 
 Now the preview shows a working bar:
 
 ```bash
-./bin/win64/uipreview.exe <YourProject>/ui/healthbar.rml --root <YourProject>
+./bin/win64/uipreview.exe <YourProject>/UI/healthbar.rml --root <YourProject>
 ```
 
 Edit the numbers, save, watch it change. Set `Health` to `18` and the bar turns red without any code

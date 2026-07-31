@@ -5,7 +5,7 @@
 	<!--
 		A pause menu over a running game.
 
-		Copy into your own ui/screens/ and edit. The parts worth keeping:
+		Copy into your own UI/screens/ and edit. The parts worth keeping:
 		  - a scrim, so the game behind is visibly suspended rather than merely covered
 		  - .is-inert on anything the pause covers, which takes it out of navigation as well as out of
 		    the mouse's reach; both inherit, so one class does a whole subtree

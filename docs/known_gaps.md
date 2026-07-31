@@ -30,7 +30,7 @@ replays it into scene colour after the tonemapper, and there is nothing offscree
 So on that path they are **skipped, with one warning naming the four properties**. The element still
 draws, unfiltered and unmasked - the lesser wrong, since dropping it would hide the element itself.
 
-`ui/examples/mask_image.rml` is the document to judge them by. Put it on a **render-target surface**,
+`UI/examples/mask_image.rml` is the document to judge them by. Put it on a **render-target surface**,
 where the whole layer stack is available and all four work. Seeing an unfiltered element in the world
 with the mask painted over it means Draw List mode, not a broken effect.
 

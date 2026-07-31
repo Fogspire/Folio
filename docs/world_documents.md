@@ -17,7 +17,7 @@ effects or non-planar geometry.
 Add a **Folio World Document** component to an actor and set:
 
 - **Document Path** — the same path `folio.Show` takes: relative to the project directory, so
-  `ui/screens/terminal.rml`. A leading `/folio/` resolves inside the plugin instead.
+  `UI/screens/terminal.rml`. A leading `/folio/` resolves inside the plugin instead.
 - **World Size** — the physical size of the surface in world units, before the component's scale.
 - **Pixels Per Unit** — how many document pixels each world unit is worth. This is the authoring
   scale, not a quality setting: at the default a 100x60 surface lays out as a 1000x600 document, so
@@ -29,7 +29,7 @@ arrow does and you aim it by pointing the component at the viewer.
 To see one without placing anything, in PIE:
 
 ```
-folio.WorldTest ui/screens/terminal.rml
+folio.WorldTest UI/screens/terminal.rml
 folio.WorldTest report
 folio.WorldTest off
 ```
@@ -162,7 +162,7 @@ target's size next to how tall the surface actually lands on screen, and says wh
 constraint:
 
 ```
-folio.WorldTest: 'ui/screens/terminal.rml' laid out at 1000x600, rendered into a 2048x1229 target,
+folio.WorldTest: 'UI/screens/terminal.rml' laid out at 1000x600, rendered into a 2048x1229 target,
                  covering 900 screen pixels tall
     the target is at or above the surface's on-screen size, so it is not what is limiting sharpness.
 ```

@@ -74,7 +74,7 @@ namespace FolioDocSamples
 	// docs/assigning_documents.md#0
 	inline void Sample_docs_assigning_documents_md_0()
 	{
-		Document->LoadDocument(TEXT("ui/screens/hud.rml"));
+		Document->LoadDocument(TEXT("UI/screens/hud.rml"));
 	}
 
 	// docs/data_binding.md#1
@@ -181,7 +181,7 @@ namespace FolioDocSamples
 	inline void Sample_docs_tutorials_inventory_md_1()
 	{
 		Document->BindViewModel(TEXT("inventory"), Model);
-		Document->LoadDocument(TEXT("ui/screens/inventory.rml"));
+		Document->LoadDocument(TEXT("UI/screens/inventory.rml"));
 	}
 
 	// docs/tutorials/inventory.md#2

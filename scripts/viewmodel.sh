@@ -8,8 +8,8 @@
 # It writes a *base* class. Subclass it and put the logic there; this file is rewritten whenever the
 # document's bindings change.
 #
-#   ./scripts/viewmodel.sh ui/screens/settings.rml --out Source/MyGame/Public/SettingsViewModelBase.h
-#   ./scripts/viewmodel.sh ui/screens/hud.rml --strict
+#   ./scripts/viewmodel.sh UI/screens/settings.rml --out Source/MyGame/Public/SettingsViewModelBase.h
+#   ./scripts/viewmodel.sh UI/screens/hud.rml --strict
 
 set -euo pipefail
 

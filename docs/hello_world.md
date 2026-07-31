@@ -44,10 +44,10 @@ else to set up.
 
 ## 4. Write a document
 
-Documents live in a **`ui/` folder at the project root** — beside `Content/`, not inside it. They
+Documents live in a **`UI/` folder at the project root** — beside `Content/`, not inside it. They
 are plain text files, so they belong in source control with your code rather than as assets.
 
-Create `<YourProject>/ui/hello.rml`:
+Create `<YourProject>/UI/hello.rml`:
 
 ```html
 <rml>
@@ -81,7 +81,7 @@ Three things worth noticing:
 - **`dp`, not `px`.** A dp scales with the player's UI scale and resolution the way Unreal's own UI
   does. Reach for `px` only when you genuinely mean one screen pixel.
 - **You have not chosen a font.** Folio falls back to the engine's Roboto, which is why this renders
-  at all. Drop `.ttf` files in `<YourProject>/ui/fonts/` when you want your own; the first one found
+  at all. Drop `.ttf` files in `<YourProject>/UI/fonts/` when you want your own; the first one found
   becomes the default.
 
 ## 5. Put it on screen
@@ -89,7 +89,7 @@ Three things worth noticing:
 Start the editor and type in the console:
 
 ```
-folio.ShowWindow ui/hello.rml
+folio.ShowWindow UI/hello.rml
 ```
 
 That opens the document in its own window. It needs no PIE session and no game code, which makes it
@@ -99,7 +99,7 @@ stopping the game from booting. `folio.CloseWindow` closes it.
 To see it over a running game instead, start PIE and use:
 
 ```
-folio.Show ui/hello.rml
+folio.Show UI/hello.rml
 ```
 
 `folio.Hide` removes it. Neither command takes keyboard focus, so nothing you type goes to the
@@ -117,7 +117,7 @@ There is a standalone renderer that draws the same markup with no Unreal involve
 Then:
 
 ```bash
-./bin/win64/uipreview.exe <YourProject>/ui/hello.rml --root <YourProject>
+./bin/win64/uipreview.exe <YourProject>/UI/hello.rml --root <YourProject>
 ```
 
 It watches the file and reloads on save, so the loop is edit, save, look — no compiling and no
@@ -159,7 +159,7 @@ anything:
 
 The `../` on the staging lines is not a mistake. These paths are resolved against `Content`, not the project root, and the
 staged path collapses back to the project root — which is exactly where Folio looks at runtime. Drop
-the `fonts` line if you ship your own faces in `ui/fonts`.
+the `fonts` line if you ship your own faces in `UI/fonts`.
 
 List your own subdirectories rather than `ui` wholesale if the tree holds things a player should not
 receive. **There is no way to exclude a subdirectory of one you have staged**, which is why Folio's
@@ -169,7 +169,7 @@ a game needs would otherwise stage the demos with them.
 To check it worked, look for your files in the staging manifest rather than launching the build:
 
 ```powershell
-Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\AutomationTool\Saved\Logs\FinalCopyWin64_UFSFiles.txt" -Pattern "/ui/"
+Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\AutomationTool\Saved\Logs\FinalCopyWin64_UFSFiles.txt" -Pattern "/UI/"
 ```
 
 ### Changing UI on a device without cooking again
@@ -177,7 +177,7 @@ Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\Automation
 Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` directory in the
 project — in a staged build that is `<Staged>/<YourProject>/uidev`, beside the `ui` tree — before it
 reads the package. `-uidev=<path>` points somewhere else. The directory mirrors
-the project, so `uidev/ui/screens/hud.rml` overrides `ui/screens/hud.rml`, and anything absent falls
+the project, so `uidev/UI/screens/hud.rml` overrides `UI/screens/hud.rml`, and anything absent falls
 through to the package — a directory holding one document is enough. This is how UI gets iterated on
 a console or a Steam Deck. It does not exist in Shipping.
 
@@ -203,9 +203,9 @@ a console or a Steam Deck. It does not exist in Shipping.
 - **No text at all, everything else fine.** No font registered. Check the log for
   `no font faces registered`.
 - **`{{ braces }}` rendered literally.** The document declares `data-model` but nothing is bound. Add
-  `ui/mock/<model>.json` for a design-time stand-in.
+  `UI/mock/<model>.json` for a design-time stand-in.
 - **The window opens empty.** Check the path: `folio.ShowWindow` resolves relative to the project
-  directory, so `ui/hello.rml`, not `Content/ui/hello.rml` and not an absolute path.
+  directory, so `UI/hello.rml`, not `Content/UI/hello.rml` and not an absolute path.
 - **Fine in the editor, empty in a packaged build.** The files were not staged. See step 7.
 - **An edit is ignored in a packaged build.** A stale copy in the `-uidev` override directory. Folio
   logs a warning naming the directory at startup for exactly this reason.

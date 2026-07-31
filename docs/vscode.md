@@ -30,10 +30,10 @@ at startup, so nothing happens until you do.
 
 ## 2. Open the project, not the plugin
 
-File → Open Folder → **your project root**, the one holding `Content/` and `ui/`.
+File → Open Folder → **your project root**, the one holding `Content/` and `UI/`.
 
 This is the one thing that has to be right. The extension finds `uipreview` under `Plugins/Folio/bin/`
-relative to the workspace, and passes the workspace as `--root`, which is what makes `/ui/...` and
+relative to the workspace, and passes the workspace as `--root`, which is what makes `/UI/...` and
 `/folio/...` links resolve. Open the plugin directory on its own and the preview cannot find either.
 
 ## 3. Preview a document
@@ -49,7 +49,7 @@ editor, so switching documents previews the one you are looking at.
 
 Warnings appear beside the render rather than instead of it — `--strict` is on by default, so a
 missing sprite or a property that parses but does nothing is reported rather than quietly rendered
-past. `ui/examples/button.rml` has one, if you want to see what that looks like.
+past. `UI/examples/button.rml` has one, if you want to see what that looks like.
 
 ## Zooming
 

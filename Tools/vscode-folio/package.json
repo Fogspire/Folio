@@ -46,7 +46,7 @@
 				"folio.root": {
 					"type": "string",
 					"default": "",
-					"markdownDescription": "Passed as `--root`. Empty uses the workspace folder. A document's `/ui/...` links resolve against this."
+					"markdownDescription": "Passed as `--root`. Empty uses the workspace folder. A document's `/UI/...` links resolve against this."
 				},
 				"folio.size": {
 					"type": "string",

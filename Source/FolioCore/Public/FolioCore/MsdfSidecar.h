@@ -28,7 +28,7 @@ namespace Folio
 
 	FOLIOCORE_API std::string WriteMsdfSidecar(const FMsdfSidecar& Sidecar);
 
-	/// Given "ui/art/vectors.msdf.png", returns "ui/art/vectors.msdf". Empty if the path does not
+	/// Given "UI/art/vectors.msdf.png", returns "UI/art/vectors.msdf". Empty if the path does not
 	/// carry the suffix that marks an atlas as a distance field.
 	FOLIOCORE_API std::string MsdfSidecarPathFor(const std::string& TexturePath);
 }

@@ -205,7 +205,7 @@ namespace Folio
 			Rml::PropertyId IdColour = Rml::PropertyId::Invalid;
 		};
 
-		/// `font-effect: fill-image(/ui/art/scanlines.png 4dp)` - text filled with a pattern.
+		/// `font-effect: fill-image(/UI/art/scanlines.png 4dp)` - text filled with a pattern.
 		///
 		/// A front layer rather than a change to the base pass: the glyph is drawn again at the
 		/// same coverage with the pattern multiplied in, so it covers the flat colour underneath

@@ -13,7 +13,7 @@ namespace uipreview {
  * cold run over a screen's worth of text is most of a second. Every run after the first reads it
  * back instead.
  *
- * Deliberately not under ui/: it is derived data keyed by file contents, so it is disposable and
+ * Deliberately not under UI/: it is derived data keyed by file contents, so it is disposable and
  * should not look like content someone is meant to edit or commit.
  */
 class FileFontCache final : public Folio::IMsdfCacheStore {

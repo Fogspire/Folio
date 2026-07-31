@@ -5,7 +5,7 @@ A document declares everything its binding surface needs: `data-model="hud"` nam
 `{{ Health }}` names a value, `data-event-click="Reload"` names a command. Writing the matching C++ by
 hand is transcription, and transcription is worth generating.
 
-**Types come from the mock, names come from the markup.** `ui/mock/hud.json` already holds typed values
+**Types come from the mock, names come from the markup.** `UI/mock/hud.json` already holds typed values
 because someone wrote it to see the screen, so `"Health": 0.75` is a float and `"bAlive": true` is a
 bool - with no inference from expressions and no type annotations polluting the markup. That also makes
 the two a cross-check: a name used in markup with no mock entry is exactly the error to report, and so
@@ -252,7 +252,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("document", help="the .rml to read the binding surface from")
-    parser.add_argument("--mock", help="the mock JSON. Defaults to ui/mock/<model>.json above the document")
+    parser.add_argument("--mock", help="the mock JSON. Defaults to UI/mock/<model>.json above the document")
     parser.add_argument("--out", help="where to write the header. Prints to stdout without it")
     parser.add_argument("--api", default="", help="the module's API macro, for a module that exports")
     parser.add_argument("--strict", action="store_true",
@@ -273,14 +273,15 @@ def main() -> int:
     mock_path = pathlib.Path(args.mock) if args.mock else None
     if mock_path is None:
         for parent in document.parents:
-            candidate = parent / "ui" / "mock" / f"{model}.json"
+            candidate = next((parent / name / "mock" / f"{model}.json" for name in ("UI", "ui")
+                              if (parent / name / "mock").is_dir()), parent / "UI" / "mock" / f"{model}.json")
             if candidate.is_file():
                 mock_path = candidate
                 break
 
     if mock_path is None or not mock_path.is_file():
         print(f"viewmodel: no mock for model '{model}'. Types come from it, so there is nothing to "
-              f"generate without one. Write ui/mock/{model}.json with a value of the right type for "
+              f"generate without one. Write UI/mock/{model}.json with a value of the right type for "
               f"each bound name.", file=sys.stderr)
         return 2
 

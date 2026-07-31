@@ -19,7 +19,7 @@ namespace Folio
 	static TAutoConsoleVariable<bool> CVarMockData(
 		TEXT("folio.MockData"),
 		true,
-		TEXT("Mount ui/mock/<model>.json for a document whose model nothing has bound. Off shows what "
+		TEXT("Mount UI/mock/<model>.json for a document whose model nothing has bound. Off shows what "
 			"a player sees when the game forgets to bind it."),
 		ECVF_Default);
 #endif
@@ -217,9 +217,9 @@ FString FFolioDataModel::DiscoverModelName(const FString& DocumentText)
 	return End == INDEX_NONE ? FString() : DocumentText.Mid(At + 1, End - At - 1);
 }
 
-FString FFolioDataModel::FindMockFile(const FString& ContentRoot, const FString& ModelName)
+FString FFolioDataModel::FindMockFile(const FString& ModelName)
 {
-	const FString Candidate = ContentRoot / TEXT("ui") / TEXT("mock") / (ModelName + TEXT(".json"));
+	const FString Candidate = FFolioModule::Get().GetUiRoot() / TEXT("mock") / (ModelName + TEXT(".json"));
 	return FPaths::FileExists(Candidate) ? Candidate : FString();
 }
 

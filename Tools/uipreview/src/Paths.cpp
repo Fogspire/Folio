@@ -158,6 +158,17 @@ std::string FolioRoot()
 	return Forward(executable_directory.parent_path().parent_path().string());
 }
 
+std::string UiDirectory(const std::string& root)
+{
+	std::error_code ec;
+	const std::string upper = root + "/UI";
+	if (fs::is_directory(fs::path(upper), ec))
+		return upper;
+
+	const std::string lower = root + "/ui";
+	return fs::is_directory(fs::path(lower), ec) ? lower : upper;
+}
+
 std::string FindEngineDirectory(const std::string& explicit_directory)
 {
 	if (!explicit_directory.empty())

@@ -7,6 +7,9 @@
 
 #include "Engine/World.h"
 #include "PostProcess/PostProcessInputs.h"
+// FMobilePostProcessingInputs is declared nowhere else. Renderer/Internal carries the deferred
+// twin; the mobile one stayed private.
+#include "PostProcess/PostProcessing.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
 #include "RenderGraphUtils.h"
 #include "SceneInterface.h"
@@ -118,14 +121,29 @@ void FFolioWorldPass::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder,
 		return;
 	}
 
-	const FSceneTextureUniformParameters* SceneTextures = Inputs.SceneTextures->GetContents();
-	if (!SceneTextures)
+	if (const FSceneTextureUniformParameters* SceneTextures = Inputs.SceneTextures->GetContents())
+	{
+		DrawInScene(GraphBuilder, View, SceneTextures->SceneColorTexture, SceneTextures->SceneDepthTexture);
+	}
+}
+
+void FFolioWorldPass::PrePostProcessPassMobile_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View,
+	const FMobilePostProcessingInputs& Inputs)
+{
+	if (!HasSurfaces(/*bInScene*/ true) || !Inputs.SceneTextures)
 	{
 		return;
 	}
 
-	FRDGTextureRef SceneColour = SceneTextures->SceneColorTexture;
-	FRDGTextureRef SceneDepth = SceneTextures->SceneDepthTexture;
+	if (const FMobileSceneTextureUniformParameters* SceneTextures = Inputs.SceneTextures->GetContents())
+	{
+		DrawInScene(GraphBuilder, View, SceneTextures->SceneColorTexture, SceneTextures->SceneDepthTexture);
+	}
+}
+
+void FFolioWorldPass::DrawInScene(FRDGBuilder& GraphBuilder, const FSceneView& View,
+	FRDGTextureRef SceneColour, FRDGTextureRef SceneDepth)
+{
 	if (!SceneColour || !SceneDepth)
 	{
 		return;
@@ -196,10 +214,17 @@ FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FScene
 		Output = FScreenPassRenderTarget(SceneColour, ERenderTargetLoadAction::ELoad);
 	}
 
+	// Either uniform buffer, because the mobile renderer fills its own and leaves the deferred one
+	// null. Read only the first and occlusion silently turns itself off under mobile forward, which
+	// looks like the depth test failing rather than never running.
 	FRDGTextureRef SceneDepth = nullptr;
 	if (Inputs.SceneTextures.SceneTextures)
 	{
 		SceneDepth = Inputs.SceneTextures.SceneTextures->GetContents()->SceneDepthTexture;
+	}
+	else if (Inputs.SceneTextures.MobileSceneTextures)
+	{
+		SceneDepth = Inputs.SceneTextures.MobileSceneTextures->GetContents()->SceneDepthTexture;
 	}
 
 	FTarget Target;

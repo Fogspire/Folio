@@ -47,6 +47,12 @@ public:
 	virtual void PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View,
 		const FPostProcessingInputs& Inputs) override;
 
+	// The mobile renderer never calls the hook above; it has its own, differing only in which scene
+	// texture uniform buffer it carries. Without this an in-scene document draws nothing at all under
+	// mobile forward, silently, while the after-tonemap route keeps working.
+	virtual void PrePostProcessPassMobile_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View,
+		const FMobilePostProcessingInputs& Inputs) override;
+
 	virtual void SubscribeToPostProcessingPass(EPostProcessingPass Pass, const FSceneView& InView,
 		FPostProcessingPassDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override;
 
@@ -54,6 +60,10 @@ public:
 	//~ End FSceneViewExtensionBase
 
 private:
+	/** The in-scene route, once the renderer's own scene colour and depth have been found. */
+	void DrawInScene(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef SceneColour,
+		FRDGTextureRef SceneDepth);
+
 	/** One document's geometry and where it sits, copied for the render thread. */
 	struct FSurface
 	{

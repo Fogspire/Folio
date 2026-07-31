@@ -56,6 +56,11 @@ public class Folio : ModuleRules
 		// UBT does not put on a dependent module's include path, so the path is added by hand.
 		PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Source", "Runtime", "Renderer", "Internal"));
 
+		// FMobilePostProcessingInputs, which the mobile renderer hands to its own
+		// PrePostProcessPassMobile_RenderThread hook, is declared only here. The deferred twin is
+		// in Internal; this one was never promoted.
+		PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Source", "Runtime", "Renderer", "Private"));
+
 		// Hot reload only. DirectoryWatcher is a Developer module and does not exist in a game
 		// build, which is what the -uidev loose-file override covers instead.
 		if (Target.bBuildEditor)

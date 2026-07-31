@@ -109,10 +109,10 @@ void FFolioHotReload::Start()
 	{
 		Roots.Add(Folio.GetPluginRoot() / TEXT("rcss"));
 
-		// Folio's own dev documents. They live outside rcss/ because rcss/ is what a packaged build
-		// stages, and watching only the staged tree left the one set of documents most likely to be
-		// edited while a session is running unable to hot reload at all.
-		Roots.Add(Folio.GetPluginRoot() / TEXT("dev"));
+		// The examples, which sit outside rcss/ because rcss/ is what a packaged build stages. They
+		// are the documents most likely to be pointed at while something is being tried out, so
+		// leaving them unwatched means the one thing anyone edits first cannot hot reload.
+		Roots.Add(Folio.GetPluginRoot() / TEXT("examples"));
 	}
 
 	for (const FString& Root : Roots)

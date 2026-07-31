@@ -1,0 +1,58 @@
+<rml>
+<head>
+	<title>Dashed and dotted borders</title>
+	<meta name="folio-size" content="1000x620"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* RCSS has no `border-style`, so a dashed border is a decorator that strokes the element's
+		   own rounded rectangle rather than a property on the border RmlUi draws.
+
+		   The cases here are the ones that go wrong: a radius large enough to swallow a whole
+		   edge, two radii sharing an edge that together overrun it, corners of different sizes,
+		   and a period that does not divide the perimeter. A dash pattern is only as good as the
+		   seam where it closes, so every tile is a closed loop and the join is the thing to look
+		   at. */
+		body {
+			font-family: Inter;
+			font-size: 16dp;
+			color: #e8ecf2;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			padding: 24dp;
+			box-sizing: border-box;
+			display: flex;
+			flex-wrap: wrap;
+		}
+
+		.cell { width: 220dp; margin: 0 20dp 20dp 0; }
+		.label { font-size: 13dp; font-weight: 600; letter-spacing: 0.4dp; color: #7b8494; margin-bottom: 6dp; }
+		.box { height: 120dp; box-sizing: border-box; }
+
+		.square  { decorator: dashed-border(#4ea1ff 2dp 10dp 6dp); }
+		.rounded { border-radius: 8dp;  decorator: dashed-border(#4ea1ff 2dp 10dp 6dp); }
+		.wide    { border-radius: 32dp; decorator: dashed-border(#f0c674 3dp 12dp 8dp); }
+
+		/* Taller than half the height, so the radii along each side are shrunk to fit and the
+		   straight runs between them vanish. */
+		.pill    { border-radius: 90dp; decorator: dashed-border(#7ee787 2dp 8dp 6dp); }
+
+		/* Larger than the element. Clamping is what stops the arcs overlapping. */
+		.overrun { border-radius: 300dp; decorator: dashed-border(#79c0ff 4dp 14dp 10dp); }
+
+		.uneven  { border-radius: 4dp 40dp 4dp 40dp; decorator: dashed-border(#d2a8ff 2dp 9dp 5dp); }
+		.dotted  { border-radius: 16dp; decorator: dotted-border(#ff7b72 3dp); }
+		.hairline{ border-radius: 12dp; decorator: dotted-border(#8b949e 1dp); }
+	</style>
+</head>
+<body>
+	<div class="cell"><div class="label">SQUARE</div><div class="box square"></div></div>
+	<div class="cell"><div class="label">ROUNDED</div><div class="box rounded"></div></div>
+	<div class="cell"><div class="label">WIDE RADIUS</div><div class="box wide"></div></div>
+	<div class="cell"><div class="label">PILL</div><div class="box pill"></div></div>
+	<div class="cell"><div class="label">RADIUS OVERRUN</div><div class="box overrun"></div></div>
+	<div class="cell"><div class="label">UNEVEN CORNERS</div><div class="box uneven"></div></div>
+	<div class="cell"><div class="label">DOTTED</div><div class="box dotted"></div></div>
+	<div class="cell"><div class="label">HAIRLINE DOTTED</div><div class="box hairline"></div></div>
+</body>
+</rml>

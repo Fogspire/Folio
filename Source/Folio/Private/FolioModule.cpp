@@ -2,6 +2,7 @@
 
 #include "FolioInsights.h"
 
+#include "FolioCore/FolioDecorators.h"
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
@@ -102,6 +103,7 @@ void FFolioModule::StartupModule()
 	// start being resolved from the field.
 	Folio::RegisterFolioFontEffects();
 	Folio::RegisterFolioFilters();
+	Folio::RegisterFolioDecorators();
 
 	RegisterFonts();
 
@@ -158,6 +160,7 @@ void FFolioModule::ShutdownModule()
 
 	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
 	Folio::ReleaseFolioFontEffects();
+	Folio::ReleaseFolioDecorators();
 	Folio::ReleaseFolioFilters();
 
 	RenderInterface.Reset();

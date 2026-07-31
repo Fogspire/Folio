@@ -40,6 +40,7 @@ SHOTS = (
     ("typography.rml", "1920x1080", "1"),
     ("typography.rml", "1920x1080", "2"),
     ("shaping.rml", "1280x820", "1"),
+    ("borders.rml", "1000x620", "1"),
     ("effects.rml", "1920x1080", "1"),
     ("effect_edges.rml", "800x480", "1"),
     ("vector_stack.rml", "600x400", "1"),
@@ -117,6 +118,9 @@ def main() -> int:
 
     harness = Harness(preview, out)
     tests_dir = repo / "Tools/uipreview/tests"
+    # The examples are documents a game copies, so a regression in one is inherited rather
+    # than contained. They are checked alongside the fixtures for that reason.
+    document_dirs = [tests_dir, repo / "examples"]
 
     # What a document needs beyond the defaults, and what it is supposed to do. missing_assets.rml
     # exists to be caught, so a clean exit from it would mean the sprite checks had stopped working.
@@ -143,7 +147,7 @@ def main() -> int:
     # --- Documents --------------------------------------------------------------------------
 
     print("Layout")
-    for document in sorted(tests_dir.glob("*.rml")):
+    for document in sorted(d for directory in document_dirs for d in directory.glob("*.rml")):
         for ratio in RATIOS:
             name = f"{document.stem}@{ratio}"
             report = out / f"{name}.metrics.json"
@@ -209,7 +213,8 @@ def main() -> int:
 
     print("Screenshots")
     for document_name, size, ratio in SHOTS:
-        document = tests_dir / document_name
+        document = next((directory / document_name for directory in document_dirs
+                         if (directory / document_name).is_file()), tests_dir / document_name)
         if not document.is_file():
             harness.fail(f"missing {document_name}")
             continue

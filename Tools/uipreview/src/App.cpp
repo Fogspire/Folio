@@ -20,6 +20,7 @@
 
 #include "FolioCore/FolioCoreVersion.h"
 #include "FolioCore/FolioHost.h"
+#include "FolioCore/FolioDecorators.h"
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
@@ -66,6 +67,7 @@ App::~App()
 
 	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
 	Folio::ReleaseFolioFontEffects();
+	Folio::ReleaseFolioDecorators();
 	Folio::ReleaseFolioFilters();
 
 	// Before the backend, which owns the render interface the atlases release their pages
@@ -222,6 +224,7 @@ bool App::Initialise()
 	// start being resolved from the field.
 	Folio::RegisterFolioFontEffects();
 	Folio::RegisterFolioFilters();
+	Folio::RegisterFolioDecorators();
 
 	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));
 

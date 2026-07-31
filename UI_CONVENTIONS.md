@@ -83,7 +83,7 @@ shrink-to-fit against the context regardless of `display`. `folio.rcss` sets `wi
 | `display: grid` and all `grid-*` properties | flexbox |
 | `var()` and `--custom-properties` | concrete classes in a token stylesheet |
 | `background-image`, `background-size`, `background-position`, `background-repeat` | `decorator: image(...)` |
-| `border-style` (`solid`, `dashed`, `dotted`) | border width + colour only; borders are always solid |
+| `border-style` | `border` gives width and colour and is always solid; `decorator: dashed-border(...)` or `dotted-border(...)` for the other two |
 | `text-shadow` | `font-effect: shadow(...)` |
 | `outline` | `border` or a decorator |
 | `object-fit` | the image decorator's fit modes (`fill`, `contain`, `cover`, `scale-none`, `scale-down`, `repeat`) |
@@ -214,8 +214,8 @@ produces no output.
 **`decorator` and `mask-image`** take: `image`, `ninepatch`, `tiled-horizontal`,
 `tiled-vertical`, `tiled-box`, `text`, `shader`, `gradient`, `horizontal-gradient`,
 `vertical-gradient`, `linear-gradient`, `repeating-linear-gradient`, `radial-gradient`,
-`repeating-radial-gradient`, `conic-gradient`, `repeating-conic-gradient`. `@decorator` names a
-reusable one.
+`repeating-radial-gradient`, `conic-gradient`, `repeating-conic-gradient`, and Folio's own
+`dashed-border` and `dotted-border`. `@decorator` names a reusable one.
 
 **Multiple decorators paint in reverse source order** - the first named is on top, exactly like
 CSS `background-image` layers. Written the intuitive way round, an effect listed after an opaque
@@ -238,6 +238,33 @@ rectangle.
 
 **`font-effect`** takes: `glow`, `outline`, `shadow`, `blur`, and Folio's own `fill-image`.
 These are the only way to get a text shadow; `text-shadow` does not exist.
+
+### Dashed and dotted borders
+
+`border-style` does not exist, and RmlUi's borders are solid quads with no seam to cut them at.
+These are decorators instead, and they stroke the element's own rounded rectangle:
+
+```css
+.drop-zone { border-radius: 8dp; decorator: dashed-border(#4ea1ff 2dp 10dp 6dp); }
+.ghost     { border-radius: 8dp; decorator: dotted-border(#8b949e 1dp); }
+```
+
+`dashed-border(<colour> <width> <dash> <gap>)`, `dotted-border(<colour> <width>)` - a dot is a
+dash the width of the stroke.
+
+Three things follow from it being a decorator rather than a border:
+
+- **It draws in addition to `border`, not instead of it.** Set `border: none` on anything wearing
+  one, or you get both.
+- **It takes no space.** A real border pushes the content in; this is painted over the border box
+  and changes no layout. Add the padding yourself if you want the same look.
+- **One width for the whole outline**, since a corner between two different widths has no
+  defined shape. Per-edge `border-width` is unaffected and still applies to the real border.
+
+The dash period is stretched so a whole number of them fits the perimeter exactly, which is what
+keeps the seam invisible where the path closes. Ask for `10dp` dashes and you get very close to
+`10dp`, not exactly. Corners are followed as true arcs, and radii too large for their edge are
+shrunk to fit the same way `border-radius` itself is.
 
 ### The shader decorator
 

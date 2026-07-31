@@ -1,0 +1,107 @@
+/*
+ * Shared foundation for every component in the library.
+ *
+ * Structure only. Not one colour appears in this file, or in any other under lib/: a colour here
+ * could not be themed, because RCSS has no custom properties and no var(), so a theme cannot swap a
+ * value - it can only override a rule. Everything that decides how this *looks* lives in a theme,
+ * and `/folio/themes/default.rcss` is the one that ships.
+ *
+ * Metrics stay here when they are structural - a border width the focus ring depends on, a box that
+ * must not resize when focused - and move to the theme when they are taste.
+ *
+ * Link `/folio/folio.rcss` first: it establishes what elements mean, this establishes how they are
+ * put together, and the theme establishes what they look like.
+ */
+
+/* A full-viewport root. A document is shrink-to-fit vertically without an explicit height. */
+.screen
+{
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+}
+
+/* --- Interactive base -------------------------------------------------------------- */
+
+/*
+ * Every focusable component inherits this grammar:
+ *   resting        a transparent border, so focus never changes the box
+ *   hover          the surface lifts
+ *   focus-visible  accented border, a glow, slight scale
+ *   active         scale down
+ *
+ * The border is the load-bearing focus signal because border and border-radius are the only parts of
+ * it guaranteed to survive whatever a renderer implements. The glow is an enhancement. A theme may
+ * restyle all of it, but it must not remove the border: taking the box's width away moves everything
+ * beside it the moment focus lands.
+ */
+.focusable
+{
+	box-sizing: border-box;
+	tab-index: auto;
+	border-width: 2dp;
+}
+
+.focusable:focus-visible
+{
+	transform: scale(1.02);
+}
+
+.focusable:active
+{
+	transform: scale(0.98);
+}
+
+/* --- Disabled ---------------------------------------------------------------------- */
+
+/*
+ * RCSS has no :disabled. focus: none drops the element out of navigation and inherits down its
+ * subtree; pointer-events: none is what actually stops it responding to the mouse. Both are
+ * behaviour rather than appearance, so they stay here and the theme only dims it.
+ */
+.is-disabled
+{
+	focus: none;
+	pointer-events: none;
+}
+
+/*
+ * Everything a modal covers. focus: none inherits, so one class on the background container takes
+ * its whole subtree out of navigation, and pointer-events: none stops the mouse reaching it through
+ * the scrim. Remove it when the dialog closes.
+ */
+.is-inert
+{
+	focus: none;
+	pointer-events: none;
+}
+
+/* --- Dividers and rules ------------------------------------------------------------ */
+
+.divider
+{
+	display: block;
+	height: 1px;
+	margin-top: 8dp;
+	margin-bottom: 8dp;
+}
+
+/* --- Placeholder art --------------------------------------------------------------- */
+
+/*
+ * Markup references sprite names only. A name the game's sprite sheet does not declare renders as a
+ * labelled placeholder under uipreview and is recorded in ASSETS_WANTED.md, so a screen stays
+ * reviewable before its art exists. This class only reserves the box.
+ */
+.icon
+{
+	display: inline-block;
+	width: 32dp;
+	height: 32dp;
+	flex: 0 0 auto;
+}
+
+.icon-s { width: 24dp; height: 24dp; }
+.icon-l { width: 48dp; height: 48dp; }

@@ -1,0 +1,255 @@
+/*
+ * The default theme: every value the library refuses to hard-code.
+ *
+ * RCSS has no custom properties and no var() in RmlUi 6.2, so a token cannot be a variable. A theme
+ * is therefore an *override block*, not a swapped value, and that decides the whole shape of this
+ * file: it declares token classes a document can apply directly, and it skins the library's own
+ * classes. A game overrides by loading its own stylesheet after this one and restating the rules it
+ * disagrees with.
+ *
+ * Which in turn is why nothing under lib/ may contain a colour. A colour there could not be
+ * overridden without restating the component's whole rule, so the first game to want a different
+ * button would fork the library.
+ *
+ * Naming: c- colour, t- type, s- spacing, g- gap, r- radius, e- elevation, x- effect.
+ * A c- token sets whichever of background-color or color its role implies; the -on tokens are the
+ * foreground colours that pair with a filled background.
+ */
+/* --- Surfaces ---------------------------------------------------------------------- */
+
+.c-sunken   { background-color: #0e0e13; }
+.c-bg       { background-color: #14141a; }
+.c-surface  { background-color: #1f1f28; }
+.c-raised   { background-color: #2b2b36; }
+.c-overlay  { background-color: #363642; }
+.c-scrim    { background-color: #0a0a0ec2; }
+
+/* --- Foreground ------------------------------------------------------------------- */
+
+.c-text     { color: #e8e8f0; }
+.c-muted    { color: #8a8a99; }
+.c-dim      { color: #5c5c6b; }
+.c-accent   { color: #f0c674; }
+.c-danger   { color: #e06c75; }
+.c-success  { color: #98c379; }
+.c-warn     { color: #d19a66; }
+.c-info     { color: #61afef; }
+
+/* Foregrounds for text sitting on a filled accent or danger background. */
+.c-on-accent { color: #14141a; }
+.c-on-danger { color: #14141a; }
+
+/* --- Fills ------------------------------------------------------------------------ */
+
+.c-fill-accent  { background-color: #f0c674; }
+.c-fill-danger  { background-color: #e06c75; }
+.c-fill-success { background-color: #98c379; }
+
+/* --- Lines ------------------------------------------------------------------------ */
+
+.c-line       { border-color: #3a3a48; }
+.c-line-accent{ border-color: #f0c674; }
+
+/* --- Type scale ------------------------------------------------------------------- */
+
+.t-display  { font-size: 40dp; font-weight: bold; line-height: 1.15; }
+.t-title    { font-size: 28dp; font-weight: bold; line-height: 1.2; }
+.t-heading  { font-size: 22dp; font-weight: bold; line-height: 1.25; }
+.t-body     { font-size: 20dp; line-height: 1.4; }
+.t-label    { font-size: 18dp; line-height: 1.3; }
+.t-small    { font-size: 16dp; line-height: 1.4; }
+.t-caption  { font-size: 13dp; line-height: 1.3; text-transform: uppercase; letter-spacing: 1dp; }
+
+.t-numeric  { font-weight: bold; letter-spacing: 0.5dp; }
+
+/* --- Spacing ---------------------------------------------------------------------- */
+
+.s-pad-xs   { padding: 4dp; }
+.s-pad-s    { padding: 8dp; }
+.s-pad-m    { padding: 16dp; }
+.s-pad-l    { padding: 24dp; }
+.s-pad-xl   { padding: 32dp; }
+
+.s-gap-xs   { margin-bottom: 4dp; }
+.s-gap-s    { margin-bottom: 8dp; }
+.s-gap-m    { margin-bottom: 16dp; }
+.s-gap-l    { margin-bottom: 24dp; }
+.s-gap-xl   { margin-bottom: 32dp; }
+
+/* Flex gaps, for a container rather than an item. */
+.g-xs       { gap: 4dp; }
+.g-s        { gap: 8dp; }
+.g-m        { gap: 16dp; }
+.g-l        { gap: 24dp; }
+.g-xl       { gap: 32dp; }
+
+/* --- Radius ----------------------------------------------------------------------- */
+
+.r-s        { border-radius: 4dp; }
+.r-m        { border-radius: 8dp; }
+.r-l        { border-radius: 16dp; }
+.r-pill     { border-radius: 999dp; }
+
+/* --- Elevation -------------------------------------------------------------------- */
+
+.e-1        { box-shadow: #00000059 0dp 2dp 6dp; }
+.e-2        { box-shadow: #0000007f 0dp 6dp 18dp; }
+.e-3        { box-shadow: #000000a5 0dp 14dp 40dp; }
+
+/* --- Layout helpers --------------------------------------------------------------- */
+
+.x-row      { display: flex; flex-direction: row; align-items: center; }
+.x-col      { display: flex; flex-direction: column; }
+.x-fill     { flex: 1 1 0; }
+.x-center   { justify-content: center; align-items: center; }
+.x-between  { justify-content: space-between; align-items: center; }
+.x-truncate { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+
+/* --- Motion ----------------------------------------------------------------------- */
+
+/*
+ * Shared keyframes. Keyframes are global to a document's loaded stylesheets, so components
+ * reference these by name rather than declaring their own.
+ *
+ * Only transform, opacity and colour appear here. Animating a layout property is the one
+ * reliable way to make this slower than the UMG it replaces.
+ */
+
+@keyframes focus-breathe
+{
+	from { opacity: 0.55; }
+	50%  { opacity: 1.0; }
+	to   { opacity: 0.55; }
+}
+
+@keyframes rise-in
+{
+	from { opacity: 0; transform: translateY(12dp); }
+	to   { opacity: 1; transform: translateY(0dp); }
+}
+
+@keyframes fade-in
+{
+	from { opacity: 0; }
+	to   { opacity: 1; }
+}
+
+@keyframes nudge-right
+{
+	from { transform: translateX(0dp); }
+	50%  { transform: translateX(4dp); }
+	to   { transform: translateX(0dp); }
+}
+
+/* ==================================================================================== */
+/* Component skins                                                                      */
+/*                                                                                      */
+/* Everything below dresses a class that lib/ declared the structure of. A game that     */
+/* wants a different look restates these rules in its own stylesheet, loaded after this  */
+/* one; it never edits the library.                                                      */
+/* ==================================================================================== */
+
+/* --- base -------------------------------------------------------------------------- */
+
+body
+{
+	font-family: Inter;
+	font-size: 20dp;
+	line-height: 1.4;
+	color: #e8e8f0;
+	background-color: #14141a;
+
+	/* The document holds focus before anything else does; without this the first direction press
+	   has nowhere to go and the screen is unreachable on a controller. */
+	nav: auto;
+}
+
+.focusable
+{
+	border-color: #ffffff00;
+	transition: background-color 0.12s cubic-out, border-color 0.12s cubic-out,
+		color 0.12s cubic-out, box-shadow 0.12s cubic-out, transform 0.1s cubic-out;
+}
+
+.focusable:hover          { background-color: #363642; }
+.focusable:focus-visible  { border-color: #f0c674; box-shadow: #f0c67459 0dp 0dp 12dp; }
+
+.is-disabled              { color: #5c5c6b; opacity: 0.6; }
+.is-disabled:hover        { background-color: transparent; }
+
+.divider                  { background-color: #3a3a48; }
+.divider-soft             { background-color: #2b2b36; }
+
+/* A divider that fades out at both ends, so it reads as trim rather than a table rule. */
+.divider-fade
+{
+	background-color: transparent;
+	/* horizontal-gradient takes exactly two colours. Three needs the stop-list form. */
+	decorator: linear-gradient(to right, #3a3a4800, #3a3a48, #3a3a4800);
+}
+
+/* folio.rcss gives the scrollbars their size, without which a scrolling container destroys its own
+   layout. This is only what they look like. */
+
+scrollbarvertical,
+scrollbarhorizontal
+{
+	background-color: #0e0e13;
+}
+
+scrollbarvertical sliderbar,
+scrollbarhorizontal sliderbar
+{
+	background-color: #3a3a48;
+	border-radius: 5dp;
+}
+
+scrollbarvertical sliderbar:hover,
+scrollbarhorizontal sliderbar:hover
+{
+	background-color: #5c5c6b;
+}
+
+/* --- button ------------------------------------------------------------------------ */
+
+.btn
+{
+	background-color: #2b2b36;
+	color: #e8e8f0;
+	font-size: 20dp;
+	line-height: 1.2;
+	border-radius: 8dp;
+}
+
+.btn:focus-visible        { background-color: #363642; }
+
+.btn-primary
+{
+	background-color: #f0c674;
+	color: #14141a;
+	font-weight: bold;
+}
+
+.btn-primary:hover        { background-color: #ffd98a; }
+.btn-primary:focus-visible{ background-color: #ffd98a; border-color: #ffffff; }
+
+.btn-danger
+{
+	background-color: #e06c75;
+	color: #14141a;
+	font-weight: bold;
+}
+
+.btn-danger:hover         { background-color: #ef8d95; }
+.btn-danger:focus-visible { background-color: #ef8d95; border-color: #ffffff; }
+
+.btn-ghost
+{
+	background-color: transparent;
+	color: #8a8a99;
+}
+
+.btn-ghost:hover          { background-color: #2b2b36; color: #e8e8f0; }
+.btn-ghost:focus-visible  { color: #e8e8f0; }
+
+.btn-small                { font-size: 16dp; }

@@ -1,0 +1,34 @@
+<template name="folio-lib" content="content">
+<!--
+	Folio's component library in one link.
+
+	RCSS has no @import, so a stylesheet cannot pull in another one. A template's head is merged into
+	any document that links the template, which is the only aggregation mechanism RmlUi has. A
+	document writes:
+
+	Never write an angle-bracketed head, body or template tag inside this comment. The template loader
+	finds those three by raw text search before any XML parsing happens, so a mention inside a comment
+	is indistinguishable from the real thing and truncates the file at the wrong place.
+
+		<link type="text/template" href="/folio/lib/lib.rml"/>
+
+	and gets everything below. The document does not have to apply the template - linking it is enough
+	to merge the head.
+
+	Order is the whole mechanism, because a theme overrides by restating a rule and the later rule
+	wins. folio.rcss establishes what elements mean, lib/ establishes how they are put together, and
+	the theme establishes what they look like. A game links this and then its own stylesheet, whose
+	rules land last.
+-->
+<head>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+
+	<link type="text/rcss" href="/folio/lib/base.rcss"/>
+	<link type="text/rcss" href="/folio/lib/button.rcss"/>
+
+	<link type="text/rcss" href="/folio/themes/default.rcss"/>
+</head>
+<body>
+	<div id="content"/>
+</body>
+</template>

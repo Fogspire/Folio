@@ -1,0 +1,79 @@
+/*
+ * Button.
+ *
+ *   <button class="btn focusable" data-loc="start">Start Game</button>
+ *   <button class="btn btn-primary focusable" data-loc="confirm">Confirm</button>
+ *   <div class="btn-row"> ... </div>
+ *
+ * <button> is not a real element type in RML; it is a generic element that folio.rcss gives
+ * inline-block. It becomes a button here, and it becomes focusable through .focusable, which is also
+ * what makes Enter and the gamepad confirm button synthesise a click on it.
+ *
+ * Structure only. Every colour, and the type size, is in the theme.
+ */
+
+.btn
+{
+	display: inline-block;
+	box-sizing: border-box;
+	padding: 10dp 24dp;
+	min-width: 160dp;
+	text-align: center;
+
+	/* nav lives on the focusable element itself, never on its container. auto by default so focus
+	   can always leave a button row upward; lock an axis only where it earns it. */
+	nav: auto;
+}
+
+/* --- Variants ---------------------------------------------------------------------- */
+
+/*
+ * A variant is a class the theme colours. The structural difference is only what it changes about
+ * the box, which for the filled variants is nothing at all - so .btn-primary and .btn-danger appear
+ * here only as a note that they exist.
+ */
+
+/* Chromeless, for tertiary actions and back links. */
+.btn-ghost
+{
+	min-width: 0dp;
+	padding: 8dp 12dp;
+}
+
+/* Square, for icon-only actions. */
+.btn-icon
+{
+	min-width: 0dp;
+	padding: 8dp;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.btn-wide  { width: 100%; min-width: 0dp; }
+.btn-small { padding: 6dp 16dp; min-width: 120dp; }
+
+/* --- Layout ------------------------------------------------------------------------ */
+
+.btn-row
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12dp;
+}
+
+.btn-row-end { justify-content: flex-end; }
+
+/* A stack of full-width buttons, as a main menu wants. Items navigate on the vertical axis. */
+.btn-stack
+{
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 12dp;
+}
+
+/* A stack is unambiguous vertically, so left and right are dropped rather than sending focus
+   sideways into whatever happens to sit beside the menu. */
+.btn-stack .btn { nav: vertical; }

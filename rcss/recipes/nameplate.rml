@@ -1,0 +1,84 @@
+<rml>
+<head>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		/* A nameplate for UFolioMarkerDocument: laid out at the component's Size and placed by the
+		   projection, so nothing in here knows or cares where in the world it ended up.
+
+		   The body is transparent and exactly the size the component asked for. A background on the
+		   body would draw a rectangle over the scene at every marker, which is almost never wanted -
+		   put it on the plate instead, so it wraps the content. */
+		body {
+			background-color: transparent;
+			font-family: Inter;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: flex-end;
+			height: 100%;
+		}
+
+		.plate {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			padding: 6dp 12dp;
+			background-color: #14141ad9;
+			border: 1dp #ffffff26;
+			border-radius: 8dp;
+		}
+
+		.name {
+			font-size: 18dp;
+			color: #e8e8f0;
+		}
+
+		/* Health as a plain bar. Two divs rather than a decorator: the fill's width is the one thing
+		   that changes every frame, and a width is the cheapest property to animate. */
+		.bar {
+			width: 120dp;
+			height: 5dp;
+			margin-top: 5dp;
+			background-color: #00000080;
+			border-radius: 3dp;
+		}
+
+		.bar-fill {
+			height: 100%;
+			background-color: #7ad97a;
+			border-radius: 3dp;
+			transition: width 0.15s cubic-out, background-color 0.3s cubic-out;
+		}
+
+		/* Colour by state rather than by a threshold in code, so the rule is here where it can be seen
+		   next to the size and the radius it has to agree with. */
+		.bar-fill.hurt     { background-color: #f0c674; }
+		.bar-fill.critical { background-color: #e06c75; }
+
+		/* A pointer down at the thing being labelled. Rotating a square is smaller than a triangle
+		   sprite and scales with the plate. */
+		.tail {
+			width: 10dp;
+			height: 10dp;
+			margin-top: -5dp;
+			background-color: #14141ad9;
+			border-right: 1dp #ffffff26;
+			border-bottom: 1dp #ffffff26;
+			transform: rotate(45deg);
+		}
+	</style>
+</head>
+
+<body data-model="nameplate">
+	<div class="plate">
+		<span class="name">{{ Name }}</span>
+		<div class="bar">
+			<div class="bar-fill"
+				data-style-width="Health + '%'"
+				data-class-hurt="Health &lt; 50"
+				data-class-critical="Health &lt; 20"></div>
+		</div>
+	</div>
+	<div class="tail"></div>
+</body>
+</rml>

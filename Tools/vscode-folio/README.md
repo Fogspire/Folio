@@ -53,6 +53,7 @@ crisp. Scaling a screenshot would show you the scaler's work instead.
 
 Hover to see what a click would take: the element is outlined and labelled with its tag, id, classes
 and size. Click to select it, and the bar lists every rule that reaches it - click one to open it.
+Click past everything, or press `Escape`, to deselect.
 Drag a selection to move it, and pick which rule the move should edit: `.btn` moves every button,
 `#continue` moves one.
 

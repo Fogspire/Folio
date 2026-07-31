@@ -534,6 +534,15 @@ function show(state) {
 
 			stage.addEventListener("mouseleave", () => { hovered = null; redraw(); });
 
+			document.addEventListener("keydown", (event) => {
+				if (event.key !== "Escape" || !selection) { return; }
+
+				selection = null;
+				redraw();
+				showRules(null);
+				api.postMessage({ kind: "select", path: null });
+			});
+
 			stage.addEventListener("mousedown", (event) => {
 				const [x, y] = documentPoint(event);
 
@@ -547,7 +556,16 @@ function show(state) {
 
 				const stack = candidatesAt(x, y);
 				const hit = stack.length > 0 ? stack[Math.min(depth, stack.length - 1)] : null;
-				if (!hit) { return; }
+
+				// Clicking past everything clears, the way clicking empty canvas does anywhere else.
+				// Without it the last element stays selected for the life of the document.
+				if (!hit) {
+					selection = null;
+					redraw();
+					showRules(null);
+					api.postMessage({ kind: "select", path: null });
+					return;
+				}
 
 				selection = hit;
 				redraw();
@@ -697,6 +715,13 @@ async function handleMessage(message) {
 	// up first rejected it and this never ran.
 	if (message.kind === "goto") {
 		await openRule(message.file, message.line);
+		return;
+	}
+
+	// Before the element lookup, for the same reason goto is: a clear names no element, so looking one
+	// up first drops the message and the selection outlives every attempt to dismiss it.
+	if (message.kind === "select" && !message.path) {
+		selected = null;
 		return;
 	}
 

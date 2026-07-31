@@ -46,7 +46,7 @@ void UFolioMarkerDocument::PostEditChangeProperty(FPropertyChangedEvent& Propert
 
 	if (!DocumentPath.IsEmpty() && !UFolioDocumentPathLibrary::DocumentExists(DocumentPath))
 	{
-		UFolioDocumentPathLibrary::ReportMissingDocument(DocumentPath, TEXT("Folio Marker Document"));
+		UFolioDocumentPathLibrary::ReportMissingDocument(DocumentPath, TEXT("Folio Marker Document"), this);
 	}
 }
 #endif

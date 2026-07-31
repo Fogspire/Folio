@@ -1000,7 +1000,7 @@ void UFolioWorldDocument::PostEditChangeProperty(FPropertyChangedEvent& Property
 
 		if (!DocumentPath.IsEmpty() && !UFolioDocumentPathLibrary::DocumentExists(DocumentPath))
 		{
-			UFolioDocumentPathLibrary::ReportMissingDocument(DocumentPath, TEXT("Folio World Document"));
+			UFolioDocumentPathLibrary::ReportMissingDocument(DocumentPath, TEXT("Folio World Document"), this);
 		}
 	}
 

@@ -123,5 +123,6 @@ public:
 	 * loaded and is laid out wrong - so the two have to be told apart here rather than by guessing.
 	 * Lists what is available, because the answer is almost always a typo against something in the list.
 	 */
-	static void ReportMissingDocument(const FString& DocumentPath, const TCHAR* Context);
+	static void ReportMissingDocument(const FString& DocumentPath, const TCHAR* Context,
+		const UObject* Referencer = nullptr);
 };

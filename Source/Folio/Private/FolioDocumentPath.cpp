@@ -303,13 +303,28 @@ FString UFolioDocumentPathLibrary::MakeDocumentPathPortable(const FString& Docum
 	return Path;
 }
 
-void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPath, const TCHAR* Context)
+void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPath, const TCHAR* Context,
+	const UObject* Referencer)
 {
 	const FString Resolved = ResolveDocumentPath(DocumentPath);
 
 	UE_LOG(LogFolio, Error,
 		TEXT("%s: '%s' does not exist. It resolved to '%s'."),
 		Context, *DocumentPath, Resolved.IsEmpty() ? TEXT("nothing") : *Resolved);
+
+	// The one thing the report was missing. A path is set on an object somewhere in a level or a
+	// Blueprint, and without naming it the only way to find it is to open things until one matches.
+	if (Referencer)
+	{
+		const AActor* Actor = Cast<AActor>(Referencer);
+		if (const UActorComponent* Component = Cast<UActorComponent>(Referencer))
+		{
+			Actor = Component->GetOwner();
+		}
+
+		UE_LOG(LogFolio, Error, TEXT("%s: set on '%s'%s."), Context, *Referencer->GetPathName(),
+			Actor ? *FString::Printf(TEXT(", on actor '%s'"), *Actor->GetActorNameOrLabel()) : TEXT(""));
+	}
 
 	if (FPaths::IsRelative(DocumentPath))
 	{

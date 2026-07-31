@@ -165,10 +165,11 @@ public:
 	 * An empty path is an error only for a component placed in a level, since one on a Blueprint may be
 	 * given its document from code before it ever registers.
 	 *
-	 * Returns whether anything was reported, so a caller can fold it into its own result.
+	 * Returns what was reported, so a caller can fold it into its own result. Only an error makes an
+	 * asset invalid: a document packaging will not stage is correct everywhere it is being looked at.
 	 */
-	static bool ValidateDocumentPath(const UActorComponent& Component, const FString& DocumentPath,
-		class FDataValidationContext* Validation);
+	static EFolioDocumentPathIssue ValidateDocumentPath(const UActorComponent& Component,
+		const FString& DocumentPath, class FDataValidationContext* Validation);
 
 	/**
 	 * What is wrong with a component's document path, without reporting it anywhere.

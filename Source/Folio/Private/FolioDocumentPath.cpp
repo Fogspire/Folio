@@ -524,14 +524,14 @@ EFolioDocumentPathIssue UFolioDocumentPathLibrary::DescribeDocumentPathIssue(
 		: EFolioDocumentPathIssue::Unresolved;
 }
 
-bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Component,
-	const FString& DocumentPath, FDataValidationContext* Validation)
+EFolioDocumentPathIssue UFolioDocumentPathLibrary::ValidateDocumentPath(
+	const UActorComponent& Component, const FString& DocumentPath, FDataValidationContext* Validation)
 {
 	FText Message;
 	const EFolioDocumentPathIssue Issue = DescribeDocumentPathIssue(Component, DocumentPath, Message);
 	if (Issue == EFolioDocumentPathIssue::None)
 	{
-		return false;
+		return Issue;
 	}
 
 	// A document that will not be staged still works everywhere it is being looked at today, so it is
@@ -562,7 +562,7 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 			->AddToken(FTextToken::Create(Message));
 	}
 
-	return true;
+	return Issue;
 }
 
 #endif

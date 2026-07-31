@@ -1123,7 +1123,12 @@ EDataValidationResult UFolioWorldDocument::IsDataValid(FDataValidationContext& C
 {
 	EDataValidationResult Result = Super::IsDataValid(Context);
 
-	if (UFolioDocumentPathLibrary::ValidateDocumentPath(*this, DocumentPath.Path, &Context))
+	// A warning does not make the asset invalid: an unstaged document is correct in the editor and in
+	// a standalone run, and failing validation over it would fail a cook that is otherwise fine.
+	const EFolioDocumentPathIssue Issue =
+		UFolioDocumentPathLibrary::ValidateDocumentPath(*this, DocumentPath.Path, &Context);
+
+	if (Issue != EFolioDocumentPathIssue::None && Issue != EFolioDocumentPathIssue::Unstaged)
 	{
 		Result = EDataValidationResult::Invalid;
 	}

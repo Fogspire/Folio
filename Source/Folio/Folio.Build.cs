@@ -37,6 +37,9 @@ public class Folio : ModuleRules
 			"Projects",
 			// For UFolioSettings, which is where a project sets a default once rather than per document.
 			"DeveloperSettings",
+			// For writing a surface render to a PNG, which is how the engine's output becomes
+			// comparable with the preview tool's.
+			"ImageWrapper",
 			"TraceLog",
 			"ApplicationCore",
 			"Json",

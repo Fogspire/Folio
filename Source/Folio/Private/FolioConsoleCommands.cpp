@@ -12,6 +12,10 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioDocumentHost.h"
 #include "FolioTheme.h"
+
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Modules/ModuleManager.h"
 #include "FolioDrawList.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
@@ -1114,7 +1118,8 @@ namespace
 		int32 Distinct = 0;
 	};
 
-	bool RenderSurfaceAndRead(FFolioDocumentHost& Host, const FIntPoint Size, FSurfaceSummary& Out)
+	/** Renders a document through the surface path and reads the target back. */
+	bool RenderSurfaceToPixels(FFolioDocumentHost& Host, const FIntPoint Size, TArray<FColor>& OutPixels)
 	{
 		Rml::Context* Context = Host.GetContext();
 		FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
@@ -1145,8 +1150,13 @@ namespace
 		FlushRenderingCommands();
 
 		FTextureRenderTargetResource* Resource = Target->GameThread_GetRenderTargetResource();
+		return Resource && Resource->ReadPixels(OutPixels) && !OutPixels.IsEmpty();
+	}
+
+	bool RenderSurfaceAndRead(FFolioDocumentHost& Host, const FIntPoint Size, FSurfaceSummary& Out)
+	{
 		TArray<FColor> Pixels;
-		if (!Resource || !Resource->ReadPixels(Pixels) || Pixels.IsEmpty())
+		if (!RenderSurfaceToPixels(Host, Size, Pixels))
 		{
 			return false;
 		}
@@ -1472,6 +1482,93 @@ namespace
 		UE_LOG(LogFolio, Display, TEXT("theme '%s' %s"), *Args[0],
 			bActive ? TEXT("on") : TEXT("off"));
 	}
+
+	/**
+	 * Renders a document the way a surface does and writes it to a PNG.
+	 *
+	 *   folio.Surface.Shot ui/examples/panel.rml Saved/panel.png 1280 720
+	 *
+	 * The engine's answer to `uipreview --screenshot`, and the reason it exists: the two renderers can
+	 * only be compared if both can be asked the same question without a person watching. A screenshot
+	 * of the viewport would carry the game behind it and whatever else is on screen; a surface render
+	 * is the document and nothing else, on a transparent ground.
+	 */
+	void RunSurfaceShot(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 2)
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("usage: folio.Surface.Shot <document> <out.png> [width] [height]"));
+			return;
+		}
+
+		const FIntPoint Size(
+			Args.Num() > 2 ? FMath::Max(1, FCString::Atoi(*Args[2])) : 1280,
+			Args.Num() > 3 ? FMath::Max(1, FCString::Atoi(*Args[3])) : 720);
+
+		FFolioDocumentHost Host;
+		if (!Host.Create(TEXT("shot"), Size))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio surface shot: could not create a context"));
+			return;
+		}
+
+		Host.LoadDocument(Args[0]);
+		if (!Host.GetDocument())
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio surface shot: could not load '%s'"), *Args[0]);
+			return;
+		}
+
+		// Twice: the first update lays out and the second lets anything that reacted to layout settle,
+		// which is what a preview screenshot gets for free by running a few frames.
+		Host.MarkDirty(TEXT("surface shot"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+		Host.MarkDirty(TEXT("surface shot"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+
+		TArray<FColor> Pixels;
+		if (!RenderSurfaceToPixels(Host, Size, Pixels))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio surface shot: nothing could be read back"));
+			return;
+		}
+
+		// Opaque alpha would be a lie about a document that does not cover its own bounds, but a PNG
+		// comparison wants the colour that was actually written rather than one blended against white.
+		TArray64<uint8> Png;
+		IImageWrapperModule& Wrappers = FModuleManager::LoadModuleChecked<IImageWrapperModule>(
+			TEXT("ImageWrapper"));
+		const TSharedPtr<IImageWrapper> Wrapper = Wrappers.CreateImageWrapper(EImageFormat::PNG);
+		if (!Wrapper.IsValid()
+			|| !Wrapper->SetRaw(Pixels.GetData(), Pixels.Num() * sizeof(FColor), Size.X, Size.Y,
+				ERGBFormat::BGRA, 8))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio surface shot: could not encode a PNG"));
+			return;
+		}
+
+		Png = Wrapper->GetCompressed(100);
+
+		const FString Out = FPaths::IsRelative(Args[1])
+			? FPaths::Combine(FPaths::ProjectDir(), Args[1]) : Args[1];
+
+		if (!FFileHelper::SaveArrayToFile(Png, *Out))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio surface shot: could not write '%s'"), *Out);
+			return;
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("folio surface shot: '%s' at %dx%d -> %s"),
+			*Args[0], Size.X, Size.Y, *Out);
+	}
+
+	FAutoConsoleCommand SurfaceShotCommand(
+		TEXT("folio.Surface.Shot"),
+		TEXT("folio.Surface.Shot <document> <out.png> [width] [height]. Renders a document through the "
+			"surface path and writes it to a PNG, so the engine's output can be compared with the "
+			"preview tool's."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunSurfaceShot));
 
 	FAutoConsoleCommand ThemeCommand(
 		TEXT("folio.Theme"),

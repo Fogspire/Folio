@@ -1418,6 +1418,24 @@ It covers the **layer** path too, by rendering a document into a target through 
 reading the pixels back. Three questions answer most of what can go wrong: did anything draw, is it
 more than one colour, and is it white. The last is not arbitrary - see below.
 
+## Comparing the two renderers: match dp, and compare coverage rather than colour
+
+`folio.Surface.Shot <doc> <out.png> [w] [h]` is the engine's answer to `uipreview --screenshot`. It
+renders through the surface path rather than screenshotting the viewport, so the image is the document
+and nothing else, on a transparent ground.
+
+Two things have to be right before a comparison means anything:
+
+- **Pin the dp ratio on both.** The preview's ratio follows its viewport by default (`--dp-reference`,
+  1080), and the engine host is told one directly. Unmatched, every length differs and the images look
+  like a layout bug rather than a settings mismatch. `uipreview --dp-ratio 1` against a host updated
+  with a ratio of 1 lines the two up exactly - verified on `ui/examples/panel.rml`, where every text
+  baseline and panel edge agrees.
+- **Compare coverage, not RGB.** The engine writes premultiplied colour on a transparent ground; the
+  preview composites onto an opaque one, and does no sRGB conversion where Slate linearises vertex
+  colour and applies display gamma. The same document is therefore a different colour in each and the
+  same shape in both.
+
 ## A generated image has no UTexture, and the non-Slate paths bind white without one
 
 `RegisterPixels` builds an `FSlateDynamicImageBrush` and a Slate resource handle, and deliberately

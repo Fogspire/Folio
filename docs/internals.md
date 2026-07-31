@@ -636,6 +636,21 @@ atlas belongs to the font engine and goes at shutdown through `ReleaseAtlasHandl
 only cheap way to catch this class of bug: it needs a reload to happen, and a reload is
 something you normally only do by hand.
 
+## A glyph atlas has to be written twice
+
+`UpdateTextureRegions` writes the RHI texture and only the RHI texture. The `UTexture2D`'s own
+mip stays as it was when the page was created, which is zeroed, and anything that reinitialises
+the resource rebuilds the GPU texture from that mip.
+
+The editor does exactly that when it switches to a mobile preview platform: `SetPreviewPlatform`
+applies a preview device profile, and the atlas comes back blank. Every glyph disappears while
+the boxes and sprites around them keep drawing, because those textures had their pixels written
+into the mip before `UpdateResource`. It reads as "text does not work on mobile" and has nothing
+to do with mobile. A device profile change does the same thing on any platform.
+
+So `UploadAtlasRegion` writes each region into `Mips[0]` as well as uploading it. The mip is
+already allocated by `CreateTransient`, so the mirror costs nothing but the copy.
+
 ## An effect cannot reach as far as the field does
 
 `outline(20px)` on 40dp text drew each glyph as a solid rectangle of colour, quad edges and all,

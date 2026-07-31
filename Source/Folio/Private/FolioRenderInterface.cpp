@@ -1783,6 +1783,32 @@ void FFolioRenderInterface::UploadAtlasRegion(const Folio::FMsdfHandle Page, con
 		}
 	}
 
+	// Written into the texture's own mip as well as uploaded, because UpdateTextureRegions touches
+	// the RHI texture and nothing else. Anything that reinitialises the resource rebuilds it from
+	// this mip: switching the editor to a mobile preview platform does, and so does a device
+	// profile change, and every glyph written so far would otherwise come back blank while the
+	// boxes around them kept drawing. The mip is already allocated, so mirroring costs nothing.
+	if (FTexturePlatformData* Platform = Texture->GetPlatformData(); Platform && Platform->Mips.Num() > 0)
+	{
+		FTexture2DMipMap& Mip = Platform->Mips[0];
+		const int64 PageWidth = Mip.SizeX;
+		const int64 PageHeight = Mip.SizeY;
+
+		if (Region.X >= 0 && Region.Y >= 0 && Region.X + Width <= PageWidth && Region.Y + Height <= PageHeight
+			&& Mip.BulkData.GetBulkDataSize() >= PageWidth * PageHeight * 4)
+		{
+			if (uint8* Mirror = static_cast<uint8*>(Mip.BulkData.Lock(LOCK_READ_WRITE)))
+			{
+				for (int32 Y = 0; Y < Height; ++Y)
+				{
+					FMemory::Memcpy(Mirror + ((Region.Y + Y) * PageWidth + Region.X) * 4,
+						Bgra + static_cast<int64>(Y) * Width * 4, static_cast<SIZE_T>(Width) * 4);
+				}
+			}
+			Mip.BulkData.Unlock();
+		}
+	}
+
 	// A sub-rectangle update into the same texture, so every resource handle already handed out
 	// stays valid. Reallocating would strand geometry RmlUi has cached against this page.
 	FUpdateTextureRegion2D* UpdateRegion =

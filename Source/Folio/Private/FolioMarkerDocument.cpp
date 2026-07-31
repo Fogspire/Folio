@@ -1,9 +1,6 @@
-// Before the component's own header, and before anything else in this module: the header declares a
-// TUniquePtr to this type and only forward declares it, so whichever translation unit reaches it first
-// in a unity build has to have already seen the definition.
-#include "FolioDocumentHost.h"
-
 #include "FolioMarkerDocument.h"
+
+#include "FolioDocumentHost.h"
 
 #include "FolioMarkerLayer.h"
 #include "FolioModule.h"

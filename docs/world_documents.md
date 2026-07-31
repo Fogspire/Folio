@@ -123,6 +123,12 @@ size is cheap: geometry is compiled once and glyphs are size-independent, so not
 
 - **Max Surface Scale** bounds it, as a multiple of the document's own size. The default of 2 lets a
   1000x600 document reach 2000x1200.
+- The target follows the surface *down* as well as up. A document laid out at 1200 that lands 14
+  pixels tall does not want a 1200-tall texture, and being given one is what makes a distant panel
+  sparkle rather than merely soften.
+- The target carries a mip chain, filled after each render. Without one a surface seen from any
+  distance is minified with a single bilinear tap, and thin strokes and small text break up and crawl
+  - which reads as "low quality" long before it reads as aliasing.
 - Resolution rises the moment it is wanted and falls only after a whole step has been given up, so
   standing near a boundary does not flip it every frame.
 - `folio.World.SurfaceAutoResolution 0` pins the target to the document's size instead, which is the
@@ -161,11 +167,14 @@ folio.WorldTest: 'ui/screens/terminal.rml' laid out at 1000x600, rendered into a
     the target is at or above the surface's on-screen size, so it is not what is limiting sharpness.
 ```
 
-If the target is **smaller** than the on-screen size, raising `Max Surface Scale` will help. If it is
-already at or above and still looks soft, more resolution will do nothing — the mesh is scene geometry,
-so it is rasterised at the scene's rendering resolution and resolved through whatever temporal
-upscaler the project runs. With TSR at 67%, a panel covering 900 display pixels is drawn into about
-600 and upscaled back. **No target size fixes that**, and it is the usual answer.
+If the target is **smaller** than the on-screen size, raising `Max Surface Scale` will help.
+
+If it is already well **above** it, more resolution is not the answer and never was: the surface is
+being minified, and what governs that is the mip chain rather than the target's size.
+
+If the two are close and it still looks soft, the mesh is scene geometry, so it is rasterised at the
+scene's rendering resolution and resolved through whatever temporal upscaler the project runs. `After
+Tonemap` is drawn after both.
 
 What actually helps, in order:
 

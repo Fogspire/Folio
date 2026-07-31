@@ -394,6 +394,15 @@ private:
 	void RenderToSurface(FIntPoint Size);
 
 	/**
+	 * Fills the surface target's mip chain, which nothing else does on this path.
+	 *
+	 * The document is drawn through RDG rather than a canvas, so the engine's automatic generation never
+	 * runs and the chain stays empty. An empty chain is worse than none: the material samples trilinear
+	 * and reads uninitialised mips. Cheap in practice, because a settled document does not re-render.
+	 */
+	void GenerateSurfaceMips();
+
+	/**
 	 * How large the offscreen target should be, from how large the surface lands on screen.
 	 *
 	 * Quantised, because a target that changed size every frame would reallocate every frame and the

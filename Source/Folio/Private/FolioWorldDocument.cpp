@@ -15,7 +15,12 @@
 #include "Kismet/GameplayStatics.h"
 #include "Camera/PlayerCameraManager.h"
 #include "DrawDebugHelpers.h"
+#include "GenerateMips.h"
 #include "RHIGlobals.h"
+#include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
+#include "RenderingThread.h"
+#include "TextureResource.h"
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
@@ -812,9 +817,13 @@ FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const
 		return Document;
 	}
 
-	// Rounded up to a step, so approaching the surface raises the resolution before it looks soft rather
-	// than after. Never above the document's own size times the cap, and never above what it lands at.
-	const float Ratio = FMath::Clamp(ScreenPixels / float(FMath::Max(1, Document.Y)), 0.25f, MaxSurfaceScale);
+	// Sized from the screen rather than from the document, and rounded up to a step so approaching the
+	// surface raises the resolution before it looks soft rather than after.
+	//
+	// The floor used to be a fraction of the document's own size, which had it backwards: a document
+	// laid out at 1200 that lands 14 pixels tall was given a 256-tall target and minified eighteen
+	// times. Distance should cost resolution, not keep it.
+	const float Ratio = FMath::Min(ScreenPixels / float(FMath::Max(1, Document.Y)), MaxSurfaceScale);
 	int32 Height = FMath::Clamp(
 		FMath::DivideAndRoundUp(FMath::RoundToInt(float(Document.Y) * Ratio), SurfaceSizeStep) * SurfaceSizeStep,
 		SurfaceSizeStep, MaxEdge);
@@ -851,7 +860,16 @@ void UFolioWorldDocument::RenderToSurface(const FIntPoint Size)
 		// Premultiplied transparent, matching the layer path: a surface that starts opaque black fringes
 		// every edge the material later blends.
 		Target->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		Target->bAutoGenerateMips = false;
+
+		// Allocates the mip chain. Nothing fills it automatically on this path - the document is drawn
+		// through RDG rather than through a canvas - so RenderToSurface generates them by hand. Without a
+		// chain a surface seen from any distance is minified with a single bilinear tap, and thin strokes
+		// and text break up and crawl.
+		Target->bAutoGenerateMips = true;
+		Target->MipsSamplerFilter = TF_Trilinear;
+		Target->MipsAddressU = TA_Clamp;
+		Target->MipsAddressV = TA_Clamp;
+
 		Target->bForceLinearGamma = false;
 		Target->InitAutoFormat(Size.X, Size.Y);
 		Target->UpdateResourceImmediate(true);
@@ -880,6 +898,33 @@ void UFolioWorldDocument::RenderToSurface(const FIntPoint Size)
 
 	Context->Render();
 	Renderer->EndSurface();
+
+	GenerateSurfaceMips();
+}
+
+void UFolioWorldDocument::GenerateSurfaceMips()
+{
+	FTextureRenderTargetResource* Resource = SurfaceTarget.IsValid()
+		? SurfaceTarget->GameThread_GetRenderTargetResource()
+		: nullptr;
+
+	if (!Resource || SurfaceTarget->GetNumMips() <= 1)
+	{
+		return;
+	}
+
+	ENQUEUE_RENDER_COMMAND(FolioSurfaceMips)(
+		[Resource](FRHICommandListImmediate& RHICmdList)
+		{
+			FRDGBuilder GraphBuilder(RHICmdList);
+
+			FRDGTextureRef Texture = RegisterExternalTexture(GraphBuilder,
+				Resource->GetRenderTargetTexture(), TEXT("FolioSurface"));
+
+			FGenerateMips::Execute(GraphBuilder, GMaxRHIFeatureLevel, Texture);
+
+			GraphBuilder.Execute();
+		});
 }
 
 void UFolioWorldDocument::LoadDocument(const FString& InDocumentPath)

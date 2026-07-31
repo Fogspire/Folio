@@ -350,10 +350,23 @@ webview and a spawn-on-save over the top; Rider is the same shape again, and onl
 wanted once VSCode exists.
 
 **The dependency is fidelity, not the extension.** Its entire value is showing what Unreal will
-show, and today the two renderers do not agree: the preview tool multisamples where Slate does
-not, the colour pipelines differ, and its layer path is OpenGL rather than our RHI replay. Built
-before that is closed, the tool would confidently show the wrong thing. The verification harness
-comes first.
+show, and built before that is established the tool would confidently show the wrong thing. So the
+verification harness came first: `./scripts/compare_renderers.sh` holds the two to each other on
+where every text line landed, and every document it covers agrees exactly.
+
+Two of the three divergences this listed turned out differently to how it was written:
+
+- **Multisampling was never a difference.** The forked GLFW backend requests no `GLFW_SAMPLES`, so
+  the default of none applies, and an edge measured in both renders shows the same single partial
+  pixel at the same coverage. Both antialias analytically - distance fields for text, the background
+  antialias width for boxes - which is why they agree.
+- **The colour pipelines do differ**, and always will: the preview does no sRGB conversion where
+  Slate linearises vertex colour and applies display gamma, and the engine writes premultiplied
+  colour on a transparent ground. This is why the harness compares layout rather than pixels.
+- **The layer path is still OpenGL against the RHI replay.** Layer effects - `box-shadow`, `filter`,
+  `backdrop-filter`, `mask-image` - therefore render through entirely different code, and nothing
+  compares their *appearance*. That is the remaining gap, and the one to close before the preview is
+  trusted for anything but layout.
 
 **Gate:** a document open in VSCode, re-rendering on save, matching an Unreal screenshot of the
 same document to within the harness's tolerance.

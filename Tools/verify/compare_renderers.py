@@ -33,6 +33,11 @@ DOCUMENTS = (
     "ui/examples/list.rml",
     "ui/examples/modal.rml",
     "ui/screens/settings.rml",
+    # Layer effects. Only the text in them is compared - nothing here checks what a box-shadow or a
+    # backdrop-filter looks like, because the preview draws those in OpenGL and the engine replays
+    # them through RHI. Layout under an effect agreeing is worth having; it is not the whole claim.
+    "ui/examples/effects.rml",
+    "ui/examples/backdrop.rml",
 )
 
 SIZE = (1280, 720)

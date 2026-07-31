@@ -18,7 +18,7 @@
 /* --- Surfaces ---------------------------------------------------------------------- */
 
 .c-sunken   { background-color: #0e0e13; }
-.c-bg       { background-color: #14141a; }
+.c-bg       { background-color: #2c2cd1; }
 .c-surface  { background-color: #1f1f28; }
 .c-raised   { background-color: #2b2b36; }
 .c-overlay  { background-color: #363642; }

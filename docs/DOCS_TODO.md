@@ -68,9 +68,10 @@ the first thing a reader will want after this.
   carries no colour, because that is the rule everything else follows from and it looks arbitrary
   until the missing `var()` is explained.
 
-- **The VSCode preview.** `Tools/vscode-folio/` has its own README, which is probably enough. If it
-  gets a page here it should lead with what the preview is proven to match and what it is not, since
-  that is the only thing separating it from a decorative panel.
+- ~~**The VSCode preview.**~~ Written: `vscode.md`. Install, the workspace-root requirement that is
+  the one real failure mode, highlighting and why RCSS is not registered as CSS, and what the preview
+  is and is not worth trusting. Every step was run: the extension installs, highlights and previews,
+  and the warning path was checked against `ui/examples/button.rml`.
 
 ## Things to check before publishing any of it
 

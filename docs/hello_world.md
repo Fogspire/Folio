@@ -123,6 +123,9 @@ Then:
 It watches the file and reloads on save, so the loop is edit, save, look — no compiling and no
 editor restart. This is where you will spend most of your authoring time.
 
+**[Setting up VSCode](vscode.md)** puts that loop beside the document instead of in a second window,
+and adds highlighting for `.rml` and `.rcss`. Worth doing before you write anything real.
+
 Two flags worth knowing on day one:
 
 ```bash
@@ -184,6 +187,8 @@ a console or a Steam Deck. It does not exist in Shipping.
   close enough to CSS to mislead.
 - **[Hosting a document](hosting.md)** — `UFolioWidget`, focus, and fitting into an existing widget tree.
 - **[Data binding](data_binding.md)** — showing values from your game, and whether a view model is worth it.
+- **[Setting up VSCode](vscode.md)** — highlighting and a live preview beside the document, and what
+  the preview is and is not worth trusting.
 - **[Documents in the world](world_documents.md)** — a document on a surface in the level, the three
   ways it can reach the screen, and why it is not a `UWidgetComponent`.
 - **[Localization](localization.md)** — keying your text, and getting it into Unreal's gather.

@@ -7,29 +7,61 @@
 
 #include "Editor.h"
 #include "EngineUtils.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
 #include "ScopedTransaction.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "Folio"
 
 namespace
 {
-	/** The issue with a component's document, or empty when there is none. */
-	FText DescribeIssue(const UActorComponent& Component)
+	/** What is wrong with a component's document, and what to say about it. */
+	EFolioDocumentPathIssue DescribeIssue(const UActorComponent& Component, FText& OutMessage)
 	{
-		FText Message;
-
 		if (const UFolioWorldDocument* World = Cast<UFolioWorldDocument>(&Component))
 		{
-			UFolioDocumentPathLibrary::DescribeDocumentPathIssue(*World, World->DocumentPath, Message);
-		}
-		else if (const UFolioMarkerDocument* Marker = Cast<UFolioMarkerDocument>(&Component))
-		{
-			UFolioDocumentPathLibrary::DescribeDocumentPathIssue(*Marker, Marker->DocumentPath, Message);
+			return UFolioDocumentPathLibrary::DescribeDocumentPathIssue(
+				*World, World->DocumentPath, OutMessage);
 		}
 
-		return Message;
+		if (const UFolioMarkerDocument* Marker = Cast<UFolioMarkerDocument>(&Component))
+		{
+			return UFolioDocumentPathLibrary::DescribeDocumentPathIssue(
+				*Marker, Marker->DocumentPath, OutMessage);
+		}
+
+		return EFolioDocumentPathIssue::None;
+	}
+
+	/**
+	 * A toast rather than the Message Log.
+	 *
+	 * Raising a log window to say nothing is wrong is worse than saying nothing: it takes the screen
+	 * away from whatever was being looked at, to deliver an answer that fits in a sentence. The log is
+	 * still written either way, so the detail is a click away when it is wanted.
+	 */
+	void Notify(const FText& Text, const bool bFailed)
+	{
+		FNotificationInfo Info(Text);
+		Info.ExpireDuration = bFailed ? 6.0f : 3.0f;
+		Info.bUseSuccessFailIcons = true;
+
+		if (bFailed)
+		{
+			Info.Hyperlink = FSimpleDelegate::CreateLambda([]
+			{
+				FMessageLog(FolioMessageLogName).Open(EMessageSeverity::Error, /*bForce*/ true);
+			});
+			Info.HyperlinkText = LOCTEXT("ShowDocumentIssues", "Show them");
+		}
+
+		const TSharedPtr<SNotificationItem> Item = FSlateNotificationManager::Get().AddNotification(Info);
+		if (Item.IsValid())
+		{
+			Item->SetCompletionState(bFailed ? SNotificationItem::CS_Fail : SNotificationItem::CS_Success);
+		}
 	}
 }
 
@@ -42,6 +74,9 @@ void FolioLevelActions::SelectActorsWithBrokenDocuments()
 	}
 
 	TArray<AActor*> Broken;
+	int32 Unassigned = 0;
+	int32 Unresolved = 0;
+
 	FMessageLog Log(FolioMessageLogName);
 	Log.NewPage(LOCTEXT("BrokenDocumentsPage", "Documents"));
 
@@ -57,17 +92,20 @@ void FolioLevelActions::SelectActorsWithBrokenDocuments()
 				continue;
 			}
 
-			const FText Issue = DescribeIssue(*Component);
-			if (Issue.IsEmpty())
+			FText Message;
+			const EFolioDocumentPathIssue Issue = DescribeIssue(*Component, Message);
+			if (Issue == EFolioDocumentPathIssue::None)
 			{
 				continue;
 			}
+
+			(Issue == EFolioDocumentPathIssue::Unassigned ? Unassigned : Unresolved)++;
 
 			// Every issue listed, but the actor selected once: one actor can carry several documents
 			// and selecting it twice does nothing useful.
 			Log.Error()
 				->AddToken(FUObjectToken::Create(Actor))
-				->AddToken(FTextToken::Create(Issue));
+				->AddToken(FTextToken::Create(Message));
 
 			if (!bAdded)
 			{
@@ -79,9 +117,8 @@ void FolioLevelActions::SelectActorsWithBrokenDocuments()
 
 	if (Broken.IsEmpty())
 	{
-		Log.Info()->AddToken(FTextToken::Create(
-			LOCTEXT("NoBrokenDocuments", "Every document path in this level resolves.")));
-		Log.Open(EMessageSeverity::Info, /*bForce*/ true);
+		Notify(LOCTEXT("NoBrokenDocuments", "Every document path in this level resolves."),
+			/*bFailed*/ false);
 		return;
 	}
 
@@ -96,7 +133,13 @@ void FolioLevelActions::SelectActorsWithBrokenDocuments()
 	}
 	GEditor->NoteSelectionChange();
 
-	Log.Open(EMessageSeverity::Error, /*bForce*/ true);
+	// Both counts, always, including the zero: "3 unassigned" alone reads as the whole answer, and
+	// somebody who has just fixed the other kind needs to see that it went.
+	Notify(FText::Format(
+		LOCTEXT("BrokenDocumentsFound",
+			"Selected {0} {0}|plural(one=actor,other=actors): {1} unassigned, {2} naming nothing."),
+		FText::AsNumber(Broken.Num()), FText::AsNumber(Unassigned), FText::AsNumber(Unresolved)),
+		/*bFailed*/ true);
 }
 
 #undef LOCTEXT_NAMESPACE

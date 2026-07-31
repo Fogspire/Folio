@@ -406,8 +406,8 @@ void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPat
 
 #if WITH_EDITOR
 
-bool UFolioDocumentPathLibrary::DescribeDocumentPathIssue(const UActorComponent& Component,
-	const FString& DocumentPath, FText& OutMessage)
+EFolioDocumentPathIssue UFolioDocumentPathLibrary::DescribeDocumentPathIssue(
+	const UActorComponent& Component, const FString& DocumentPath, FText& OutMessage)
 {
 	const AActor* Owner = Component.GetOwner();
 
@@ -428,7 +428,7 @@ bool UFolioDocumentPathLibrary::DescribeDocumentPathIssue(const UActorComponent&
 	{
 		if (!bPlaced)
 		{
-			return false;
+			return EFolioDocumentPathIssue::None;
 		}
 
 		Message = FText::Format(
@@ -461,17 +461,19 @@ bool UFolioDocumentPathLibrary::DescribeDocumentPathIssue(const UActorComponent&
 	}
 	else
 	{
-		return false;
+		return EFolioDocumentPathIssue::None;
 	}
 
-	return true;
+	return DocumentPath.IsEmpty()
+		? EFolioDocumentPathIssue::Unassigned
+		: EFolioDocumentPathIssue::Unresolved;
 }
 
 bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Component,
 	const FString& DocumentPath, FDataValidationContext* Validation)
 {
 	FText Message;
-	if (!DescribeDocumentPathIssue(Component, DocumentPath, Message))
+	if (DescribeDocumentPathIssue(Component, DocumentPath, Message) == EFolioDocumentPathIssue::None)
 	{
 		return false;
 	}

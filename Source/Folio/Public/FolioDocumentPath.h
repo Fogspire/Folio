@@ -52,6 +52,16 @@ struct TStructOpsTypeTraits<FFolioDocumentPath> : public TStructOpsTypeTraitsBas
 };
 
 #if WITH_EDITOR
+/** What is wrong with a component's document path. */
+enum class EFolioDocumentPathIssue : uint8
+{
+	None,
+	/** Placed in a level with nothing assigned, so it renders nothing and nobody said what it should. */
+	Unassigned,
+	/** A path that names no file, or one that only exists on the machine it was typed on. */
+	Unresolved,
+};
+
 /**
  * The Message Log listing Folio reports a missing document into.
  *
@@ -158,7 +168,7 @@ public:
 	 * The same rules the two checks above apply, so a sweep over a level and a validation pass never
 	 * disagree about which components are broken. Returns false when nothing is wrong.
 	 */
-	static bool DescribeDocumentPathIssue(const UActorComponent& Component, const FString& DocumentPath,
-		FText& OutMessage);
+	static EFolioDocumentPathIssue DescribeDocumentPathIssue(const UActorComponent& Component,
+		const FString& DocumentPath, FText& OutMessage);
 #endif
 };

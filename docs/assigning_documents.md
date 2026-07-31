@@ -54,9 +54,12 @@ mistake surfaces, the entry selects the actor and opens the asset.
 
 For a level with more than one, the **Folio** button in the level toolbar has **Select Actors With
 Broken Documents**. It selects every actor holding a document component whose path names nothing, or
-that has no path at all, and lists them in the Message Log. A directory rename tends to break dozens
-at once, and selecting them all puts them in the details panel together, where one edit to the shared
-property fixes the set. The selection is transacted, so undo puts back whatever was selected before.
+that has no path at all. A directory rename tends to break dozens at once, and selecting them all
+puts them in the details panel together, where one edit to the shared property fixes the set. The
+selection is transacted, so undo puts back whatever was selected before.
+
+The result arrives as a notification counting each kind, with the details a click away in the log.
+It does not raise a window to tell you nothing is wrong.
 
 ## Resetting the field
 

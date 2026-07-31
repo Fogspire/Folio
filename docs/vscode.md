@@ -38,7 +38,10 @@ relative to the workspace, and passes the workspace as `--root`, which is what m
 
 ## 3. Preview a document
 
-Open any `.rml` and press `Ctrl+Shift+V`, or run **Folio: Open Preview**.
+Open any `.rml` and click the **preview icon** in the editor's title bar, top right. `Ctrl+Shift+V`
+and the **Folio: Open Preview** command do the same thing.
+
+The button only appears on `.rml` files, so it is not in the way the rest of the time.
 
 It re-renders whenever you save an `.rml` **or** an `.rcss`, because a document links several
 stylesheets and a change to one matters as much as a change to the markup. It follows the active

@@ -15,7 +15,8 @@ mklink /D "%USERPROFILE%\.vscode\extensions\folio-preview" "<repo>\Plugins\Folio
 ln -s <repo>/Plugins/Folio/Tools/vscode-folio ~/.vscode/extensions/folio-preview
 ```
 
-Then open a document and run **Folio: Open Preview** (`ctrl+shift+v`).
+Then open a document and click the preview icon in the editor's title bar, or press `ctrl+shift+v`.
+The icon shows only on `.rml` files.
 
 It finds `uipreview` under `Plugins/Folio/bin/` in the workspace. Build it first with
 `./scripts/build.sh`, or point `folio.uipreviewPath` at it.

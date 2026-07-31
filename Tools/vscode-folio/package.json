@@ -19,11 +19,13 @@
 		"commands": [
 			{
 				"command": "folio.openPreview",
-				"title": "Folio: Open Preview"
+				"title": "Folio: Open Preview",
+				"icon": "$(open-preview)"
 			},
 			{
 				"command": "folio.refreshPreview",
-				"title": "Folio: Refresh Preview"
+				"title": "Folio: Refresh Preview",
+				"icon": "$(refresh)"
 			}
 		],
 		"keybindings": [
@@ -111,7 +113,16 @@
 				"scopeName": "source.rcss",
 				"path": "./syntaxes/rcss.tmLanguage.json"
 			}
-		]
+		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "folio.openPreview",
+					"when": "resourceExtname == .rml",
+					"group": "navigation"
+				}
+			]
+		}
 	},
 	"scripts": {
 		"test": "node rcss.test.js"

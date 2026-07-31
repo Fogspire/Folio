@@ -894,7 +894,37 @@ Assume translated strings are up to 40% longer than English.
 
 ---
 
-## 15. Verifying a document
+## 15. Accessibility
+
+Three attributes, and one command that fails the build if you skip them.
+
+```
+uipreview <file.rml> --a11y --strict
+```
+
+It checks contrast against the real backdrop, text under 12dp, hit targets under 24dp, controls with
+no name, and controls whose focus state is invisible. Every recipe and the default theme pass with no
+findings, so building on the component library inherits that.
+
+| | |
+|---|---|
+| `folio-label="..."` | Names a control that has no text of its own, and overrides text that reads wrong out loud. |
+| `folio-role="..."` | What kind of control this is, when the tag does not say. Inferred from the tag otherwise. |
+| `folio-hidden` | Decoration. Skipped by the checks and, later, by the screen-reader tree. |
+
+A control counts as named if it has `folio-label`, its own text, text inside it, a `<label for>`
+pointing at it, or a non-interactive sibling with text on either side. You only write `folio-label`
+for icon-only controls and for text that reads wrong - an `X` that means Close.
+
+Do not use `folio-hidden` to silence a finding on something a person is meant to read.
+
+Screen readers are not supported yet: Folio draws through one Slate widget, so nothing inside the
+document reaches NVDA, JAWS or console TTS. Annotating now is what makes that a drop-in change later.
+See **[docs/accessibility.md](docs/accessibility.md)**.
+
+---
+
+## 16. Verifying a document
 
 ```
 uipreview <file.rml> --size 1920x1080

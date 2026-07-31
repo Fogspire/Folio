@@ -59,6 +59,16 @@ struct Options {
 	// Which rule set what, and where that rule lives. The seam an editing tool needs.
 	std::string provenance_report;
 
+	/** Contrast, text size, hit target, accessible name, visible focus. Implied by --a11y-report. */
+	bool a11y = false;
+	std::string a11y_report;
+	/** WCAG AA for normal text. Large text is held to 3:1 regardless, as WCAG defines it. */
+	float a11y_contrast = 4.5f;
+	/** Floors, in dp. The target size is WCAG 2.2 AA; the text size is a house rule, since WCAG
+	    has none - it exists because a size nobody can read is the failure people actually ship. */
+	float a11y_min_text = 12.0f;
+	float a11y_min_target = 24.0f;
+
 	/** Field resolution per em, and the field's width in texels. A field resolves best near 1:1,
 	    so this trades small-text clarity against magnification headroom. */
 	int msdf_px_em = 48;
@@ -90,7 +100,7 @@ struct Options {
 
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty()
-		|| !provenance_report.empty(); }
+		|| !provenance_report.empty() || !a11y_report.empty() || a11y; }
 };
 
 enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };

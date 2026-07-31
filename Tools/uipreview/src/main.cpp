@@ -1,3 +1,4 @@
+#include "AccessibilityReport.h"
 #include "App.h"
 #include "Diagnostics.h"
 #include "JsonReport.h"
@@ -46,6 +47,11 @@ int main(int argc, char** argv)
 
 		const int run_result = app.Run();
 
+		// Before the summary and before the exit code, so a finding counts under --strict rather than
+		// being printed after the run has already decided it passed.
+		if (options.a11y || !options.a11y_report.empty())
+			CheckAccessibility(options, app, diagnostics);
+
 		diagnostics.PrintSummary(options.document);
 		const int exit_code = run_result != 0 ? run_result : diagnostics.ComputeExitCode(options.strict);
 
@@ -67,6 +73,17 @@ int main(int argc, char** argv)
 			{
 				std::fprintf(stderr, "uipreview:0:0: error: [E-METRICS] %s: %s\n",
 					options.metrics_report.c_str(), report_error.c_str());
+				return 4;
+			}
+		}
+
+		if (!options.a11y_report.empty())
+		{
+			std::string report_error;
+			if (!WriteAccessibilityReport(options.a11y_report, options, app, diagnostics, report_error))
+			{
+				std::fprintf(stderr, "uipreview:0:0: error: [E-A11Y] %s: %s\n",
+					options.a11y_report.c_str(), report_error.c_str());
 				return 4;
 			}
 		}

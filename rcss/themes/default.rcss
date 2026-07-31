@@ -27,8 +27,8 @@
 /* --- Foreground ------------------------------------------------------------------- */
 
 .c-text     { color: #e8e8f0; }
-.c-muted    { color: #8a8a99; }
-.c-dim      { color: #5c5c6b; }
+.c-muted    { color: #a8a8b8; }
+.c-dim      { color: #8a8a99; }
 .c-accent   { color: #f0c674; }
 .c-danger   { color: #e06c75; }
 .c-success  { color: #98c379; }
@@ -348,7 +348,7 @@ scrollbarhorizontal sliderbar:hover
 .menu-item-hint
 {
 	font-size: 16dp;
-	color: #5c5c6b;
+	color: #8a8a99;
 }
 
 /*
@@ -381,7 +381,7 @@ scrollbarhorizontal sliderbar:hover
 	font-size: 13dp;
 	text-transform: uppercase;
 	letter-spacing: 1dp;
-	color: #5c5c6b;
+	color: #8a8a99;
 }
 
 /* --- list ------------------------------------------------------------------------ */
@@ -428,7 +428,7 @@ scrollbarhorizontal sliderbar:hover
 	font-size: 13dp;
 	text-transform: uppercase;
 	letter-spacing: 1dp;
-	color: #5c5c6b;
+	color: #8a8a99;
 	border-bottom-color: #2b2b36;
 }
 
@@ -436,7 +436,7 @@ scrollbarhorizontal sliderbar:hover
    it is the one a player is most likely to hit first. */
 .list-empty
 {
-	color: #5c5c6b;
+	color: #8a8a99;
 	font-size: 18dp;
 }
 
@@ -786,7 +786,7 @@ scrollbarhorizontal sliderbar:hover
  */
 .tab-shoulder
 {
-	color: #5c5c6b;
+	color: #8a8a99;
 	font-size: 16dp;
 }
 

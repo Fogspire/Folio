@@ -89,6 +89,10 @@ void PrintUsage(std::FILE* stream)
 		"Reporting\n"
 		"  --strict              Warnings fail the run, and enable the markup lint checks\n"
 		"  --json-report <FILE>  Write a machine readable report\n"
+		"  --a11y                Check contrast, text size, hit target size, control names and\n"
+		"                        whether focus is visible. Findings are warnings, so --strict\n"
+		"                        fails the run on them\n"
+		"  --a11y-report <FILE>  The same findings as JSON. Implies --a11y\n"
 		"  --metrics-report <FILE>  Write where every piece of text laid out, for diffing a\n"
 		"                        change to the text engine against a known good run\n"
 		"  --reload-textures     Release every texture between two renders before capturing,\n"
@@ -301,6 +305,15 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		else if (arg == "--provenance-report")
 		{
 			if (!TakeValue(argc, argv, i, "--provenance-report", o.provenance_report, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--a11y")
+		{
+			o.a11y = true;
+		}
+		else if (arg == "--a11y-report")
+		{
+			if (!TakeValue(argc, argv, i, "--a11y-report", o.a11y_report, error))
 				return ParseResult::Error;
 		}
 		else if (arg == "--metrics-report")

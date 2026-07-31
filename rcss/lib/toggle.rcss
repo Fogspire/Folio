@@ -77,8 +77,8 @@
 	display: inline-block;
 	box-sizing: border-box;
 	flex: 0 0 auto;
-	width: 22dp;
-	height: 22dp;
+	width: 24dp;
+	height: 24dp;
 	border-width: 2dp;
 	nav: auto;
 }

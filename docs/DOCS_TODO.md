@@ -54,7 +54,8 @@ the first thing a reader will want after this.
   trace channel, the invalidation path with its trace and its escape hatch, and the ordered list of
   what actually makes a screen slow. The numbers quoted in it were measured, not estimated.
 - **Testing a document.** `uipreview`, `--strict`, and the screenshot and metrics reports. Cheap to
-  write and the thing most likely to be skipped.
+  write and the thing most likely to be skipped. Mention `check_world_path.sh` for anyone touching
+  the renderer rather than a document.
 - ~~**Documents in the world.**~~ Written: `world_documents.md`. The three draw modes, the Surface
   setup against `/Folio/M_FolioSurface`, and the console commands. After-tonemap and in-scene were
   confirmed in PIE; the Surface walkthrough was followed start to finish by someone other than its

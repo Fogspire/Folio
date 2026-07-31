@@ -10,6 +10,8 @@
 #include "FolioWorldDocument.h"
 
 #include "Engine/TextureRenderTarget2D.h"
+#include "FolioDocumentHost.h"
+#include "FolioDrawList.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
 #include "Framework/Application/SlateApplication.h"
@@ -1003,6 +1005,171 @@ namespace
 	}
 
 	/**
+	 * Asserts that the world path still responds to the properties it is supposed to.
+	 *
+	 *   folio.World.Verify [document]
+	 *
+	 * A world document is recorded rather than drawn, and a recording carries only what the recording
+	 * path bothers to apply. `transform` was applied on the Slate path and nowhere else for a while, so
+	 * every world document silently ignored it - it animates on screen, does nothing on a surface, and
+	 * nothing in the build noticed. This is the check that would have.
+	 *
+	 * Deliberately not a golden image. It records the same document twice, once plain and once with a
+	 * property set on the body, and asserts the geometry moved the way that property says it should. So
+	 * it survives the test document being edited, needs no reference to keep in step, and says which
+	 * property was dropped rather than that some pixels differ.
+	 */
+	struct FRecordingSummary
+	{
+		int32 Draws = 0;
+		int32 Vertices = 0;
+		FVector2f Min = FVector2f(FLT_MAX, FLT_MAX);
+		FVector2f Max = FVector2f(-FLT_MAX, -FLT_MAX);
+		float AlphaTotal = 0.0f;
+
+		bool IsEmpty() const { return Vertices == 0; }
+		FVector2f Size() const { return Max - Min; }
+	};
+
+	FRecordingSummary SummariseRecording(const FFolioDrawList& List)
+	{
+		FRecordingSummary Summary;
+		Summary.Draws = List.Num();
+
+		for (const FFolioDraw& Draw : List.GetDraws())
+		{
+			for (const FFolioUIVertex& Vertex : Draw.Vertices)
+			{
+				++Summary.Vertices;
+				Summary.Min = FVector2f(FMath::Min(Summary.Min.X, Vertex.Position.X),
+					FMath::Min(Summary.Min.Y, Vertex.Position.Y));
+				Summary.Max = FVector2f(FMath::Max(Summary.Max.X, Vertex.Position.X),
+					FMath::Max(Summary.Max.Y, Vertex.Position.Y));
+				Summary.AlphaTotal += Vertex.Color.A;
+			}
+		}
+
+		return Summary;
+	}
+
+	/** Records the document as it stands, with the body carrying the given inline property. */
+	bool RecordWith(FFolioDocumentHost& Host, const TCHAR* Property, const TCHAR* Value,
+		FRecordingSummary& OutSummary)
+	{
+		Rml::Context* Context = Host.GetContext();
+		Rml::ElementDocument* Document = Host.GetDocument();
+		FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
+		if (!Context || !Document || !Renderer)
+		{
+			return false;
+		}
+
+		if (Property)
+		{
+			Document->SetProperty(Folio::ToRmlString(Property), Folio::ToRmlString(Value));
+		}
+		else
+		{
+			Document->RemoveProperty(Folio::ToRmlString(TEXT("transform")));
+			Document->RemoveProperty(Folio::ToRmlString(TEXT("opacity")));
+		}
+
+		Host.MarkDirty(TEXT("world verify"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+
+		FFolioDrawList List;
+		Renderer->BeginRecording(List, Host.GetSize());
+		Context->Render();
+		Renderer->EndFrame();
+
+		OutSummary = SummariseRecording(List);
+		return !OutSummary.IsEmpty();
+	}
+
+	void ReportCheck(const TCHAR* Name, const bool bPassed, const FString& Detail)
+	{
+		UE_LOG(LogFolio, Display, TEXT("folio world verify: %s %s - %s"),
+			Name, bPassed ? TEXT("pass") : TEXT("FAIL"), *Detail);
+	}
+
+	void RunWorldVerify(const TArray<FString>& Args)
+	{
+		const FString DocumentPath = Args.Num() > 0 ? Args[0] : TEXT("/folio/dev/idle_test.rml");
+
+		FFolioDocumentHost Host;
+		if (!Host.Create(TEXT("verify"), FIntPoint(1000, 600)))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio world verify: could not create a context"));
+			return;
+		}
+
+		Host.LoadDocument(DocumentPath);
+		if (!Host.GetDocument())
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio world verify: could not load '%s'"), *DocumentPath);
+			return;
+		}
+
+		FRecordingSummary Plain;
+		if (!RecordWith(Host, nullptr, nullptr, Plain))
+		{
+			UE_LOG(LogFolio, Error,
+				TEXT("folio world verify: '%s' recorded nothing, so nothing can be concluded"),
+				*DocumentPath);
+			return;
+		}
+
+		int32 Failures = 0;
+
+		// Translation. Every vertex must move by exactly the offset asked for, so a dropped transform
+		// shows as no movement and a half-applied one as the wrong distance.
+		{
+			FRecordingSummary Moved;
+			const bool bRecorded = RecordWith(Host, TEXT("transform"), TEXT("translateX(100px)"), Moved);
+			const float Delta = bRecorded ? Moved.Min.X - Plain.Min.X : 0.0f;
+			const bool bPassed = bRecorded && FMath::IsNearlyEqual(Delta, 100.0f, 0.5f);
+
+			Failures += bPassed ? 0 : 1;
+			ReportCheck(TEXT("transform-translate"), bPassed,
+				FString::Printf(TEXT("moved %.2fpx, wanted 100 (x %.1f..%.1f became %.1f..%.1f, "
+					"%d vertices became %d)"),
+					Delta, Plain.Min.X, Plain.Max.X, Moved.Min.X, Moved.Max.X,
+					Plain.Vertices, Moved.Vertices));
+		}
+
+		// Scale, because a translation alone would pass on a path that only applied the matrix's
+		// translation column.
+		{
+			FRecordingSummary Scaled;
+			const bool bRecorded = RecordWith(Host, TEXT("transform"), TEXT("scale(2)"), Scaled);
+			const float Ratio = bRecorded && Plain.Size().X > 1.0f ? Scaled.Size().X / Plain.Size().X : 0.0f;
+			const bool bPassed = bRecorded && FMath::IsNearlyEqual(Ratio, 2.0f, 0.05f);
+
+			Failures += bPassed ? 0 : 1;
+			ReportCheck(TEXT("transform-scale"), bPassed,
+				FString::Printf(TEXT("width scaled %.3fx, wanted 2"), Ratio));
+		}
+
+		// Opacity, which rides on the vertex colour rather than the geometry. Included because it is the
+		// property that kept working when transform did not, and its passing is what made the failure
+		// look like a rendering problem rather than a missing one.
+		{
+			FRecordingSummary Faded;
+			const bool bRecorded = RecordWith(Host, TEXT("opacity"), TEXT("0.5"), Faded);
+			const bool bPassed = bRecorded && Faded.AlphaTotal < Plain.AlphaTotal * 0.75f;
+
+			Failures += bPassed ? 0 : 1;
+			ReportCheck(TEXT("opacity"), bPassed,
+				FString::Printf(TEXT("alpha %.1f against %.1f"), Faded.AlphaTotal, Plain.AlphaTotal));
+		}
+
+		UE_LOG(LogFolio, Display,
+			TEXT("folio world verify: %s on '%s', %d draw(s), %d vertices, %d failure(s)"),
+			Failures == 0 ? TEXT("passed") : TEXT("FAILED"), *DocumentPath,
+			Plain.Draws, Plain.Vertices, Failures);
+	}
+
+	/**
 	 * Reports what every keyed string in a document resolved to.
 	 *
 	 *   folio.Loc.Report [document]
@@ -1144,6 +1311,13 @@ namespace
 		TEXT("folio.Debugger [on|off]. Opens RmlUi's element inspector on the focused document: "
 			"element tree, computed style, event log and every data model in the context."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunDebugger));
+
+	FAutoConsoleCommand WorldVerifyCommand(
+		TEXT("folio.World.Verify"),
+		TEXT("folio.World.Verify [document]. Asserts the world path still applies transform and opacity, "
+			"by recording the same document twice and checking the geometry responded. Logs one line per "
+			"check and a summary."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunWorldVerify));
 
 	FAutoConsoleCommand WorldTestCommand(
 		TEXT("folio.WorldTest"),

@@ -106,6 +106,19 @@ void FFolioLayerStack::Pop()
 	}
 }
 
+void FFolioLayerStack::AddDraw(FFolioDraw&& Draw)
+{
+	if (Stack.IsEmpty() || Draw.Indices.Num() < 3)
+	{
+		return;
+	}
+
+	FLayer& Layer = Stack.Last();
+	Draw.bMasked = Layer.bClipMaskEnabled;
+	Draw.bMaskInverted = Layer.bClipMaskInverted;
+	Layer.Draws.GetDraws().Add(MoveTemp(Draw));
+}
+
 void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
 	UTexture* Texture, const FVector2f Offset)
 {

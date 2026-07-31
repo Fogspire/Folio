@@ -50,6 +50,9 @@ public:
 	bool IsEmpty() const { return Stack.IsEmpty(); }
 	int32 Num() const { return Stack.Num(); }
 
+	/** Records a draw the caller has already assembled, for a path the helpers below do not fit. */
+	void AddDraw(FFolioDraw&& Draw);
+
 	/** Records a triangle list. Positions are in layer space. */
 	void DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
 		UTexture* Texture, FVector2f Offset);

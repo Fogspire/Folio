@@ -1379,7 +1379,8 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation, Rml::TextureHandle)
 {
 	const TUniquePtr<FCompiledGeometry>* Found = Geometries.Find(GeometryHandle);
-	if ((!ElementList && !DrawList) || !Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
+	if ((!ElementList && !DrawList && Layers.IsEmpty()) || !Found || !Found->IsValid()
+		|| (*Found)->Vertices.IsEmpty())
 	{
 		return;
 	}
@@ -1393,11 +1394,21 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	{
 		if (const FTexture* Entry = GetEffectTexture(Shader))
 		{
+			FVector2f Offset;
+			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
 			if (DrawList)
 			{
-				DrawList->AddTriangles(Compiled.Vertices, Compiled.Indices,
-					static_cast<UTexture*>(Entry->Texture.Get()), FVector2f(Translation.x, Translation.y),
+				DrawList->AddTriangles(Vertices, Compiled.Indices,
+					static_cast<UTexture*>(Entry->Texture.Get()), Offset,
 					/*bMasked*/ false, /*bMaskInverted*/ false);
+				return;
+			}
+
+			if (!Layers.IsEmpty())
+			{
+				Layers.DrawTriangles(Vertices, Compiled.Indices,
+					static_cast<UTexture*>(Entry->Texture.Get()), Offset - LayerOrigin);
 				return;
 			}
 
@@ -1424,24 +1435,35 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		return;
 	}
 
-	if (DrawList)
+	if (DrawList || !Layers.IsEmpty())
 	{
+		FVector2f Offset;
+		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
 		// The gradient's texture coordinates are pixel offsets in the element box, so they need scaling
 		// into the 0..1 the recording's sampler expects. The Slate path does the same thing through its
 		// UV scale argument.
 		FFolioDraw Draw;
 		Draw.Kind = FFolioDraw::EKind::Geometry;
 		Draw.Texture.Reset(static_cast<UTexture*>(Entry->Texture.Get()));
-		FFolioDrawList::Convert(Compiled.Vertices, Compiled.Indices,
-			FVector2f(Translation.x, Translation.y), /*bUnpremultiply*/ false,
-			DrawList->ShouldDecodeSrgb(), Draw);
+		FFolioDrawList::Convert(Vertices, Compiled.Indices,
+			DrawList ? Offset : Offset - LayerOrigin, /*bUnpremultiply*/ false,
+			DrawList ? DrawList->ShouldDecodeSrgb() : true, Draw);
 
 		for (FFolioUIVertex& Vertex : Draw.Vertices)
 		{
 			Vertex.UV /= BoxSize;
 		}
 
-		DrawList->GetDraws().Add(MoveTemp(Draw));
+		if (DrawList)
+		{
+			DrawList->GetDraws().Add(MoveTemp(Draw));
+		}
+		else
+		{
+			Layers.AddDraw(MoveTemp(Draw));
+		}
+
 		return;
 	}
 

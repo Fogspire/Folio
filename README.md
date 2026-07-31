@@ -6,25 +6,38 @@ Markup is plain text (`.rml` / `.rcss`), not hand-assembled widget hierarchies.
 Two renderers draw the same markup: `uipreview`, a standalone tool with no Unreal dependency,
 and the UE plugin under `Source/`. Anything authored in one renders in the other.
 
-**Building UI?** Start at **[docs/README.md](docs/README.md)**. If you are an agent asked to build UI
-in a project you have not seen, read **[AGENTS.md](AGENTS.md)** first - it is short, and it covers the
-mistakes that produce no error at all.
+Text and vector art are distance fields, so a screen stays sharp at any size, transform scale or DPI.
+The same document runs diegetically in the world, readable and interactive from across the room.
+
+---
+
+**Using Folio?** This file is about the repository. Everything about building UI is in **[docs/](docs/README.md)**.
+
+| | |
+|---|---|
+| **[docs/README.md](docs/README.md)** | The documentation index. Start here |
+| **[docs/hello_world.md](docs/hello_world.md)** | Install it and get a document on screen |
+| **[UI_CONVENTIONS.md](UI_CONVENTIONS.md)** | **What RCSS actually supports.** Authoritative. Read before authoring markup |
+| **[AGENTS.md](AGENTS.md)** | The cold-start brief for an agent asked to build UI in a project it has not seen |
+
+---
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `FOLIO_BRIEF.md` | The plan of record: phases, gates, decisions taken, and the feature backlog |
-| `docs/` | Written for someone learning to use Folio, starting at `docs/hello_world.md` |
-| `UI_CONVENTIONS.md` | **What RCSS actually supports.** Authoritative. Read before authoring markup |
 | `NOTES.md` | Gotchas ledger. Read this before debugging anything surprising |
 | `Source/Folio/` | The UE module: renderer, input, document lifecycle |
 | `Source/FolioCore/` | Portable core shared by both renderers: font engine, distance fields, atlases |
 | `Tools/uipreview/` | The standalone preview tool (C++20, CMake, GLFW + OpenGL 3.3) |
 | `Tools/msdfbake/` | Bakes font atlases and vector sprite sheets offline |
+| `Tools/vscode-folio/` | The editor extension: highlighting, live preview, click-to-find-the-rule |
 | `Shaders/` | The distance field shader, shared by the material and the layer path |
-| `rcss/` | `folio.rcss`, the base stylesheet every document links |
+| `rcss/` | `folio.rcss`, the component library, the default theme, and the recipes |
 | `fonts/` | The variable typefaces Folio ships as defaults |
+| `examples/` | Documents to look at and copy |
+| `dev/` | Fixtures the console commands and verify scripts load. Not examples |
 | `scripts/build.sh` | The supported build entry point |
 | `scripts/verify.sh` | The verification harness |
 | `ASSETS_WANTED.md` | Art request queue, maintained automatically by `uipreview` |
@@ -71,10 +84,22 @@ change to the text engine shifts them slightly and moves line breaks; the diff r
 that wrapped somewhere new. That is the regression this system is most likely to cause and the
 least likely to be noticed by looking.
 
+The other harnesses, each answering a different question:
+
+| | |
+|---|---|
+| `scripts/compare_renderers.sh` | Renders every document through both renderers and compares where each text line landed. This is what backs the claim that the preview lays out exactly as the engine does |
+| `scripts/check_world_path.sh` | Catches a property the world-space path silently drops |
+| `scripts/check_a11y.sh` | Contrast, hit targets, control names and focus visibility over a directory |
+| `scripts/check_invalidation.sh` | Proves an idle document stops doing work |
+
 Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is
 still intact, so they survive for weeks and then fail on someone else's machine.
 
-### Backend and dependency choices
+`docs/testing_a_document.md` covers the same tools from the point of view of someone authoring a
+screen rather than changing the renderer.
+
+## Backend and dependency choices
 
 **Backend: GLFW + OpenGL 3.3**, which is what upstream documents first. `RmlUi_Renderer_GL3`
 is the only shipped renderer implementing the full 6.x feature set (render layers, filters,
@@ -85,7 +110,7 @@ visible one.
 **Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests.
 vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi
 port tracks whatever its baseline pins rather than the exact release we want, and its triplets
-fix the CRT and toolset, which fights Phase 3 where RmlUi has to build with the same toolset as
+fix the CRT and toolset, which fights the UE build where RmlUi has to use the same toolset as
 Unreal. FetchContent builds from source with whatever toolset we set, pinned to a commit hash in
 this file, with nothing installed globally.
 
@@ -117,84 +142,16 @@ reconstructs a false edge through the middle of a solid stroke.
 version banner, so it documents features that are not in any release. `NOTES.md` records the
 specific ones that bite.
 
-## Using `uipreview`
+## Diagnostics
 
-The tool is game agnostic: it renders whatever content root it is pointed at.
-
-```bash
-# open a document with hot reload and the RmlUi debugger. F8 toggles the debugger
-./bin/win64/uipreview.exe ui/screens/main_menu.rml --debug
-
-# render one frame to a PNG without showing a window
-./bin/win64/uipreview.exe ui/screens/main_menu.rml --screenshot out.png --size 1280x800
-
-# drive navigation and capture each step, to verify focus order
-./bin/win64/uipreview.exe ui/screens/main_menu.rml --keys "down,down,confirm" --shot-each shots/
-
-# check a screen for length overflow before any translations exist
-./bin/win64/uipreview.exe ui/screens/main_menu.rml --culture pseudo --screenshot pseudo.png
-
-# validate for CI, failing on warnings too, and emit a machine readable report
-./bin/win64/uipreview.exe ui/screens/main_menu.rml --screenshot nul --strict --json-report report.json
-```
-
-**Fonts.** Faces resolve in order: `--font` if given, else any font under `<root>/ui/fonts`,
-else the variable typefaces Folio ships in `fonts/`, else the engine's Roboto from
-`Engine/Content/Slate/Fonts`. The engine is found automatically, or named with `--engine` or
-`UE_ENGINE_DIR`. The same order applies in engine.
-
-Folio bundles Inter and RobotoMono, both variable, because variable-font support is most of the
-value of the text engine and the engine's Roboto is a static face. A game that drops its own
-faces in `ui/fonts/` still wins outright. `NOTES.md` records why this reverses the brief.
-
-**Text is always distance-field.** Glyphs are MTSDF, generated once per face into a
-size-independent atlas, so text stays sharp at any size, transform scale or DPI. `font-weight`
-drives the `wght` axis directly rather than snapping to the nearest cut. Font effects resolve
-from the field rather than baking extra atlases. `UI_CONVENTIONS.md` §6 has the constraints.
-
-**The base stylesheet.** RmlUi has no user-agent stylesheet and defaults every element to
-`display: inline`, so Folio ships one. Every document should start with:
-
-```html
-<link type="text/rcss" href="/folio/folio.rcss"/>
-```
-
-`/folio/` resolves against the plugin rather than the content root, so it works from anywhere.
-It establishes block display and gives the document a width, and deliberately sets no colours,
-spacing or typography, which belong to the game.
-
-`uipreview --help` lists every flag.
-
-**Hot reload granularity.** An `.rcss` edit reloads stylesheets only, so the DOM, focus, scroll
-position and data model are untouched. Only an `.rml` edit rebuilds the document, capturing and
-restoring focus and scroll offsets around it. Editing the `--data` JSON re-reads the model on
-its own.
-
-**Output.** Program output goes to stdout; diagnostics go to stderr as
+`uipreview` writes program output to stdout and diagnostics to stderr as
 `path:line:col: severity: [CODE] message`, which matches what editors and `grep` expect. Paths
 are relative to the content root, so output is identical across machines.
 
 Exit codes: `0` ok, `1` document errors, `2` usage, `3` init failure, `4` runtime failure,
 `5` warnings present under `--strict`.
 
-Because nearly every RCSS problem is a warning rather than an error in RmlUi, a validity check
-that only looks at errors will pass a thoroughly broken stylesheet. Use `--strict` in CI.
+**Use `--strict` in CI.** Nearly every RCSS problem is a warning rather than an error in RmlUi, so a
+validity check that only looks at errors will pass a thoroughly broken stylesheet.
 
-**Localization lint.** `--strict` also reports text that carries no `data-loc` key and so cannot
-be translated, but only when a culture is loaded, so pair it with `--culture pseudo`. Text
-produced by a data binding is exempt, as is anything marked `data-noloc` for strings that are
-not language: numerals, timers, player names.
-
-## Art that does not exist yet
-
-Markup may reference **sprite names only**, never image paths. A name that no loaded
-`@spritesheet` declares renders as a magenta checkerboard with the name stamped on it, warns,
-and is recorded in `ASSETS_WANTED.md` next to the size it was actually drawn at. Screens can
-therefore be built, navigated and animated before any art exists, and art gets produced in
-batches against that file rather than per screen.
-
-`ASSETS_WANTED.md` is rewritten in place between its markers, so rerunning with no changes
-leaves the file byte identical. Notes written below the markers are preserved.
-
-Textures may be **PNG or uncompressed TGA**. RmlUi itself only reads TGA; `uipreview` decodes
-PNG through lodepng and premultiplies it, since 6.x expects premultiplied texture data.
+`uipreview --help` lists every flag.

@@ -1378,9 +1378,10 @@ const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetEffectTexture(
 void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation, Rml::TextureHandle)
 {
+	// No layer branch: a gradient drawn into a layer came out white over the whole surface, so a surface
+	// document has no gradient decorators at all rather than a broken one. See the task.
 	const TUniquePtr<FCompiledGeometry>* Found = Geometries.Find(GeometryHandle);
-	if ((!ElementList && !DrawList && Layers.IsEmpty()) || !Found || !Found->IsValid()
-		|| (*Found)->Vertices.IsEmpty())
+	if ((!ElementList && !DrawList) || !Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
 	{
 		return;
 	}
@@ -1402,13 +1403,6 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 				DrawList->AddTriangles(Vertices, Compiled.Indices,
 					static_cast<UTexture*>(Entry->Texture.Get()), Offset,
 					/*bMasked*/ false, /*bMaskInverted*/ false);
-				return;
-			}
-
-			if (!Layers.IsEmpty())
-			{
-				Layers.DrawTriangles(Vertices, Compiled.Indices,
-					static_cast<UTexture*>(Entry->Texture.Get()), Offset - LayerOrigin);
 				return;
 			}
 
@@ -1435,7 +1429,7 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		return;
 	}
 
-	if (DrawList || !Layers.IsEmpty())
+	if (DrawList)
 	{
 		FVector2f Offset;
 		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
@@ -1446,24 +1440,15 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		FFolioDraw Draw;
 		Draw.Kind = FFolioDraw::EKind::Geometry;
 		Draw.Texture.Reset(static_cast<UTexture*>(Entry->Texture.Get()));
-		FFolioDrawList::Convert(Vertices, Compiled.Indices,
-			DrawList ? Offset : Offset - LayerOrigin, /*bUnpremultiply*/ false,
-			DrawList ? DrawList->ShouldDecodeSrgb() : true, Draw);
+		FFolioDrawList::Convert(Vertices, Compiled.Indices, Offset, /*bUnpremultiply*/ false,
+			DrawList->ShouldDecodeSrgb(), Draw);
 
 		for (FFolioUIVertex& Vertex : Draw.Vertices)
 		{
 			Vertex.UV /= BoxSize;
 		}
 
-		if (DrawList)
-		{
-			DrawList->GetDraws().Add(MoveTemp(Draw));
-		}
-		else
-		{
-			Layers.AddDraw(MoveTemp(Draw));
-		}
-
+		DrawList->GetDraws().Add(MoveTemp(Draw));
 		return;
 	}
 

@@ -1407,12 +1407,17 @@ which also keeps the no-transform case free - it returns the compiled vertices u
 
 Anything else added to those paths has the same trap: whatever `DrawGeometry` composes for Slate has
 to be composed there too, or it silently applies to screen documents only. `RenderShader` - gradients
-and shader-backed decorators - had the same gap twice over: it dropped the transform on the recording
-path, and had no layer branch at all, so a gradient decorator never rendered on a surface.
+and shader-backed decorators - dropped the transform on the recording path too, and still has no layer
+branch, so a gradient decorator does not render on a surface at all.
 
 `./scripts/check_world_path.sh` is what catches this now. It asserts the recorded geometry responds to
 a property rather than comparing images, so it survives a test document being edited and names the
 property that was dropped. Run it after touching anything in the render interface.
+
+Its blind spot is the **layer** path: it records through `BeginRecording`, so nothing it does exercises
+what a Surface document actually draws through. A layer branch added and covered only by that check is
+untested - which is how a gradient drawn into a layer shipped as a white screen. Until the check can
+render a surface and read the target back, a layer change has to be looked at in PIE.
 
 ## Anything touching an RmlUi global must be compiled into the module that called Rml::Initialise
 

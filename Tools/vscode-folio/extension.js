@@ -27,6 +27,8 @@ const rcss = require("./rcss");
 const UNCOMPARED = ["box-shadow", "filter:", "backdrop-filter", "mask-image"];
 
 let panel = null;
+/** Set by activate, so a reload can reopen on whatever was last previewed. */
+let rememberDocument = () => {};
 let currentDocument = null;
 
 /**
@@ -879,6 +881,7 @@ function openPreview() {
 	const editor = vscode.window.activeTextEditor;
 	if (editor && editor.document.fileName.endsWith(".rml")) {
 		currentDocument = editor.document.fileName;
+		rememberDocument(currentDocument);
 	}
 
 	if (!currentDocument) {
@@ -897,13 +900,17 @@ function openPreview() {
 			{ enableScripts: true, retainContextWhenHidden: true,
 				localResourceRoots: [vscode.Uri.file(os.tmpdir())] });
 
-		panel.webview.onDidReceiveMessage(handleMessage);
-
-		panel.onDidDispose(() => { panel = null; });
+		adoptPanel();
 		lockPreviewGroup();
 	}
 
 	render();
+}
+
+/** Everything a panel needs whether it was just created or restored after a window reload. */
+function adoptPanel() {
+	panel.webview.onDidReceiveMessage(handleMessage);
+	panel.onDidDispose(() => { panel = null; });
 }
 
 /**
@@ -952,6 +959,37 @@ function activate(context) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("folio.openPreview", openPreview),
 		vscode.commands.registerCommand("folio.refreshPreview", render));
+
+	/*
+	 * Reopening the preview after a window reload.
+	 *
+	 * VSCode restores the editor *layout* either way, so the preview's group comes back - locked,
+	 * because that is how it was left. Without a serializer the webview inside it does not, and the
+	 * result is an empty locked pane that has to be closed by hand before the preview can reopen
+	 * beside its document. Registering one turns that into the preview simply still being there.
+	 *
+	 * The document comes from workspace state rather than the webview's: the panel's own state is a
+	 * rendered image and a set of element boxes, all of which a render rebuilds anyway.
+	 */
+	context.subscriptions.push(vscode.window.registerWebviewPanelSerializer("folioPreview", {
+		async deserializeWebviewPanel(restored) {
+			panel = restored;
+			adoptPanel();
+
+			const remembered = context.workspaceState.get("folio.document");
+			if (remembered && fs.existsSync(remembered)) {
+				currentDocument = remembered;
+				render();
+				return;
+			}
+
+			// Nothing to show. Closing it is better than leaving a blank pane: the group goes with
+			// it, which is the state someone who has not opened a preview expects.
+			panel.dispose();
+		},
+	}));
+
+	rememberDocument = (document) => context.workspaceState.update("folio.document", document);
 
 	// A stylesheet change matters as much as a markup one, and a document links several. So any of
 	// them re-renders whatever is open rather than only its own file.
@@ -1003,6 +1041,7 @@ function activate(context) {
 		if (panel && editor && editor.document.fileName.endsWith(".rml")
 			&& editor.document.fileName !== currentDocument) {
 			currentDocument = editor.document.fileName;
+			rememberDocument(currentDocument);
 			render();
 		}
 	}));

@@ -765,6 +765,54 @@ namespace msdfbake
 		return true;
 	}
 
+	void FindUnsupportedPaints(const std::string& Path, std::vector<FUnsupportedPaint>& OutFound)
+	{
+		OutFound.clear();
+
+		std::ifstream File(Path, std::ios::binary);
+		if (!File)
+		{
+			return;
+		}
+
+		const std::string Source((std::istreambuf_iterator<char>(File)), std::istreambuf_iterator<char>());
+
+		struct FCheck
+		{
+			const char* Markup;
+			const char* Found;
+			const char* Explanation;
+		};
+
+		// Every one of these is a paint that varies per pixel in a way no field and no baked colour
+		// tile can reproduce from the SVG, because the SVG does not describe it - it embeds it.
+		static const FCheck Checks[] = {
+			{"<image", "<image>",
+				"an embedded bitmap. Affinity exports a conical or mesh gradient this way, because SVG "
+				"has neither. Export that fill as a PNG and use it as a raster sprite"},
+			{"<pattern", "<pattern>",
+				"a pattern fill. A field carries coverage and nothing else, so a repeating paint cannot "
+				"survive it. Flatten the pattern to a PNG, or rebuild it as geometry"},
+			{"meshgradient", "<meshgradient>",
+				"an SVG 2 mesh gradient. Nothing implements it, including this baker. Export the fill as "
+				"a PNG"},
+			{"<filter", "<filter>",
+				"an SVG filter. Blurs, shadows and displacement are raster operations and are dropped. "
+				"Use an RCSS filter or font-effect instead, which run at the size the thing is drawn"},
+			{"<text", "<text>",
+				"live text. Convert it to curves before exporting, or set it in the document as real "
+				"text - which will be sharper and translatable"},
+		};
+
+		for (const FCheck& Check : Checks)
+		{
+			if (Source.find(Check.Markup) != std::string::npos)
+			{
+				OutFound.push_back(FUnsupportedPaint{Check.Found, Check.Explanation});
+			}
+		}
+	}
+
 	bool LoadSvgLayers(const std::string& Path, std::vector<FVectorLayer>& OutLayers, std::string& OutError)
 	{
 		NSVGimage* Image = nsvgParseFromFile(Path.c_str(), "px", 96.0f);
@@ -843,21 +891,42 @@ namespace msdfbake
 			// layer of the same colour would reorder it past everything painted in between, and
 			// paint order is the whole of what a stack of silhouettes encodes: eyes painted black
 			// over a white head belong above it, not merged into the black outline beneath it.
-			const auto LayerFor = [&OutLayers, Width, Height](unsigned int Colour, bool bStroke) -> FVectorLayer&
+			//
+			// A gradient never merges with anything: two shapes under one gradient would still be
+			// painted through different parts of it, and there is no colour to compare.
+			const auto LayerFor = [&OutLayers, Width, Height](const NSVGpaint& Paint, bool bStroke) -> FVectorLayer&
 			{
-				if (!OutLayers.empty() && OutLayers.back().Colour == Colour
-					&& OutLayers.back().bStroke == bStroke)
+				const bool bGradient = Paint.type == NSVG_PAINT_LINEAR_GRADIENT
+					|| Paint.type == NSVG_PAINT_RADIAL_GRADIENT;
+
+				if (!bGradient && !OutLayers.empty() && !OutLayers.back().bGradient
+					&& OutLayers.back().Colour == Paint.color && OutLayers.back().bStroke == bStroke)
 				{
 					return OutLayers.back();
 				}
 
 				OutLayers.push_back(FVectorLayer());
 				FVectorLayer& Added = OutLayers.back();
-				Added.Colour = Colour;
+				Added.Colour = Paint.color;
 				Added.bStroke = bStroke;
+				Added.bGradient = bGradient;
 				Added.Shape.Width = Width;
 				Added.Shape.Height = Height;
 				Added.Shape.DistinctFills = 1;
+
+				if (bGradient && Paint.gradient != nullptr)
+				{
+					const NSVGgradient& Source = *Paint.gradient;
+					Added.Gradient.bRadial = Paint.type == NSVG_PAINT_RADIAL_GRADIENT;
+					Added.Gradient.Spread = Source.spread;
+					std::memcpy(Added.Gradient.Xform, Source.xform, sizeof(Added.Gradient.Xform));
+
+					for (int Stop = 0; Stop < Source.nstops; ++Stop)
+					{
+						Added.Gradient.Stops.emplace_back(Source.stops[Stop].offset, Source.stops[Stop].color);
+					}
+				}
+
 				return Added;
 			};
 
@@ -884,14 +953,14 @@ namespace msdfbake
 				{
 					AddPath(Built, *SubPath, Height);
 				}
-				Emit(LayerFor(Source->fill.color, false).Shape.Shape, std::move(Built));
+				Emit(LayerFor(Source->fill, false).Shape.Shape, std::move(Built));
 			}
 
 			if (Source->stroke.type != NSVG_PAINT_NONE)
 			{
 				msdfgen::Shape Built;
 				AddStroke(Built, *Source, Height);
-				Emit(LayerFor(Source->stroke.color, true).Shape.Shape, std::move(Built));
+				Emit(LayerFor(Source->stroke, true).Shape.Shape, std::move(Built));
 			}
 		}
 
@@ -905,6 +974,126 @@ namespace msdfbake
 		{
 			OutError = Path + " has no filled paths to bake";
 			return false;
+		}
+
+		return true;
+	}
+
+	namespace
+	{
+		/// The gradient's colour at a position along it, with the stops interpolated.
+		void SampleStops(const FVectorGradient& Gradient, float T, unsigned char* OutRgba)
+		{
+			const auto Channel = [](unsigned int Packed, int Shift) {
+				return float((Packed >> Shift) & 0xFF);
+			};
+
+			switch (Gradient.Spread)
+			{
+			case 1: // reflect
+				T = std::fmod(std::fabs(T), 2.0f);
+				T = T > 1.0f ? 2.0f - T : T;
+				break;
+			case 2: // repeat
+				T = T - std::floor(T);
+				break;
+			default:
+				T = std::min(1.0f, std::max(0.0f, T));
+				break;
+			}
+
+			const std::vector<std::pair<float, unsigned int>>& Stops = Gradient.Stops;
+			if (Stops.empty())
+			{
+				OutRgba[0] = OutRgba[1] = OutRgba[2] = 0;
+				OutRgba[3] = 255;
+				return;
+			}
+
+			std::size_t Upper = 0;
+			while (Upper < Stops.size() && Stops[Upper].first < T)
+			{
+				++Upper;
+			}
+
+			const std::size_t Second = std::min(Upper, Stops.size() - 1);
+			const std::size_t First = Second == 0 ? 0 : Second - 1;
+
+			const float Span = Stops[Second].first - Stops[First].first;
+			const float Mix = Span > 1e-6f ? std::min(1.0f, std::max(0.0f, (T - Stops[First].first) / Span)) : 0.0f;
+
+			// nanosvg packs a stop as 0xAABBGGRR.
+			for (int Index = 0; Index < 4; ++Index)
+			{
+				const int Shift = Index * 8;
+				const float Value = Channel(Stops[First].second, Shift) * (1.0f - Mix)
+					+ Channel(Stops[Second].second, Shift) * Mix;
+				OutRgba[Index] = (unsigned char)std::lround(std::min(255.0f, std::max(0.0f, Value)));
+			}
+		}
+	}
+
+	bool RasteriseLayerColour(const FVectorLayer& Layer, const Folio::FMsdfGlyphBitmap& Field,
+		const Folio::FMsdfAtlasParams& Params, std::vector<unsigned char>& OutRgba)
+	{
+		if (!Layer.bGradient || Field.bEmpty || Field.Width <= 0 || Field.Height <= 0)
+		{
+			return false;
+		}
+
+		const double Longest = std::max(Layer.Shape.Width, Layer.Shape.Height);
+		if (Longest <= 0.0)
+		{
+			return false;
+		}
+
+		// The field's plane bounds are in em from the drawing's origin, and the drawing is one em on
+		// its longest side, so multiplying back out gives the tile's extent in the shape's own units.
+		const double Left = double(Field.PlaneLeft) * Longest;
+		const double Bottom = double(Field.PlaneBottom) * Longest;
+		const double SpanX = (double(Field.PlaneRight) - double(Field.PlaneLeft)) * Longest;
+		const double SpanY = (double(Field.PlaneTop) - double(Field.PlaneBottom)) * Longest;
+
+		OutRgba.assign(std::size_t(Field.Width) * std::size_t(Field.Height) * 4, 0);
+
+		const float* const Xform = Layer.Gradient.Xform;
+
+		for (int Y = 0; Y < Field.Height; ++Y)
+		{
+			for (int X = 0; X < Field.Width; ++X)
+			{
+				const std::size_t Texel = (std::size_t(Y) * std::size_t(Field.Width) + std::size_t(X)) * 4;
+
+				// The field's rows run top down and its shape space runs bottom up, and the shape
+				// itself was mirrored about the drawing's height when it was read. Both are undone
+				// here so the gradient is evaluated in the SVG's own coordinates.
+				const double ShapeX = Left + (double(X) + 0.5) * SpanX / double(Field.Width);
+				const double ShapeY = Bottom + (double(Field.Height) - 0.5 - double(Y)) * SpanY / double(Field.Height);
+				const float DrawingX = float(ShapeX);
+				const float DrawingY = float(Layer.Shape.Height - ShapeY);
+
+				const float GradientX = DrawingX * Xform[0] + DrawingY * Xform[2] + Xform[4];
+				const float GradientY = DrawingX * Xform[1] + DrawingY * Xform[3] + Xform[5];
+
+				const float T = Layer.Gradient.bRadial
+					? std::sqrt(GradientX * GradientX + GradientY * GradientY)
+					: GradientY;
+
+				unsigned char Colour[4] = {};
+				SampleStops(Layer.Gradient, T, Colour);
+
+				// Coverage from the field's own distance channel, so the edge is the one the MTSDF
+				// would have produced rather than a second, differently aliased outline.
+				const float Distance = (float(Field.Rgba[Texel + 3]) / 255.0f - 0.5f) * float(Params.PxRange);
+				const float Coverage = std::min(1.0f, std::max(0.0f, Distance + 0.5f));
+				const float Alpha = Coverage * (float(Colour[3]) / 255.0f);
+
+				// Straight, not premultiplied: the sheet is loaded as an ordinary sprite.
+				OutRgba[Texel + 0] = Colour[0];
+				OutRgba[Texel + 1] = Colour[1];
+				OutRgba[Texel + 2] = Colour[2];
+				OutRgba[Texel + 3] = (unsigned char)std::lround(Alpha * 255.0f);
+			}
 		}
 
 		return true;
@@ -1005,6 +1194,7 @@ namespace msdfbake
 
 		int PageSize = 2048;
 		bool bLayers = false;
+		bool bStrict = false;
 
 		for (int Index = 2; Index < Argc; ++Index)
 		{
@@ -1019,6 +1209,7 @@ namespace msdfbake
 			else if (Arg == "--px-range") { Ok = TakeValue(Argc, Argv, Index, Value); Params.PxRange = std::atoi(Value.c_str()); }
 			else if (Arg == "--page")     { Ok = TakeValue(Argc, Argv, Index, Value); PageSize = std::atoi(Value.c_str()); }
 			else if (Arg == "--layers")   { bLayers = true; }
+			else if (Arg == "--strict")   { bStrict = true; }
 			else
 			{
 				std::fprintf(stderr, "msdfbake: error: unknown option %s\n", Arg.c_str());
@@ -1047,12 +1238,22 @@ namespace msdfbake
 		BakeSink Sink;
 		FMsdfAtlas Atlas(Sink, Params, PageSize);
 
+		// A second sheet, ordinary raster, for layers whose paint varies across the shape. A field
+		// carries coverage and nothing else, so a gradient cannot live on the MSDF sheet at all; it
+		// is baked to colour here with the field supplying the edge. Kept in its own file because the
+		// sidecar marks a whole PNG as MSDF, and these must load as plain sprites.
+		BakeSink ColourSink;
+		FMsdfAtlas ColourAtlas(ColourSink, Params, PageSize);
+		bool bAnyGradient = false;
+
 		struct FPacked
 		{
 			std::string Name;
 			FGlyphBox Box;
 			/// Set when the sprite came from --layers, so the stylesheet can tint it.
 			bool bHasColour = false;
+			/// On the colour sheet rather than the field sheet, and already carrying its own colour.
+			bool bGradient = false;
 			unsigned char R = 0, G = 0, B = 0;
 			/// Where this layer sits inside the drawing, as fractions of it. A layer is packed at
 			/// its own bounds, so without this they all stack at the origin and the art comes apart.
@@ -1079,10 +1280,34 @@ namespace msdfbake
 		std::vector<FFrame> Frames;
 		int Failed = 0;
 
+		int Unsupported = 0;
+
 		for (const std::string& Input : Inputs)
 		{
 			const std::string SpriteStem = StemOf(Input);
 			std::string Error;
+
+			// Before the bake, so the reason is on screen next to the drawing it explains rather than
+			// after a wall of successful output.
+			{
+				std::vector<FUnsupportedPaint> Found;
+				FindUnsupportedPaints(Input, Found);
+
+				for (const FUnsupportedPaint& Paint : Found)
+				{
+					std::fprintf(stderr, "msdfbake: %s: %s: %s contains %s\n",
+						bStrict ? "error" : "warning", SpriteStem.c_str(), Input.c_str(),
+						Paint.Found.c_str());
+					std::fprintf(stderr, "msdfbake:   %s.\n", Paint.Explanation.c_str());
+					++Unsupported;
+				}
+
+				if (!Found.empty())
+				{
+					std::fprintf(stderr,
+						"msdfbake:   Gradients that do bake: linear, radial and elliptical.\n");
+				}
+			}
 
 			if (bLayers)
 			{
@@ -1104,8 +1329,22 @@ namespace msdfbake
 						continue;
 					}
 
+					// A gradient layer is baked to colour and packed on the raster sheet instead. The
+					// field is still what produced the tile and its edge, so the two sheets stay
+					// aligned and the layer keeps the same box either way.
+					std::vector<unsigned char> Colour;
+					const bool bBakedColour = Layer.bGradient
+						&& RasteriseLayerColour(Layer, LayerBitmap, Params, Colour);
+
+					FMsdfGlyphBitmap ColourBitmap = LayerBitmap;
+					if (bBakedColour)
+					{
+						ColourBitmap.Rgba = std::move(Colour);
+					}
+
 					FGlyphBox LayerBox;
-					if (!Atlas.Add(LayerBitmap, 0.0f, LayerBox))
+					if (!(bBakedColour ? ColourAtlas.Add(ColourBitmap, 0.0f, LayerBox)
+						: Atlas.Add(LayerBitmap, 0.0f, LayerBox)))
 					{
 						std::fprintf(stderr, "msdfbake: error: a layer of %s did not fit the atlas\n",
 							SpriteStem.c_str());
@@ -1113,10 +1352,13 @@ namespace msdfbake
 						continue;
 					}
 
+					bAnyGradient = bAnyGradient || bBakedColour;
+
 					FPacked Packed;
 					Packed.Name = SpriteStem + "_" + std::to_string(LayerIndex);
 					Packed.Box = LayerBox;
 					Packed.bHasColour = true;
+					Packed.bGradient = bBakedColour;
 					// nanosvg packs a fill colour as 0xAABBGGRR.
 					Packed.R = (unsigned char)(Layer.Colour & 0xFF);
 					Packed.G = (unsigned char)((Layer.Colour >> 8) & 0xFF);
@@ -1224,12 +1466,23 @@ namespace msdfbake
 		}
 
 		const std::string PngPath = OutputDir + "/" + Name + ".msdf.png";
+		const std::string ColourPngPath = OutputDir + "/" + Name + ".png";
 
 		const std::string WriteError = Sink.WritePng(0, PngPath);
 		if (!WriteError.empty())
 		{
 			std::fprintf(stderr, "msdfbake: error: %s: %s\n", PngPath.c_str(), WriteError.c_str());
 			return 1;
+		}
+
+		if (bAnyGradient)
+		{
+			const std::string ColourError = ColourSink.WritePng(0, ColourPngPath);
+			if (!ColourError.empty())
+			{
+				std::fprintf(stderr, "msdfbake: error: %s: %s\n", ColourPngPath.c_str(), ColourError.c_str());
+				return 1;
+			}
 		}
 
 		FMsdfSidecar Sidecar;
@@ -1259,6 +1512,11 @@ namespace msdfbake
 			{
 				// The box carries a half-texel inset so bilinear sampling never reaches the gutter.
 				// A sprite rectangle is whole texels, so the inset comes back out here.
+				if (Sprite.bGradient)
+				{
+					continue;
+				}
+
 				const int X = int(Sprite.Box.AtlasLeft);
 				const int Y = int(Sprite.Box.AtlasTop);
 				const int W = int(Sprite.Box.AtlasRight + 0.5f) - X;
@@ -1279,6 +1537,35 @@ namespace msdfbake
 			}
 
 			Block += "}\n";
+
+			// The gradient layers, on their own sheet. A distance field carries coverage and nothing
+			// else, so a paint that varies across the shape cannot live on the field sheet: these are
+			// baked to colour, with the field supplying the edge, and load as ordinary sprites.
+			if (bAnyGradient)
+			{
+				Block += "\n@spritesheet " + Name + "_colour\n{\n";
+				Block += "\tsrc: /ui/art/" + Name + ".png;\n";
+				Block += "\tresolution: 1x;\n\n";
+
+				for (const FPacked& Sprite : Sprites)
+				{
+					if (!Sprite.bGradient)
+					{
+						continue;
+					}
+
+					const int X = int(Sprite.Box.AtlasLeft);
+					const int Y = int(Sprite.Box.AtlasTop);
+					const int W = int(Sprite.Box.AtlasRight + 0.5f) - X;
+					const int H = int(Sprite.Box.AtlasBottom + 0.5f) - Y;
+
+					Block += "\t" + Sprite.Name + ": " + std::to_string(X) + "px " + std::to_string(Y)
+						+ "px " + std::to_string(W) + "px " + std::to_string(H) + "px;\n";
+				}
+
+				Block += "}\n";
+			}
+
 			// One class per layer, in paint order, carrying the colour the drawing used. Stacking
 			// them reproduces the artwork; overriding image-color on any of them recolours it.
 			bool bAnyColour = false;
@@ -1308,11 +1595,25 @@ namespace msdfbake
 				}
 
 				char Rule[256] = {};
-				std::snprintf(Rule, sizeof(Rule),
-					".%s-ink { position: absolute; left: %.4f%%; top: %.4f%%; width: %.4f%%; height: %.4f%%; "
-					"image-color: #%02x%02x%02x; }\n",
-					Sprite.Name.c_str(), 100.0f * Sprite.Left, 100.0f * Sprite.Top,
-					100.0f * Sprite.Width, 100.0f * Sprite.Height, Sprite.R, Sprite.G, Sprite.B);
+
+				if (Sprite.bGradient)
+				{
+					// No image-color: the sprite already carries the gradient. Setting one would
+					// multiply it and flatten the drawing to a tint of itself.
+					std::snprintf(Rule, sizeof(Rule),
+						".%s-ink { position: absolute; left: %.4f%%; top: %.4f%%; width: %.4f%%; height: %.4f%%; }\n",
+						Sprite.Name.c_str(), 100.0f * Sprite.Left, 100.0f * Sprite.Top,
+						100.0f * Sprite.Width, 100.0f * Sprite.Height);
+				}
+				else
+				{
+					std::snprintf(Rule, sizeof(Rule),
+						".%s-ink { position: absolute; left: %.4f%%; top: %.4f%%; width: %.4f%%; height: %.4f%%; "
+						"image-color: #%02x%02x%02x; }\n",
+						Sprite.Name.c_str(), 100.0f * Sprite.Left, 100.0f * Sprite.Top,
+						100.0f * Sprite.Width, 100.0f * Sprite.Height, Sprite.R, Sprite.G, Sprite.B);
+				}
+
 				Block += Rule;
 			}
 
@@ -1338,9 +1639,9 @@ namespace msdfbake
 		}
 
 		std::printf("%s\n", PngPath.c_str());
-		std::printf("packed=%d failed=%d pxem=%d pxrange=%d\n",
-			int(Sprites.size()), Failed, Params.PxPerEm, Params.PxRange);
+		std::printf("packed=%d failed=%d unsupported=%d pxem=%d pxrange=%d\n",
+			int(Sprites.size()), Failed, Unsupported, Params.PxPerEm, Params.PxRange);
 
-		return Failed > 0 ? 1 : 0;
+		return (Failed > 0 || (bStrict && Unsupported > 0)) ? 1 : 0;
 	}
 }

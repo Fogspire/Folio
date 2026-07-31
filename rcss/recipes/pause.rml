@@ -1,0 +1,44 @@
+<rml>
+<head>
+	<title>Pause</title>
+
+	<!--
+		A pause menu over a running game.
+
+		Copy into your own ui/screens/ and edit. The parts worth keeping:
+		  - a scrim, so the game behind is visibly suspended rather than merely covered
+		  - .is-inert on anything the pause covers, which takes it out of navigation as well as out of
+		    the mouse's reach; both inherit, so one class does a whole subtree
+		  - Resume first and autofocused, because the commonest reason to open this is to close it
+	-->
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+
+	<style>
+		body { justify-content: center; align-items: center; }
+
+		.pause-card { width: 380dp; }
+
+		.pause-head
+		{
+			text-align: center;
+			margin-bottom: 24dp;
+		}
+	</style>
+</head>
+
+<body class="screen c-scrim s-pad-xl">
+	<div class="pause-card panel">
+		<div class="panel-body">
+			<div class="pause-head t-title c-text" data-loc="pause_title">Paused</div>
+
+			<div class="btn-stack">
+				<button class="btn btn-primary btn-wide focusable" id="resume" autofocus
+					data-loc="pause_resume">Resume</button>
+				<button class="btn btn-wide focusable" id="settings" data-loc="pause_settings">Settings</button>
+				<button class="btn btn-wide focusable" id="restart" data-loc="pause_restart">Restart Checkpoint</button>
+				<button class="btn btn-ghost btn-wide focusable" id="quit" data-loc="pause_quit">Quit to Menu</button>
+			</div>
+		</div>
+	</div>
+</body>
+</rml>

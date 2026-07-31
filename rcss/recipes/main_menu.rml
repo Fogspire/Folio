@@ -1,0 +1,56 @@
+<rml>
+<head>
+	<title>Main menu</title>
+
+	<!--
+		A main menu, complete and working.
+
+		Copy this into your own ui/screens/ and edit it. It is not meant to be linked from the plugin
+		at runtime: a recipe is a starting point, not a component, and the first thing any game does is
+		change it. Nothing here names Folio's directory except the library link.
+
+		What it demonstrates, and what is worth keeping when you change everything else:
+		  - one .btn-stack, so the whole menu is one navigation axis and a pad cannot get stuck
+		  - autofocus on the first item, so a controller has somewhere to start
+		  - data-loc on every string, so it can be translated before anyone asks
+		  - not one literal colour, so it follows the theme
+	-->
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+
+	<style>
+		body { justify-content: center; align-items: center; }
+
+		.menu-shell { width: 420dp; }
+
+		.brand
+		{
+			text-align: center;
+			margin-bottom: 40dp;
+		}
+
+		.brand-sub { margin-top: 4dp; }
+
+		.build { position: absolute; right: 24dp; bottom: 20dp; }
+	</style>
+</head>
+
+<body class="screen s-pad-xl">
+	<div class="menu-shell">
+		<div class="brand">
+			<div class="t-display c-text" data-loc="game_title">YOUR GAME</div>
+			<div class="brand-sub t-caption c-dim" data-loc="game_tagline">a subtitle goes here</div>
+		</div>
+
+		<div class="btn-stack">
+			<button class="btn btn-primary btn-wide focusable" id="continue" autofocus
+				data-loc="menu_continue">Continue</button>
+			<button class="btn btn-wide focusable" id="new_game" data-loc="menu_new">New Game</button>
+			<button class="btn btn-wide focusable" id="load" data-loc="menu_load">Load Game</button>
+			<button class="btn btn-wide focusable" id="settings" data-loc="menu_settings">Settings</button>
+			<button class="btn btn-ghost btn-wide focusable" id="quit" data-loc="menu_quit">Quit</button>
+		</div>
+	</div>
+
+	<div class="build t-caption c-dim" data-loc="build_label">build 0.0.0</div>
+</body>
+</rml>

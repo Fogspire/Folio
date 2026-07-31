@@ -62,6 +62,11 @@ the first thing a reader will want after this.
   author and worked. The input section was written from the bugs found doing that, so its
   troubleshooting list is real rather than imagined.
 
+- **The component library and theming.** `rcss/lib/` is structure, `rcss/themes/default.rcss` is the
+  tokens and skins, `rcss/recipes/` is documents to copy. The page needs to lead with why a component
+  carries no colour, because that is the rule everything else follows from and it looks arbitrary
+  until the missing `var()` is explained.
+
 ## Things to check before publishing any of it
 
 - Every code sample compiles or is copied from something that does. Samples in `UI_CONVENTIONS.md`

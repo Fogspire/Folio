@@ -167,8 +167,10 @@ body
 .focusable
 {
 	border-color: #ffffff00;
+	/* box-shadow is not in this list because RmlUi cannot interpolate one: naming it warns and the
+	   focus glow snaps rather than fading. Everything else here animates. */
 	transition: background-color 0.12s cubic-out, border-color 0.12s cubic-out,
-		color 0.12s cubic-out, box-shadow 0.12s cubic-out, transform 0.1s cubic-out;
+		color 0.12s cubic-out, transform 0.1s cubic-out;
 }
 
 .focusable:hover          { background-color: #363642; }

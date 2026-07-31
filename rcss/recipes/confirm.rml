@@ -1,0 +1,47 @@
+<rml>
+<head>
+	<title>Confirmation</title>
+
+	<!--
+		A confirmation dialog: the one screen every game needs and nobody wants to write.
+
+		Copy into your own ui/screens/ and edit. The parts worth keeping:
+		  - the dialog is a child of .modal-scrim, which is what centres it. A scrim beside the dialog
+		    dims the dialog too
+		  - .is-inert on the content behind, which takes it out of navigation as well as out of the
+		    mouse's reach. Without it the first direction press walks the buttons behind the dialog,
+		    because a fresh document focuses nothing and its own nav finds the first tabbable element
+		    in document order
+		  - the *safe* action is autofocused, not the destructive one, so a player mashing confirm
+		    cancels rather than deletes
+		  - the destructive action is .btn-danger and says what it does, rather than "OK"
+	-->
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+</head>
+
+<body class="screen s-pad-xl">
+	<!-- Whatever the dialog is covering. Inert for as long as it is up; remove the class when it closes. -->
+	<div class="is-inert x-fill">
+		<div class="t-title c-text s-gap-m" data-loc="saves_title">Saves</div>
+		<div class="btn-row">
+			<button class="btn focusable" data-loc="saves_load">Load</button>
+			<button class="btn focusable" data-loc="saves_delete">Delete</button>
+		</div>
+	</div>
+
+	<div class="modal-scrim">
+		<div class="modal modal-narrow">
+			<div class="modal-title t-heading c-text" data-loc="confirm_title">Delete save?</div>
+
+			<div class="modal-body t-body c-muted" data-loc="confirm_body">
+				This cannot be undone.
+			</div>
+
+			<div class="modal-actions">
+				<button class="btn focusable" id="cancel" autofocus data-loc="confirm_cancel">Keep</button>
+				<button class="btn btn-danger focusable" id="confirm" data-loc="confirm_delete">Delete</button>
+			</div>
+		</div>
+	</div>
+</body>
+</rml>

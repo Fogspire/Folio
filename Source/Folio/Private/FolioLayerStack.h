@@ -113,6 +113,24 @@ private:
 
 		/** Set for a target the caller owns, which Pop resolves but does not pool. */
 		bool bCallerOwned = false;
+
+		/**
+		 * Set once this layer's target is being sampled by a composite quad in the layer below.
+		 *
+		 * Its lifetime then belongs to that layer, not to this one: popping is what RmlUi does after a
+		 * composite, and returning the target to the pool there hands it straight back to the next
+		 * sibling, which clears it. The pending quad is left sampling whatever that sibling drew.
+		 */
+		bool bHandedOff = false;
+
+		/**
+		 * Targets this layer's own draws sample, released once it has resolved.
+		 *
+		 * Every layer composited into this one is in here. Holding them is what makes a document with
+		 * more than one filtered element work at all - without it only the last one is correct, and it
+		 * looks like the others were never drawn.
+		 */
+		TArray<TStrongObjectPtr<UTextureRenderTarget2D>> Sampled;
 	};
 
 	UTextureRenderTarget2D* Acquire(FIntPoint Size);
@@ -120,6 +138,9 @@ private:
 
 	/** Replays a layer's recorded draws into its target, then clears the recording. */
 	void Resolve(FLayer& Layer);
+
+	/** Resolves, then returns every target the layer sampled to the pool. */
+	void ResolveAndRecycle(FLayer& Layer);
 
 	TArray<FLayer> Stack;
 	TMultiMap<FIntPoint, TStrongObjectPtr<UTextureRenderTarget2D>> Pool;

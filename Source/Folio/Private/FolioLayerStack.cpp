@@ -100,9 +100,10 @@ void FFolioLayerStack::Pop()
 	}
 
 	FLayer Layer = Stack.Pop();
-	Resolve(Layer);
+	ResolveAndRecycle(Layer);
 
-	if (!Layer.bCallerOwned)
+	// A handed-off target belongs to the layer sampling it, which releases it after its own resolve.
+	if (!Layer.bCallerOwned && !Layer.bHandedOff)
 	{
 		Release(Layer.Target.Get());
 	}
@@ -191,7 +192,7 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	}
 
 	FLayer& Layer = Stack.Last();
-	Resolve(Layer);
+	ResolveAndRecycle(Layer);
 
 	Folio::ApplyColourFilters(Layer.Target.Get(), Colour);
 
@@ -225,7 +226,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	}
 
 	FLayer& Source = Stack.Last();
-	Resolve(Source);
+	ResolveAndRecycle(Source);
 
 	// Colour before blur, which is the order CSS gives and the order that matters: blurring a
 	// desaturated layer and desaturating a blurred one differ wherever the blur crosses an edge.
@@ -255,6 +256,23 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	Draw.Indices = { 0, 1, 2, 0, 2, 3 };
 
 	Destination.Draws.GetDraws().Add(MoveTemp(Draw));
+
+	// The quad above samples this target, so it has to stay out of the pool until the destination has
+	// resolved. Pop runs immediately after this and would otherwise recycle it.
+	Destination.Sampled.Add(Source.Target);
+	Source.bHandedOff = true;
+}
+
+void FFolioLayerStack::ResolveAndRecycle(FLayer& Layer)
+{
+	Resolve(Layer);
+
+	for (const TStrongObjectPtr<UTextureRenderTarget2D>& Target : Layer.Sampled)
+	{
+		Release(Target.Get());
+	}
+
+	Layer.Sampled.Reset();
 }
 
 void FFolioLayerStack::Resolve(FLayer& Layer)

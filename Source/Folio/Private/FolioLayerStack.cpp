@@ -78,6 +78,28 @@ bool FFolioLayerStack::Push(const FIntPoint Size)
 	return Size.X > 0 && Size.Y > 0 && Acquire(Size) != nullptr;
 }
 
+bool FFolioLayerStack::PushMatchingTop()
+{
+	if (Stack.IsEmpty())
+	{
+		return false;
+	}
+
+	// Copied before acquiring, which appends to the stack and would leave a reference dangling.
+	const FIntPoint Size = Stack.Last().Size;
+	const FIntPoint Clip = Stack.Last().ClipSize;
+
+	if (Size.X <= 0 || Size.Y <= 0 || !Acquire(Size))
+	{
+		return false;
+	}
+
+	// Carried too, or a layer over a supersampled surface would replay the same geometry at the
+	// target's scale instead of the document's.
+	Stack.Last().ClipSize = Clip;
+	return true;
+}
+
 bool FFolioLayerStack::PushInto(UTextureRenderTarget2D* Target, const FIntPoint ClipSize)
 {
 	if (!Target || Target->SizeX <= 0 || Target->SizeY <= 0)

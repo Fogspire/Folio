@@ -85,6 +85,12 @@ void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, c
 	bHasTransform = false;
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
+
+	// Only the bottom layer sets this, and a surface never has one - it pushes into a target the
+	// caller owns. Left alone it keeps the offset of whatever screen document ran last, and every
+	// layer on the surface is shifted by it.
+	LayerOrigin = FIntPoint::ZeroValue;
+
 	RecordedLayerMarks.Reset();
 	RmlTransform = FSlateRenderTransform();
 	PendingBackdropSigma = 0.0f;
@@ -112,6 +118,12 @@ void FFolioRenderInterface::BeginRecording(FFolioDrawList& InDrawList, const FIn
 	bHasTransform = false;
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
+
+	// Only the bottom layer sets this, and a surface never has one - it pushes into a target the
+	// caller owns. Left alone it keeps the offset of whatever screen document ran last, and every
+	// layer on the surface is shifted by it.
+	LayerOrigin = FIntPoint::ZeroValue;
+
 	RecordedLayerMarks.Reset();
 	RmlTransform = FSlateRenderTransform();
 	PendingBackdropSigma = 0.0f;
@@ -135,6 +147,12 @@ bool FFolioRenderInterface::BeginSurface(const FIntPoint InContextSize, UTexture
 	bHasTransform = false;
 	ClipMaskRect.Reset();
 	LayerDepth = 0;
+
+	// Only the bottom layer sets this, and a surface never has one - it pushes into a target the
+	// caller owns. Left alone it keeps the offset of whatever screen document ran last, and every
+	// layer on the surface is shifted by it.
+	LayerOrigin = FIntPoint::ZeroValue;
+
 	RecordedLayerMarks.Reset();
 	RmlTransform = FSlateRenderTransform();
 	PendingBackdropSigma = 0.0f;
@@ -943,7 +961,23 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 		return 0;
 	}
 
-	// A layer covers the current scissor region, which is what RmlUi has already clamped to
+	// A layer over another one matches it, because the two share a space: geometry is recorded against
+	// LayerOrigin, which the bottom layer fixed, and compositing covers the whole target. Sizing this
+	// one from the scissor instead puts it in a different space to the layer below - and by now the
+	// scissor is the element's own clip, so it is a different space every time.
+	//
+	// mask-image is where that shows, since the mask and what it masks are read at the same coordinate.
+	if (!Layers.IsEmpty())
+	{
+		if (!Layers.PushMatchingTop())
+		{
+			UE_LOG(LogFolio, Warning, TEXT("could not allocate a nested layer"));
+		}
+
+		return static_cast<Rml::LayerHandle>(++LayerDepth);
+	}
+
+	// The bottom layer covers the current scissor region, which is what RmlUi has already clamped to
 	// the window. Allocating the whole context instead would make a small shadow cost a
 	// full-screen target.
 	FIntPoint Size = ContextSize;
@@ -955,10 +989,7 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 		Origin = FIntPoint(ScissorRegion.Left(), ScissorRegion.Top());
 	}
 
-	if (Layers.IsEmpty())
-	{
-		LayerOrigin = Origin;
-	}
+	LayerOrigin = Origin;
 
 	if (!Layers.Push(Size))
 	{

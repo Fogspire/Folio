@@ -39,6 +39,16 @@ public:
 	bool Push(FIntPoint Size);
 
 	/**
+	 * Pushes a layer matching the current one's geometry.
+	 *
+	 * Every layer in a stack shares one space: geometry is recorded against the bottom layer's origin,
+	 * and compositing draws a quad over the whole target. So a nested layer sized differently is not a
+	 * smaller view of the same picture, it is a different picture - and mask-image is where that shows,
+	 * since the mask and what it masks are sampled at the same coordinate.
+	 */
+	bool PushMatchingTop();
+
+	/**
 	 * Pushes a layer that resolves into a target the caller owns, rather than one from the pool.
 	 *
 	 * What a render-target surface needs: the destination outlives the frame and is sampled by a material,

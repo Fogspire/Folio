@@ -6,6 +6,10 @@ Markup is plain text (`.rml` / `.rcss`), not hand-assembled widget hierarchies.
 Two renderers draw the same markup: `uipreview`, a standalone tool with no Unreal dependency,
 and the UE plugin under `Source/`. Anything authored in one renders in the other.
 
+**Building UI?** Start at **[docs/README.md](docs/README.md)**. If you are an agent asked to build UI
+in a project you have not seen, read **[AGENTS.md](AGENTS.md)** first - it is short, and it covers the
+mistakes that produce no error at all.
+
 ## Layout
 
 | Path | What |

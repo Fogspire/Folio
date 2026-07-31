@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "0.0.1",
 	"FriendlyName": "Folio",
-	"Description": "RmlUi-based UI system. Documents are plain text rather than hand-assembled widget hierarchies.",
+	"Description": "Build game UI in markup and stylesheets, with a live preview that lays out exactly as the engine does. Text and vector art are distance fields, so everything stays sharp at any size, on any screen, and on a monitor in the world.",
 	"Category": "UI",
 	"CreatedBy": "Fogspire",
 	"CanContainContent": true,

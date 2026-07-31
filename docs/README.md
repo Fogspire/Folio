@@ -1,0 +1,79 @@
+# Folio documentation
+
+RmlUi-based UI for Unreal. Markup and stylesheets instead of widget graphs, distance-field text and
+vector art that stay sharp at any size, and a preview tool that lays out identically to the engine.
+
+Read in order if you are new. Everything after **Getting started** stands alone.
+
+## Start here
+
+| | |
+|---|---|
+| **[Hello world](hello_world.md)** | Install the plugin, get a document on screen, cook and ship it. |
+| **[Setting up VSCode](vscode.md)** | Highlighting, a live preview beside the document, click-to-find-the-rule. Five minutes, and it is where the authoring time goes. |
+| **[Testing a document](testing_a_document.md)** | `uipreview`, `--strict`, screenshots, and the checks that stop a broken stylesheet shipping. |
+
+## Building a screen
+
+| | |
+|---|---|
+| **[Layout and panels](layout.md)** | Flexbox, the box model, units, and the three layout traps that cost everyone a day. |
+| **[Components, themes and recipes](components_and_themes.md)** | The shipped library, why a component carries no colour, and how a game overrides it. |
+| **[Text and fonts](text_and_fonts.md)** | Registering faces, variable weights, font effects and their size cap, and the small-text trade-off. |
+| **[Images and sprites](images.md)** | Spritesheets, the image decorator's fit modes, ninepatch, and when a PNG is the right answer. |
+| **[Vector art](vectors.md)** | SVG baked to distance fields: infinitely scalable icons, the colour-layer stack, and what a field cannot represent. |
+| **[Animation](animation.md)** | Transitions, keyframes, what is cheap to animate and what will cost you frames. |
+
+## Making it respond
+
+| | |
+|---|---|
+| **[Input and navigation](input_and_navigation.md)** | Keyboard, gamepad and mouse; the one `nav` rule that everything else follows from; rebinding. |
+| **[Drag, drop and resize](drag_and_resize.md)** | Moving, dropping and resizing with no code, and where the game takes over. |
+| **[Data binding](data_binding.md)** | Driving a document from gameplay, and whether you want MVVM. |
+| **[Generating a view model](view_models.md)** | The codegen path, when reflection is not enough. |
+| **[Calling into game code](hosting.md)** | Hosting a document in an existing widget tree, events, and the CommonUI focus trap. |
+
+## In the world
+
+| | |
+|---|---|
+| **[Documents in the world](world_documents.md)** | A monitor on a desk, a sign on a wall. The three draw modes and the surface setup. |
+| **[Nameplates and markers](markers.md)** | Screen-space documents that follow a world location. |
+
+## Shipping
+
+| | |
+|---|---|
+| **[Accessibility](accessibility.md)** | Contrast, hit targets, focus visibility and control names, checked in the build. |
+| **[Localisation](localization.md)** | `data-loc`, the gather, and previewing pseudo-loc before translation exists. |
+| **[Performance and profiling](performance_profiling.md)** | `stat Folio`, the invalidation path, and what actually makes a screen slow. |
+
+## Tutorials
+
+| | |
+|---|---|
+| **[A CRT terminal in the world](tutorials/crt_terminal.md)** | The whole vocabulary in one build: an oval screen, a text field, a draggable window with a bin and an animated close, onto a curved surface with scan lines. |
+| **[An inventory screen](tutorials/inventory.md)** | A grid, drag and drop between slots, gamepad navigation, and a data model behind it. |
+| **[A list of ten thousand items](tutorials/long_lists.md)** | Binding a fixed-size window instead of the array, so scrolling allocates nothing at all. |
+
+## Reference
+
+| | |
+|---|---|
+| **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** | **Authoritative for capability.** What RCSS supports, what is banned, and what silently does nothing. Read it before authoring anything real - RmlUi is close enough to CSS to mislead. |
+| **[AGENTS.md](../AGENTS.md)** | The cold-start brief. What to hand an agent asked to build UI in a project it has not seen. |
+| **[NOTES.md](../NOTES.md)** | Build and engine-integration hazards. Not for authoring. |
+
+## The one thing to know first
+
+RmlUi is **not a browser** and RCSS is **not CSS**. It is close enough that valid-looking CSS parses
+and then does nothing at all - `display: grid`, `var()`, `background-image`, `text-shadow`,
+`calc()`, `120ms`, `rgba(0,0,0,0.5)`. None of those warn.
+
+Two habits make that a non-issue:
+
+- Run with `--strict`. Nearly every RCSS mistake is a warning rather than an error, and a check that
+  only looks at errors will pass a thoroughly broken stylesheet.
+- When something does nothing, look it up in **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** before
+  debugging it. It is usually on the banned list.

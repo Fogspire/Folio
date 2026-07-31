@@ -25,6 +25,9 @@ DEFINE_LOG_CATEGORY(LogFolio);
 
 #define LOCTEXT_NAMESPACE "Folio"
 
+FFolioModule::FFolioModule() = default;
+FFolioModule::~FFolioModule() = default;
+
 void FFolioModule::StartupModule()
 {
 	// Before any face is loaded, so the core's generation scopes are captured from the start.

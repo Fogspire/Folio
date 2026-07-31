@@ -31,6 +31,8 @@ namespace
 	TSet<FName> ActiveThemes;
 }
 
+FFolioDocumentHost::FFolioDocumentHost() = default;
+
 FFolioDocumentHost::~FFolioDocumentHost()
 {
 	Destroy();

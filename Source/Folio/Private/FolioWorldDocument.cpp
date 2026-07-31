@@ -144,7 +144,7 @@ void UFolioWorldDocument::OnRegister()
 	// level viewport is the point of authoring one, so this is not gated on a game world.
 	bTickInEditor = bUpdateInEditor;
 
-	Host = MakeUnique<FFolioDocumentHost>();
+	Host = MakeShared<FFolioDocumentHost>();
 
 	// The cursor belongs to the document, so a reload or a hot reload takes it with it.
 	Host->OnDocumentClosing = [this] { Cursor = nullptr; CursorAt.Reset(); };

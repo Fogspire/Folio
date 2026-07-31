@@ -24,6 +24,12 @@ namespace Rml
 class FFolioDocumentHost
 {
 public:
+	// Both out of line, for the members this header only forward declares. The destructor is the
+	// obvious one; the constructor matters just as much, because it has to be able to unwind
+	// already-built members and so needs them complete wherever it is instantiated. Leaving it
+	// implicit compiles only while every including translation unit happens to be unity-built
+	// alongside FolioDocumentHost.cpp, and breaks when adding a file elsewhere reshuffles the blobs.
+	FFolioDocumentHost();
 	~FFolioDocumentHost();
 
 	/**

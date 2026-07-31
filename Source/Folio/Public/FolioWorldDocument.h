@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Components/SceneComponent.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "FolioDrawList.h"
 #include "CoreMinimal.h"
 
@@ -415,7 +416,11 @@ private:
 	void UpdateKeyboardFocus();
 
 	/** Held by pointer so the host stays private to the module while this header is public. */
-	TUniquePtr<FFolioDocumentHost> Host;
+	// Shared rather than unique, because this header only forward declares the host: a TSharedPtr
+	// captures its deleter where the type is complete, so no consumer of this header has to be. With a
+	// TUniquePtr it compiles only while every consumer happens to have seen the definition first, which
+	// is a property of the unity-build grouping rather than of any file.
+	TSharedPtr<FFolioDocumentHost> Host;
 
 	/**
 	 * Where the pointer is, in document pixels, or unset when it is off the surface.

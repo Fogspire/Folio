@@ -25,6 +25,13 @@ namespace Folio { class FFolioFontEngine; }
 class FOLIO_API FFolioModule : public IModuleInterface
 {
 public:
+	FFolioModule();
+	// Out of line, because every member below is a TUniquePtr to a type this header only forward
+	// declares. An implicit destructor has to be instantiated wherever one happens to be needed, and
+	// there it needs all of them complete - which is not a property a consumer can be expected to
+	// maintain, and fails as a wall of errors naming the header rather than the file that caused it.
+	virtual ~FFolioModule() override;
+
 	static FFolioModule& Get()
 	{
 		return FModuleManager::LoadModuleChecked<FFolioModule>(TEXT("Folio"));

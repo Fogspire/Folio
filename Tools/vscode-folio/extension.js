@@ -602,7 +602,12 @@ function show(state) {
 function targetsFor(element, property) {
 	const targets = [];
 
-	for (const declaration of element.properties || []) {
+	// The plugin's own stylesheets are never a target. A drag in a game's preview that lands on
+	// /folio/folio.rcss edits the shipped reset for every project that has ever linked it, and the
+	// change shows up as every document being subtly wrong with nothing in the game to explain it.
+	const editable = (declaration) => !/^\/?folio\//.test(String(declaration.file));
+
+	for (const declaration of (element.properties || []).filter(editable)) {
 		if (declaration.name === property) {
 			targets.push({
 				label: `Rule ${declaration.rule}`,
@@ -614,7 +619,7 @@ function targetsFor(element, property) {
 
 	// Rules that style this element but do not set this property yet: adding it there is the next most
 	// likely intent, and the most specific one is offered first.
-	for (const declaration of element.properties || []) {
+	for (const declaration of (element.properties || []).filter(editable)) {
 		if (declaration.name !== property && !targets.some((t) => t.rule === declaration.rule)) {
 			targets.push({
 				label: `Rule ${declaration.rule}`,

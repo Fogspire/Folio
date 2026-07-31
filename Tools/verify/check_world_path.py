@@ -35,7 +35,7 @@ DOCUMENTS = (
     "/folio/dev/verify_surface.rml",
     "/folio/dev/idle_test.rml",
     "/folio/dev/idle_animation.rml",
-    "/folio/dev/crt_terminal.rml",
+    "/folio/examples/crt_terminal.rml",
 )
 
 SECONDS = 40

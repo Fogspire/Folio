@@ -396,7 +396,7 @@ namespace
 			return;
 		}
 
-		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("/folio/dev/nav_test.rml");
+		const FString Document = Args.Num() > 0 ? Args[0] : TEXT("/folio/examples/nav_test.rml");
 
 		HideNavTest();
 

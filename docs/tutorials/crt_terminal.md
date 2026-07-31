@@ -7,10 +7,10 @@ drop files into. Then put it on a mesh with scan lines and a phosphor glow.
 It is one document and one component. No Blueprint graph, no widget tree, and the only C++ is
 pointing an input action at the component.
 
-The finished thing is `dev/crt_terminal.rml`. Open it beside this page.
+The finished thing is `examples/crt_terminal.rml`. Open it beside this page.
 
 ```bash
-./bin/win64/uipreview.exe dev/crt_terminal.rml --root . --size 1200x900
+./bin/win64/uipreview.exe examples/crt_terminal.rml --root . --size 1200x900
 ```
 
 ---
@@ -248,7 +248,7 @@ Add a **Folio World Document** component to an actor with the CRT mesh.
 
 | | |
 |---|---|
-| `Document Path` | `dev/crt_terminal.rml` |
+| `Document Path` | `examples/crt_terminal.rml` |
 | `Draw Mode` | `Surface` |
 | `World Size` | the screen's size in world units - for a 135.97 × 107.314 monitor, that |
 | `Pixels Per Unit` | pick so `WorldSize × PixelsPerUnit` lands near your target resolution |
@@ -329,7 +329,7 @@ the pointer" from "the pointer is in the wrong place".
 ## 10. Check it
 
 ```bash
-./bin/win64/uipreview.exe dev/crt_terminal.rml --root . --strict --a11y
+./bin/win64/uipreview.exe examples/crt_terminal.rml --root . --strict --a11y
 ```
 
 Both clean on the shipped document. Then in the editor:

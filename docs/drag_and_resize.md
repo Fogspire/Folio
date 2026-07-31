@@ -154,7 +154,7 @@ a pad, give it a non-drag path too (pick up with confirm, move with the stick, p
 
 ## Worked example
 
-`dev/crt_terminal.rml` has all of it in one document: a draggable window with a title-bar handle, a
+`examples/crt_terminal.rml` has all of it in one document: a draggable window with a title-bar handle, a
 corner grip, two icons that drag and drop into a bin, and an animated close - on an oval CRT screen
 in the world. The **[CRT terminal tutorial](tutorials/crt_terminal.md)** builds it from nothing.
 

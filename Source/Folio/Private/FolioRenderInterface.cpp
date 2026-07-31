@@ -518,6 +518,31 @@ Rml::TextureHandle FFolioRenderInterface::RegisterPixels(const void* Bgra, const
 	Entry->DynamicBrush = Brush;
 	Entry->Handle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(*Brush);
 
+	// A second copy as a UTexture, because a Slate resource handle is only good on Slate's path. The
+	// recording and layer replays bind an FRHITexture straight off a UTexture, so without this every
+	// generated image - which is every gradient - resolves to nothing and the shader samples white.
+	// That is not a fallback anyone sees as missing: a white quad the size of the element.
+	if (UTexture2D* Generated = UTexture2D::CreateTransient(Size.X, Size.Y, PF_B8G8R8A8))
+	{
+		Generated->SRGB = true;
+		Generated->Filter = TF_Bilinear;
+		Generated->AddressX = TA_Clamp;
+		Generated->AddressY = TA_Clamp;
+		Generated->NeverStream = true;
+
+		FTexture2DMipMap& Mip = Generated->GetPlatformData()->Mips[0];
+		if (void* Data = Mip.BulkData.Lock(LOCK_READ_WRITE))
+		{
+			FMemory::Memcpy(Data, Bgra, static_cast<SIZE_T>(Size.X) * Size.Y * 4);
+		}
+		Mip.BulkData.Unlock();
+
+		// Ordered rather than flushed: this enqueues the resource init, and whatever draws with it
+		// enqueues afterwards, so the texture is always ready by the time the pass runs.
+		Generated->UpdateResource();
+		Entry->Texture.Reset(Generated);
+	}
+
 	Textures.Add(Handle, MoveTemp(Entry));
 	return Handle;
 }
@@ -1378,10 +1403,9 @@ const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetEffectTexture(
 void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	const Rml::CompiledGeometryHandle GeometryHandle, const Rml::Vector2f Translation, Rml::TextureHandle)
 {
-	// No layer branch: a gradient drawn into a layer came out white over the whole surface, so a surface
-	// document has no gradient decorators at all rather than a broken one. See the task.
 	const TUniquePtr<FCompiledGeometry>* Found = Geometries.Find(GeometryHandle);
-	if ((!ElementList && !DrawList) || !Found || !Found->IsValid() || (*Found)->Vertices.IsEmpty())
+	if ((!ElementList && !DrawList && Layers.IsEmpty()) || !Found || !Found->IsValid()
+		|| (*Found)->Vertices.IsEmpty())
 	{
 		return;
 	}
@@ -1429,7 +1453,7 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		return;
 	}
 
-	if (DrawList)
+	if (DrawList || !Layers.IsEmpty())
 	{
 		FVector2f Offset;
 		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
@@ -1440,15 +1464,24 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		FFolioDraw Draw;
 		Draw.Kind = FFolioDraw::EKind::Geometry;
 		Draw.Texture.Reset(static_cast<UTexture*>(Entry->Texture.Get()));
-		FFolioDrawList::Convert(Vertices, Compiled.Indices, Offset, /*bUnpremultiply*/ false,
-			DrawList->ShouldDecodeSrgb(), Draw);
+		FFolioDrawList::Convert(Vertices, Compiled.Indices,
+			DrawList ? Offset : Offset - LayerOrigin, /*bUnpremultiply*/ false,
+			DrawList ? DrawList->ShouldDecodeSrgb() : true, Draw);
 
 		for (FFolioUIVertex& Vertex : Draw.Vertices)
 		{
 			Vertex.UV /= BoxSize;
 		}
 
-		DrawList->GetDraws().Add(MoveTemp(Draw));
+		if (DrawList)
+		{
+			DrawList->GetDraws().Add(MoveTemp(Draw));
+		}
+		else
+		{
+			Layers.AddDraw(MoveTemp(Draw));
+		}
+
 		return;
 	}
 

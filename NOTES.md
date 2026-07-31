@@ -1414,10 +1414,24 @@ branch, so a gradient decorator does not render on a surface at all.
 a property rather than comparing images, so it survives a test document being edited and names the
 property that was dropped. Run it after touching anything in the render interface.
 
-Its blind spot is the **layer** path: it records through `BeginRecording`, so nothing it does exercises
-what a Surface document actually draws through. A layer branch added and covered only by that check is
-untested - which is how a gradient drawn into a layer shipped as a white screen. Until the check can
-render a surface and read the target back, a layer change has to be looked at in PIE.
+It covers the **layer** path too, by rendering a document into a target through `BeginSurface` and
+reading the pixels back. Three questions answer most of what can go wrong: did anything draw, is it
+more than one colour, and is it white. The last is not arbitrary - see below.
+
+## A generated image has no UTexture, and the non-Slate paths bind white without one
+
+`RegisterPixels` builds an `FSlateDynamicImageBrush` and a Slate resource handle, and deliberately
+"avoids the UTexture path entirely". That is fine for Slate and wrong for everything else: the
+recording and layer replays bind an `FRHITexture` straight off a `UTexture`, so a generated image
+resolved to nothing and the shader sampled `GWhiteTexture`.
+
+Which meant **every gradient decorator was a white rectangle on every world-space document, in all
+three draw modes**, for as long as world documents have existed. It reads as a rendering bug rather
+than a missing resource, because a draw did happen - white is what sampling nothing looks like.
+
+`RegisterPixels` now also creates a transient `UTexture2D`. Ordered rather than flushed: creating it
+enqueues the resource init and whatever draws with it enqueues afterwards, so it is ready by the time
+the pass runs. Anything else that generates pixels for a non-Slate path needs the same.
 
 ## Anything touching an RmlUi global must be compiled into the module that called Rml::Initialise
 

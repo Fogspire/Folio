@@ -1093,6 +1093,128 @@ namespace
 			Name, bPassed ? TEXT("pass") : TEXT("FAIL"), *Detail);
 	}
 
+	/**
+	 * Renders a document the way a Surface document does, and measures what came out.
+	 *
+	 * The recording checks above say nothing about this: they record through BeginRecording, and a
+	 * Surface document draws through the layer stack instead. A branch added to one and not the other
+	 * is invisible to them, which is exactly how a gradient decorator came to render the whole surface
+	 * white with a green check.
+	 *
+	 * Measured rather than compared to a reference. Three questions answer most of it: did anything
+	 * draw, is it more than one colour, and is it white. The last is not arbitrary - an unbound or
+	 * wrongly sampled texture falls back to white, so a white surface is the signature of a draw that
+	 * happened and sampled nothing.
+	 */
+	struct FSurfaceSummary
+	{
+		int32 Pixels = 0;
+		int32 Opaque = 0;
+		int32 NearWhite = 0;
+		int32 Distinct = 0;
+	};
+
+	bool RenderSurfaceAndRead(FFolioDocumentHost& Host, const FIntPoint Size, FSurfaceSummary& Out)
+	{
+		Rml::Context* Context = Host.GetContext();
+		FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
+		if (!Context || !Renderer)
+		{
+			return false;
+		}
+
+		UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>();
+		Target->RenderTargetFormat = RTF_RGBA8;
+		Target->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		Target->bAutoGenerateMips = false;
+		Target->bForceLinearGamma = false;
+		Target->InitAutoFormat(Size.X, Size.Y);
+		Target->UpdateResourceImmediate(true);
+
+		TStrongObjectPtr<UTextureRenderTarget2D> Keep(Target);
+
+		if (!Renderer->BeginSurface(Size, Target))
+		{
+			return false;
+		}
+
+		Context->Render();
+		Renderer->EndSurface();
+
+		// The layer resolves on the render thread, so nothing can be read until it has.
+		FlushRenderingCommands();
+
+		FTextureRenderTargetResource* Resource = Target->GameThread_GetRenderTargetResource();
+		TArray<FColor> Pixels;
+		if (!Resource || !Resource->ReadPixels(Pixels) || Pixels.IsEmpty())
+		{
+			return false;
+		}
+
+		TSet<uint32> Seen;
+		for (const FColor& Pixel : Pixels)
+		{
+			++Out.Pixels;
+			if (Pixel.A > 8)
+			{
+				++Out.Opaque;
+			}
+			if (Pixel.R > 240 && Pixel.G > 240 && Pixel.B > 240 && Pixel.A > 240)
+			{
+				++Out.NearWhite;
+			}
+
+			// Quantised, so that antialiasing and dithering do not read as variety on their own.
+			Seen.Add((uint32(Pixel.R >> 4) << 8) | (uint32(Pixel.G >> 4) << 4) | uint32(Pixel.B >> 4));
+		}
+
+		Out.Distinct = Seen.Num();
+		return true;
+	}
+
+	void VerifySurface(const FString& DocumentPath, int32& Failures)
+	{
+		FFolioDocumentHost Host;
+		if (!Host.Create(TEXT("verify-surface"), FIntPoint(512, 512)))
+		{
+			ReportCheck(TEXT("surface"), false, TEXT("could not create a context"));
+			++Failures;
+			return;
+		}
+
+		Host.LoadDocument(DocumentPath);
+		Host.MarkDirty(TEXT("world verify"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+
+		FSurfaceSummary Summary;
+		if (!RenderSurfaceAndRead(Host, FIntPoint(512, 512), Summary))
+		{
+			ReportCheck(TEXT("surface-render"), false, TEXT("nothing could be read back"));
+			++Failures;
+			return;
+		}
+
+		const float Coverage = float(Summary.Opaque) / float(FMath::Max(1, Summary.Pixels));
+		const float White = float(Summary.NearWhite) / float(FMath::Max(1, Summary.Pixels));
+
+		const bool bDrew = Coverage > 0.5f;
+		Failures += bDrew ? 0 : 1;
+		ReportCheck(TEXT("surface-drew"), bDrew,
+			FString::Printf(TEXT("%.1f%% of the surface has coverage"), Coverage * 100.0f));
+
+		// A gradient varies. One flat colour means it was skipped or sampled as a single texel.
+		const bool bVaries = Summary.Distinct >= 16;
+		Failures += bVaries ? 0 : 1;
+		ReportCheck(TEXT("surface-gradients"), bVaries,
+			FString::Printf(TEXT("%d distinct colours, wanted 16 or more"), Summary.Distinct));
+
+		// White is what an unbound texture looks like.
+		const bool bNotWhite = White < 0.2f;
+		Failures += bNotWhite ? 0 : 1;
+		ReportCheck(TEXT("surface-not-white"), bNotWhite,
+			FString::Printf(TEXT("%.1f%% near-white"), White * 100.0f));
+	}
+
 	void RunWorldVerify(const TArray<FString>& Args)
 	{
 		const FString DocumentPath = Args.Num() > 0 ? Args[0] : TEXT("/folio/dev/idle_test.rml");
@@ -1163,6 +1285,9 @@ namespace
 			ReportCheck(TEXT("opacity"), bPassed,
 				FString::Printf(TEXT("alpha %.1f against %.1f"), Faded.AlphaTotal, Plain.AlphaTotal));
 		}
+
+		// The layer path, which none of the above touches.
+		VerifySurface(DocumentPath, Failures);
 
 		UE_LOG(LogFolio, Display,
 			TEXT("folio world verify: %s on '%s', %d draw(s), %d vertices, %d failure(s)"),

@@ -48,6 +48,15 @@ Warnings appear beside the render rather than instead of it — `--strict` is on
 missing sprite or a property that parses but does nothing is reported rather than quietly rendered
 past. `ui/examples/button.rml` has one, if you want to see what that looks like.
 
+## Zooming
+
+`Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`. **Fit** sizes it to the
+panel, **1:1** is one image pixel per screen pixel.
+
+Past 1:1 it switches to nearest-neighbour rather than smoothing, which matters for the thing you are
+most likely to zoom in to check: judging a glyph edge or a rounded corner through a bilinear upscale
+is judging the upscale. The zoom survives a re-render.
+
 ## What the preview is worth trusting
 
 This is the whole reason the tool exists, so it is worth being precise about.

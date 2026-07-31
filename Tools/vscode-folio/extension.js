@@ -27,6 +27,14 @@ const UNCOMPARED = ["box-shadow", "filter:", "backdrop-filter", "mask-image"];
 
 let panel = null;
 let currentDocument = null;
+
+/**
+ * Kept out here so it survives a re-render.
+ *
+ * The webview's HTML is rebuilt on every render, so anything held in the page is lost each save. A
+ * zoom that reset itself every time you edited would be worse than no zoom.
+ */
+let zoom = 1;
 let renderIndex = 0;
 let rendering = false;
 let pending = false;
@@ -197,7 +205,19 @@ function show(state) {
 		color: var(--vscode-foreground);
 		background: var(--vscode-editor-background);
 	}
-	img { max-width: 100%; display: block; image-rendering: auto; }
+	/* Nearest-neighbour past 1:1, so zooming in shows what the renderer produced rather than what the
+	   browser would like it to look like. Judging an edge through a bilinear upscale is judging the
+	   upscale. */
+	img { display: block; transform-origin: top left; }
+	img.zoomed { image-rendering: pixelated; }
+	#viewport { overflow: auto; }
+	button {
+		font: inherit; color: var(--vscode-button-secondaryForeground);
+		background: var(--vscode-button-secondaryBackground);
+		border: none; padding: 2px 8px; cursor: pointer;
+	}
+	button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+	.spacer { flex: 1; }
 	.frame { background: repeating-conic-gradient(#00000022 0% 25%, transparent 0% 50%) 50% / 16px 16px; }
 	.bar { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; opacity: 0.8; }
 	.note, .error, .warn {
@@ -210,13 +230,84 @@ function show(state) {
 </style>
 </head>
 <body>
-	<div class="bar"><strong>${escape(name)}</strong><span>${escape(config().get("size") || "")}</span></div>
+	<div class="bar">
+		<strong>${escape(name)}</strong>
+		<span>${escape(config().get("size") || "")}</span>
+		<span class="spacer"></span>
+		<button id="out" title="Zoom out (Ctrl+-)">&minus;</button>
+		<span id="level">${Math.round(zoom * 100)}%</span>
+		<button id="in" title="Zoom in (Ctrl++)">+</button>
+		<button id="fit" title="Fit to the panel">Fit</button>
+		<button id="reset" title="Actual size (Ctrl+0)">1:1</button>
+	</div>
 	${state.error ? `<div class="error">${escape(state.error)}</div>` : ""}
 	${notes.join("")}
 	${state.messages && !state.error
 		? `<div class="${state.warned ? "warn" : "note"}">${escape(state.messages)}</div>`
 		: ""}
-	${source ? `<div class="frame"><img src="${source}"/></div>` : ""}
+	${source ? `<div id="viewport" class="frame"><img id="render" src="${source}"/></div>` : ""}
+	<script>
+		const api = acquireVsCodeApi();
+		const image = document.getElementById("render");
+		const level = document.getElementById("level");
+		let zoom = ${zoom};
+
+		// Steps rather than a continuous factor, so repeated presses land on the same values and 1:1 is
+		// always reachable exactly.
+		const STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
+
+		function apply() {
+			if (image) {
+				image.style.transform = "scale(" + zoom + ")";
+				// The transform does not affect layout, so the scroll area has to be told the size.
+				image.style.marginRight = (image.naturalWidth * (zoom - 1)) + "px";
+				image.style.marginBottom = (image.naturalHeight * (zoom - 1)) + "px";
+				image.classList.toggle("zoomed", zoom > 1);
+			}
+			if (level) { level.textContent = Math.round(zoom * 100) + "%"; }
+			api.postMessage({ zoom: zoom });
+		}
+
+		function step(direction) {
+			const index = STEPS.findIndex((value) => value > zoom + 0.001);
+			const at = direction > 0
+				? (index === -1 ? STEPS.length - 1 : index)
+				: Math.max(0, (index === -1 ? STEPS.length : index) - 2);
+			zoom = STEPS[at];
+			apply();
+		}
+
+		function fit() {
+			const viewport = document.getElementById("viewport");
+			if (image && viewport && image.naturalWidth > 0) {
+				zoom = viewport.clientWidth / image.naturalWidth;
+				apply();
+			}
+		}
+
+		document.getElementById("in").onclick = () => step(1);
+		document.getElementById("out").onclick = () => step(-1);
+		document.getElementById("reset").onclick = () => { zoom = 1; apply(); };
+		document.getElementById("fit").onclick = fit;
+
+		// Ctrl and the wheel, which is what anyone tries first.
+		document.addEventListener("wheel", (event) => {
+			if (!event.ctrlKey) { return; }
+			event.preventDefault();
+			step(event.deltaY < 0 ? 1 : -1);
+		}, { passive: false });
+
+		document.addEventListener("keydown", (event) => {
+			if (!event.ctrlKey) { return; }
+			if (event.key === "=" || event.key === "+") { step(1); }
+			else if (event.key === "-") { step(-1); }
+			else if (event.key === "0") { zoom = 1; apply(); }
+		});
+
+		if (image) {
+			if (image.complete) { apply(); } else { image.onload = apply; }
+		}
+	</script>
 </body>
 </html>`;
 }
@@ -237,7 +328,15 @@ function openPreview() {
 	} else {
 		panel = vscode.window.createWebviewPanel(
 			"folioPreview", "Folio", vscode.ViewColumn.Beside,
-			{ enableScripts: false, localResourceRoots: [vscode.Uri.file(os.tmpdir())] });
+			{ enableScripts: true, localResourceRoots: [vscode.Uri.file(os.tmpdir())] });
+
+		// The page reports the zoom back, because the page is rebuilt on every render and the extension
+		// is the only thing that outlives it.
+		panel.webview.onDidReceiveMessage((message) => {
+			if (message && typeof message.zoom === "number") {
+				zoom = message.zoom;
+			}
+		});
 
 		panel.onDidDispose(() => { panel = null; });
 	}

@@ -38,6 +38,15 @@ still exact; a shadow's colour or blur radius is not something this can promise.
 **Colour will differ from a screenshot of the game**, always. The preview does no sRGB conversion
 where Slate linearises vertex colour and applies display gamma. Judge colour in the engine.
 
+## Zooming
+
+`Ctrl` and the wheel, the buttons in the panel's toolbar, or `Ctrl` with `+`, `-` and `0`. **Fit**
+sizes it to the panel; **1:1** is one image pixel per screen pixel.
+
+Past 1:1 it switches to nearest-neighbour, deliberately: judging an edge through a smooth upscale is
+judging the upscale rather than the render. The zoom survives a re-render, so editing and saving does
+not throw you back out to where you started.
+
 ## Syntax highlighting
 
 `.rml` and `.rcss` get highlighted on install. Both reuse VSCode's built-in grammars - XML for markup,

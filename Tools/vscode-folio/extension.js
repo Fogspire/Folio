@@ -258,6 +258,12 @@ function show(state) {
 	#overlay .box.match    { outline: 2px solid  #a0f060; background: #a0f06022; }
 	#overlay .box.outline-only { background: none; }
 
+	/* Every box at once: an outline faint enough to read the render through, because the point is to
+	   see where the boxes are, not to replace the document with a wireframe. No tint and no label -
+	   a hundred labels overlapping tells you nothing. */
+	#overlay .box.all { outline: 1px solid #ffffff2e; background: none; }
+	#overlay .box.all .label { display: none; }
+
 	#overlay .label {
 		position: absolute; left: 0; top: -18px; white-space: nowrap;
 		padding: 0 4px; font-size: 11px; line-height: 17px;
@@ -271,6 +277,7 @@ function show(state) {
 		margin-bottom: 8px; min-height: 22px;
 		font-family: var(--vscode-editor-font-family); font-size: 90%;
 	}
+	button.on { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
 	#readout { font-weight: bold; }
 	.rule {
 		font: inherit; padding: 1px 6px; cursor: pointer;
@@ -279,6 +286,7 @@ function show(state) {
 	}
 	.rule:hover { text-decoration: underline; }
 	.rule.empty { color: var(--vscode-descriptionForeground); cursor: default; background: none; }
+	.rule.markup { color: var(--vscode-charts-orange, var(--vscode-textLink-foreground)); }
 	button {
 		font: inherit; color: var(--vscode-button-secondaryForeground);
 		background: var(--vscode-button-secondaryBackground);
@@ -306,6 +314,7 @@ function show(state) {
 		<span id="level">${Math.round(zoom * 100)}%</span>
 		<button id="in" title="Zoom in: re-renders at a higher resolution (Ctrl++)">+</button>
 		<button id="reset" title="Back to 100% (Ctrl+0)">1:1</button>
+		<button id="boxes" title="Outline every element, so a click on a busy document is aimed rather than hunted">boxes</button>
 	</div>
 	${state.error ? `<div class="error">${escape(state.error)}</div>` : ""}
 	${notes.join("")}
@@ -324,6 +333,20 @@ function show(state) {
 		const readout = document.getElementById("readout");
 
 		function ask(zoom) { api.postMessage({ kind: "zoom", zoom: zoom }); }
+
+		// Kept in the webview's own state rather than the extension's: a zoom rebuilds this page, and
+		// losing the outlines every time you zoomed would make the toggle useless on the documents it
+		// exists for.
+		let showAll = Boolean((api.getState() || {}).showAll);
+
+		const boxesButton = document.getElementById("boxes");
+		boxesButton.classList.toggle("on", showAll);
+		boxesButton.onclick = () => {
+			showAll = !showAll;
+			boxesButton.classList.toggle("on", showAll);
+			api.setState({ showAll: showAll });
+			if (overlay) { redraw(); }
+		};
 
 		document.getElementById("in").onclick = () => ask("in");
 		document.getElementById("out").onclick = () => ask("out");
@@ -429,6 +452,10 @@ function show(state) {
 
 		function redraw() {
 			overlay.innerHTML = "";
+			// Everything first, so hover and selection read over the top of it rather than under.
+			if (showAll) {
+				for (const element of elements) { overlay.appendChild(box(element, "all")); }
+			}
 			// Hover under selection, so the two never obscure each other when they are the same element.
 			if (hovered && hovered !== selection) { overlay.appendChild(box(hovered, "hover")); }
 			if (selection) { overlay.appendChild(box(selection, "selected")); }
@@ -438,6 +465,18 @@ function show(state) {
 			rules.innerHTML = "";
 			readout.textContent = element ? describe(element) : "";
 			if (!element) { return; }
+
+			// The markup first, because it is what an author clicking a label is usually asking about.
+			// "where does DISK UTILITY come from" is answered by the document, and a list of the rules
+			// that coloured it is not an answer to that question.
+			if (element.text) {
+				const markup = document.createElement("button");
+				markup.className = "rule markup";
+				markup.textContent = '"' + element.text + '"  in markup';
+				markup.title = "Open where this text is written";
+				markup.onclick = () => api.postMessage({ kind: "markup", path: element.path });
+				rules.appendChild(markup);
+			}
 
 			const seen = new Set();
 			for (const declaration of element.properties || []) {
@@ -666,9 +705,66 @@ async function handleMessage(message) {
 		return;
 	}
 
+	if (message.kind === "markup") {
+		await openMarkup(element);
+		return;
+	}
+
 	if (message.kind === "move") {
 		await moveElement(element, message.dx, message.dy);
 	}
+}
+
+/**
+ * Where an element's text is written, in the document being previewed.
+ *
+ * The text is searched for with its whitespace loosened, because RmlUi hands back what it laid out and
+ * markup wraps and indents freely - an exact match would miss a title split over two lines. Bindings
+ * resolve before we see them, so a `{{name}}` never matches its own source; the id is the fallback,
+ * and saying so is better than jumping somewhere plausible and wrong.
+ */
+function findInMarkup(source, element) {
+	const escape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+	if (element.text) {
+		const pattern = element.text.trim().split(/\s+/).map(escape).join("\\s+");
+		const match = new RegExp(pattern).exec(source);
+		if (match) {
+			return match.index;
+		}
+	}
+
+	if (element.id) {
+		const match = new RegExp(`id\\s*=\\s*["']${escape(element.id)}["']`).exec(source);
+		if (match) {
+			return match.index;
+		}
+	}
+
+	return -1;
+}
+
+async function openMarkup(element) {
+	if (!currentDocument || !fs.existsSync(currentDocument)) {
+		return;
+	}
+
+	const document = await vscode.workspace.openTextDocument(vscode.Uri.file(currentDocument));
+	const offset = findInMarkup(document.getText(), element);
+
+	if (offset === -1) {
+		vscode.window.showWarningMessage(
+			`Folio: "${element.text}" is not in ${path.basename(currentDocument)} as written - it comes `
+			+ "from a data binding, a template, or another document.");
+		return;
+	}
+
+	const at = document.positionAt(offset);
+	await vscode.window.showTextDocument(document, {
+		viewColumn: sourceColumn(currentDocument),
+		preserveFocus: true,
+		selection: new vscode.Range(at, at.translate(0, (element.text || "").length)),
+	});
 }
 
 /**
@@ -774,9 +870,52 @@ function openPreview() {
 		panel.webview.onDidReceiveMessage(handleMessage);
 
 		panel.onDidDispose(() => { panel = null; });
+		lockPreviewGroup();
 	}
 
 	render();
+}
+
+/**
+ * Locks the preview's editor group, so nothing else opens into it.
+ *
+ * preserveFocus stops the preview from *becoming* the active group, which is most of the problem, but
+ * not all of it: VSCode remembers the last group a file was opened in, and a document previously
+ * opened where the preview now sits keeps going back there - on top of the preview. Locking the group
+ * is the mechanism VSCode itself provides for "this pane holds one thing", and it makes the preview
+ * behave like the terminal panel rather than like another editor.
+ *
+ * The command is looked up rather than assumed: it is not part of the extension API contract, and an
+ * unlocked group is a mild annoyance where a failed command would be an error on every open.
+ *
+ * There is no unlock on dispose. Closing the preview closes its group, taking the lock with it, and an
+ * unlock aimed at whichever group happened to be active could undo a lock the author set themselves.
+ */
+async function lockPreviewGroup() {
+	const command = "workbench.action.lockEditorGroup";
+
+	if (!vscode.workspace.getConfiguration("folio").get("lockPreviewGroup", true)) {
+		return;
+	}
+
+	if (!(await vscode.commands.getCommands(true)).includes(command)) {
+		return;
+	}
+
+	// The command acts on the active group, so the preview has to be it for a moment. Whatever was
+	// active is restored straight after, which is why this runs once at creation and not per render.
+	const restore = vscode.window.activeTextEditor;
+
+	if (panel) {
+		panel.reveal(panel.viewColumn, /*preserveFocus*/ false);
+	}
+
+	await vscode.commands.executeCommand(command);
+
+	if (restore) {
+		await vscode.window.showTextDocument(restore.document, {
+			viewColumn: restore.viewColumn, preview: false });
+	}
 }
 
 function activate(context) {

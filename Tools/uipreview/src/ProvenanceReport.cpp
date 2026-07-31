@@ -8,12 +8,15 @@
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/ElementText.h>
 #include <RmlUi/Core/Property.h>
 #include <RmlUi/Core/PropertyIdSet.h>
 #include <RmlUi/Core/StyleSheetSpecification.h>
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 
@@ -33,6 +36,44 @@ ordered_json DescribeRect(Rml::Element* element)
 	const Rml::Vector2f offset = element->GetAbsoluteOffset(Rml::BoxArea::Border);
 	const Rml::Vector2f size = element->GetBox().GetSize(Rml::BoxArea::Border);
 	return ordered_json::array({Round2(offset.x), Round2(offset.y), Round2(size.x), Round2(size.y)});
+}
+
+/**
+ * The element's own text, if it has any directly inside it.
+ *
+ * Carried so a tool can find the element in the *markup* rather than only in a stylesheet. A title bar
+ * reading "DISK UTILITY" is written in the document, not in a rule, and an author clicking it wants
+ * that line - a list of the rules that coloured it is not an answer to the question they asked.
+ */
+std::string OwnText(Rml::Element* element)
+{
+	const auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
+
+	for (int i = 0; i < element->GetNumChildren(); ++i)
+	{
+		Rml::ElementText* text = rmlui_dynamic_cast<Rml::ElementText*>(element->GetChild(i));
+		if (!text)
+			continue;
+
+		std::string value = text->GetText();
+
+		const auto first = std::find_if_not(value.begin(), value.end(), is_space);
+		if (first == value.end())
+			continue;
+
+		const auto last = std::find_if_not(value.rbegin(), value.rend(), is_space).base();
+		value.assign(first, last);
+
+		// Back off any UTF-8 continuation bytes, so a cut never lands mid-codepoint and produces
+		// something no JSON writer can encode.
+		size_t cut = std::min<size_t>(value.size(), 64);
+		while (cut > 0 && cut < value.size() && ((unsigned char)value[cut] & 0xC0) == 0x80)
+			--cut;
+
+		return value.substr(0, cut);
+	}
+
+	return {};
 }
 
 void Walk(Rml::Element* element, ordered_json& out_entries)
@@ -72,6 +113,7 @@ void Walk(Rml::Element* element, ordered_json& out_entries)
 			{"tag", element->GetTagName()},
 			{"id", element->GetId()},
 			{"classes", element->GetClassNames()},
+			{"text", OwnText(element)},
 			{"rect", DescribeRect(element)},
 			{"properties", std::move(properties)},
 		});

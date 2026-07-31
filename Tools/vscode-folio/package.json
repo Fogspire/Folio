@@ -58,6 +58,11 @@
 					"default": "1",
 					"markdownDescription": "Pinned dp ratio, passed as `--dp-ratio`. Empty lets it follow the viewport. Pin it to whatever the game uses, or every length here differs from the game's."
 				},
+				"folio.lockPreviewGroup": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Lock the preview's editor group, so opening a file never lands on top of the preview."
+				},
 				"folio.strict": {
 					"type": "boolean",
 					"default": true,

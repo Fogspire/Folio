@@ -986,7 +986,7 @@ It also needs a cursor to be usable, which a game that has captured the mouse wi
 
 ## Hot reload: what decides the granularity, and why the code is duplicated
 
-`folio.HotReload` (default on, editor only) watches `<project>/ui` and `<plugin>/rcss` with
+`folio.HotReload` (default on, editor only) watches `<project>/UI` and `<plugin>/examples` and `<plugin>/rcss` with
 `IDirectoryWatcher` and reloads open documents. Three things are load-bearing.
 
 **The dependency list is what RmlUi opened, not a parse of `@import`.** `FFolioFileInterface` records
@@ -1053,14 +1053,14 @@ warning nobody reads, and every screen is empty in a build that worked in the ed
 level up. So every entry starts with `../`:
 
 ```ini
-+DirectoriesToAlwaysStageAsUFS=(Path="../ui")
++DirectoriesToAlwaysStageAsUFS=(Path="../UI")
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/rcss")
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/fonts")
 ```
 
 `..` is safe here: `StagedFileSystemReference`'s constructor **collapses** parent references rather
-than rejecting them, and only throws if the result escapes the staging root. `Kaboom/Content/../ui`
-becomes `Kaboom/ui`, which is what `FPaths::ProjectDir()` resolves to at runtime.
+than rejecting them, and only throws if the result escapes the staging root. `Kaboom/Content/../UI`
+becomes `Kaboom/UI`, which is what `FPaths::ProjectDir()` resolves to at runtime.
 
 **There is no way to exclude a subdirectory of one you have staged.** `FindFilesToStage` recurses
 everything except `RestrictedFolderNames` (NoRedist and friends) and drops only `.uasset`, `.umap`,
@@ -1087,7 +1087,7 @@ directory mirrors the project, which is also the staged layout, so `uidev/UI/scr
 works. Compiled out of Shipping.
 
 Bare `-uidev` resolves to `FPaths::ProjectDir()/uidev`, which in a staged build is
-`<Staged>/<Project>/uidev`, beside the `ui` tree it shadows. Explicitly **not**
+`<Staged>/<Project>/uidev`, beside the `UI` tree it shadows. Explicitly **not**
 `FPlatformProcess::BaseDir()`: once staged that is `<Project>/Binaries/<Platform>`, which is nowhere
 anyone would think to drop files.
 

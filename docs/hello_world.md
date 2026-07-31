@@ -152,7 +152,7 @@ anything:
 ; Folio's distance field material is loaded by path, so nothing references it and the cooker never
 ; sees it. Without this, all text renders with no shader.
 +DirectoriesToAlwaysCook=(Path="/Folio")
-+DirectoriesToAlwaysStageAsUFS=(Path="../ui")
++DirectoriesToAlwaysStageAsUFS=(Path="../UI")
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/rcss")
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/fonts")
 ```
@@ -161,10 +161,19 @@ The `../` on the staging lines is not a mistake. These paths are resolved agains
 staged path collapses back to the project root — which is exactly where Folio looks at runtime. Drop
 the `fonts` line if you ship your own faces in `UI/fonts`.
 
-List your own subdirectories rather than `ui` wholesale if the tree holds things a player should not
+List your own subdirectories rather than `UI` wholesale if the tree holds things a player should not
 receive. **There is no way to exclude a subdirectory of one you have staged**, which is why Folio's
 own demo documents live in `Plugins/Folio/examples` rather than under `rcss` - staging the stylesheets
 a game needs would otherwise stage the demos with them.
+
+The other side of that: **point anything at `/folio/examples/` and it will not be there in a packaged
+build.** It works in the editor and in a standalone run, which read loose files, and then renders
+nothing once packaged. Add the line while you are prototyping against them, and take it out before
+you ship:
+
+```ini
++DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/examples")
+```
 
 To check it worked, look for your files in the staging manifest rather than launching the build:
 
@@ -175,7 +184,7 @@ Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\Automation
 ### Changing UI on a device without cooking again
 
 Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` directory in the
-project — in a staged build that is `<Staged>/<YourProject>/uidev`, beside the `ui` tree — before it
+project — in a staged build that is `<Staged>/<YourProject>/uidev`, beside the `UI` tree — before it
 reads the package. `-uidev=<path>` points somewhere else. The directory mirrors
 the project, so `uidev/UI/screens/hud.rml` overrides `UI/screens/hud.rml`, and anything absent falls
 through to the package — a directory holding one document is enough. This is how UI gets iterated on

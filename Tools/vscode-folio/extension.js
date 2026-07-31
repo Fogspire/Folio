@@ -548,6 +548,31 @@ async function handleMessage(message) {
 	}
 }
 
+/**
+ * A column to show source in that is not the preview's.
+ *
+ * showTextDocument without one opens in the active column, and the active column is often the
+ * preview's - so jumping to a rule replaces the preview with the stylesheet, which is the opposite of
+ * what a jump is for. An editor already showing the file wins, then the editor showing the document
+ * being previewed, then any editor that is not the preview.
+ */
+function sourceColumn(file) {
+	const taken = panel ? panel.viewColumn : undefined;
+	const editors = vscode.window.visibleTextEditors.filter((editor) => editor.viewColumn !== taken);
+
+	const showing = editors.find((editor) => editor.document.uri.fsPath === file);
+	if (showing) {
+		return showing.viewColumn;
+	}
+
+	const previewed = editors.find((editor) => editor.document.fileName === currentDocument);
+	if (previewed) {
+		return previewed.viewColumn;
+	}
+
+	return editors.length > 0 ? editors[0].viewColumn : vscode.ViewColumn.One;
+}
+
 /** Click in the render, land on the rule in the source. Half of what makes this an editor. */
 async function revealSource(element) {
 	const first = (element.properties || [])[0];
@@ -563,6 +588,7 @@ async function revealSource(element) {
 	const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
 	const line = Math.max(0, (first.line || 1) - 1);
 	await vscode.window.showTextDocument(document, {
+		viewColumn: sourceColumn(file),
 		preserveFocus: true,
 		selection: new vscode.Range(line, 0, line, 0),
 	});

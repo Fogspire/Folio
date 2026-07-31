@@ -1,0 +1,58 @@
+// mask-image: multiplies a layer's alpha by another layer's alpha.
+//
+// A real alpha mask rather than a stencil. The stencil path Folio already has records coverage - a
+// texel is in or out - which is right for a border-radius clip and wrong for this: an image mask with
+// a soft edge, a gradient mask, or text used as a mask all carry alpha that a stencil cannot hold, and
+// come out with hard edges.
+//
+// RmlUi renders the mask decorators into a layer of their own and hands it over as a compiled filter,
+// so by the time this runs both sides are ordinary textures of the same size.
+//
+// Both are premultiplied, matching RmlUi 6.x. Scaling a premultiplied texel by a coverage value is
+// exactly the operation wanted - colour and alpha fall together - so unlike the colour filters this
+// needs no unpremultiply.
+
+#include "/Engine/Public/Platform.ush"
+
+Texture2D SourceTexture;
+SamplerState SourceSampler;
+
+Texture2D MaskTexture;
+SamplerState MaskSampler;
+
+// x: 1 to use the mask's alpha, 0 to use its luminance. y: 1 to invert.
+float4 MaskParameters;
+
+float2 InvSize;
+
+// Rec. 709, matching the colour filters.
+static const float3 LumaWeights = float3(0.2126f, 0.7152f, 0.0722f);
+
+float4 MainPS(float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	const float2 UV = SvPosition.xy * InvSize;
+
+	const float4 Source = SourceTexture.SampleLevel(SourceSampler, UV, 0);
+	const float4 Mask = MaskTexture.SampleLevel(MaskSampler, UV, 0);
+
+	// Alpha by default, which is what CSS `mask-mode: alpha` means and what a decorator drawn into a
+	// transparent layer produces. Luminance is the other reading, and needs the mask unpremultiplied
+	// first or a dark-but-opaque texel and a bright-but-faint one are indistinguishable.
+	float Coverage;
+	if (MaskParameters.x > 0.5f)
+	{
+		Coverage = Mask.a;
+	}
+	else
+	{
+		const float3 Unpremultiplied = Mask.a > 0.0f ? Mask.rgb / Mask.a : float3(0.0f, 0.0f, 0.0f);
+		Coverage = dot(Unpremultiplied, LumaWeights) * Mask.a;
+	}
+
+	if (MaskParameters.y > 0.5f)
+	{
+		Coverage = 1.0f - Coverage;
+	}
+
+	return Source * saturate(Coverage);
+}

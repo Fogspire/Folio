@@ -43,7 +43,16 @@ namespace FolioDocSamples
 	inline UDataTable* Table = nullptr;
 
 	inline Rml::Element* Element = nullptr;
-	inline Rml::Element* Slot = nullptr;
+	// markers.md drives a UMG slot; the tutorials drive an element. Both are named Slot in their own
+	// document, and only one can win here - the UMG one, since the element case has its own sample.
+	// markers.md drives a UMG slot and inventory.md drives an element, and both call theirs Slot. One
+	// stub answers to each, which is cheaper than splitting the name across two samples that read fine.
+	struct FStubSlot
+	{
+		void SetPosition(FVector2D) {}
+		void AddEventListener(const Rml::String&, Rml::EventListener*) {}
+	};
+	inline FStubSlot* Slot = nullptr;
 	inline Rml::EventListener* Listener = nullptr;
 
 	inline FFolioSpring Spring;
@@ -61,8 +70,6 @@ namespace FolioDocSamples
 	inline UWorld* World = nullptr;
 	inline UWorld* GetWorld() { return World; }
 
-	struct FStubSlot { void SetPosition(FVector2D) {} };
-	inline FStubSlot* WidgetSlot = nullptr;
 
 	// docs/assigning_documents.md#0
 	inline void Sample_docs_assigning_documents_md_0()

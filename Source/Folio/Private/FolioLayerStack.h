@@ -76,7 +76,7 @@ public:
 
 	/** Resolves the current layer and composites it into the one below. */
 	void CompositeDown(bool bBlend, float BlurSigma,
-		TArrayView<const Folio::FColourFilter> Colour = {});
+		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr);
 
 	/**
 	 * Resolves the current layer, hands its target to the caller and replaces it.
@@ -89,7 +89,7 @@ public:
 	 * handed it to the next layer and cleared it.
 	 */
 	UTextureRenderTarget2D* DetachCurrent(float BlurSigma = 0.0f,
-		TArrayView<const Folio::FColourFilter> Colour = {});
+		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr);
 
 	void Reset();
 

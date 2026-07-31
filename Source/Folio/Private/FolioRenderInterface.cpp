@@ -975,6 +975,7 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	float Sigma = 0.0f;
 	bool bOutside = false;
 	TArray<Folio::FColourFilter> Colour;
+	UTextureRenderTarget2D* Mask = nullptr;
 
 	for (const Rml::CompiledFilterHandle Handle : AppliedFilters)
 	{
@@ -982,6 +983,11 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 		{
 			Sigma = FMath::Max(Sigma, Filter->Sigma);
 			bOutside = bOutside || Filter->bOutside;
+
+			if (Filter->Mask.IsValid())
+			{
+				Mask = Filter->Mask.Get();
+			}
 
 			// Order is kept, because `saturate(0) brightness(2)` and `brightness(2) saturate(0)` are
 			// different pictures and CSS says the first named runs first.
@@ -1020,11 +1026,11 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	// Below the bottom layer is Slate, not another target.
 	if (Layers.Num() <= 1)
 	{
-		CompositeLayerToSlate(Sigma, Colour);
+		CompositeLayerToSlate(Sigma, Colour, Mask);
 		return;
 	}
 
-	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma, Colour);
+	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma, Colour, Mask);
 }
 
 void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
@@ -1139,9 +1145,9 @@ void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
 }
 
 void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask)
 {
-	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma, Colour);
+	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma, Colour, Mask);
 	if (!Target || !ElementList || !FSlateApplication::IsInitialized())
 	{
 		return;
@@ -1230,6 +1236,20 @@ Rml::TextureHandle FFolioRenderInterface::SaveLayerAsTexture()
 	}
 
 	return RegisterRenderTarget(Detached);
+}
+
+Rml::CompiledFilterHandle FFolioRenderInterface::SaveLayerAsMaskImage()
+{
+	// The mask is a whole layer, and it arrives as a filter rather than as a clip mask. That is what
+	// makes it a real alpha mask: the stencil path records coverage, so a gradient or a soft-edged
+	// image used as a mask would come out with hard edges.
+	FFilter Filter;
+	Filter.Name = "mask-image";
+	Filter.Mask.Reset(Layers.DetachCurrent());
+
+	const Rml::CompiledFilterHandle Handle = NextHandle++;
+	Filters.Add(Handle, MoveTemp(Filter));
+	return Handle;
 }
 
 namespace

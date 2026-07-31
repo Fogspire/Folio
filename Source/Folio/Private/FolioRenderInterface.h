@@ -4,6 +4,7 @@
 
 #include "FolioCore/FolioShaderEffects.h"
 #include "FolioColourShader.h"
+#include "FolioMaskShader.h"
 #include "FolioDrawList.h"
 #include "FolioLayerStack.h"
 #include "FolioRmlUi.h"
@@ -160,6 +161,12 @@ public:
 	virtual void PopLayer() override;
 	virtual Rml::TextureHandle SaveLayerAsTexture() override;
 
+	/**
+	 * mask-image. RmlUi renders the mask decorators into a layer of their own and asks for it
+	 * back as a filter, which is then applied when the masked layer composites.
+	 */
+	virtual Rml::CompiledFilterHandle SaveLayerAsMaskImage() override;
+
 	virtual Rml::CompiledFilterHandle CompileFilter(const Rml::String& Name,
 		const Rml::Dictionary& Parameters) override;
 	virtual void ReleaseFilter(Rml::CompiledFilterHandle Filter) override;
@@ -238,7 +245,8 @@ private:
 	 * first PushLayer into is the screen. Without this a filter at the top of a document resolves
 	 * correctly and is then dropped, so the element and everything inside it renders as nothing.
 	 */
-	void CompositeLayerToSlate(float BlurSigma, TArrayView<const Folio::FColourFilter> Colour = {});
+	void CompositeLayerToSlate(float BlurSigma, TArrayView<const Folio::FColourFilter> Colour = {},
+		class UTextureRenderTarget2D* Mask = nullptr);
 
 	/** backdrop-filter: blur, through Slate's post-process element, which reads the backbuffer. */
 	void BlurBackdrop(float Sigma, bool bOutside);
@@ -354,6 +362,14 @@ private:
 		bool bOutside = false;
 		/** Set for the eight per-texel filters, which run on the resolved layer before the blur. */
 		TOptional<Folio::FColourFilter> Colour;
+
+		/**
+		 * The layer a mask-image was drawn into, held until the filter is released.
+		 *
+		 * A strong reference rather than a pool loan: the filter outlives the layer it came from, and
+		 * the pool would otherwise hand this straight to the next layer and clear it.
+		 */
+		TStrongObjectPtr<UTextureRenderTarget2D> Mask;
 	};
 
 	TMap<Rml::CompiledFilterHandle, FFilter> Filters;

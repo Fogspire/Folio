@@ -1,6 +1,7 @@
 #include "FolioLayerStack.h"
 
 #include "FolioColourShader.h"
+#include "FolioMaskShader.h"
 
 #include "FolioInsights.h"
 
@@ -184,7 +185,7 @@ void FFolioLayerStack::EnableClipMask(const bool bEnable)
 }
 
 UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask)
 {
 	if (Stack.IsEmpty())
 	{
@@ -200,6 +201,10 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	{
 		Folio::BlurRenderTarget(Layer.Target.Get(), BlurSigma);
 	}
+
+	// Last, because the mask decides what survives: masking before a blur would let the blur bleed
+	// back over what the mask had just cut away.
+	Folio::ApplyMask(Layer.Target.Get(), Mask, {});
 
 	UTextureRenderTarget2D* Detached = Layer.Target.Get();
 
@@ -218,7 +223,7 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 }
 
 void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask)
 {
 	if (Stack.Num() < 2)
 	{
@@ -236,6 +241,8 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	{
 		Folio::BlurRenderTarget(Source.Target.Get(), BlurSigma);
 	}
+
+	Folio::ApplyMask(Source.Target.Get(), Mask, {});
 
 	// Compositing is a full-target quad drawn into the layer below, recorded like any other
 	// draw so it stays ordered with the geometry around it.

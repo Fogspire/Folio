@@ -2,6 +2,7 @@
 #include "Diagnostics.h"
 #include "JsonReport.h"
 #include "MetricsReport.h"
+#include "ProvenanceReport.h"
 #include "Options.h"
 
 #include "FolioCore/FolioCoreVersion.h"
@@ -66,6 +67,17 @@ int main(int argc, char** argv)
 			{
 				std::fprintf(stderr, "uipreview:0:0: error: [E-METRICS] %s: %s\n",
 					options.metrics_report.c_str(), report_error.c_str());
+				return 4;
+			}
+		}
+
+		if (!options.provenance_report.empty())
+		{
+			std::string report_error;
+			if (!WriteProvenanceReport(options.provenance_report, options, app, report_error))
+			{
+				std::fprintf(stderr, "uipreview:0:0: error: [E-PROVENANCE] %s: %s\n",
+					options.provenance_report.c_str(), report_error.c_str());
 				return 4;
 			}
 		}

@@ -11,6 +11,7 @@ add_executable(uipreview
 	src/InputScript.cpp
 	src/JsonReport.cpp
 	src/MetricsReport.cpp
+	src/ProvenanceReport.cpp
 	src/Localization.cpp
 	src/MissingAssets.cpp
 	src/MsdfProgram.cpp

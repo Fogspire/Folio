@@ -298,6 +298,11 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			if (!TakeValue(argc, argv, i, "--json-report", o.json_report, error))
 				return ParseResult::Error;
 		}
+		else if (arg == "--provenance-report")
+		{
+			if (!TakeValue(argc, argv, i, "--provenance-report", o.provenance_report, error))
+				return ParseResult::Error;
+		}
 		else if (arg == "--metrics-report")
 		{
 			if (!TakeValue(argc, argv, i, "--metrics-report", o.metrics_report, error))

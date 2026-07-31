@@ -56,6 +56,9 @@ struct Options {
 	    same state a screenshot taken with the same arguments would. */
 	std::string metrics_report;
 
+	// Which rule set what, and where that rule lives. The seam an editing tool needs.
+	std::string provenance_report;
+
 	/** Field resolution per em, and the field's width in texels. A field resolves best near 1:1,
 	    so this trades small-text clarity against magnification headroom. */
 	int msdf_px_em = 48;
@@ -86,7 +89,8 @@ struct Options {
 	bool font_cache = true;
 
 	/** True when the run renders a fixed number of frames and exits. */
-	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty(); }
+	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty()
+		|| !provenance_report.empty(); }
 };
 
 enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };

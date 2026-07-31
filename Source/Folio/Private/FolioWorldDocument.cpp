@@ -764,6 +764,36 @@ void UFolioWorldDocument::UpdateKeyboardFocus()
 	}
 }
 
+int32 UFolioWorldDocument::GetScreenHeightPixels() const
+{
+	const UWorld* World = GetWorld();
+	const APlayerController* Player = World ? World->GetFirstPlayerController() : nullptr;
+	const APlayerCameraManager* Camera = Player ? Player->PlayerCameraManager : nullptr;
+
+	if (!Camera)
+	{
+		return 0;
+	}
+
+	int32 ViewportX = 0;
+	int32 ViewportY = 0;
+	Player->GetViewportSize(ViewportX, ViewportY);
+	if (ViewportY <= 0)
+	{
+		return 0;
+	}
+
+	const float Distance = float(FVector::Dist(GetComponentLocation(), Camera->GetCameraLocation()));
+	const float HalfFovRadians = FMath::DegreesToRadians(FMath::Clamp(Camera->GetFOVAngle(), 1.0f, 170.0f) * 0.5f);
+	const float HalfHeightAtDistance = FMath::Max(1.0f, Distance * FMath::Tan(HalfFovRadians));
+
+	// The vertical axis because that is what FOV describes once the aspect ratio is applied, and the
+	// surface is square-ish enough that one axis decides both.
+	const float WorldHeight = float(WorldSize.Y * GetComponentScale().Y);
+
+	return FMath::RoundToInt((WorldHeight * 0.5f / HalfHeightAtDistance) * float(ViewportY));
+}
+
 FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const
 {
 	const FIntPoint Document = GetDocumentSize();
@@ -776,30 +806,11 @@ FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const
 		return Document;
 	}
 
-	const APlayerController* Player = World->GetFirstPlayerController();
-	const APlayerCameraManager* Camera = Player ? Player->PlayerCameraManager : nullptr;
-	if (!Camera)
+	const float ScreenPixels = float(GetScreenHeightPixels());
+	if (ScreenPixels <= 0.0f)
 	{
 		return Document;
 	}
-
-	int32 ViewportX = 0;
-	int32 ViewportY = 0;
-	Player->GetViewportSize(ViewportX, ViewportY);
-	if (ViewportY <= 0)
-	{
-		return Document;
-	}
-
-	const FVector Centre = GetComponentLocation();
-	const float Distance = float(FVector::Dist(Centre, Camera->GetCameraLocation()));
-	const float HalfFovRadians = FMath::DegreesToRadians(FMath::Clamp(Camera->GetFOVAngle(), 1.0f, 170.0f) * 0.5f);
-	const float HalfHeightAtDistance = FMath::Max(1.0f, Distance * FMath::Tan(HalfFovRadians));
-
-	// How tall the surface is on screen, in pixels. The vertical axis because that is what FOV describes
-	// once the aspect ratio is applied, and the surface is square-ish enough that one axis decides both.
-	const float WorldHeight = float(WorldSize.Y * GetComponentScale().Y);
-	const float ScreenPixels = (WorldHeight * 0.5f / HalfHeightAtDistance) * float(ViewportY);
 
 	// Rounded up to a step, so approaching the surface raises the resolution before it looks soft rather
 	// than after. Never above the document's own size times the cap, and never above what it lands at.

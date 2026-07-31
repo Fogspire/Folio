@@ -341,6 +341,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	class UTextureRenderTarget2D* GetRenderTarget() const { return SurfaceTarget.Get(); }
 
+	/**
+	 * How tall this surface lands on screen right now, in pixels, or 0 with no view to measure against.
+	 *
+	 * What Surface mode sizes its target from, and the number to compare the target against when a
+	 * surface looks soft. A target already at or above this is not what is limiting it - the scene's
+	 * own rendering resolution is, since the mesh is scene geometry and goes through whatever upscaler
+	 * and temporal antialiasing the project runs.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	int32 GetScreenHeightPixels() const;
+
 	/** Fires when GetRenderTarget starts returning a different target, which a resolution change causes. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSurfaceChanged, UTextureRenderTarget2D*, Target);
 	UPROPERTY(BlueprintAssignable, Category = "Folio")

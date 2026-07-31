@@ -636,11 +636,38 @@ namespace
 				// A surface records no draw list: it renders straight into its target, so what is worth
 				// reporting is the resolution that target ended up at.
 				const UTextureRenderTarget2D* Target = Surface->GetRenderTarget();
+				const int32 TargetHeight = Target ? Target->SizeY : 0;
+				const int32 ScreenHeight = Surface->GetScreenHeightPixels();
+
 				UE_LOG(LogFolio, Display,
-					TEXT("folio.WorldTest: '%s' laid out at %dx%d, rendered into a %dx%d target"),
+					TEXT("folio.WorldTest: '%s' laid out at %dx%d, rendered into a %dx%d target, "
+						"covering %d screen pixels tall"),
 					*Surface->DocumentPath,
 					Surface->GetDocumentSize().X, Surface->GetDocumentSize().Y,
-					Target ? Target->SizeX : 0, Target ? Target->SizeY : 0);
+					Target ? Target->SizeX : 0, TargetHeight, ScreenHeight);
+
+				// The distinction anyone chasing a soft surface needs, and the one that is invisible from
+				// the picture: whether the target is the limit or the scene's own resolution is.
+				if (ScreenHeight > 0 && TargetHeight > 0)
+				{
+					if (TargetHeight < ScreenHeight)
+					{
+						UE_LOG(LogFolio, Display,
+							TEXT("    the target is smaller than the surface is on screen, so it is being "
+								"magnified. Raise Max Surface Scale (currently %.2f) or Pixels Per Unit."),
+							Surface->MaxSurfaceScale);
+					}
+					else
+					{
+						UE_LOG(LogFolio, Display,
+							TEXT("    the target is at or above the surface's on-screen size, so it is not "
+								"what is limiting sharpness. The mesh is scene geometry, so it is resolved "
+								"at the scene's rendering resolution and through whatever temporal upscaler "
+								"the project runs. Check r.ScreenPercentage and the anti-aliasing method, "
+								"or use After Tonemap, which is drawn after both."));
+					}
+				}
+
 				continue;
 			}
 

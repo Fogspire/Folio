@@ -151,6 +151,22 @@ Texel and pixel also never line up. The quad is perspective-projected and the ta
 128-pixel steps, so even a target that is the right size on average is being resampled at a slightly
 wrong scale across most of the surface.
 
+**Find out which limit you are against before tuning anything.** `folio.WorldTest report` prints the
+target's size next to how tall the surface actually lands on screen, and says which of the two is the
+constraint:
+
+```
+folio.WorldTest: 'ui/screens/terminal.rml' laid out at 1000x600, rendered into a 2048x1229 target,
+                 covering 900 screen pixels tall
+    the target is at or above the surface's on-screen size, so it is not what is limiting sharpness.
+```
+
+If the target is **smaller** than the on-screen size, raising `Max Surface Scale` will help. If it is
+already at or above and still looks soft, more resolution will do nothing — the mesh is scene geometry,
+so it is rasterised at the scene's rendering resolution and resolved through whatever temporal
+upscaler the project runs. With TSR at 67%, a panel covering 900 display pixels is drawn into about
+600 and upscaled back. **No target size fixes that**, and it is the usual answer.
+
 What actually helps, in order:
 
 1. **Use `After Tonemap` unless the document needs layer effects.** `box-shadow`, `filter`,

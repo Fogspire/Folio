@@ -125,4 +125,21 @@ public:
 	 */
 	static void ReportMissingDocument(const FString& DocumentPath, const TCHAR* Context,
 		const UObject* Referencer = nullptr);
+
+#if WITH_EDITOR
+	/**
+	 * Reports a component's document path to Map Check and to asset validation.
+	 *
+	 * A path naming nothing renders nothing, which looks exactly like a document that loaded and is
+	 * laid out wrong, and the error only arrives when the level is played. Both checks run before that
+	 * - Map Check on demand, validation on save - so the mistake is found where it was made.
+	 *
+	 * An empty path is an error only for a component placed in a level, since one on a Blueprint may be
+	 * given its document from code before it ever registers.
+	 *
+	 * Returns whether anything was reported, so a caller can fold it into its own result.
+	 */
+	static bool ValidateDocumentPath(const UActorComponent& Component, const FString& DocumentPath,
+		class FDataValidationContext* Validation);
+#endif
 };

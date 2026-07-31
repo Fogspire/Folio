@@ -6,6 +6,10 @@
 #include "FolioMarkerLayer.h"
 #include "FolioModule.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Engine/GameViewportClient.h"
@@ -277,3 +281,25 @@ void UFolioMarkerDocument::MarkDirty()
 		Host->MarkDirty(TEXT("game code"));
 	}
 }
+
+#if WITH_EDITOR
+
+void UFolioMarkerDocument::CheckForErrors()
+{
+	Super::CheckForErrors();
+	UFolioDocumentPathLibrary::ValidateDocumentPath(*this, DocumentPath.Path, nullptr);
+}
+
+EDataValidationResult UFolioMarkerDocument::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	if (UFolioDocumentPathLibrary::ValidateDocumentPath(*this, DocumentPath.Path, &Context))
+	{
+		Result = EDataValidationResult::Invalid;
+	}
+
+	return Result;
+}
+
+#endif

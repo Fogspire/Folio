@@ -22,6 +22,10 @@
 #include "RenderingThread.h"
 #include "TextureResource.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -1104,4 +1108,26 @@ void UFolioWorldDocument::PostEditChangeProperty(FPropertyChangedEvent& Property
 		Host->SetSize(GetDocumentSize());
 	}
 }
+#endif
+
+#if WITH_EDITOR
+
+void UFolioWorldDocument::CheckForErrors()
+{
+	Super::CheckForErrors();
+	UFolioDocumentPathLibrary::ValidateDocumentPath(*this, DocumentPath.Path, nullptr);
+}
+
+EDataValidationResult UFolioWorldDocument::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	if (UFolioDocumentPathLibrary::ValidateDocumentPath(*this, DocumentPath.Path, &Context))
+	{
+		Result = EDataValidationResult::Invalid;
+	}
+
+	return Result;
+}
+
 #endif

@@ -391,6 +391,15 @@ public:
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	/**
+	 * Reports a document path that names nothing, and a placed component with no document at all.
+	 *
+	 * Both render nothing, which is indistinguishable from a document that loaded and is laid out
+	 * wrong, and the mistake would otherwise surface the first time the level is played.
+	 */
+	virtual void CheckForErrors() override;
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 #endif
 
 private:

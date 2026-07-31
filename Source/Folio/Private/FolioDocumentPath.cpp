@@ -10,6 +10,15 @@
 #include "UObject/PropertyTag.h"
 #include "Misc/Paths.h"
 
+#if WITH_EDITOR
+#include "Components/ActorComponent.h"
+#include "Engine/Level.h"
+#include "GameFramework/Actor.h"
+#include "Logging/MessageLog.h"
+#include "Misc/DataValidation.h"
+#include "Misc/UObjectToken.h"
+#endif
+
 namespace
 {
 	/**
@@ -355,3 +364,72 @@ void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPat
 		UE_LOG(LogFolio, Error, TEXT("    %s"), *Option);
 	}
 }
+
+#if WITH_EDITOR
+
+bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Component,
+	const FString& DocumentPath, FDataValidationContext* Validation)
+{
+	const AActor* Owner = Component.GetOwner();
+
+	// A component on a Blueprint may be given its document from code before it registers, so an empty
+	// path is only wrong once something has been placed in a level.
+	const bool bPlaced = Owner && Owner->GetLevel() != nullptr;
+
+	FText Message;
+
+	if (DocumentPath.IsEmpty())
+	{
+		if (!bPlaced)
+		{
+			return false;
+		}
+
+		Message = FText::Format(
+			NSLOCTEXT("Folio", "NoDocument", "{0} has no document assigned, so it will render nothing."),
+			FText::FromString(Component.GetName()));
+	}
+	else if (!DocumentExists(DocumentPath))
+	{
+		// Reported whether placed or not: a path naming nothing is wrong wherever it was written, and
+		// an absolute one is wrong on every machine but this.
+		const FString Resolved = ResolveDocumentPath(DocumentPath);
+
+		Message = FText::Format(
+			NSLOCTEXT("Folio", "MissingDocument",
+				"{0} names '{1}', which does not exist. It resolves to '{2}'."),
+			FText::FromString(Component.GetName()),
+			FText::FromString(DocumentPath),
+			FText::FromString(Resolved.IsEmpty() ? TEXT("nothing") : *Resolved));
+	}
+	else if (!FPaths::IsRelative(DocumentPath))
+	{
+		Message = FText::Format(
+			NSLOCTEXT("Folio", "AbsoluteDocument",
+				"{0} names '{1}', an absolute path. It will not resolve on another machine - use a "
+				"project-relative path such as ui/screens/hud.rml."),
+			FText::FromString(Component.GetName()),
+			FText::FromString(DocumentPath));
+	}
+	else
+	{
+		return false;
+	}
+
+	if (Validation)
+	{
+		Validation->AddError(Message);
+	}
+	else if (Owner)
+	{
+		// Map Check, which is where anyone looks after a level misbehaves. The token makes the entry
+		// select the actor, so the report is a list of things to click rather than names to hunt for.
+		FMessageLog(TEXT("MapCheck")).Error()
+			->AddToken(FUObjectToken::Create(const_cast<AActor*>(Owner)))
+			->AddToken(FTextToken::Create(Message));
+	}
+
+	return true;
+}
+
+#endif

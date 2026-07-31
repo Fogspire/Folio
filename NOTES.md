@@ -1393,6 +1393,21 @@ by the console readout wastes an afternoon.
 Emulated stereo (`-emulatestereo` on a standalone launch) exercises the two-view path without a
 headset, and is how the world pass was verified in both plain and instanced stereo.
 
+## A `transform` reaches the geometry only if the path applies it
+
+`SetTransform` stores the matrix, and `DrawGeometry` composes it for the Slate path. The recording and
+layer paths - which is every world-space document, in all three draw modes - took the translation and
+nothing else, so `transform` in RCSS was dropped in silence. It works on screen and does nothing on a
+surface, and the giveaway is an animation where `opacity` moves and `transform` does not, because
+opacity rides on the vertex colour and needs no help.
+
+Neither a recording nor a layer replay carries a transform: both draw in document space with a plain
+offset. So the transform is baked into the vertex positions in `PositionedVertices` before the draw,
+which also keeps the no-transform case free - it returns the compiled vertices untouched.
+
+Anything else added to those paths has the same trap: whatever `DrawGeometry` composes for Slate has
+to be composed there too, or it silently applies to screen documents only.
+
 ## Anything touching an RmlUi global must be compiled into the module that called Rml::Initialise
 
 RmlUi is a static library linked into **both** `Folio` and `FolioCore`, so each DLL carries its own

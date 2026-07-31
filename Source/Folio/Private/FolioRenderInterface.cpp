@@ -215,6 +215,31 @@ Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Sp
 	return Handle;
 }
 
+const TArray<FSlateVertex>& FFolioRenderInterface::PositionedVertices(const FCompiledGeometry& Compiled,
+	const Rml::Vector2f Translation, FVector2f& OutOffset)
+{
+	if (!bHasTransform)
+	{
+		OutOffset = FVector2f(Translation.x, Translation.y);
+		return Compiled.Vertices;
+	}
+
+	// Baked into the positions, because neither a recording nor a layer replay carries a transform: both
+	// draw in document space with a plain offset. Without this a `transform` in RCSS is dropped in silence
+	// everywhere except the Slate path, so it animates on screen and does nothing on a surface.
+	ScratchVertices.Reset(Compiled.Vertices.Num());
+
+	const FVector2f Offset(Translation.x, Translation.y);
+	for (const FSlateVertex& Source : Compiled.Vertices)
+	{
+		FSlateVertex& Out = ScratchVertices.Add_GetRef(Source);
+		Out.Position = FVector2f(TransformPoint(RmlTransform, FVector2f(Source.Position) + Offset));
+	}
+
+	OutOffset = FVector2f::ZeroVector;
+	return ScratchVertices;
+}
+
 void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Handle,
 	const Rml::Vector2f Translation, const Rml::TextureHandle Texture)
 {
@@ -249,8 +274,11 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 
 			// Unmasked: a recording has no stencil, because a clip mask is a layer's mechanism and a
 			// recording has no layer. Clipping a world-space document is the mesh's job.
-			DrawList->AddField(Compiled.Vertices, Compiled.Indices, Field->Page->Texture.Get(),
-				FVector2f(Translation.x, Translation.y), FieldParams, EffectParams,
+			FVector2f Offset;
+			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
+			DrawList->AddField(Vertices, Compiled.Indices, Field->Page->Texture.Get(),
+				Offset, FieldParams, EffectParams,
 				/*bMasked*/ false, /*bMaskInverted*/ false);
 			return;
 		}
@@ -260,9 +288,11 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 			FVector4f FieldParams, EffectParams;
 			PackMsdfParameters(*Field, FieldParams, EffectParams);
 
-			Layers.DrawField(Compiled.Vertices, Compiled.Indices, Field->Page->Texture.Get(),
-				FVector2f(Translation.x - LayerOrigin.X, Translation.y - LayerOrigin.Y),
-				FieldParams, EffectParams);
+			FVector2f Offset;
+			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
+			Layers.DrawField(Vertices, Compiled.Indices, Field->Page->Texture.Get(),
+				Offset - LayerOrigin, FieldParams, EffectParams);
 			return;
 		}
 
@@ -285,8 +315,11 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 			? static_cast<UTexture*>(Bound->Texture.Get())
 			: GetWhiteTexture();
 
-		DrawList->AddTriangles(Compiled.Vertices, Compiled.Indices, Recorded,
-			FVector2f(Translation.x, Translation.y), /*bMasked*/ false, /*bMaskInverted*/ false);
+		FVector2f Offset;
+		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
+		DrawList->AddTriangles(Vertices, Compiled.Indices, Recorded,
+			Offset, /*bMasked*/ false, /*bMaskInverted*/ false);
 		return;
 	}
 
@@ -299,8 +332,10 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 			? static_cast<UTexture*>(Bound->Texture.Get())
 			: GetWhiteTexture();
 
-		Layers.DrawTriangles(Compiled.Vertices, Compiled.Indices, LayerTexture,
-			FVector2f(Translation.x - LayerOrigin.X, Translation.y - LayerOrigin.Y));
+		FVector2f Offset;
+		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
+		Layers.DrawTriangles(Vertices, Compiled.Indices, LayerTexture, Offset - LayerOrigin);
 		return;
 	}
 

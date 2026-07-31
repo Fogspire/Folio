@@ -267,6 +267,15 @@ private:
 	void ApplyClipping();
 
 	/** Draws compiled geometry with an explicit resource, optionally renormalising UVs. */
+	/**
+	 * The geometry's vertices in document space, with any RCSS transform already applied.
+	 *
+	 * Returns the compiled vertices untouched when there is no transform, so the common case copies
+	 * nothing. The offset comes back separately because a recording and a layer both take one.
+	 */
+	const TArray<FSlateVertex>& PositionedVertices(const FCompiledGeometry& Compiled,
+		Rml::Vector2f Translation, FVector2f& OutOffset);
+
 	void DrawGeometry(const FCompiledGeometry& Compiled, Rml::Vector2f Translation,
 		const FSlateResourceHandle& Resource, const FVector2f UvScale, bool bStraightAlpha = false);
 

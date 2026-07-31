@@ -46,7 +46,10 @@ There are no relative weights: `bolder` and `lighter` do not exist.
 anything custom - are pinned at registration and reached by family name:
 
 ```cpp
-Folio::RegisterVariableFace("Inter Condensed", "<path>", {{"wdth", 75}});
+// On the font engine, which the module owns. Style and the pinned axes are both explicit, because a
+// family is what RCSS can name and everything else has to be baked into one.
+FFolioModule::Get().GetFontEngine()->RegisterVariableFace(
+    "<path>", "Inter Condensed", Rml::Style::FontStyle::Normal, {{"wdth", 75.0f}});
 ```
 
 ```css

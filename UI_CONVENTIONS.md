@@ -337,7 +337,10 @@ a face has it, is driven automatically from the requested size. Other axes — `
 anything custom — are pinned at registration in C++ and reached by family name:
 
 ```cpp
-Folio::RegisterVariableFace("Inter Condensed", "<path>", {{"wdth", 75}});
+// On the font engine, which the module owns. Style and the pinned axes are both explicit, because a
+// family is what RCSS can name and everything else has to be baked into one.
+FFolioModule::Get().GetFontEngine()->RegisterVariableFace(
+    "<path>", "Inter Condensed", Rml::Style::FontStyle::Normal, {{"wdth", 75.0f}});
 ```
 
 ```css

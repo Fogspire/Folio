@@ -1,3 +1,4 @@
+using System.IO;
 using UnrealBuildTool;
 
 public class FolioEditor : ModuleRules
@@ -13,6 +14,11 @@ public class FolioEditor : ModuleRules
 			"Engine",
 		});
 
+		// Folio's public headers include private ones - FolioWorldDocument.h reaches FolioDrawList.h,
+		// SFolioCanvas.h reaches FolioNavigation.h - so a module cannot compile against them without
+		// this. It is a workaround for a layout problem in Folio, not a design; see docs/known_gaps.md.
+		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "..", "Folio", "Private"));
+
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Slate",
@@ -25,6 +31,11 @@ public class FolioEditor : ModuleRules
 			"EditorStyle",
 			"Projects",
 			"Folio",
+			// FolioModule.h reaches RmlUi types through FolioRmlUi.h, so anything including it needs
+			// the library on its own include path.
+			"RmlUiLibrary",
+			// And the shared core, for the input state FolioModule.h carries.
+			"FolioCore",
 		});
 	}
 }

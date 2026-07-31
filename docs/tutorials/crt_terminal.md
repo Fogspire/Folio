@@ -296,16 +296,24 @@ material graph.
 The component takes pointer and keyboard input, but something has to tell it where the pointer is.
 
 ```cpp
-// Drive the pointer from where the player is looking.
-Terminal->MovePointerToHit();
+// Drive the pointer from where the player is looking. The trace is the game's, so it can use
+// whatever channel and reach the rest of the interaction system already uses.
+FHitResult Hit;
+if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility))
+{
+    Terminal->MovePointerToHit(Hit);
+}
 
 // Then the usual press and release from your input action.
-Terminal->PressPointer();
-Terminal->ReleasePointer();
+Terminal->PressPointer(EKeys::LeftMouseButton);
+Terminal->ReleasePointer(EKeys::LeftMouseButton);
 
 // And hand it the keyboard so the fields can be typed into.
 Terminal->FocusDocument();
 ```
+
+The button is named rather than assumed, so a right click can mean something different from a left
+one, and `ClearPointer()` takes the pointer off the surface.
 
 The properties that matter:
 

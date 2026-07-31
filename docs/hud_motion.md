@@ -98,8 +98,12 @@ screen.
 `FFolioSpring` is a plain struct and is useful anywhere a value should chase another with weight:
 
 ```cpp
-Spring.Advance(TargetValue, DeltaSeconds);
-Element->SetProperty("opacity", ...);
+// Two axes, always - a spring here is a point chasing a point. Drive one axis and ignore the other
+// if that is all you need.
+Spring.Advance(FVector2f(TargetX, TargetY), DeltaSeconds);
+Element->SetProperty("transform",
+    Folio::ToRmlString(FString::Printf(TEXT("translate(%.2fdp, %.2fdp)"),
+        Spring.Value.X, Spring.Value.Y)));
 ```
 
 It integrates semi-implicitly and substeps long frames, so a 200ms hitch settles rather than

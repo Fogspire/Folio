@@ -6,6 +6,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
+#include "IDetailPropertyRow.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
@@ -157,11 +158,60 @@ FText FFolioDocumentPathCustomization::GetWarningTooltip() const
 		FText::FromString(UFolioDocumentPathLibrary::ResolveDocumentPath(Path)));
 }
 
+FString FFolioDocumentPathCustomization::GetUsableDefault() const
+{
+	if (!StructHandle.IsValid())
+	{
+		return FString();
+	}
+
+	TArray<UObject*> Objects;
+	StructHandle->GetOuterObjects(Objects);
+
+	const FProperty* Property = StructHandle->GetProperty();
+	UObject* Archetype = Objects.IsEmpty() || !Objects[0] ? nullptr : Objects[0]->GetArchetype();
+
+	if (!Property || !Archetype)
+	{
+		return FString();
+	}
+
+	// Found by name on the archetype's class rather than by trusting the handle's property to belong to
+	// it, which is not true for a path nested inside another struct.
+	const FStructProperty* Found = CastField<FStructProperty>(
+		Archetype->GetClass()->FindPropertyByName(Property->GetFName()));
+
+	if (!Found || Found->Struct != FFolioDocumentPath::StaticStruct())
+	{
+		return FString();
+	}
+
+	const FString Default = Found->ContainerPtrToValuePtr<FFolioDocumentPath>(Archetype)->Path;
+
+	return UFolioDocumentPathLibrary::DocumentExists(Default) ? Default : FString();
+}
+
+bool FFolioDocumentPathCustomization::IsResetVisible() const
+{
+	return GetPath() != GetUsableDefault();
+}
+
+void FFolioDocumentPathCustomization::OnReset()
+{
+	SetPath(GetUsableDefault());
+}
+
 void FFolioDocumentPathCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Handle,
 	FDetailWidgetRow& Row, IPropertyTypeCustomizationUtils&)
 {
 	StructHandle = Handle;
 	PathHandle = Handle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FFolioDocumentPath, Path));
+
+	Row.OverrideResetToDefault(FResetToDefaultOverride::Create(
+		FIsResetToDefaultVisible::CreateLambda(
+			[this](TSharedPtr<IPropertyHandle>) { return IsResetVisible(); }),
+		FResetToDefaultHandler::CreateLambda(
+			[this](TSharedPtr<IPropertyHandle>) { OnReset(); })));
 
 	Row
 	.NameContent()

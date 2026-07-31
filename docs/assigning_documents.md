@@ -46,6 +46,18 @@ turns a guess into a comparison.
 **A missing document and a document that fails to parse are reported differently.** Both render
 nothing, and telling them apart by looking is impossible.
 
+## Resetting the field
+
+The reset arrow restores the class default, as it does anywhere else — **unless that default names a
+document that no longer exists**, in which case it clears the field instead.
+
+A default pointing at a deleted or renamed document is worse than no default: resetting puts back a
+path that cannot load, and the field then looks deliberately set. An empty path is legal, since a
+component may be given its document from code.
+
+The arrow appears whenever the field differs from what resetting would produce, so a field already
+holding a dead default shows as modified.
+
 ## Letting a document set its own size
 
 A document can declare the size it was designed for, and picking it fills in the component's size

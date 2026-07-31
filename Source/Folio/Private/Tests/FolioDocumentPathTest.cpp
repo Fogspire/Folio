@@ -14,7 +14,12 @@ namespace
 	struct FScopedDocument
 	{
 		FScopedDocument(const TCHAR* Name, const FString& Markup)
-			: Relative(FString(TEXT("ui/")) + Name)
+			: FScopedDocument(TEXT("ui/"), Name, Markup)
+		{
+		}
+
+		FScopedDocument(const TCHAR* Directory, const TCHAR* Name, const FString& Markup)
+			: Relative(FString(Directory) + Name)
 			, Absolute(FPaths::ProjectDir() / Relative)
 		{
 			FFileHelper::SaveStringToFile(Markup, *Absolute);
@@ -86,6 +91,45 @@ bool FFolioDeclaredSizeTest::RunTest(const FString&)
 
 	TestFalse(TEXT("a document that does not exist"),
 		UFolioDocumentPathLibrary::GetDeclaredDocumentSize(TEXT("ui/nothing_here.rml"), Size));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioDocumentOptionsTest, "Folio.Document.Options",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFolioDocumentOptionsTest::RunTest(const FString&)
+{
+	const FString Markup = TEXT("<rml><head></head><body></body></rml>\n");
+
+	const FScopedDocument Content(TEXT("folio_test_options.rml"), Markup);
+	const FScopedDocument Output(TEXT("Saved/"), TEXT("folio_test_output.rml"), Markup);
+	const FScopedDocument Nested(TEXT("Intermediate/"), TEXT("folio_test_nested.rml"), Markup);
+
+	const TArray<FString> Options = UFolioDocumentPathLibrary::GetDocumentOptions();
+
+	TestTrue(TEXT("a document under ui/ is offered"), Options.Contains(Content.Relative));
+
+	// The reason the walk prunes rather than filters: a build directory holds real documents - the
+	// vendored RmlUi samples are .rml files - so nothing about a result tells them from the game's.
+	TestFalse(TEXT("nothing from Saved/"), Options.Contains(Output.Relative));
+	TestFalse(TEXT("nothing from Intermediate/"), Options.Contains(Nested.Relative));
+
+	for (const FString& Option : Options)
+	{
+		if (Option.Contains(TEXT("/Intermediate/")) || Option.Contains(TEXT("/Binaries/"))
+			|| Option.Contains(TEXT("/build/")) || Option.Contains(TEXT("/Saved/")))
+		{
+			AddError(FString::Printf(TEXT("'%s' is output, not content"), *Option));
+		}
+
+		// Folio's own documents are offered under /folio/, so a second copy reached by walking the
+		// project is a duplicate with a path that only resolves from this project.
+		if (Option.StartsWith(TEXT("Plugins/Folio/")))
+		{
+			AddError(FString::Printf(TEXT("'%s' should only appear under /folio/"), *Option));
+		}
+	}
 
 	return true;
 }

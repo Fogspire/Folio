@@ -12,22 +12,79 @@
 
 namespace
 {
-	/** Every `.rml` under Directory, as paths relative to it, forward slashed. */
-	void FindDocuments(const FString& Directory, const FString& Prefix, TArray<FString>& Out)
+	/**
+	 * Whether a directory of this name is output rather than content.
+	 *
+	 * Pruned during the walk rather than filtered after it, because the walk is the cost. A project's
+	 * Intermediate and DerivedDataCache hold tens of thousands of files between them, and the vendored
+	 * RmlUi source under the plugin's own build directory holds several hundred `.rml` samples - which
+	 * are documents, so no filter on the results could tell them from the game's.
+	 */
+	bool IsOutputDirectory(const FString& Name)
+	{
+		static const TCHAR* const Ignored[] = {
+			TEXT("Binaries"), TEXT("Build"), TEXT("DerivedDataCache"), TEXT("Intermediate"),
+			TEXT("Saved"), TEXT("node_modules"), TEXT("__pycache__"),
+			TEXT(".git"), TEXT(".svn"), TEXT(".vs"), TEXT(".vscode"), TEXT(".idea"),
+		};
+
+		for (const TCHAR* const Candidate : Ignored)
+		{
+			if (Name.Equals(Candidate, ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Every `.rml` under Directory, as paths relative to it, forward slashed.
+	 *
+	 * SkipSubtree is one relative directory to leave out, for the plugin's own tree: its documents are
+	 * already offered under the `/folio/` mounts, and the rest of it is test fixtures and recipes.
+	 */
+	void FindDocuments(const FString& Directory, const FString& Prefix, TArray<FString>& Out,
+		const FString& SkipSubtree = FString())
 	{
 		if (Directory.IsEmpty() || !IFileManager::Get().DirectoryExists(*Directory))
 		{
 			return;
 		}
 
-		TArray<FString> Found;
-		IFileManager::Get().FindFilesRecursive(Found, *Directory, TEXT("*.rml"), true, false);
+		// Breadth first over directories we have decided to enter, rather than IterateDirectoryRecursively,
+		// which offers no way to decline one.
+		TArray<FString> Pending;
+		Pending.Add(FString());
 
-		for (FString& File : Found)
+		while (!Pending.IsEmpty())
 		{
-			FPaths::MakePathRelativeTo(File, *(Directory / TEXT("")));
-			FPaths::NormalizeFilename(File);
-			Out.Add(Prefix + File);
+			const FString Relative = Pending.Pop();
+			const FString Absolute = Relative.IsEmpty() ? Directory : Directory / Relative;
+
+			IFileManager::Get().IterateDirectory(*Absolute,
+				[&Pending, &Out, &Relative, &Prefix, &SkipSubtree](const TCHAR* Path,
+					const bool bIsDirectory) -> bool
+				{
+					const FString Name = FPaths::GetCleanFilename(Path);
+					const FString Child = Relative.IsEmpty() ? Name : Relative / Name;
+
+					if (bIsDirectory)
+					{
+						if (!IsOutputDirectory(Name)
+							&& (SkipSubtree.IsEmpty() || !Child.Equals(SkipSubtree, ESearchCase::IgnoreCase)))
+						{
+							Pending.Add(Child);
+						}
+					}
+					else if (Name.EndsWith(TEXT(".rml"), ESearchCase::IgnoreCase))
+					{
+						Out.Add(Prefix + Child);
+					}
+
+					return true;
+				});
 		}
 	}
 }
@@ -57,7 +114,19 @@ TArray<FString> UFolioDocumentPathLibrary::GetDocumentOptions()
 	const UFolioSettings* Settings = GetDefault<UFolioSettings>();
 
 	// The game's own documents first and unprefixed, because those are what anyone is looking for.
-	FindDocuments(Module.GetContentRoot(), FString(), Options);
+	// Folio's own tree comes out: it sits under the project, so the walk would otherwise reach it, and
+	// everything in it worth offering is already below under a mount.
+	FString PluginRelative = Module.GetPluginRoot();
+	if (!PluginRelative.IsEmpty() && FPaths::MakePathRelativeTo(PluginRelative, *(Module.GetContentRoot() / TEXT(""))))
+	{
+		PluginRelative.RemoveFromEnd(TEXT("/"));
+	}
+	else
+	{
+		PluginRelative.Empty();
+	}
+
+	FindDocuments(Module.GetContentRoot(), FString(), Options, PluginRelative);
 
 	// Then the plugin's, under the mounts that make them reachable from any content root. A recipe is
 	// meant to be copied rather than pointed at, so only the two that are not - the base stylesheet's

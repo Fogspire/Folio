@@ -76,9 +76,8 @@ fi
 
 echo "running '$filter' against $project"
 
-# The run's own log. Every previous run is still in Saved/Logs as a timestamped backup, and reporting
-# against the glob would show a pass from an hour ago as though it had just happened.
-log="$(dirname "$project")/Saved/Logs/$(basename "$project" .uproject).log"
+logs="$(dirname "$project")/Saved/Logs"
+name="$(basename "$project" .uproject)"
 
 # -nullrhi because none of these draw. TestExit is what makes the exit code mean something: without
 # it the editor quits successfully whatever the tests did.
@@ -86,10 +85,28 @@ log="$(dirname "$project")/Saved/Logs/$(basename "$project" .uproject).log"
 	-unattended -nopause -nosplash -nullrhi \
 	-ExecCmds="Automation RunTests $filter; Quit" \
 	-TestExit="Automation Test Queue Empty" \
-	-log > /dev/null 2>&1 || {
-		echo "tests failed:" >&2
-		grep -E "LogAutomationController: (Error|Display: Test Completed)" "$log" | tail -40 >&2
-		exit 1
-	}
+	-log > /dev/null 2>&1 || status=$?
 
-grep -E "LogAutomationController: Display: Test Completed" "$log" | tail -20
+# The newest non-backup log, not "<Project>.log": an editor already holding that name sends this run
+# to <Project>_2.log, and reading the wrong file reports nothing at all while still exiting 0.
+log="$(ls -t "$logs/$name.log" "$logs/${name}_"[0-9]*.log 2>/dev/null | grep -v -- '-backup-' | head -1)"
+
+if [[ ! -f "$log" ]]; then
+	echo "error: no log found under $logs" >&2
+	exit 1
+fi
+
+results="$(grep -E "LogAutomationController: (Error|Display: Test Completed)" "$log" | tail -40)"
+
+if [[ -n "${status:-}" ]]; then
+	echo "tests failed:" >&2
+	echo "$results" >&2
+	exit 1
+fi
+
+if [[ -z "$results" ]]; then
+	echo "error: the run produced no test results. Read $log" >&2
+	exit 1
+fi
+
+echo "$results"

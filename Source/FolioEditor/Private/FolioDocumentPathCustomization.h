@@ -35,6 +35,20 @@ private:
 	 */
 	void ApplyDeclaredSize(const FString& Path);
 
+	/**
+	 * What the reset arrow restores, which is the class default unless that names nothing.
+	 *
+	 * A default pointing at a document that has since been deleted or renamed is worse than no
+	 * default: resetting puts back a path that cannot load, and the field looks deliberately set.
+	 * Clearing is the honest outcome, and an empty path is legal - a component may be given its
+	 * document from code.
+	 */
+	bool IsResetVisible() const;
+	void OnReset();
+
+	/** The default the archetype holds, or empty when it names no file that exists. */
+	FString GetUsableDefault() const;
+
 	/** The struct property this is drawing, which carries the metadata naming its siblings. */
 	TSharedPtr<IPropertyHandle> StructHandle;
 

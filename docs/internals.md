@@ -1,6 +1,12 @@
-# Notes
+# Internals
 
-Gotchas found while building this. Read before debugging anything surprising.
+**Not for authoring UI.** This is the ledger for whoever maintains Folio's C++: why the code is
+shaped the way it is, and what has already been learned the expensive way about RmlUi, Unreal's
+renderer and the build. Read it before debugging anything surprising, and before assuming a piece of
+awkward-looking code is arbitrary.
+
+Everything an author needs is in **[the manual](README.md)**, and what Folio cannot do is in
+**[known gaps](known_gaps.md)**.
 
 ## RmlUi version and documentation
 
@@ -22,7 +28,7 @@ Known cases:
 - **`border-radius` does not support percentages or elliptical (two-axis) radii.**
 - **`Rml::ReleaseMemoryPools()` does not exist** in 6.2. Not available for the reload path.
 
-## The fork named in the original brief is dead
+## The RmlUi fork this project was first pointed at is dead
 
 `git@github.com:viciious/RmlUi.git` was last pushed **August 2019**. It predates RmlUi 3.0, so
 it has no flexbox, no media queries, no data bindings, and the entire pre-6.0 immediate-mode
@@ -477,11 +483,11 @@ editor viewport and not the document. Attach from the RenderDoc UI with **captur
 and make the window repaint. The pass is marked `FolioLayer` in the event browser; confirm the
 right capture by looking for a render target the size of the document window.
 
-## Folio bundles typefaces, reversing the brief
+## Folio bundles typefaces
 
-The brief said "Font registration defaults to Unreal's Roboto ... Do not bundle a
-typeface." Folio ships Inter and RobotoMono, both variable, under `fonts/`, and that was a
-deliberate reversal agreed when the distance-field engine went in.
+Folio ships Inter and RobotoMono, both variable, under `fonts/`. The original intention was to bundle
+no typeface at all and default to Unreal's Roboto; that was reversed deliberately when the
+distance-field engine went in.
 
 The reason is that the engine's Roboto is a static face. Variable-font support is most of the
 value here: `font-weight: 450` is a real instance rather than a snap to the nearest cut, and
@@ -491,7 +497,7 @@ only after a game supplies its own faces.
 
 Resolution order is unchanged in spirit and is the same in both renderers: the game's own
 `ui/fonts/` first, then the faces Folio ships, then the engine's Roboto as a last resort. A game
-that drops faces in `ui/fonts/` still wins outright, which was the part of the brief's intent
+that drops faces in `ui/fonts/` still wins outright, which was the part of the original intent
 that mattered.
 
 The first face registered becomes the fallback. Without one, a document naming a family nobody
@@ -809,8 +815,8 @@ and both renderers draw the same picture from the same code. A pair of hand-writ
 have drifted.
 
 **Additive blending needs no blend state at all.** RmlUi composites premultiplied, `src + dst *
-(1 - a)`, so a colour written with zero alpha adds to what is underneath. That was the thing the
-brief called unreachable from RCSS, and it turns out to cost one line in the rasteriser.
+(1 - a)`, so a colour written with zero alpha adds to what is underneath. That was the one thing
+called unreachable from RCSS, and it turns out to cost one line in the rasteriser.
 
 The trade is that the set is fixed: `additive`, `scanlines`, `sweep`. A name Folio does not know
 warns once and draws nothing, rather than pretending. Adding another is a function in
@@ -872,7 +878,7 @@ directions everywhere, including inside a text field.
 Slate reports an analog axis every frame it is off centre, so forwarding it directly either does
 nothing or navigates every frame. `FAnalogNavigator` records the axes in the input handler and
 turns them into presses in `Tick`, where there is a clock: past a 0.5 deadzone it emits once,
-waits 0.4s, then repeats every 0.12s - a keyboard's auto-repeat shape, and the timings the brief
+waits 0.4s, then repeats every 0.12s - a keyboard's auto-repeat shape, and the timings originally
 names.
 
 Two details worth keeping. The larger axis wins, so a diagonal push means one direction rather
@@ -884,24 +890,6 @@ keep repeating into a document that is no longer in front.
 
 Navigation keys are sent down **and up** together. RmlUi navigates on the press, but an element
 left believing a key is still held misbehaves the next time that key arrives.
-
-## A document is updated and rendered every frame, changed or not
-
-`SFolioCanvas::Tick` calls `Context::Update()` and `OnPaint` calls `Context::Render()` unconditionally,
-so an idle document costs a full layout traversal, a full render traversal and a fresh set of Slate
-draw elements every frame. UMG under an invalidation panel skips all of it. This is the one known
-structural disadvantage against UMG.
-
-The reason it has not been fixed casually: RmlUi exposes no dirty signal. There is no context-level
-flag, `ElementDocument::IsLayoutDirty()` is private, and active animations are private per-element. So
-skipping work needs either a patch that exposes a query or conservative tracking on our side, and the
-failure mode - a document that stops updating - is worse than the cost. The patch is the expected
-route: we pin upstream `mikke89/RmlUi` and patch at fetch time rather than maintaining a fork, and one
-patch is already carried, so widening `IsLayoutDirty` costs a re-base across an RmlUi bump and nothing
-else.
-
-Do not "optimise" this by only updating on input. Caret blink, `transition`, `animation`, `:hover`
-settling, data model updates from gameplay and `@media` re-evaluation all change with no input.
 
 ## Dev tooling is compiled out of Shipping, except one UCLASS
 
@@ -1128,7 +1116,7 @@ project. Two consequences that are easy to get wrong:
 - **The game's own target must exclude `Source/Generated/*`**, or the same strings land in two
   manifests and appear twice in a word count.
 
-**Deliberate deviation from the original plan:** the brief said to add `FileNameFilters=*.rml` to the
+**Deliberate deviation from the original plan:** it said to add `FileNameFilters=*.rml` to the
 gather step. Emitting a header instead means there is no custom filter for the Localization Dashboard
 to drop, which removes the hazard rather than documenting it. `Config/Localization/Folio.ini` still says
 never to use the Dashboard for gather settings, because it regenerates that file from its own store.
@@ -1242,7 +1230,7 @@ string 'Player' to 'Kaede', and a `BlueprintReadOnly` float refused with the war
 
 ## Idle cost: RmlUi already tells us when it next needs updating
 
-The brief planned a patch for this on the premise that "RmlUi gives us no signal to work from". **That
+A patch was planned for this on the premise that "RmlUi gives us no signal to work from". **That
 was stale.** RmlUi 6.2 has `Context::GetNextUpdateDelay()`, public and documented as being for exactly
 this, and upstream already requests updates for the cases conservative tracking would have got wrong:
 

@@ -8,7 +8,7 @@ Reference material that already exists and should be drawn on, not duplicated:
 
 - `UI_CONVENTIONS.md` — the capability reference. What works, what is banned, and why. Accurate but
   dense, and organised by CSS feature rather than by what a reader is trying to do.
-- `NOTES.md` — build and engine-integration hazards. Almost all of it belongs nowhere near `docs/`.
+- `docs/internals.md` — build and engine-integration hazards. Maintainer material, not authoring.
 
 ---
 

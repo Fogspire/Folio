@@ -26,7 +26,6 @@ The same document runs diegetically in the world, readable and interactive from 
 
 | Path | What |
 |---|---|
-| `NOTES.md` | Gotchas ledger. Read this before debugging anything surprising |
 | `Source/Folio/` | The UE module: renderer, input, document lifecycle |
 | `Source/FolioCore/` | Portable core shared by both renderers: font engine, distance fields, atlases |
 | `Source/FolioEditor/` | Details-panel customisations: the document picker and the density button |
@@ -139,7 +138,7 @@ reconstructs a false edge through the middle of a solid stroke.
 
 **RmlUi is pinned to 6.2 and that pin is deliberate.** The docs site at
 <https://mikke89.github.io/RmlUiDoc/> is built from RmlUi's `master` branch and carries no
-version banner, so it documents features that are not in any release. `NOTES.md` records the
+version banner, so it documents features that are not in any release. `docs/internals.md` records the
 specific ones that bite.
 
 ## Diagnostics

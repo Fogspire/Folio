@@ -209,5 +209,5 @@ a console or a Steam Deck. It does not exist in Shipping.
 - **Fine in the editor, empty in a packaged build.** The files were not staged. See step 7.
 - **An edit is ignored in a packaged build.** A stale copy in the `-uidev` override directory. Folio
   logs a warning naming the directory at startup for exactly this reason.
-- **Anything surprising.** `NOTES.md` at the plugin root is a ledger of things that have already
+- **Anything surprising.** [Internals](internals.md) is a ledger of things that have already
   caught someone out.

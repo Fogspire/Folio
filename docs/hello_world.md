@@ -187,6 +187,8 @@ a console or a Steam Deck. It does not exist in Shipping.
   close enough to CSS to mislead.
 - **[Hosting a document](hosting.md)** — `UFolioWidget`, focus, and fitting into an existing widget tree.
 - **[Data binding](data_binding.md)** — showing values from your game, and whether a view model is worth it.
+- **[Generating a view model](view_models.md)** — the C++ behind a document's bindings, generated from
+  the document and its mock.
 - **[Setting up VSCode](vscode.md)** — highlighting and a live preview beside the document, and what
   the preview is and is not worth trusting.
 - **[Documents in the world](world_documents.md)** — a document on a surface in the level, the three

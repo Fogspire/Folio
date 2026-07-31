@@ -73,10 +73,10 @@ the first thing a reader will want after this.
   is and is not worth trusting. Every step was run: the extension installs, highlights and previews,
   and the warning path was checked against `ui/examples/button.rml`.
 
-- **Generating a view model.** `Tools/codegen/viewmodel.py` and `scripts/viewmodel.sh`. The page
-  should lead with the base-class rule, since that is what makes regenerating safe, and with the fact
-  that the mock is the type source - which is the part that sounds odd until you notice the mock
-  already exists for every screen anyone has looked at.
+- ~~**Generating a view model.**~~ Written: `view_models.md`. Verified end to end: the generated
+  header was built into a real game module, UHT produced its reflection and the editor target
+  compiled. What is not shown is a bound model driving a document at runtime, which needs a subclass
+  and is game work rather than plugin work.
 
 ## Things to check before publishing any of it
 

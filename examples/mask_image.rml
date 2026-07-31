@@ -1,0 +1,181 @@
+<rml>
+<head>
+	<title>Mask image</title>
+	<meta name="folio-size" content="1190x714"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* Every shape of mask-image, side by side with the same tile unmasked.
+
+		   A mask is a render layer: the subtree is drawn into an offscreen target, the mask
+		   decorator is drawn into another, and the two are composited. So this is really a test
+		   of the layer path, which is the half of the renderer a screenshot of an ordinary
+		   document never touches. It is also the only place text is drawn through a layer rather
+		   than straight to the target, which is why every tile has words in it.
+
+		   Only a Surface world document has layers. In-scene and after-tonemap documents record a
+		   draw list, which has no offscreen target to composite through, and every tile here will
+		   render unmasked with one warning. That is the expected result there, not a failure.
+
+		   Read it by comparing each tile to the control on its left. A mask that does nothing
+		   looks exactly like the control; a mask that composites to nothing leaves a hole. */
+		body {
+			font-family: Inter;
+			font-size: 18dp;
+			color: #e8ecf2;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			padding: 24dp;
+			display: flex;
+			flex-direction: column;
+		}
+
+		h1 {
+			font-size: 22dp;
+			font-weight: 600;
+			color: #f0c674;
+			margin-bottom: 4dp;
+		}
+
+		.note {
+			font-size: 14dp;
+			color: #7b8494;
+			margin-bottom: 20dp;
+		}
+
+		.grid {
+			display: flex;
+			flex-wrap: wrap;
+			flex: 1 1 auto;
+		}
+
+		.cell {
+			width: 274dp;
+			margin: 0 12dp 20dp 0;
+		}
+
+		.label {
+			font-size: 13dp;
+			font-weight: 600;
+			letter-spacing: 0.4dp;
+			color: #7b8494;
+			margin-bottom: 6dp;
+		}
+
+		/* The tile is deliberately busy. A flat colour would hide a mask that is subtly wrong,
+		   and text is what shows an offscreen target being composited at the wrong offset. */
+		.tile {
+			height: 150dp;
+			padding: 14dp;
+			box-sizing: border-box;
+			background-color: #182030;
+			border: 1dp #ffffff1f;
+			border-radius: 8dp;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+		}
+
+		.tile .word { font-size: 26dp; font-weight: 600; color: #ffffff; }
+		.tile .row { display: flex; align-items: center; }
+		.tile .swatch {
+			width: 22dp; height: 22dp;
+			border-radius: 4dp;
+			background-color: #4ea1ff;
+			margin-right: 8dp;
+		}
+		.tile .bar {
+			height: 8dp;
+			border-radius: 4dp;
+			background-color: #4ea1ff;
+			flex: 0 0 auto;
+			width: 60%;
+		}
+
+		/* A mask reads its own alpha, so every gradient here has to end at a transparent stop.
+		   One that runs between two opaque colours masks nothing and is the easiest way to write
+		   this test wrong. */
+		.linear     { mask-image: linear-gradient(90deg, #ffffff 0%, #ffffff00 100%); }
+		.radial     { mask-image: radial-gradient(circle closest-side at 50% 50%, #ffffff 40%, #ffffff00 100%); }
+		.conic      { mask-image: conic-gradient(from 0deg, #ffffff 0%, #ffffff00 50%, #ffffff 100%); }
+		.repeating  { mask-image: repeating-linear-gradient(0deg, #ffffff 0dp, #ffffff 10dp, #ffffff00 10dp, #ffffff00 20dp); }
+		.vertical   { mask-image: vertical-gradient(#ffffff #ffffff00); }
+
+		/* An opaque mask covering the whole element. It must look identical to the control:
+		   anything else is the compositing step itself being wrong, not the mask shape. */
+		.opaque     { mask-image: vertical-gradient(#ffffff #ffffff); }
+	</style>
+</head>
+<body>
+	<h1>mask-image</h1>
+	<p class="note">Each tile is masked by the decorator named above it. The control has no mask
+	and is what the rest are read against.</p>
+
+	<div class="grid">
+		<div class="cell">
+			<div class="label">CONTROL, NO MASK</div>
+			<div class="tile">
+				<div class="word">Control</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+
+		<div class="cell">
+			<div class="label">OPAQUE MASK</div>
+			<div class="tile opaque">
+				<div class="word">Opaque</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+
+		<div class="cell">
+			<div class="label">LINEAR-GRADIENT</div>
+			<div class="tile linear">
+				<div class="word">Linear</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+
+		<div class="cell">
+			<div class="label">VERTICAL-GRADIENT</div>
+			<div class="tile vertical">
+				<div class="word">Vertical</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+
+		<div class="cell">
+			<div class="label">RADIAL-GRADIENT</div>
+			<div class="tile radial">
+				<div class="word">Radial</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+
+		<div class="cell">
+			<div class="label">CONIC-GRADIENT</div>
+			<div class="tile conic">
+				<div class="word">Conic</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+
+		<div class="cell">
+			<div class="label">REPEATING-LINEAR</div>
+			<div class="tile repeating">
+				<div class="word">Repeat</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+
+		<div class="cell">
+			<div class="label">MASK OVER OPACITY</div>
+			<div class="tile linear" style="opacity: 0.6;">
+				<div class="word">Stacked</div>
+				<div class="row"><div class="swatch"></div><div class="bar"></div></div>
+			</div>
+		</div>
+	</div>
+</body>
+</rml>

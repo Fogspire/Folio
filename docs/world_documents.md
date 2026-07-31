@@ -8,6 +8,10 @@ whatever size the quad lands on screen, so every distance except one is a filter
 soft. Folio's text and vector art are distance fields, which means geometry can be drawn at the size it
 is actually seen — no intermediate target, no resample, sharp at any distance.
 
+That is true of two of the three draw modes. **Surface mode does use an intermediate target, and is
+softer for exactly the reason a `UWidgetComponent` is**, so pick it only when a document needs layer
+effects or non-planar geometry.
+
 ## Getting one on screen
 
 Add a **Folio World Document** component to an actor and set:
@@ -71,6 +75,8 @@ is also the only mode where the document can be on curved or non-planar geometry
 longer decides where the pixels go.
 
 The price is the one resample the other two modes exist to avoid, which is why it is not the default.
+It is **visibly softer than the other two in play**, on every document, and that is inherent - see
+[Surface mode is softer](#surface-mode-is-softer-than-the-other-two-in-play-as-well).
 
 ## Surface mode
 
@@ -123,9 +129,43 @@ size is cheap: geometry is compiled once and glyphs are size-independent, so not
   fixed-resolution behaviour a `UWidgetComponent` has. Useful for an A/B.
 
 Automatic sizing needs a player camera to measure against, so in the level viewport the target is
-always the document's own size.
+always the document's own size and looks softer than it will in play.
 
 If the document comes up upside down, that is the mesh's UVs. Document V=0 is the top.
+
+### Surface mode is softer than the other two, in play as well
+
+Expect this, and expect it on every document rather than any particular one. **Surface mode is the
+only mode that does not draw at the resolution the player sees**, and no amount of tuning removes
+that entirely — it is what the mode costs.
+
+The reason is what happens to the distance fields. Text and vector sprites carry their own edges and
+resolve them at whatever resolution they are drawn at, which is why Folio is sharp under
+`transform: scale(8)` and at 4K. `After Tonemap` and `In Scene` evaluate those fields **at final
+pixels**: the glyph edge is computed for the pixel it lands in. Surface mode evaluates them into the
+offscreen target, and a material then samples that texture onto a quad in perspective. The edge is
+resolved once at the target's resolution and everything after it is filtering — so the field's whole
+advantage is spent before the pixel is drawn, and the result behaves like a bitmap.
+
+Texel and pixel also never line up. The quad is perspective-projected and the target is quantised to
+128-pixel steps, so even a target that is the right size on average is being resampled at a slightly
+wrong scale across most of the surface.
+
+What actually helps, in order:
+
+1. **Use `After Tonemap` unless the document needs layer effects.** `box-shadow`, `filter`,
+   `backdrop-filter` and `mask-image` are the whole reason to accept Surface mode. A document without
+   them gives up sharpness for nothing.
+2. **Raise `Max Surface Scale`.** The default of 2 is a memory bound, not a quality target. A panel
+   the player walks right up to can easily want more than twice the document's size on screen, and it
+   is clamped to this — so it magnifies. It goes to 4.
+3. **Raise `Pixels Per Unit`** so the document is authored denser to begin with. This raises the
+   *base* the scale multiplies, and it also re-lays-out the document, so check the design still fits.
+4. **Confirm the material is not adding its own softness** — no mip bias, and a bilinear sample.
+
+A layer also costs about `3/255` of brightness on the way through the target, from the 8-bit sRGB
+round trip. Not visible except side by side, and unrelated to sharpness, but it is the other thing
+Surface mode charges for.
 
 ## Interacting with one
 

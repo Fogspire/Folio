@@ -135,6 +135,19 @@ See **[accessibility](accessibility.md)**.
 
 ## Engine integration
 
+### Surface mode is softer than the other draw modes
+
+Not a bug and not fixable: Surface mode renders into an offscreen target that a material samples, so
+the distance fields resolve at the *target's* resolution rather than the screen's and everything after
+that is filtering. The other two modes evaluate them at final pixels, which is the whole point of
+using fields.
+
+It costs sharpness to buy layer effects and non-planar geometry. Use `After Tonemap` for anything
+that needs neither, and raise `Max Surface Scale` past its default of 2 for a surface the player walks
+up to.
+
+See **[documents in the world](world_documents.md)**.
+
 ### The marker component has not been profiled
 
 `UFolioMarkerDocument` works, but one document and one context per marker is a real cost and nobody

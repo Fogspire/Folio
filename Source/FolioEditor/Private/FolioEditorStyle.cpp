@@ -32,10 +32,9 @@ void FFolioEditorStyle::Register()
 	Style = MakeShared<FSlateStyleSet>(GetStyleSetName());
 	Style->SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 
-	// The plugin's own icon at toolbar size. 128 is the smallest one shipped, and Slate downsamples
-	// it once at load rather than per frame.
+	// Authored at the size it is drawn at, so nothing is resampled.
 	Style->Set(GetToolbarIconName(), new FSlateImageBrush(
-		Style->RootToContentDir(TEXT("Icon128"), TEXT(".png")), FVector2D(20.0, 20.0)));
+		Style->RootToContentDir(TEXT("Icon20"), TEXT(".png")), FVector2D(20.0, 20.0)));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*Style);
 }

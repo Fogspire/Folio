@@ -83,13 +83,12 @@ Raising it means raising `pxrange` when baking, at a quadratic cost in atlas are
 
 ## Vector art
 
-### A clip path escapes its clip
+### A clip path needs the shapes in document order
 
-**Known broken.** A drawing whose geometry is clipped bakes with the clipped layer at its
-*unclipped* extent, so the shape spills outside the drawing and the layer beneath it comes out solid.
-Visible in `ui/examples/vector_gradient.rml` on the hatch sample.
-
-Affects any Affinity export using a clip, which includes every hatch fill.
+`clip-path` is honoured, but the relationship is recovered by counting drawables in the source text
+and matching that against nanosvg's shape order. `<use>` clones a shape and breaks the
+correspondence, so a drawing using it would clip the wrong things. Nothing in the pipeline handles
+`<use>` yet.
 
 ### Filled paths bake coarser than their own strokes
 

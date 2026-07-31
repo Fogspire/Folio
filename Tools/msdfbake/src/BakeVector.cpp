@@ -15,6 +15,7 @@
 #include <nanosvg.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -397,15 +398,81 @@ namespace msdfbake
 		/// nanosvg drops the relationship but still emits the clip path's own geometry as an
 		/// ordinary shape, so nothing has to re-parse the SVG's path data. Only the relationship
 		/// does: which shapes make up each clip, and which shapes each clip applies to.
+		/// Which shapes are a clip, and which shapes it applies to.
+		///
+		/// Keyed by the shape's position in document order rather than by its id, because a drawing
+		/// exported from a vector editor rarely has ids at all: Affinity writes them on groups and on
+		/// clip paths, and on nothing that is actually drawn. Keying on them meant no clip was ever
+		/// matched, so a clipped shape rendered at its unclipped extent and the clip path's own
+		/// geometry was drawn as an ordinary black layer over everything beneath it.
+		///
+		/// Document order is safe to rely on because nanosvg appends each drawable to the tail of its
+		/// list as it parses. `<use>` is the exception - it clones a shape and so breaks the
+		/// correspondence - and nothing in the pipeline handles that yet.
 		struct FClipPlan
 		{
-			/// Shape id to the clip it belongs to. These are geometry, and are never drawn.
-			std::map<std::string, std::string> ClipMembers;
-			/// Shape id to the clip that applies to it.
-			std::map<std::string, std::string> Clipped;
+			/// Shape index to the clip it belongs to. These are geometry, and are never drawn.
+			std::map<int, std::string> ClipMembers;
+			/// Shape index to the clip that applies to it.
+			std::map<int, std::string> Clipped;
 
 			bool IsEmpty() const { return ClipMembers.empty() && Clipped.empty(); }
 		};
+
+		/// Every tag nanosvg turns into a shape, which is what makes an index mean the same on both sides.
+		bool IsDrawableTag(const std::string& Text, std::size_t At)
+		{
+			static const char* const Tags[] = {
+				"path", "rect", "circle", "ellipse", "line", "polyline", "polygon"
+			};
+
+			for (const char* Tag : Tags)
+			{
+				const std::size_t Length = std::strlen(Tag);
+				if (Text.compare(At + 1, Length, Tag) != 0)
+				{
+					continue;
+				}
+
+				// The character after the name, or "<line" would also match "<linearGradient".
+				const char Next = At + 1 + Length < Text.size() ? Text[At + 1 + Length] : ' ';
+				if (std::isspace((unsigned char)Next) || Next == '/' || Next == '>')
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		/// How many shapes nanosvg will have emitted by the time it reaches Offset.
+		int CountDrawablesBefore(const std::string& Text, std::size_t Offset)
+		{
+			int Count = 0;
+			for (std::size_t At = Text.find('<'); At != std::string::npos && At < Offset;
+				At = Text.find('<', At + 1))
+			{
+				if (IsDrawableTag(Text, At))
+				{
+					++Count;
+				}
+			}
+
+			return Count;
+		}
+
+		/// Records every shape between two offsets as belonging to Owner.
+		void CollectRange(const std::string& Text, std::size_t From, std::size_t To,
+			const std::string& Owner, std::map<int, std::string>& Out)
+		{
+			const int First = CountDrawablesBefore(Text, From);
+			const int Last = CountDrawablesBefore(Text, To);
+
+			for (int Index = First; Index < Last; ++Index)
+			{
+				Out[Index] = Owner;
+			}
+		}
 
 		/// Ids of the `<path id="...">` elements between two offsets.
 		void CollectIds(const std::string& Text, std::size_t From, std::size_t To,
@@ -492,7 +559,7 @@ namespace msdfbake
 				const std::string Id = Text.substr(IdAt + 4, IdEnd - IdAt - 4);
 				const std::size_t Tail = FindElementEnd(Text, "clipPath", At);
 
-				CollectIds(Text, Head, Tail, Id, OutPlan.ClipMembers);
+				CollectRange(Text, Head, Tail, Id, OutPlan.ClipMembers);
 			}
 
 			// clip-path="url(#A)" on a group: everything inside is clipped by A.
@@ -522,7 +589,7 @@ namespace msdfbake
 				const bool bGroup = Text.compare(Open, 3, "<g ") == 0 || Text.compare(Open, 3, "<g>") == 0;
 				const std::size_t Tail = bGroup ? FindElementEnd(Text, "g", Open) : Head;
 
-				CollectIds(Text, Head, Tail, Id, OutPlan.Clipped);
+				CollectRange(Text, Head, Tail, Id, OutPlan.Clipped);
 			}
 
 			// A shape cannot both be a clip and be clipped by it.
@@ -679,9 +746,10 @@ namespace msdfbake
 		std::map<std::string, msdfgen::Shape> ClipGeometry;
 		if (!Clips.ClipMembers.empty())
 		{
-			for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
+			int ShapeIndex = 0;
+			for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next, ++ShapeIndex)
 			{
-				const auto Member = Clips.ClipMembers.find(Source->id);
+				const auto Member = Clips.ClipMembers.find(ShapeIndex);
 				if (Member == Clips.ClipMembers.end())
 				{
 					continue;
@@ -698,8 +766,11 @@ namespace msdfbake
 		msdfgen::Shape& Shape = OutShape.Shape;
 		Shape = msdfgen::Shape();
 
+		int ShapeIndex = -1;
 		for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
 		{
+			++ShapeIndex;
+
 			if ((Source->flags & NSVG_FLAGS_VISIBLE) == 0)
 			{
 				continue;
@@ -707,13 +778,13 @@ namespace msdfbake
 
 			// A clip path's own geometry is a stencil, not ink. nanosvg does not know that and
 			// emits it as an ordinary shape, which is how it ended up baked as a layer of its own.
-			if (Clips.ClipMembers.count(Source->id) != 0)
+			if (Clips.ClipMembers.count(ShapeIndex) != 0)
 			{
 				continue;
 			}
 
 			const msdfgen::Shape* Clip = nullptr;
-			if (const auto Clipped = Clips.Clipped.find(Source->id); Clipped != Clips.Clipped.end())
+			if (const auto Clipped = Clips.Clipped.find(ShapeIndex); Clipped != Clips.Clipped.end())
 			{
 				if (const auto Found = ClipGeometry.find(Clipped->second); Found != ClipGeometry.end())
 				{
@@ -843,9 +914,10 @@ namespace msdfbake
 		std::map<std::string, msdfgen::Shape> ClipGeometry;
 		if (!Clips.ClipMembers.empty())
 		{
-			for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
+			int ShapeIndex = 0;
+			for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next, ++ShapeIndex)
 			{
-				const auto Member = Clips.ClipMembers.find(Source->id);
+				const auto Member = Clips.ClipMembers.find(ShapeIndex);
 				if (Member == Clips.ClipMembers.end())
 				{
 					continue;
@@ -862,8 +934,11 @@ namespace msdfbake
 		// Grouped by colour but kept in paint order, so a later shape of a colour already seen
 		// joins that colour's layer. Two layers of the same colour would draw identically anyway,
 		// and merging them keeps the draw count down.
+		int ShapeIndex = -1;
 		for (const NSVGshape* Source = Image->shapes; Source != nullptr; Source = Source->next)
 		{
+			++ShapeIndex;
+
 			if ((Source->flags & NSVG_FLAGS_VISIBLE) == 0)
 			{
 				continue;
@@ -871,13 +946,13 @@ namespace msdfbake
 
 			// A clip path's own geometry is a stencil, not ink. nanosvg does not know that and
 			// emits it as an ordinary shape, which is how it ended up baked as a layer of its own.
-			if (Clips.ClipMembers.count(Source->id) != 0)
+			if (Clips.ClipMembers.count(ShapeIndex) != 0)
 			{
 				continue;
 			}
 
 			const msdfgen::Shape* Clip = nullptr;
-			if (const auto Clipped = Clips.Clipped.find(Source->id); Clipped != Clips.Clipped.end())
+			if (const auto Clipped = Clips.Clipped.find(ShapeIndex); Clipped != Clips.Clipped.end())
 			{
 				if (const auto Found = ClipGeometry.find(Clipped->second); Found != ClipGeometry.end())
 				{

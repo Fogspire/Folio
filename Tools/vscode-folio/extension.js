@@ -248,19 +248,36 @@ function show(state) {
 	#viewport { overflow: auto; }
 	.stage { position: relative; display: inline-block; cursor: crosshair; }
 	#overlay { position: absolute; left: 0; top: 0; right: 0; bottom: 0; pointer-events: none; }
-	/* A match from the source side is deliberately a different colour to a selection: one says "this is
-	   what you picked", the other says "this is what that rule reaches", and confusing them would make
-	   the second useless. */
-	#overlay .box.match {
-		outline-color: var(--vscode-editorWarning-foreground);
-		background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent);
+	#overlay .box { position: absolute; }
+
+	/* Three states, three colours, none of them relying on color-mix: hover says what a click would
+	   take, selected says what it took, and match says what a rule in the source reaches. Confusing
+	   any two of them would make the other useless. */
+	#overlay .box.hover    { outline: 1px dashed #5ac8fa; background: #5ac8fa22; }
+	#overlay .box.selected { outline: 2px solid  #ffb454; background: #ffb45422; }
+	#overlay .box.match    { outline: 2px solid  #a0f060; background: #a0f06022; }
+
+	#overlay .label {
+		position: absolute; left: 0; top: -18px; white-space: nowrap;
+		padding: 0 4px; font-size: 11px; line-height: 17px;
+		font-family: var(--vscode-editor-font-family);
+		color: #101014; background: #5ac8fa;
 	}
-	#overlay .box {
-		position: absolute;
-		outline: 1px solid var(--vscode-focusBorder);
-		background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+	#overlay .box.selected .label { background: #ffb454; }
+	#overlay .box.match .label { background: #a0f060; }
+	.selection {
+		display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+		margin-bottom: 8px; min-height: 22px;
+		font-family: var(--vscode-editor-font-family); font-size: 90%;
 	}
-	.selection { font-family: var(--vscode-editor-font-family); opacity: 0.9; }
+	#readout { font-weight: bold; }
+	.rule {
+		font: inherit; padding: 1px 6px; cursor: pointer;
+		color: var(--vscode-textLink-foreground);
+		background: var(--vscode-badge-background); border: none;
+	}
+	.rule:hover { text-decoration: underline; }
+	.rule.empty { color: var(--vscode-descriptionForeground); cursor: default; background: none; }
 	button {
 		font: inherit; color: var(--vscode-button-secondaryForeground);
 		background: var(--vscode-button-secondaryBackground);
@@ -291,11 +308,7 @@ function show(state) {
 	</div>
 	${state.error ? `<div class="error">${escape(state.error)}</div>` : ""}
 	${notes.join("")}
-	${selected ? `<div class="selection">${escape(selected.tag)}${selected.id ? "#" + escape(selected.id) : ""}`
-		+ `${selected.classes ? "." + escape(String(selected.classes).trim().split(/\s+/).join(".")) : ""}`
-		+ ` &mdash; ${(selected.properties || []).length} property/ies from `
-		+ `${escape([...new Set((selected.properties || []).map((p) => p.rule))].join(", ")) || "no rule"}</div>`
-		: ""}
+	<div class="selection"><span id="readout"></span><span id="rules"></span></div>
 	${state.messages && !state.error
 		? `<div class="${state.warned ? "warn" : "note"}">${escape(state.messages)}</div>`
 		: ""}
@@ -303,10 +316,11 @@ function show(state) {
 	<script>
 		const api = acquireVsCodeApi();
 		const elements = ${JSON.stringify(elements)};
-		const selectedPath = ${JSON.stringify(selected && selected.path)};
 
 		const image = document.getElementById("render");
 		const overlay = document.getElementById("overlay");
+		const rules = document.getElementById("rules");
+		const readout = document.getElementById("readout");
 
 		function ask(zoom) { api.postMessage({ kind: "zoom", zoom: zoom }); }
 
@@ -327,11 +341,18 @@ function show(state) {
 			else if (event.key === "0") { ask("reset"); }
 		});
 
+		function describe(element) {
+			const classes = String(element.classes || "").trim();
+			return element.tag
+				+ (element.id ? "#" + element.id : "")
+				+ (classes ? "." + classes.split(/\s+/).join(".") : "");
+		}
+
 		/**
 		 * The smallest element containing the point.
 		 *
-		 * Smallest rather than last: a document's order is not its depth, and picking the last match
-		 * selects a full-width overlay whenever one exists rather than the button under the cursor.
+		 * Smallest rather than topmost: a document's order is not its depth, so picking the last match
+		 * selects whichever full-width overlay happens to exist rather than the button under the cursor.
 		 */
 		function hitTest(x, y) {
 			let best = null;
@@ -348,18 +369,58 @@ function show(state) {
 			return [event.clientX - box.left, event.clientY - box.top];
 		}
 
-		function drawOverlay(element) {
+		function box(element, className) {
+			const [left, top, width, height] = element.rect;
+			const node = document.createElement("div");
+			node.className = "box " + className;
+			node.style.left = left + "px";
+			node.style.top = top + "px";
+			node.style.width = width + "px";
+			node.style.height = height + "px";
+
+			const label = document.createElement("span");
+			label.className = "label";
+			label.textContent = describe(element) + "  " + Math.round(width) + "x" + Math.round(height);
+			node.appendChild(label);
+			return node;
+		}
+
+		let selection = null;
+		let hovered = null;
+
+		function redraw() {
 			overlay.innerHTML = "";
+			// Hover under selection, so the two never obscure each other when they are the same element.
+			if (hovered && hovered !== selection) { overlay.appendChild(box(hovered, "hover")); }
+			if (selection) { overlay.appendChild(box(selection, "selected")); }
+		}
+
+		function showRules(element) {
+			rules.innerHTML = "";
+			readout.textContent = element ? describe(element) : "";
 			if (!element) { return; }
 
-			const [left, top, width, height] = element.rect;
-			const box = document.createElement("div");
-			box.className = "box";
-			box.style.left = left + "px";
-			box.style.top = top + "px";
-			box.style.width = width + "px";
-			box.style.height = height + "px";
-			overlay.appendChild(box);
+			const seen = new Set();
+			for (const declaration of element.properties || []) {
+				const key = declaration.rule + declaration.file + declaration.line;
+				if (seen.has(key)) { continue; }
+				seen.add(key);
+
+				const item = document.createElement("button");
+				item.className = "rule";
+				item.textContent = declaration.rule + "  " + declaration.file + ":" + declaration.line;
+				item.title = "Open this rule";
+				item.onclick = () => api.postMessage({
+					kind: "goto", file: declaration.file, line: declaration.line });
+				rules.appendChild(item);
+			}
+
+			if (seen.size === 0) {
+				const none = document.createElement("span");
+				none.className = "rule empty";
+				none.textContent = "no rule styles this element";
+				rules.appendChild(none);
+			}
 		}
 
 		window.addEventListener("message", (event) => {
@@ -369,34 +430,32 @@ function show(state) {
 			overlay.innerHTML = "";
 			for (const path of message.paths || []) {
 				const element = elements.find((entry) => entry.path === path);
-				if (!element) { continue; }
-
-				const [left, top, width, height] = element.rect;
-				const box = document.createElement("div");
-				box.className = "box match";
-				box.style.left = left + "px";
-				box.style.top = top + "px";
-				box.style.width = width + "px";
-				box.style.height = height + "px";
-				overlay.appendChild(box);
+				if (element) { overlay.appendChild(box(element, "match")); }
 			}
 		});
 
 		if (image) {
-			let current = elements.find((element) => element.path === selectedPath) || null;
-			drawOverlay(current);
+			const stage = image.parentElement;
 
-			image.parentElement.addEventListener("mousedown", (event) => {
+			stage.addEventListener("mousemove", (event) => {
+				const [x, y] = documentPoint(event);
+				const hit = hitTest(x, y);
+				if (hit !== hovered) { hovered = hit; redraw(); }
+			});
+
+			stage.addEventListener("mouseleave", () => { hovered = null; redraw(); });
+
+			stage.addEventListener("mousedown", (event) => {
 				const [x, y] = documentPoint(event);
 				const hit = hitTest(x, y);
 				if (!hit) { return; }
 
-				current = hit;
-				drawOverlay(current);
+				selection = hit;
+				redraw();
+				showRules(hit);
 				api.postMessage({ kind: "select", path: hit.path });
 
-				// A drag from inside the selection moves it; the mouse has to leave the element before
-				// it counts, so a click to select never nudges anything.
+				// A drag has to leave the element before it counts, so a click to select never nudges.
 				const startX = x, startY = y;
 				let dragging = false;
 
@@ -405,18 +464,17 @@ function show(state) {
 					if (!dragging && Math.abs(nx - startX) < 4 && Math.abs(ny - startY) < 4) { return; }
 
 					dragging = true;
-					const [left, top, width, height] = hit.rect;
-					const box = overlay.firstChild;
-					if (box) {
-						box.style.left = (left + nx - startX) + "px";
-						box.style.top = (top + ny - startY) + "px";
+					const node = overlay.lastChild;
+					if (node) {
+						node.style.left = (hit.rect[0] + nx - startX) + "px";
+						node.style.top = (hit.rect[1] + ny - startY) + "px";
 					}
 				}
 
 				function up(upEvent) {
 					document.removeEventListener("mousemove", move);
 					document.removeEventListener("mouseup", up);
-					if (!dragging) { return; }
+					if (!dragging) { redraw(); return; }
 
 					const [nx, ny] = documentPoint(upEvent);
 					api.postMessage({
@@ -538,8 +596,11 @@ async function handleMessage(message) {
 
 	if (message.kind === "select") {
 		selected = element;
-		revealSource(element);
-		show({ image: lastImage, messages: lastMessages, uncompared: lastUncompared });
+		return;
+	}
+
+	if (message.kind === "goto") {
+		await openRule(message.file, message.line);
 		return;
 	}
 
@@ -573,24 +634,26 @@ function sourceColumn(file) {
 	return editors.length > 0 ? editors[0].viewColumn : vscode.ViewColumn.One;
 }
 
-/** Click in the render, land on the rule in the source. Half of what makes this an editor. */
-async function revealSource(element) {
-	const first = (element.properties || [])[0];
-	if (!first) {
-		return;
-	}
-
-	const file = resolveStylesheet(first.file);
+/**
+ * Opens a rule, chosen by the author rather than guessed.
+ *
+ * Jumping on every click and picking the first rule was worse than not jumping: the first property is
+ * whichever the property enumeration happened to reach first, so the destination looked arbitrary
+ * because it was. Now the panel lists the rules that reach an element and this opens the one clicked.
+ */
+async function openRule(reportedFile, line) {
+	const file = resolveStylesheet(reportedFile);
 	if (!file) {
+		vscode.window.showWarningMessage(`Folio: could not find ${reportedFile} under the workspace.`);
 		return;
 	}
 
 	const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
-	const line = Math.max(0, (first.line || 1) - 1);
+	const at = Math.max(0, (line || 1) - 1);
 	await vscode.window.showTextDocument(document, {
 		viewColumn: sourceColumn(file),
 		preserveFocus: true,
-		selection: new vscode.Range(line, 0, line, 0),
+		selection: new vscode.Range(at, 0, at, 0),
 	});
 }
 

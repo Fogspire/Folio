@@ -68,10 +68,17 @@ than a clamped one.
 
 The preview is not read-only.
 
-**Click an element** to select it. Its box is outlined, the bar underneath names what you picked and
-which rules reach it, and the source jumps to the rule that styles it. That last part is what makes
-this an editor rather than a viewer: seeing a thing and finding the line that made it are the same
-action.
+**Hover** and the element under the cursor is outlined with a label naming it and its size, so you can
+see what a click will take before you take it. Nested elements often share an edge, and without this
+you are guessing.
+
+**Click** to select. The bar above the render then names what you picked and lists every rule that
+reaches it, with its file and line. Clicking one opens it beside the preview.
+
+The rules are listed rather than jumped to, deliberately: an element is usually styled by several
+rules and there is no way to know which one you meant. An earlier version jumped straight to the first
+one and it felt broken, because the first property is whichever the enumeration reached first - the
+destination looked arbitrary because it was.
 
 **Drag a selected element** to move it. On release you are asked *which rule* to edit, because that is
 a real choice and getting it wrong silently is worse than asking: moving one button by editing `.btn`

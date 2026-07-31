@@ -50,8 +50,10 @@ crisp. Scaling a screenshot would show you the scaler's work instead.
 
 ## Editing
 
-Click an element to select it and jump to the rule that styles it. Drag it to move it, and pick which
-rule the move should edit - `.btn` moves every button, `#continue` moves one.
+Hover to see what a click would take: the element is outlined and labelled with its tag, id, classes
+and size. Click to select it, and the bar lists every rule that reaches it - click one to open it.
+Drag a selection to move it, and pick which rule the move should edit: `.btn` moves every button,
+`#continue` moves one.
 
 Edits are a protocol rather than a rewrite: one property, one rule, applied in place with every
 comment and indent preserved, through the editor's undo stack. `rcss.js` does that work and

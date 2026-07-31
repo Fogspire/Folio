@@ -173,7 +173,8 @@
 			color: #b9ffcb;
 			tab-index: auto;
 		}
-		.close:hover { background-color: #ff5c5c; color: #04120a; }
+		.close:hover,
+		.close:focus-visible { background-color: #ff5c5c; color: #04120a; }
 
 		/* An icon dropped on the bin shrinks into it and is then removed outright. The drop leaves it
 		   sitting over the bin already, so shrinking in place is what reads as being swallowed. */
@@ -292,7 +293,7 @@
 		     and the corner grip is a handle whose size_target is the same window. -->
 		<div id="win" class="window">
 			<handle class="titlebar" move_target="win">DISK UTILITY</handle>
-			<div class="close" folio-close="win">X</div>
+			<div class="close" folio-close="win" folio-label="Close">X</div>
 			<div class="window-body">
 				<div id="icon_a" class="desk-icon" folio-drag="move" style="left: 28dp; top: 66dp;">
 					<span class="glyph"></span>CORE.DAT

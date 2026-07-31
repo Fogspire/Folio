@@ -11,6 +11,7 @@
 
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioDocumentHost.h"
+#include "FolioTheme.h"
 #include "FolioDrawList.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
@@ -1311,6 +1312,47 @@ namespace
 		TEXT("folio.Debugger [on|off]. Opens RmlUi's element inspector on the focused document: "
 			"element tree, computed style, event log and every data model in the context."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunDebugger));
+
+	/**
+	 * Turns a theme on or off, or lists what is on.
+	 *
+	 *   folio.Theme                 what is active
+	 *   folio.Theme high-contrast   turn it on
+	 *   folio.Theme high-contrast 0 turn it off
+	 */
+	void RunTheme(const TArray<FString>& Args)
+	{
+		if (Args.Num() == 0)
+		{
+			const TArray<FName> Active = UFolioThemeLibrary::GetActiveThemes();
+			if (Active.IsEmpty())
+			{
+				UE_LOG(LogFolio, Display, TEXT("no theme is active; the default look is the stylesheet's"));
+				return;
+			}
+
+			TArray<FString> Names;
+			for (const FName Name : Active)
+			{
+				Names.Add(Name.ToString());
+			}
+
+			UE_LOG(LogFolio, Display, TEXT("active theme(s): %s"), *FString::Join(Names, TEXT(", ")));
+			return;
+		}
+
+		const bool bActive = Args.Num() < 2 || Args[1].ToBool() || Args[1] == TEXT("1");
+		UFolioThemeLibrary::SetTheme(FName(*Args[0]), bActive);
+
+		UE_LOG(LogFolio, Display, TEXT("theme '%s' %s"), *Args[0],
+			bActive ? TEXT("on") : TEXT("off"));
+	}
+
+	FAutoConsoleCommand ThemeCommand(
+		TEXT("folio.Theme"),
+		TEXT("folio.Theme [name] [0|1]. Turns a theme on or off across every document, or lists what "
+			"is on. A theme is an @media (theme: name) block in a stylesheet."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunTheme));
 
 	FAutoConsoleCommand WorldVerifyCommand(
 		TEXT("folio.World.Verify"),

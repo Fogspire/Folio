@@ -37,6 +37,10 @@ struct Options {
 	std::string data_model;
 	std::string culture;
 
+	// Themes to activate, in the order given. A theme is an @media (theme: name) block; several can be
+	// on at once, so this repeats rather than replacing.
+	std::vector<std::string> themes;
+
 	/** What the document is told the player is holding. In game this follows real input; here it
 	    is pinned, so a screenshot of the gamepad prompts is reproducible. */
 	Folio::EInputDevice input_device = Folio::EInputDevice::Keyboard;

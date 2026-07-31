@@ -223,6 +223,16 @@ bool App::Initialise()
 	Folio::RegisterFolioFilters();
 
 	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));
+
+	// Before any document loads, so nothing renders a frame in the wrong theme. Matches the engine
+	// side, which applies the active themes as each context is created.
+	for (const std::string& theme : options.themes)
+	{
+		if (context)
+		{
+			context->ActivateTheme(theme, true);
+		}
+	}
 	if (!context)
 	{
 		diagnostics.Report(Severity::Error, "E-INIT-CONTEXT", "could not create the RmlUi context");

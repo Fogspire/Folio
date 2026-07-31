@@ -237,6 +237,13 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			if (!TakeValue(argc, argv, i, "--data-model", o.data_model, error))
 				return ParseResult::Error;
 		}
+		else if (arg == "--theme")
+		{
+			std::string theme;
+			if (!TakeValue(argc, argv, i, "--theme", theme, error))
+				return ParseResult::Error;
+			o.themes.push_back(theme);
+		}
 		else if (arg == "--culture")
 		{
 			if (!TakeValue(argc, argv, i, "--culture", o.culture, error))

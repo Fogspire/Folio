@@ -852,3 +852,47 @@ scrollbarhorizontal sliderbar:hover
 	border-radius: 999dp;
 	box-shadow: #0000007f 0dp 6dp 18dp;
 }
+
+/* ==================================================================================== */
+/* Themes                                                                               */
+/*                                                                                      */
+/* A theme is a media query, not a swapped value: RCSS has no custom properties, so the  */
+/* only way a stylesheet carries two looks is to write both and let one win. Turn one on */
+/* with folio.Theme, or Set Theme from Blueprint. Several can be on at once.             */
+/*                                                                                      */
+/* Rules inside a theme block override by being later in the same file, so a theme need  */
+/* only restate what it disagrees with.                                                  */
+/* ==================================================================================== */
+
+/*
+ * High contrast, which is an accessibility setting rather than a taste one.
+ *
+ * Deliberately not just "brighter": the focus ring gains width as well as contrast, because the
+ * players who need this are often the ones a 2dp ring is invisible to, and disabled controls stop
+ * relying on opacity alone, which reads as nothing at all against a dark background.
+ */
+@media (theme: high-contrast)
+{
+	body                      { color: #ffffff; background-color: #000000; }
+
+	.c-text                   { color: #ffffff; }
+	.c-muted                  { color: #d0d0d8; }
+	.c-dim                    { color: #b0b0bc; }
+	.c-surface                { background-color: #101018; }
+	.c-raised                 { background-color: #1c1c28; }
+
+	.focusable                { border-width: 3dp; }
+	.focusable:focus-visible  { border-color: #ffffff; box-shadow: #ffffffa0 0dp 0dp 14dp; }
+	.focusable:hover          { background-color: #303040; }
+
+	.is-disabled              { color: #9090a0; opacity: 1.0; }
+
+	.btn                      { background-color: #1c1c28; color: #ffffff; }
+	.btn-primary              { background-color: #ffd98a; color: #000000; }
+	.btn-danger               { background-color: #ff9aa2; color: #000000; }
+	.btn-ghost                { color: #d0d0d8; }
+
+	.divider                  { background-color: #7a7a8a; }
+
+	.panel                    { border-color: #7a7a8a; }
+}

@@ -59,6 +59,17 @@ public:
 	bool BindObjectModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame);
 	bool HasObjectModel(const FString& ModelName) const;
 
+	/**
+	 * Turns a theme on or off across every context, and remembers it for contexts made later.
+	 *
+	 * A theme in RmlUi is per-context and matched by `@media (theme: name)`, which is the only way a
+	 * stylesheet can carry two looks at once: RCSS has no custom properties, so a theme cannot be a
+	 * swapped value. A game sets one and every document answers, including documents not loaded yet.
+	 */
+	static void SetTheme(FName Theme, bool bActive);
+	static bool IsThemeActive(FName Theme);
+	static const TSet<FName>& GetActiveThemes();
+
 	/** True while a text field has focus, so letters are text rather than directions. */
 	bool IsTakingText() const;
 

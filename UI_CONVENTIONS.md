@@ -823,7 +823,42 @@ both feed the same press, move and release.
 
 ---
 
-## 13. Localisation
+---
+
+## 13. Themes
+
+A theme is `@media (theme: name)` in a stylesheet, turned on with `folio.Theme <name>` or **Set Theme**
+from Blueprint, and `uipreview --theme <name>` previews one.
+
+**A theme is an override block, not a swapped value.** RCSS has no custom properties and no `var()`,
+so a stylesheet cannot hold a variable a theme replaces. It holds both looks, and the later rule wins.
+Which is why a component may not contain a colour: a colour in the component's own rule can only be
+overridden by restating that rule in full, and the first game to disagree forks the library.
+
+So the split is:
+
+| | |
+|---|---|
+| `/folio/lib/*.rcss` | Structure. No colour, anywhere. |
+| `/folio/themes/default.rcss` | The tokens, and a skin for every library class. |
+| the game's own stylesheet | Anything it disagrees with, and anything naming the game. |
+
+Load them in that order. A game's rules land last and win by being later.
+
+**Several themes can be on at once.** They are independent switches, not a list to pick from, so
+`colour-blind` and `large-text` compose without either stylesheet knowing about the other.
+
+**A theme is global, not per document.** RmlUi tracks it per context, so Folio walks every context when
+one changes and remembers it for contexts created later - a screen opened after the switch comes up in
+the new look rather than the old one.
+
+`high-contrast` ships in the default theme. It is an accessibility setting rather than a taste one, so
+it widens the focus ring as well as brightening it, and stops disabled controls relying on opacity
+alone.
+
+---
+
+## 14. Localisation
 
 Folio's mechanism, which a game's own conventions will have policy on top of.
 
@@ -859,7 +894,7 @@ Assume translated strings are up to 40% longer than English.
 
 ---
 
-## 14. Verifying a document
+## 15. Verifying a document
 
 ```
 uipreview <file.rml> --size 1920x1080

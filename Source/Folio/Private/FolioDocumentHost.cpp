@@ -18,6 +18,19 @@
 #include <RmlUi/Core/Factory.h>
 #include <RmlUi/Core/MeshUtilities.h>
 
+namespace
+{
+	/**
+	 * Every live host, and the themes that are on.
+	 *
+	 * A theme is per-context in RmlUi, so switching one means walking every context; and a context
+	 * created afterwards has to be told too, or a document loaded after the switch comes up in the
+	 * wrong theme. Keeping both here is what makes the setting global rather than per-document.
+	 */
+	TArray<FFolioDocumentHost*> LiveHosts;
+	TSet<FName> ActiveThemes;
+}
+
 FFolioDocumentHost::~FFolioDocumentHost()
 {
 	Destroy();
@@ -43,9 +56,52 @@ bool FFolioDocumentHost::Create(const TCHAR* Label, const FIntPoint InSize)
 		return false;
 	}
 
+	// Applied before anything loads, so a document never renders a frame in the wrong theme.
+	for (const FName Theme : GetActiveThemes())
+	{
+		Context->ActivateTheme(Folio::ToRmlString(Theme.ToString()), true);
+	}
+
+	LiveHosts.AddUnique(this);
+
 	InputModel.OnChanged = [this] { MarkDirty(TEXT("input device or confirm button")); };
 	InputModel.Create(Context);
 	return true;
+}
+
+void FFolioDocumentHost::SetTheme(const FName Theme, const bool bActive)
+{
+	if (bActive)
+	{
+		ActiveThemes.Add(Theme);
+	}
+	else
+	{
+		ActiveThemes.Remove(Theme);
+	}
+
+	const Rml::String Name = Folio::ToRmlString(Theme.ToString());
+	for (FFolioDocumentHost* Host : LiveHosts)
+	{
+		if (Host->Context)
+		{
+			Host->Context->ActivateTheme(Name, bActive);
+
+			// A media query changing is not something RmlUi reports as a change, so without this a
+			// settled document keeps the look it already had until something else disturbs it.
+			Host->MarkDirty(TEXT("theme"));
+		}
+	}
+}
+
+bool FFolioDocumentHost::IsThemeActive(const FName Theme)
+{
+	return ActiveThemes.Contains(Theme);
+}
+
+const TSet<FName>& FFolioDocumentHost::GetActiveThemes()
+{
+	return ActiveThemes;
 }
 
 void FFolioDocumentHost::Destroy()
@@ -83,6 +139,7 @@ void FFolioDocumentHost::Destroy()
 	InputModel.Release();
 	ObjectModels.Empty();
 	Document = nullptr;
+	LiveHosts.RemoveSingleSwap(this);
 	Rml::RemoveContext(Context->GetName());
 	Context = nullptr;
 	DataModel.Reset();

@@ -135,15 +135,6 @@ See **[accessibility](accessibility.md)**.
 
 ## Engine integration
 
-### Nothing covers the change-notification path
-
-`FieldNotification` is how a view model tells a document that a value moved without polling. Nothing
-in the plugin exercises it any more - the fixture that did was a dev document and went with them - so
-a regression in that path would surface in a game rather than in the harness.
-
-Games implementing `INotifyFieldValueChanged` should test it themselves. See
-**[generating a view model](view_models.md)**.
-
 ### Public headers include private ones
 
 `SFolioCanvas.h` includes `FolioNavigation.h` and `FolioInputState.h`; `FolioWorldDocument.h` includes

@@ -133,6 +133,11 @@ read once at bind time and never again, which saves the per-frame sweep entirely
 
 Folio logs which you got — look for `updating by notification` or `polled every frame`.
 
+Both paths are covered by `Folio.ViewModel.*`, run with `./scripts/check_tests.sh`. The fixture there,
+`Source/Folio/Private/Tests/FolioTestViewModel.h`, is also the smallest complete example of a C++ view
+model: it implements `INotifyFieldValueChanged` by hand rather than deriving from `UMVVMViewModelBase`,
+which is what a project avoiding the MVVM plugin needs to write.
+
 ### So should you use MVVM?
 
 Often, no — and this is the opposite of the usual Unreal advice, so it is worth being clear about why.

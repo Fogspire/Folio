@@ -95,6 +95,15 @@ anything is found.
 `./scripts/check_world_path.sh` is for anyone changing the renderer rather than a document - it
 catches a property that the world-space path silently drops.
 
+**`./scripts/check_tests.sh`** runs the engine-side automation tests headlessly, which is everything
+that needs a real UObject and so cannot live in the preview: today that is the view model bridge.
+It finds the editor from the `.uproject`'s engine association, or `UE_ROOT` if you set one.
+
+```bash
+./scripts/check_tests.sh                        # everything under Folio.
+./scripts/check_tests.sh --filter Folio.ViewModel
+```
+
 ## What the preview is worth trusting
 
 Worth being precise about, because the whole value of a preview is knowing where it lies.

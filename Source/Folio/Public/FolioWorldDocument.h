@@ -3,6 +3,8 @@
 #include "Components/SceneComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioDrawList.h"
+#include "FolioDocumentPath.h"
+
 #include "CoreMinimal.h"
 
 #include "FolioWorldDocument.generated.h"
@@ -83,9 +85,8 @@ public:
 	 *
 	 * A leading /folio/ resolves inside the plugin instead.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
-		meta = (GetOptions = "/Script/Folio.FolioDocumentPathLibrary.GetDocumentOptions"))
-	FString DocumentPath;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	FFolioDocumentPath DocumentPath;
 
 	/**
 	 * The physical size of the surface in world units, before the component's scale.

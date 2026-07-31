@@ -6,6 +6,52 @@
 #include "FolioDocumentPath.generated.h"
 
 /**
+ * A path to a `.rml`, as its own type so the editor can give it a picker.
+ *
+ * A document is a path rather than an asset, deliberately - markup is text a person edits, not
+ * something to import - but a bare FString field takes anything, including an absolute path that
+ * works only on the machine it was typed on. Wrapping it is what lets the editor show the documents
+ * that exist, in the directories they live in, instead of an empty text box.
+ *
+ * It reads and writes as a string everywhere else: assignment, comparison and the Blueprint node all
+ * take an FString, and a level saved when this was a plain FString still loads.
+ */
+USTRUCT(BlueprintType)
+struct FOLIO_API FFolioDocumentPath
+{
+	GENERATED_BODY()
+
+	FFolioDocumentPath() = default;
+	FFolioDocumentPath(const FString& InPath) : Path(InPath) {}
+
+	/** Relative to the project, or under a `/folio/` mount for something the plugin ships. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	FString Path;
+
+	operator const FString&() const { return Path; }
+
+	/** So *DocumentPath is a TCHAR* in a format string, exactly as *FString is. */
+	const TCHAR* operator*() const { return *Path; }
+
+	bool IsEmpty() const { return Path.IsEmpty(); }
+	bool operator==(const FFolioDocumentPath& Other) const { return Path == Other.Path; }
+
+	/**
+	 * Reads a value that was saved when this property was a plain FString.
+	 *
+	 * Without it every already-placed component silently loses its document, which is a worse failure
+	 * than the one the picker exists to prevent.
+	 */
+	bool SerializeFromMismatchedTag(const struct FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+};
+
+template<>
+struct TStructOpsTypeTraits<FFolioDocumentPath> : public TStructOpsTypeTraitsBase2<FFolioDocumentPath>
+{
+	enum { WithStructuredSerializeFromMismatchedTag = true, WithIdenticalViaEquality = true };
+};
+
+/**
  * Everything to do with naming a document, in one place.
  *
  * A document is a path rather than an asset, which is the point - markup is text a person edits, not

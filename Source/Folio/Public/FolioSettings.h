@@ -29,4 +29,23 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "World-space documents")
 	EFolioWorldDrawMode DefaultWorldDrawMode = EFolioWorldDrawMode::AfterTonemap;
+
+	/**
+	 * Directories the document picker does not offer, relative to the project.
+	 *
+	 * A game accumulates markup that is not a screen anyone opens - fragments, templates, a scratch
+	 * directory - and a picker listing all of it is as unhelpful as no picker. Prefixes rather than
+	 * exact paths, so one entry hides a tree.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Authoring")
+	TArray<FString> HiddenDocumentDirectories;
+
+	/**
+	 * Whether the picker offers the documents Folio itself ships.
+	 *
+	 * On, because they are what a new project has to look at. Off once a game has its own screens and
+	 * the examples are only in the way.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Authoring")
+	bool bShowPluginDocumentsInPicker = true;
 };

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Components/Widget.h"
+#include "FolioDocumentPath.h"
+
 #include "CoreMinimal.h"
 
 #include "FolioWidget.generated.h"
@@ -54,9 +56,8 @@ public:
 	 * A leading /folio/ resolves inside the plugin instead, which is how its own diagnostic
 	 * documents are reachable from any project.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
-		meta = (GetOptions = "/Script/Folio.FolioDocumentPathLibrary.GetDocumentOptions"))
-	FString DocumentPath;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	FFolioDocumentPath DocumentPath;
 
 	/** Reported to Slate layout. A document is laid out to whatever size it ends up with. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")

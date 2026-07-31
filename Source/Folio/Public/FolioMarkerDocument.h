@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Components/SceneComponent.h"
+#include "FolioDocumentPath.h"
+
 #include "CoreMinimal.h"
 
 #include "FolioMarkerDocument.generated.h"
@@ -37,9 +39,8 @@ public:
 	 *
 	 * A leading /folio/ resolves inside the plugin instead.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
-		meta = (GetOptions = "/Script/Folio.FolioDocumentPathLibrary.GetDocumentOptions"))
-	FString DocumentPath;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	FFolioDocumentPath DocumentPath;
 
 	/** The document's size in dp. It is laid out at this size wherever it ends up on screen. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")

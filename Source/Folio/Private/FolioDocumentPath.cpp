@@ -2,9 +2,11 @@
 
 #include "FolioFileInterface.h"
 #include "FolioModule.h"
+#include "FolioSettings.h"
 #include "FolioRmlUi.h"
 
 #include "HAL/FileManager.h"
+#include "UObject/PropertyTag.h"
 #include "Misc/Paths.h"
 
 namespace
@@ -29,6 +31,17 @@ namespace
 	}
 }
 
+bool FFolioDocumentPath::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type != NAME_StrProperty)
+	{
+		return false;
+	}
+
+	Slot << Path;
+	return true;
+}
+
 TArray<FString> UFolioDocumentPathLibrary::GetDocumentOptions()
 {
 	TArray<FString> Options;
@@ -40,14 +53,41 @@ TArray<FString> UFolioDocumentPathLibrary::GetDocumentOptions()
 
 	const FFolioModule& Module = FFolioModule::Get();
 
+	const UFolioSettings* Settings = GetDefault<UFolioSettings>();
+
 	// The game's own documents first and unprefixed, because those are what anyone is looking for.
 	FindDocuments(Module.GetContentRoot(), FString(), Options);
 
 	// Then the plugin's, under the mounts that make them reachable from any content root. A recipe is
 	// meant to be copied rather than pointed at, so only the two that are not - the base stylesheet's
 	// directory holds no documents, and examples are things to look at - appear here.
-	FindDocuments(Module.GetPluginRoot() / TEXT("examples"), TEXT("/folio/examples/"), Options);
-	FindDocuments(Module.GetPluginRoot() / TEXT("rcss"), TEXT("/folio/"), Options);
+	if (!Settings || Settings->bShowPluginDocumentsInPicker)
+	{
+		FindDocuments(Module.GetPluginRoot() / TEXT("examples"), TEXT("/folio/examples/"), Options);
+		FindDocuments(Module.GetPluginRoot() / TEXT("rcss"), TEXT("/folio/"), Options);
+	}
+
+	if (Settings)
+	{
+		for (const FString& Hidden : Settings->HiddenDocumentDirectories)
+		{
+			FString Prefix = Hidden;
+			FPaths::NormalizeFilename(Prefix);
+			if (Prefix.IsEmpty())
+			{
+				continue;
+			}
+
+			// A prefix rather than an exact path, so one entry hides a tree. The trailing slash stops
+			// "ui/frag" from also hiding "ui/fragments_used".
+			if (!Prefix.EndsWith(TEXT("/")))
+			{
+				Prefix += TEXT("/");
+			}
+
+			Options.RemoveAll([&Prefix](const FString& Option) { return Option.StartsWith(Prefix); });
+		}
+	}
 
 	Options.Sort();
 	return Options;

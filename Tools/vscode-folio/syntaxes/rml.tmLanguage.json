@@ -1,0 +1,43 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "RML",
+	"scopeName": "text.rml",
+	"patterns": [
+		{
+			"comment": "A style block is RCSS. Embedding it keeps the highlighting right in the one file where both languages meet.",
+			"begin": "(?i)(<)(style)\b([^>]*)(>)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.tag.begin.rml"
+				},
+				"2": {
+					"name": "entity.name.tag.rml"
+				},
+				"4": {
+					"name": "punctuation.definition.tag.end.rml"
+				}
+			},
+			"end": "(?i)(</)(style)\\s*(>)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.tag.begin.rml"
+				},
+				"2": {
+					"name": "entity.name.tag.rml"
+				},
+				"3": {
+					"name": "punctuation.definition.tag.end.rml"
+				}
+			},
+			"contentName": "source.rcss",
+			"patterns": [
+				{
+					"include": "source.css"
+				}
+			]
+		},
+		{
+			"include": "text.xml"
+		}
+	]
+}

@@ -38,6 +38,19 @@ still exact; a shadow's colour or blur radius is not something this can promise.
 **Colour will differ from a screenshot of the game**, always. The preview does no sRGB conversion
 where Slate linearises vertex colour and applies display gamma. Judge colour in the engine.
 
+## Syntax highlighting
+
+`.rml` and `.rcss` get highlighted on install. Both reuse VSCode's built-in grammars - XML for markup,
+CSS for stylesheets - rather than shipping two grammars to keep in step with them.
+
+They are contributed as their own language ids rather than as extra extensions on `xml` and `css`,
+which matters: VSCode's CSS validator is bound to the `css` language, and RCSS has properties it does
+not know - `decorator`, `nav`, `font-effect`, `drag` - and `dp` units it would flag. Registering
+`.rcss` as CSS would put a red squiggle under most of a correct stylesheet.
+
+A `<style>` block inside a document is highlighted as RCSS rather than as markup, since that is the
+one file where both languages meet.
+
 ## Settings
 
 | | |

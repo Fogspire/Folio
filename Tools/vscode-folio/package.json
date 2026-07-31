@@ -5,17 +5,33 @@
 	"version": "0.1.0",
 	"publisher": "folio",
 	"license": "MIT",
-	"engines": { "vscode": "^1.75.0" },
-	"categories": ["Visualization"],
-	"activationEvents": ["workspaceContains:**/*.rml"],
+	"engines": {
+		"vscode": "^1.75.0"
+	},
+	"categories": [
+		"Visualization"
+	],
+	"activationEvents": [
+		"workspaceContains:**/*.rml"
+	],
 	"main": "./extension.js",
 	"contributes": {
 		"commands": [
-			{ "command": "folio.openPreview", "title": "Folio: Open Preview" },
-			{ "command": "folio.refreshPreview", "title": "Folio: Refresh Preview" }
+			{
+				"command": "folio.openPreview",
+				"title": "Folio: Open Preview"
+			},
+			{
+				"command": "folio.refreshPreview",
+				"title": "Folio: Refresh Preview"
+			}
 		],
 		"keybindings": [
-			{ "command": "folio.openPreview", "key": "ctrl+shift+v", "when": "resourceExtname == .rml" }
+			{
+				"command": "folio.openPreview",
+				"key": "ctrl+shift+v",
+				"when": "resourceExtname == .rml"
+			}
 		],
 		"configuration": {
 			"title": "Folio",
@@ -52,11 +68,49 @@
 				},
 				"folio.themes": {
 					"type": "array",
-					"items": { "type": "string" },
+					"items": {
+						"type": "string"
+					},
 					"default": [],
 					"markdownDescription": "Themes to activate, each passed as `--theme`."
 				}
 			}
-		}
+		},
+		"languages": [
+			{
+				"id": "rml",
+				"aliases": [
+					"RML",
+					"rml"
+				],
+				"extensions": [
+					".rml"
+				],
+				"configuration": "./rml-language-configuration.json"
+			},
+			{
+				"id": "rcss",
+				"aliases": [
+					"RCSS",
+					"rcss"
+				],
+				"extensions": [
+					".rcss"
+				],
+				"configuration": "./rcss-language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "rml",
+				"scopeName": "text.rml",
+				"path": "./syntaxes/rml.tmLanguage.json"
+			},
+			{
+				"language": "rcss",
+				"scopeName": "source.rcss",
+				"path": "./syntaxes/rcss.tmLanguage.json"
+			}
+		]
 	}
 }

@@ -78,6 +78,10 @@ you are guessing.
 **Click** to select. The bar above the render then names what you picked and lists every rule that
 reaches it, with its file and line. Clicking one opens it beside the preview.
 
+**Alt-click steps outwards** through whatever else is under the same point. A modal's scrim covers the
+whole screen, and without this there is no way to select it or anything else it sits over. Anything
+covering most of the document is outlined without a tint, so it never hides what is underneath.
+
 The rules are listed rather than jumped to, deliberately: an element is usually styled by several
 rules and there is no way to know which one you meant. An earlier version jumped straight to the first
 one and it felt broken, because the first property is whichever the enumeration reached first - the

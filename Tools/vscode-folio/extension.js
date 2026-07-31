@@ -256,6 +256,7 @@ function show(state) {
 	#overlay .box.hover    { outline: 1px dashed #5ac8fa; background: #5ac8fa22; }
 	#overlay .box.selected { outline: 2px solid  #ffb454; background: #ffb45422; }
 	#overlay .box.match    { outline: 2px solid  #a0f060; background: #a0f06022; }
+	#overlay .box.outline-only { background: none; }
 
 	#overlay .label {
 		position: absolute; left: 0; top: -18px; white-space: nowrap;
@@ -354,29 +355,67 @@ function show(state) {
 		 * Smallest rather than topmost: a document's order is not its depth, so picking the last match
 		 * selects whichever full-width overlay happens to exist rather than the button under the cursor.
 		 */
-		function hitTest(x, y) {
-			let best = null;
-			for (const element of elements) {
-				const [left, top, width, height] = element.rect;
-				if (x < left || y < top || x > left + width || y > top + height) { continue; }
-				if (!best || width * height < best.rect[2] * best.rect[3]) { best = element; }
-			}
-			return best;
+		function candidatesAt(x, y) {
+			return elements
+				.filter((element) => {
+					const [left, top, width, height] = element.rect;
+					return x >= left && y >= top && x <= left + width && y <= top + height;
+				})
+				.sort((a, b) => (a.rect[2] * a.rect[3]) - (b.rect[2] * b.rect[3]));
 		}
 
+		/**
+		 * The smallest element containing the point, or the next one out when cycling.
+		 *
+		 * Smallest first, because a document's order is not its depth: taking the last match selects
+		 * whichever full-width scrim happens to exist rather than the button under the cursor. Alt
+		 * steps outwards through everything else under the same point, which is the only way to reach
+		 * a container whose children cover it.
+		 */
+		function hitTest(x, y, depth) {
+			const stack = candidatesAt(x, y);
+			if (stack.length === 0) { return null; }
+			return stack[Math.min(depth || 0, stack.length - 1)];
+		}
+
+		/**
+		 * How many CSS pixels the image is drawn at per pixel it contains.
+		 *
+		 * One, until it is not: VSCode's own zoom scales CSS pixels, and a panel narrower than the
+		 * render can shrink the image. Assuming one put every box a proportional distance away from the
+		 * thing it was meant to be on, which reads as the hit test being wrong rather than the drawing.
+		 */
+		function displayScale() {
+			const box = image.getBoundingClientRect();
+			return image.naturalWidth > 0 ? box.width / image.naturalWidth : 1;
+		}
+
+		/** A point in the render's own pixels, which is the space every rect is in. */
 		function documentPoint(event) {
 			const box = image.getBoundingClientRect();
-			return [event.clientX - box.left, event.clientY - box.top];
+			const scale = displayScale() || 1;
+			return [(event.clientX - box.left) / scale, (event.clientY - box.top) / scale];
 		}
 
 		function box(element, className) {
+			const scale = displayScale();
 			const [left, top, width, height] = element.rect;
+
 			const node = document.createElement("div");
 			node.className = "box " + className;
-			node.style.left = left + "px";
-			node.style.top = top + "px";
-			node.style.width = width + "px";
-			node.style.height = height + "px";
+			node.style.left = (left * scale) + "px";
+			node.style.top = (top * scale) + "px";
+			node.style.width = (width * scale) + "px";
+			node.style.height = (height * scale) + "px";
+
+			// A tint over something that covers the document hides the document. Big things get an
+			// outline only, which still says what is selected without making the render unreadable -
+			// and a scrim is exactly the element you most often have to select through.
+			const area = width * height;
+			const whole = image.naturalWidth * image.naturalHeight;
+			if (whole > 0 && area > whole * 0.4) {
+				node.classList.add("outline-only");
+			}
 
 			const label = document.createElement("span");
 			label.className = "label";
@@ -437,9 +476,20 @@ function show(state) {
 		if (image) {
 			const stage = image.parentElement;
 
+			let depth = 0;
+			let lastPoint = [0, 0];
+
 			stage.addEventListener("mousemove", (event) => {
 				const [x, y] = documentPoint(event);
-				const hit = hitTest(x, y);
+
+				// Moving away resets the cycle, so alt-clicking deep into one element does not leave
+				// the next element you point at selected from the inside out.
+				if (Math.abs(x - lastPoint[0]) > 3 || Math.abs(y - lastPoint[1]) > 3) {
+					depth = 0;
+					lastPoint = [x, y];
+				}
+
+				const hit = hitTest(x, y, event.altKey ? depth : 0);
 				if (hit !== hovered) { hovered = hit; redraw(); }
 			});
 
@@ -447,7 +497,17 @@ function show(state) {
 
 			stage.addEventListener("mousedown", (event) => {
 				const [x, y] = documentPoint(event);
-				const hit = hitTest(x, y);
+
+				// Alt steps one further out each time, so a stack of overlapping elements is reachable
+				// without hunting for a gap between them.
+				if (event.altKey) {
+					depth += 1;
+				} else {
+					depth = 0;
+				}
+
+				const stack = candidatesAt(x, y);
+				const hit = stack.length > 0 ? stack[Math.min(depth, stack.length - 1)] : null;
 				if (!hit) { return; }
 
 				selection = hit;
@@ -589,6 +649,13 @@ async function handleMessage(message) {
 		return;
 	}
 
+	// Before the element lookup: a goto names a file and a line rather than an element, so looking one
+	// up first rejected it and this never ran.
+	if (message.kind === "goto") {
+		await openRule(message.file, message.line);
+		return;
+	}
+
 	const element = elements.find((entry) => entry.path === message.path);
 	if (!element) {
 		return;
@@ -596,11 +663,6 @@ async function handleMessage(message) {
 
 	if (message.kind === "select") {
 		selected = element;
-		return;
-	}
-
-	if (message.kind === "goto") {
-		await openRule(message.file, message.line);
 		return;
 	}
 

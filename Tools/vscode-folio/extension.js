@@ -39,9 +39,9 @@ let currentDocument = null;
  * the viewport stays as configured and the content within it grows, so you see less of the document
  * at more detail. Every step is a fresh render, so text sharpens as it grows rather than blurring.
  *
- * Scaling the render size instead is the other reading of "zoom", and it does not work here: the
- * preview renders through a real window, so a size past the display is silently clamped and the zoom
- * stops having any effect at exactly the point it starts being interesting.
+ * Scaling the render size instead is the other reading of "zoom", and either would work now that the
+ * preview renders offscreen and honours any size. dp was chosen because it is what a browser's zoom
+ * does, and because a render size the panel cannot show is a scrollbar rather than a zoom.
  *
  * Held here rather than in the page because the HTML is rebuilt on every render.
  */

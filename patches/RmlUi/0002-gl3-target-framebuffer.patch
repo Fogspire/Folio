@@ -1,0 +1,58 @@
+From: Folio
+Subject: [PATCH] GL3 backend: let EndFrame present into a chosen framebuffer
+
+    A window's framebuffer is whatever the platform was willing to give it, and a
+    window larger than the display is silently clamped to the work area. Everything
+    RmlUi draws before the present already happens at the viewport size in its own
+    layer framebuffers, so only the final blit is bound to the window - which is what
+    makes a headless render above the display resolution come back smaller having
+    reported success.
+
+    Directing that one blit at a caller-supplied framebuffer is enough to render at
+    any size. Defaults to zero, so nothing changes for a normal window.
+
+    Needed by uipreview for --size beyond the display, which is what makes a 4K
+    screenshot on a 1080p monitor possible at all.
+---
+diff --git a/Backends/RmlUi_Renderer_GL3.cpp b/Backends/RmlUi_Renderer_GL3.cpp
+index d33918ba..93442e85 100644
+--- a/Backends/RmlUi_Renderer_GL3.cpp
++++ b/Backends/RmlUi_Renderer_GL3.cpp
+@@ -905,8 +905,8 @@ void RenderInterface_GL3::EndFrame()
+ 
+ 	glBlitFramebuffer(0, 0, fb_active.width, fb_active.height, 0, 0, fb_postprocess.width, fb_postprocess.height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+ 
+-	// Draw to backbuffer
+-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
++	// Draw to the target, which is the backbuffer unless something asked for another.
++	glBindFramebuffer(GL_FRAMEBUFFER, target_framebuffer);
+ 	glViewport(viewport_offset_x, viewport_offset_y, viewport_width, viewport_height);
+ 
+ 	// Assuming we have an opaque background, we can just write to it with the premultiplied alpha blend mode and we'll get the correct result.
+diff --git a/Backends/RmlUi_Renderer_GL3.h b/Backends/RmlUi_Renderer_GL3.h
+index 059d846a..90ee864d 100644
+--- a/Backends/RmlUi_Renderer_GL3.h
++++ b/Backends/RmlUi_Renderer_GL3.h
+@@ -28,6 +28,14 @@ public:
+ 	// Draws the result to the backbuffer and restores OpenGL state.
+ 	void EndFrame();
+ 
++	// The framebuffer EndFrame presents into. Zero, the window's backbuffer, by default.
++	//
++	// A window's framebuffer is whatever the platform was willing to give it, and a request larger
++	// than the display is silently clamped - so a headless render at a size above the display comes
++	// back smaller having reported success. Everything before the present is already drawn at the
++	// viewport size, so directing only the final blit elsewhere is enough to render at any size.
++	void SetTargetFramebuffer(unsigned int framebuffer) { target_framebuffer = framebuffer; }
++
+ 	// Optional, can be used to clear the active framebuffer.
+ 	void Clear();
+ 
+@@ -100,6 +108,7 @@ private:
+ 	ProgramId active_program = {};
+ 	Rml::Rectanglei scissor_state;
+ 
++	unsigned int target_framebuffer = 0;
+ 	int viewport_width = 0;
+ 	int viewport_height = 0;
+ 	int viewport_offset_x = 0;

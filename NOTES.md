@@ -1418,6 +1418,26 @@ It covers the **layer** path too, by rendering a document into a target through 
 reading the pixels back. Three questions answer most of what can go wrong: did anything draw, is it
 more than one colour, and is it white. The last is not arbitrary - see below.
 
+## A window's framebuffer is not a render size, and asking for a bigger one fails quietly
+
+`uipreview` renders through a real GLFW window, and a window larger than the display is silently
+clamped to the monitor's work area. So `--size 3840x2160` on a 1080p display used to produce a
+1080p-tall image having reported success, which is the worst shape a limit can take.
+
+Everything RmlUi draws already happens at the viewport size in its own layer framebuffers; only the
+final present in `EndFrame` was bound to the window. `patches/RmlUi/0002-gl3-target-framebuffer.patch`
+adds `SetTargetFramebuffer` so that one blit can go elsewhere, and the backend creates an offscreen
+target whenever the window is hidden and its framebuffer does not match what was asked for.
+
+Three things had to move together, and getting two of them right still produced wrong output:
+`Backend::GetFramebufferSize` has to report the *target's* size rather than the window's, or the
+capture reads the requested width and the window's height; and `CaptureBackBuffer` has to bind the
+target and read `GL_COLOR_ATTACHMENT0` rather than `GL_BACK`, since an offscreen target has no back
+buffer and `glReadPixels` fails with `GL_INVALID_OPERATION`.
+
+Verified at 1280x720, 2560x1440, 5120x2880 and 7680x4320 on a 1440p display: all render at exactly the
+size asked for, and the 4x render downsampled matches the 1x render to a mean of 2.8/255.
+
 ## Comparing the two renderers: match dp, and compare coverage rather than colour
 
 `folio.Surface.Shot <doc> <out.png> [w] [h]` is the engine's answer to `uipreview --screenshot`. It

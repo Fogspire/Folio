@@ -1,6 +1,7 @@
 #include "Screenshot.h"
 
 #include "RmlUi_Include_GL3.h"
+#include "backend/UipreviewBackendGLFW.h"
 
 #include <lodepng.h>
 
@@ -22,7 +23,13 @@ bool CaptureBackBuffer(int width, int height, std::vector<unsigned char>& out_rg
 	// Rows are tightly packed, which the default 4-byte alignment would not guarantee for
 	// widths that are not a multiple of four.
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
-	glReadBuffer(GL_BACK);
+
+	// Whatever was rendered into, which is not the window when the requested size was larger than the
+	// display. A colour attachment rather than GL_BACK, since an offscreen target has no back buffer.
+	const GLuint target = Backend::GetCaptureFramebuffer();
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, target);
+	glReadBuffer(target ? GL_COLOR_ATTACHMENT0 : GL_BACK);
+
 	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 
 	if (const GLenum error = glGetError())

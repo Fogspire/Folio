@@ -1,3 +1,5 @@
+#include "RmlUi_Include_GL3.h"
+
 #include "UipreviewBackendGLFW.h"
 
 #include "RmlUi_Platform_GLFW.h"
@@ -22,11 +24,64 @@ static void LogErrorFromGLFW(int error, const char* description)
  *
  * Lifetime governed by the calls to Backend::Initialize() and Backend::Shutdown().
  */
+/**
+ * A render target that is not the window's.
+ *
+ * A window's framebuffer is whatever the platform was willing to give it, and one larger than the
+ * display is silently clamped to the work area - so a headless render above the display resolution
+ * comes back smaller having reported success. Everything RmlUi draws happens at the viewport size in
+ * its own layer framebuffers; only the final present is bound to the window. So this exists purely to
+ * catch that present, through the SetTargetFramebuffer the GL3 patch adds.
+ */
+struct OffscreenTarget {
+	GLuint framebuffer = 0;
+	GLuint colour = 0;
+	int width = 0;
+	int height = 0;
+
+	bool Create(int width, int height)
+	{
+		glGenTextures(1, &colour);
+		glBindTexture(GL_TEXTURE_2D, colour);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		glGenFramebuffers(1, &framebuffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colour, 0);
+
+		// Colour only: the present is a single textured quad, and every layer, stencil and clip mask
+		// RmlUi needs lives in its own framebuffers rather than this one.
+		const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE
+			&& glGetError() == GL_NO_ERROR;
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		if (!complete)
+		{
+			Destroy();
+			return false;
+		}
+
+		this->width = width;
+		this->height = height;
+		return true;
+	}
+
+	void Destroy()
+	{
+		if (framebuffer) { glDeleteFramebuffers(1, &framebuffer); framebuffer = 0; }
+		if (colour) { glDeleteTextures(1, &colour); colour = 0; }
+		width = height = 0;
+	}
+};
+
 struct BackendData {
 	Rml::UniquePtr<SystemInterface_GLFW> system_interface;
 	Rml::UniquePtr<RenderInterface_GL3> render_interface;
 	GLFWwindow* window = nullptr;
 	int glfw_active_modifiers = 0;
+	OffscreenTarget offscreen;
 
 	// Arguments set during event processing and nulled otherwise.
 	Rml::Context* context = nullptr;
@@ -91,6 +146,19 @@ bool Backend::Initialize(const Options& options, const RenderInterfaceFactory& r
 	// The window size is in screen coordinates and may differ from the framebuffer.
 	int framebuffer_width = 0, framebuffer_height = 0;
 	glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+
+	// A hidden window is only a context to render through, so what the platform gave it does not
+	// matter. Rendering at the size that was actually asked for does.
+	if (!options.visible && (framebuffer_width != options.width || framebuffer_height != options.height))
+	{
+		if (data->offscreen.Create(options.width, options.height))
+		{
+			data->render_interface->SetTargetFramebuffer(data->offscreen.framebuffer);
+			framebuffer_width = options.width;
+			framebuffer_height = options.height;
+		}
+	}
+
 	data->render_interface->SetViewport(framebuffer_width, framebuffer_height);
 
 	// Receive num lock and caps lock modifiers for proper handling of numpad inputs in text fields.
@@ -104,6 +172,7 @@ bool Backend::Initialize(const Options& options, const RenderInterfaceFactory& r
 void Backend::Shutdown()
 {
 	RMLUI_ASSERT(data);
+	data->offscreen.Destroy();
 	glfwDestroyWindow(data->window);
 	data.reset();
 	RmlGL3::Shutdown();
@@ -128,8 +197,23 @@ GLFWwindow* Backend::GetWindow()
 	return data->window;
 }
 
+unsigned int Backend::GetCaptureFramebuffer()
+{
+	return data ? data->offscreen.framebuffer : 0;
+}
+
 void Backend::GetFramebufferSize(int& out_width, int& out_height)
 {
+	// The offscreen target when there is one: it, not the window, is what was rendered into and what
+	// a capture reads. Reporting the window's size here is what made a large render come back with the
+	// window's height and the requested width.
+	if (data && data->offscreen.framebuffer)
+	{
+		out_width = data->offscreen.width;
+		out_height = data->offscreen.height;
+		return;
+	}
+
 	RMLUI_ASSERT(data);
 	glfwGetFramebufferSize(data->window, &out_width, &out_height);
 }

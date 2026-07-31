@@ -58,9 +58,11 @@ less of the document at more detail. Text and vector art get *sharper* as they g
 distance fields - and that is the only way a preview can tell you whether the real thing is crisp.
 Scaling a screenshot would show you the scaler's work instead.
 
-Two consequences worth knowing. A zoom is a render, so it takes as long as a save does. And zoom does
-not change the render *size*: `folio.size` does, and pushing that past your display silently clamps,
-because the preview renders through a real window.
+A zoom is a render, so it takes as long as a save does.
+
+`folio.size` is separate, and sets the viewport. It is not limited by your display: the preview
+renders to an offscreen target, so `3840x2160` on a 1080p monitor produces a real 4K render rather
+than a clamped one.
 
 ## What the preview is worth trusting
 

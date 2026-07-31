@@ -67,6 +67,15 @@ GLFWwindow* GetWindow();
 /** Framebuffer size in pixels, which is what the viewport and any capture must use. */
 void GetFramebufferSize(int& out_width, int& out_height);
 
+/**
+ * The framebuffer a capture should read from, or zero for the window's back buffer.
+ *
+ * Non-zero when the render is going somewhere other than the window, which is how a size larger than
+ * the display is possible at all. A capture that read the back buffer then would read the window's,
+ * which is a different size and usually empty.
+ */
+unsigned int GetCaptureFramebuffer();
+
 /** Wall clock seconds since initialisation. */
 double GetTime();
 

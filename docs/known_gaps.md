@@ -141,11 +141,13 @@ Games implementing `INotifyFieldValueChanged` should test it themselves. See
 
 ### Public headers include private ones
 
-`SFolioCanvas.h` includes `FolioNavigation.h` and `FolioInputState.h`, which are private. So **a game
-module cannot include `SFolioCanvas.h`**, and no second module could compile against Folio.
+`SFolioCanvas.h` includes `FolioNavigation.h` and `FolioInputState.h`; `FolioWorldDocument.h` includes
+`FolioDrawList.h`. So **a game module cannot include either**, and Folio's own editor module only
+compiles against them by putting `Folio/Private` on its include path - which is a workaround, not a
+design.
 
-Worth fixing on its own merits; it touches the header layout everything else builds on, which is why
-it has not been.
+`FolioUiSounds.h` was the same and has been moved to `Public`, since a public header includes it.
+The rest is a header-layout change that touches everything else, which is why it has not been done.
 
 ### The marker component has not been profiled
 

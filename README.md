@@ -91,6 +91,7 @@ The other harnesses, each answering a different question:
 | `scripts/compare_renderers.sh` | Renders every document through both renderers and compares where each text line landed. This is what backs the claim that the preview lays out exactly as the engine does |
 | `scripts/check_world_path.sh` | Catches a property the world-space path silently drops |
 | `scripts/check_a11y.sh` | Contrast, hit targets, control names and focus visibility over a directory |
+| `scripts/check_doc_samples.sh` | Whether the C++ samples in `docs/` are still in step with the file the build compiles |
 | `scripts/check_invalidation.sh` | Proves an idle document stops doing work |
 
 Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is

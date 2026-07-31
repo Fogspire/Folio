@@ -68,6 +68,11 @@ Non-Asset Directories to Package** is reported as a *warning* rather than an err
 correct everywhere you are looking: the editor and a standalone run both read loose files, and it is
 only missing once packaged.
 
+The **Folio** toolbar menu has **Stage Documents Used In This Level**, which resolves every document
+path in the level to the tree it lives in and adds any that packaging would miss to `DefaultGame.ini`.
+Trees rather than the documents' own directories, because a document links stylesheets and names art
+beside it. It lists what it added in the Message Log.
+
 Folio's own `examples/` are the usual way to hit this. They sit outside `rcss/` so that a game does
 not ship the demos, which also means a component pointing at `/folio/examples/` renders nothing in a
 packaged build. Stage that directory too while you are prototyping against them - see

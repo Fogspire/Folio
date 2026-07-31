@@ -43,7 +43,7 @@ void SFolioDocumentTree::Construct(const FArguments& InArgs)
 						SAssignNew(Tree, STreeView<TSharedPtr<FFolioDocumentNode>>)
 							.TreeItemsSource(&Roots)
 							.OnGenerateRow(this, &SFolioDocumentTree::MakeRow)
-							.OnGetChildren(this, &SFolioDocumentTree::GetChildren)
+							.OnGetChildren(this, &SFolioDocumentTree::GetChildNodes)
 							.OnSelectionChanged(this, &SFolioDocumentTree::OnSelectionChanged)
 							.SelectionMode(ESelectionMode::Single)
 					]
@@ -227,7 +227,7 @@ TSharedRef<ITableRow> SFolioDocumentTree::MakeRow(TSharedPtr<FFolioDocumentNode>
 		];
 }
 
-void SFolioDocumentTree::GetChildren(TSharedPtr<FFolioDocumentNode> Node,
+void SFolioDocumentTree::GetChildNodes(TSharedPtr<FFolioDocumentNode> Node,
 	TArray<TSharedPtr<FFolioDocumentNode>>& OutChildren)
 {
 	OutChildren = Node->Children;

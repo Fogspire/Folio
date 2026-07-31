@@ -6,6 +6,7 @@
 #include "FolioLevelActions.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Misc/CoreDelegates.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -51,6 +52,11 @@ public:
 		MessageLog.RegisterLogListing(FolioMessageLogName, LOCTEXT("FolioLog", "Folio"), Options);
 
 		FFolioEditorStyle::Register();
+
+		// After startup, so the warning is not lost behind everything else the editor prints on the
+		// way up, and so the settings it reads have been loaded.
+		FCoreDelegates::OnPostEngineInit.AddStatic(&FolioLevelActions::CheckStagedDirectories);
+
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FFolioEditorModule::RegisterMenus));
 	}
@@ -99,6 +105,14 @@ public:
 				"no path at all. One edit in the details panel then fixes the whole set."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::SelectActorsWithBrokenDocuments)));
+
+		Menu.AddMenuEntry(
+			LOCTEXT("StageDocuments", "Stage Documents Used In This Level"),
+			LOCTEXT("StageDocumentsTip",
+				"Adds whatever directories this level's documents live in to the packaging staging list, "
+				"so they are in a packaged build. Writes to DefaultGame.ini."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::StageDocumentsUsedInLevel)));
 		Menu.EndSection();
 
 		return Menu.MakeWidget();

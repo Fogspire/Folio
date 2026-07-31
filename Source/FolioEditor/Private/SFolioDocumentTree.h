@@ -54,7 +54,7 @@ private:
 	void Insert(const FString& Path);
 
 	TSharedRef<ITableRow> MakeRow(TSharedPtr<FFolioDocumentNode> Node, const TSharedRef<STableViewBase>& Owner);
-	void GetChildren(TSharedPtr<FFolioDocumentNode> Node, TArray<TSharedPtr<FFolioDocumentNode>>& OutChildren);
+	void GetChildNodes(TSharedPtr<FFolioDocumentNode> Node, TArray<TSharedPtr<FFolioDocumentNode>>& OutChildren);
 	void OnSelectionChanged(TSharedPtr<FFolioDocumentNode> Node, ESelectInfo::Type SelectInfo);
 
 	/** Expands every directory on the way to the current path, so the tree opens showing it. */

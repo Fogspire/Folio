@@ -68,6 +68,10 @@ the first thing a reader will want after this.
   carries no colour, because that is the rule everything else follows from and it looks arbitrary
   until the missing `var()` is explained.
 
+- **The VSCode preview.** `Tools/vscode-folio/` has its own README, which is probably enough. If it
+  gets a page here it should lead with what the preview is proven to match and what it is not, since
+  that is the only thing separating it from a decorative panel.
+
 ## Things to check before publishing any of it
 
 - Every code sample compiles or is copied from something that does. Samples in `UI_CONVENTIONS.md`

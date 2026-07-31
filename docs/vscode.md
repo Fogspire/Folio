@@ -50,12 +50,15 @@ past. `ui/examples/button.rml` has one, if you want to see what that looks like.
 
 ## Zooming
 
-`Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`. **Fit** sizes it to the
-panel, **1:1** is one image pixel per screen pixel.
+`Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`.
 
-Past 1:1 it switches to nearest-neighbour rather than smoothing, which matters for the thing you are
-most likely to zoom in to check: judging a glyph edge or a rounded corner through a bilinear upscale
-is judging the upscale. The zoom survives a re-render.
+**Zooming re-renders rather than magnifying.** It multiplies the render size and the dp ratio
+together, which holds the layout still while raising the resolution - the same thing running the game
+at a higher resolution does. So text and vector art get *sharper* as you zoom in, which is the whole
+point of them being distance fields, and it is the only way the preview can tell you anything about
+whether the real thing is crisp. Scaling a screenshot would show you the scaler's work instead.
+
+The cost is that a zoom is a render, so it takes as long as a save does.
 
 ## What the preview is worth trusting
 

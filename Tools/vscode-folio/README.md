@@ -40,12 +40,13 @@ where Slate linearises vertex colour and applies display gamma. Judge colour in 
 
 ## Zooming
 
-`Ctrl` and the wheel, the buttons in the panel's toolbar, or `Ctrl` with `+`, `-` and `0`. **Fit**
-sizes it to the panel; **1:1** is one image pixel per screen pixel.
+`Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`.
 
-Past 1:1 it switches to nearest-neighbour, deliberately: judging an edge through a smooth upscale is
-judging the upscale rather than the render. The zoom survives a re-render, so editing and saving does
-not throw you back out to where you started.
+**Zooming re-renders.** It does not magnify the image: it multiplies the render size and the dp ratio
+together, which holds the layout still and raises the resolution, exactly as running the game at a
+higher resolution does. Scaling a screenshot would throw away the one thing Folio exists for - glyphs
+and vector art are distance fields and are sharp at any size - and an enlarged screenshot shows none
+of that. Zoom in and text gets *sharper*, as it will in the game.
 
 ## Syntax highlighting
 

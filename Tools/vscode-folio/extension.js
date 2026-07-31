@@ -29,12 +29,23 @@ let panel = null;
 let currentDocument = null;
 
 /**
- * Kept out here so it survives a re-render.
+ * Zoom is a re-render, not a magnification.
  *
- * The webview's HTML is rebuilt on every render, so anything held in the page is lost each save. A
- * zoom that reset itself every time you edited would be worse than no zoom.
+ * Scaling the PNG would throw away the one thing Folio exists for: glyphs and vector art are distance
+ * fields, so they are sharp at any size, and an upscaled screenshot shows none of that. Zooming in on
+ * a blurry enlargement tells you nothing about whether the real thing is crisp.
+ *
+ * So a zoom multiplies both the render size and the dp ratio. Both together is what keeps the layout
+ * identical while raising the resolution: size alone would show more of the document, and dp alone
+ * would make everything bigger in the same viewport. This is what changing resolution in the game
+ * does, which is the point.
+ *
+ * Held here rather than in the page because the HTML is rebuilt on every render.
  */
 let zoom = 1;
+
+/** Steps, so repeated presses land on the same values and 1:1 is always reachable exactly. */
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4];
 let renderIndex = 0;
 let rendering = false;
 let pending = false;
@@ -83,16 +94,18 @@ function buildArguments(document, output) {
 	const settings = config();
 	const args = [document, "--root", rootArgument(), "--screenshot", output];
 
-	const size = settings.get("size");
-	if (size) {
-		args.push("--size", size);
-	}
+	const size = String(settings.get("size") || "1280x720");
+	const match = /^(\d+)\s*x\s*(\d+)$/.exec(size.trim());
+	const base = match ? [Number(match[1]), Number(match[2])] : [1280, 720];
+
+	// Both scaled together, which is what holds the layout still while raising the resolution.
+	args.push("--size", `${Math.round(base[0] * zoom)}x${Math.round(base[1] * zoom)}`);
 
 	// Pinned by default. The preview's ratio otherwise follows its viewport, and an unpinned ratio is
 	// the difference that reads as a layout bug rather than a setting.
-	const dp = settings.get("dpRatio");
-	if (dp) {
-		args.push("--dp-ratio", String(dp));
+	const dp = Number(settings.get("dpRatio"));
+	if (Number.isFinite(dp) && dp > 0) {
+		args.push("--dp-ratio", String(dp * zoom));
 	}
 
 	if (settings.get("strict")) {
@@ -205,11 +218,9 @@ function show(state) {
 		color: var(--vscode-foreground);
 		background: var(--vscode-editor-background);
 	}
-	/* Nearest-neighbour past 1:1, so zooming in shows what the renderer produced rather than what the
-	   browser would like it to look like. Judging an edge through a bilinear upscale is judging the
-	   upscale. */
-	img { display: block; transform-origin: top left; }
-	img.zoomed { image-rendering: pixelated; }
+	/* Shown at its natural size: the image is already the resolution the zoom asked for, so scaling it
+	   here would undo the re-render it came from. */
+	img { display: block; }
 	#viewport { overflow: auto; }
 	button {
 		font: inherit; color: var(--vscode-button-secondaryForeground);
@@ -236,9 +247,8 @@ function show(state) {
 		<span class="spacer"></span>
 		<button id="out" title="Zoom out (Ctrl+-)">&minus;</button>
 		<span id="level">${Math.round(zoom * 100)}%</span>
-		<button id="in" title="Zoom in (Ctrl++)">+</button>
-		<button id="fit" title="Fit to the panel">Fit</button>
-		<button id="reset" title="Actual size (Ctrl+0)">1:1</button>
+		<button id="in" title="Zoom in: re-renders at a higher resolution (Ctrl++)">+</button>
+		<button id="reset" title="Back to 100% (Ctrl+0)">1:1</button>
 	</div>
 	${state.error ? `<div class="error">${escape(state.error)}</div>` : ""}
 	${notes.join("")}
@@ -248,65 +258,27 @@ function show(state) {
 	${source ? `<div id="viewport" class="frame"><img id="render" src="${source}"/></div>` : ""}
 	<script>
 		const api = acquireVsCodeApi();
-		const image = document.getElementById("render");
-		const level = document.getElementById("level");
-		let zoom = ${zoom};
 
-		// Steps rather than a continuous factor, so repeated presses land on the same values and 1:1 is
-		// always reachable exactly.
-		const STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8];
+		// The page does not scale anything. It asks for a zoom and the extension renders at that
+		// resolution, which is the only way the result is as sharp as the game's.
+		function ask(direction) { api.postMessage({ zoom: direction }); }
 
-		function apply() {
-			if (image) {
-				image.style.transform = "scale(" + zoom + ")";
-				// The transform does not affect layout, so the scroll area has to be told the size.
-				image.style.marginRight = (image.naturalWidth * (zoom - 1)) + "px";
-				image.style.marginBottom = (image.naturalHeight * (zoom - 1)) + "px";
-				image.classList.toggle("zoomed", zoom > 1);
-			}
-			if (level) { level.textContent = Math.round(zoom * 100) + "%"; }
-			api.postMessage({ zoom: zoom });
-		}
+		document.getElementById("in").onclick = () => ask("in");
+		document.getElementById("out").onclick = () => ask("out");
+		document.getElementById("reset").onclick = () => ask("reset");
 
-		function step(direction) {
-			const index = STEPS.findIndex((value) => value > zoom + 0.001);
-			const at = direction > 0
-				? (index === -1 ? STEPS.length - 1 : index)
-				: Math.max(0, (index === -1 ? STEPS.length : index) - 2);
-			zoom = STEPS[at];
-			apply();
-		}
-
-		function fit() {
-			const viewport = document.getElementById("viewport");
-			if (image && viewport && image.naturalWidth > 0) {
-				zoom = viewport.clientWidth / image.naturalWidth;
-				apply();
-			}
-		}
-
-		document.getElementById("in").onclick = () => step(1);
-		document.getElementById("out").onclick = () => step(-1);
-		document.getElementById("reset").onclick = () => { zoom = 1; apply(); };
-		document.getElementById("fit").onclick = fit;
-
-		// Ctrl and the wheel, which is what anyone tries first.
 		document.addEventListener("wheel", (event) => {
 			if (!event.ctrlKey) { return; }
 			event.preventDefault();
-			step(event.deltaY < 0 ? 1 : -1);
+			ask(event.deltaY < 0 ? "in" : "out");
 		}, { passive: false });
 
 		document.addEventListener("keydown", (event) => {
 			if (!event.ctrlKey) { return; }
-			if (event.key === "=" || event.key === "+") { step(1); }
-			else if (event.key === "-") { step(-1); }
-			else if (event.key === "0") { zoom = 1; apply(); }
+			if (event.key === "=" || event.key === "+") { ask("in"); }
+			else if (event.key === "-") { ask("out"); }
+			else if (event.key === "0") { ask("reset"); }
 		});
-
-		if (image) {
-			if (image.complete) { apply(); } else { image.onload = apply; }
-		}
 	</script>
 </body>
 </html>`;
@@ -330,12 +302,21 @@ function openPreview() {
 			"folioPreview", "Folio", vscode.ViewColumn.Beside,
 			{ enableScripts: true, localResourceRoots: [vscode.Uri.file(os.tmpdir())] });
 
-		// The page reports the zoom back, because the page is rebuilt on every render and the extension
-		// is the only thing that outlives it.
 		panel.webview.onDidReceiveMessage((message) => {
-			if (message && typeof message.zoom === "number") {
-				zoom = message.zoom;
+			if (!message || typeof message.zoom !== "string") {
+				return;
 			}
+
+			const index = ZOOM_STEPS.indexOf(zoom);
+			if (message.zoom === "in") {
+				zoom = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, (index === -1 ? 3 : index) + 1)];
+			} else if (message.zoom === "out") {
+				zoom = ZOOM_STEPS[Math.max(0, (index === -1 ? 3 : index) - 1)];
+			} else {
+				zoom = 1;
+			}
+
+			render();
 		});
 
 		panel.onDidDispose(() => { panel = null; });

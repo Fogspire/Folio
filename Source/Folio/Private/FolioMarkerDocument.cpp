@@ -73,6 +73,7 @@ void UFolioMarkerDocument::OnRegister()
 	}
 
 	Host = MakeShared<FFolioDocumentHost>();
+	Host->SetReferencer(this);
 
 	if (!Host->Create(TEXT("marker"), FIntPoint(
 		FMath::Max(1, FMath::RoundToInt(Size.X)),

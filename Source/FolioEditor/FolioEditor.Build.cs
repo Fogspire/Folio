@@ -23,6 +23,8 @@ public class FolioEditor : ModuleRules
 			// replace what a struct field draws as.
 			"PropertyEditor",
 			"EditorStyle",
+			// The Message Log listing a missing document is reported into.
+			"MessageLog",
 			"Projects",
 			"Folio",
 			// FolioModule.h reaches RmlUi types through FolioRmlUi.h, so anything including it needs

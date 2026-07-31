@@ -331,8 +331,41 @@ void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPat
 			Actor = Component->GetOwner();
 		}
 
-		UE_LOG(LogFolio, Error, TEXT("%s: set on '%s'%s."), Context, *Referencer->GetPathName(),
-			Actor ? *FString::Printf(TEXT(", on actor '%s'"), *Actor->GetActorNameOrLabel()) : TEXT(""));
+		// The asset named separately from the object path. During a cook there is no level open to go
+		// looking in, so the first thing anyone needs is which file to fix.
+		const UPackage* Package = Referencer->GetPackage();
+
+		UE_LOG(LogFolio, Error, TEXT("%s: set in asset '%s', on '%s'%s."), Context,
+			Package ? *Package->GetName() : TEXT("unknown"), *Referencer->GetPathName(),
+			Actor ? *FString::Printf(TEXT(", actor '%s'"), *Actor->GetActorNameOrLabel()) : TEXT(""));
+
+#if WITH_EDITOR
+		// The same thing again as a message anyone can click. A log line names the asset; a token opens
+		// it, which is the difference between reading a path and fixing the mistake.
+		if (GIsEditor)
+		{
+			FMessageLog Log(FolioMessageLogName);
+
+			const TSharedRef<FTokenizedMessage> Message = Log.Error()
+				->AddToken(FTextToken::Create(FText::Format(
+					NSLOCTEXT("Folio", "MissingDocumentToken", "'{0}' does not exist, named by"),
+					FText::FromString(DocumentPath))))
+				->AddToken(FUObjectToken::Create(Referencer));
+
+			if (Package)
+			{
+				Message->AddToken(FTextToken::Create(NSLOCTEXT("Folio", "MissingDocumentIn", "in")))
+					->AddToken(FAssetNameToken::Create(Package->GetName()));
+			}
+
+			// Not while cooking: there is no window to raise, and a commandlet that stops to open one
+			// is a build that hangs.
+			if (!IsRunningCommandlet())
+			{
+				Log.Open(EMessageSeverity::Error, /*bForce*/ false);
+			}
+		}
+#endif
 	}
 
 	if (DocumentPath.StartsWith(TEXT("/folio/")))

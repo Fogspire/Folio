@@ -51,6 +51,16 @@ struct TStructOpsTypeTraits<FFolioDocumentPath> : public TStructOpsTypeTraitsBas
 	enum { WithStructuredSerializeFromMismatchedTag = true, WithIdenticalViaEquality = true };
 };
 
+#if WITH_EDITOR
+/**
+ * The Message Log listing Folio reports a missing document into.
+ *
+ * A TCHAR* rather than an FName, so nothing constructs an FName before the name table exists. The
+ * editor module registers the listing; writing to an unregistered one works but shows up unlabelled.
+ */
+inline const TCHAR* const FolioMessageLogName = TEXT("Folio");
+#endif
+
 /**
  * Everything to do with naming a document, in one place.
  *

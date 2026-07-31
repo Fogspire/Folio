@@ -164,6 +164,11 @@ void FFolioDocumentHost::SetSize(const FIntPoint InSize)
 	MarkDirty(TEXT("resized"));
 }
 
+void FFolioDocumentHost::SetReferencer(const UObject* InReferencer)
+{
+	Referencer = InReferencer;
+}
+
 void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 {
 	if (!Context)
@@ -214,7 +219,7 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 	// file is there and did not parse". Both render nothing, and guessing which is the whole problem.
 	if (!UFolioDocumentPathLibrary::DocumentExists(RelativePath))
 	{
-		UFolioDocumentPathLibrary::ReportMissingDocument(RelativePath, TEXT("Folio"));
+		UFolioDocumentPathLibrary::ReportMissingDocument(RelativePath, TEXT("Folio"), Referencer.Get());
 		return;
 	}
 

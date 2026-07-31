@@ -331,8 +331,14 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 	// document at a higher resolution than it was laid out at.
 	const FIntPoint Clip = Layer.ClipSize.X > 0 && Layer.ClipSize.Y > 0 ? Layer.ClipSize : Layer.Size;
 
+	// A pooled layer is handed out already cleared, but a surface's target is the caller's and lives
+	// between frames, so loading it keeps whatever the last render left. That is invisible while the
+	// document repaints every pixel and obvious the moment it does not: a document that lays out
+	// smaller, or that moves an absolutely positioned element, leaves the old image behind it.
+	const bool bClear = Layer.bCallerOwned;
+
 	ENQUEUE_RENDER_COMMAND(FolioResolveLayer)(
-		[Resource, Size, Clip, Draws = MoveTemp(Draws)](FRHICommandListImmediate& RHICmdList) mutable
+		[Resource, Size, Clip, bClear, Draws = MoveTemp(Draws)](FRHICommandListImmediate& RHICmdList) mutable
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
 
@@ -353,7 +359,8 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 			// space rather than the target, so a larger target scales the same geometry up instead of
 			// leaving it in a corner.
 			Parameters->ClipTransform = FVector4f(2.0f / Clip.X, -2.0f / Clip.Y, -1.0f, 1.0f);
-			Parameters->RenderTargets[0] = FRenderTargetBinding(Colour, ERenderTargetLoadAction::ELoad);
+			Parameters->RenderTargets[0] = FRenderTargetBinding(Colour,
+				bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
 			Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(Stencil,
 				ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,
 				FExclusiveDepthStencil::DepthNop_StencilWrite);

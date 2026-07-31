@@ -155,6 +155,7 @@ void UFolioWorldDocument::OnRegister()
 	bTickInEditor = bUpdateInEditor;
 
 	Host = MakeShared<FFolioDocumentHost>();
+	Host->SetReferencer(this);
 
 	// The cursor belongs to the document, so a reload or a hot reload takes it with it.
 	Host->OnDocumentClosing = [this] { Cursor = nullptr; CursorAt.Reset(); };

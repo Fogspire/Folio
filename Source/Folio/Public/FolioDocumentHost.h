@@ -53,6 +53,15 @@ public:
 	void SetSize(FIntPoint Size);
 	FIntPoint GetSize() const { return Size; }
 
+	/**
+	 * The component this host draws for, named in any error about its document.
+	 *
+	 * A path that resolves to nothing is only actionable if you know where it was written, and during a
+	 * cook there is no level open to go looking in. Null for a host with no component behind it, such as
+	 * a canvas put up from code, where the caller is on the stack anyway.
+	 */
+	void SetReferencer(const UObject* Referencer);
+
 	/** Replaces the document. An empty path unloads without loading anything. */
 	void LoadDocument(const FString& RelativePath);
 
@@ -120,6 +129,7 @@ private:
 	Rml::Context* Context = nullptr;
 	Rml::ElementDocument* Document = nullptr;
 	FString DocumentPath;
+	TWeakObjectPtr<const UObject> Referencer;
 	FIntPoint Size = FIntPoint(1920, 1080);
 
 	FFolioInputModel InputModel;

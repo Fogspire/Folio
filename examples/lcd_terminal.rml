@@ -281,7 +281,14 @@
 		}
 
 		.file:hover { background-color: #ffffff0f; border-color: #ffffff1f; }
-		.file.folio-dragging { opacity: 0.5; }
+
+		/* Dashed while it is in flight, dotted on the places it can land: the two non-solid borders
+		   are carrying a distinction here rather than decorating. Dashes say provisional, dots say
+		   this is a spot rather than a thing, and every settled object on the panel is solid. */
+		.file.folio-dragging {
+			opacity: 0.5;
+			decorator: dashed-border(#4ea1ff 2dp 7dp 5dp);
+		}
 
 		.file-icon {
 			display: block;
@@ -296,22 +303,29 @@
 			position: absolute;
 			right: 28dp; bottom: 28dp;
 			width: 116dp;
-			padding: 14dp 8dp;
+			/* A dp more than the solid-bordered controls, because a decorator is painted over the
+			   border box and takes no space of its own. */
+			padding: 15dp 9dp;
 			text-align: center;
 			font-size: 14dp;
 			color: #7c8798;
 			border-radius: 12dp;
-			border: 1dp #ffffff26;
-			transition: background-color 0.14s cubic-out, border-color 0.14s cubic-out,
-			            color 0.14s cubic-out;
+			transition: background-color 0.14s cubic-out, color 0.14s cubic-out;
+
+			/* Dotted, which is what says "put something here" rather than "this is a thing". The
+			   solid borders elsewhere on the panel are objects; this is a place. */
+			decorator: dotted-border(#ffffff4d 2dp);
 		}
 
 		/* Drop feedback. Without it there is no way to tell whether a release will land, and the
-		   feature reads as broken even when it works. */
+		   feature reads as broken even when it works.
+
+		   The outline changes in one step while the fill fades: a decorator is geometry rather than a
+		   property with a value between two states, so it has nothing to interpolate. */
 		.bin.folio-dragover {
-			border-color: #ff5f57;
 			background-color: #ff5f571a;
 			color: #ff9d97;
+			decorator: dotted-border(#ff5f57 2dp);
 		}
 
 		.bin-icon {
@@ -319,7 +333,7 @@
 			width: 26dp; height: 30dp;
 			margin: 0 auto 8dp auto;
 			border-radius: 4dp;
-			border: 1dp #ffffff33;
+			decorator: dotted-border(#ffffff59 2dp);
 		}
 
 		/* --- leaving ---------------------------------------------------------------------- */

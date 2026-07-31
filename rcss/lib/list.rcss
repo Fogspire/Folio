@@ -1,0 +1,86 @@
+/*
+ * List: a scrolling column of focusable rows.
+ *
+ *   <div class="list">
+ *     <div class="list-row focusable">
+ *       <span class="list-cell list-cell-grow" data-loc="name">Shuriken</span>
+ *       <span class="list-cell list-cell-num">x3</span>
+ *     </div>
+ *   </div>
+ *
+ * The list is a scroll container, which does two things at once: it scrolls, and it bounds
+ * the navigation search, so focus cannot walk out of the list sideways into other chrome.
+ * Anything with a non-visible overflow is a scroll container, so this is not opt-in - watch
+ * for wrappers that acquire overflow: hidden by accident and trap focus.
+ */
+.list
+{
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	align-items: stretch;
+	overflow-y: auto;
+	overflow-x: hidden;
+	gap: 2dp;
+}
+
+.list-row
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12dp;
+	box-sizing: border-box;
+	padding: 10dp 16dp;
+	nav: vertical;
+}
+
+/* --- Cells ------------------------------------------------------------------------- */
+
+.list-cell
+{
+	flex: 0 0 auto;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+/* The one cell that absorbs the leftover width. Everything else stays its natural size. */
+.list-cell-grow
+{
+	flex: 1 1 0;
+}
+
+.list-cell-num
+{
+	text-align: right;
+	min-width: 72dp;
+}
+
+/* --- Structure --------------------------------------------------------------------- */
+
+.list-header
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12dp;
+	box-sizing: border-box;
+	padding: 6dp 16dp;
+	border-bottom-width: 1dp;
+}
+
+/* Shown in place of the rows when a data-bound list is empty. Screens forget this case and
+   it is the one a player is most likely to hit first. */
+.list-empty
+{
+	box-sizing: border-box;
+	padding: 32dp;
+	text-align: center;
+}
+
+.list-scroll-fade
+{
+	height: 24dp;
+}
+

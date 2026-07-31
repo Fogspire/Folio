@@ -1,0 +1,130 @@
+/*
+ * Slider, as a settings row.
+ *
+ *   <div class="setting">
+ *     <span class="setting-label" data-loc="master_volume">Master Volume</span>
+ *     <input type="range" class="slider focusable" min="0" max="100" step="1" value="70"/>
+ *     <span class="setting-value">70</span>
+ *   </div>
+ *
+ * The control takes focus, not the row. One focus stop per setting, and the control has to
+ * be the one holding focus for its own key handling to work. RCSS has no parent selector and
+ * no :focus-within, so there is no row-level highlight to be had - the control carries the
+ * focus treatment instead, which is why it is a deliberately loud one.
+ *
+ * <input type="range"> builds its own children, which is what these tag selectors style:
+ *
+ *   slidertrack     the groove
+ *   sliderbar       the thumb
+ *   sliderarrowdec  optional decrement arrow
+ *   sliderarrowinc  optional increment arrow
+ *
+ * A focused horizontal range consumes left and right and stops the event, so directional
+ * navigation on those axes never fires while it has focus. That is exactly the behaviour a
+ * settings list wants, and it is why the row locks navigation to the vertical axis: up and
+ * down move between settings, left and right adjust the value.
+ */
+.setting
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 20dp;
+	box-sizing: border-box;
+	padding: 10dp 16dp;
+}
+
+/*
+ * A fixed label column, so every control in a list of settings starts at the same x.
+ *
+ * This is a navigation requirement, not a cosmetic one. The spatial heuristic penalises
+ * cross-axis distance about ten thousand times more heavily than distance along the
+ * direction, and only when the target falls outside the source's projected area. Letting the
+ * label grow and the controls sit flush right lines up their right edges and scatters their
+ * left ones, so a narrow control below a wide one is outside its projection and loses to
+ * something much further away that happens to overlap. Observed: a slider between a radio
+ * group and a toggle was skipped entirely by pressing down. Sharing a left edge makes every
+ * control overlap the one above it, and the nearest one below simply wins.
+ */
+.setting-label
+{
+	flex: 0 0 40%;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+/* Fixed width so the row does not reflow as the number changes width. */
+.setting-value
+{
+	flex: 0 0 auto;
+	min-width: 72dp;
+	margin-left: auto;
+	text-align: right;
+}
+
+/* Trailing note beside a control, pushed to the far right like a value. */
+.setting-hint-end
+{
+	margin-left: auto;
+}
+
+/* --- The control ------------------------------------------------------------------- */
+
+.slider
+{
+	flex: 0 0 auto;
+	width: 280dp;
+	height: 24dp;
+	/* The input takes focus, not the row, so nav goes here too. */
+	nav: vertical;
+}
+
+.slider slidertrack
+{
+	display: block;
+	height: 6dp;
+	margin-top: 9dp;
+}
+
+.slider sliderbar
+{
+	display: block;
+	width: 20dp;
+	height: 20dp;
+	margin-top: 2dp;
+	border-width: 2dp;
+}
+
+.slider sliderbar:active
+{
+	transform: scale(1.15);
+}
+
+/* Arrows are off by default: they are a mouse affordance and add two focus stops per row. */
+.slider sliderarrowdec,
+.slider sliderarrowinc
+{
+	display: none;
+}
+
+/* --- Progress bar ------------------------------------------------------------------ */
+
+/*
+ * <progress class="bar" value="0.4" max="1"/> is a real element and fills accurately. Use
+ * it for anything read-only: health, loading, XP.
+ */
+.bar
+{
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	height: 12dp;
+	overflow: hidden;
+}
+
+.bar-thin
+{
+	height: 6dp;
+}
+

@@ -1,0 +1,157 @@
+/*
+ * Toggle and radio group.
+ *
+ *   <div class="setting">
+ *     <span class="setting-label" data-loc="subtitles">Subtitles</span>
+ *     <input type="checkbox" class="toggle focusable" checked/>
+ *   </div>
+ *
+ * <input type="checkbox"> is a real element: it flips its own state on click or on the
+ * confirm button, and sets the :checked pseudo-class itself. Do not drive it from C++ unless
+ * the state lives in game code, in which case bind it with data-checked.
+ *
+ * The whole control is one box, so the switch look is a border plus a decorator rather than
+ * a track element and a knob element. There is nothing to move: :checked swaps a gradient
+ * whose bright end is on the other side, and the colour transitions.
+ */
+.toggle
+{
+	display: inline-block;
+	box-sizing: border-box;
+	flex: 0 0 auto;
+	width: 64dp;
+	height: 32dp;
+	border-width: 2dp;
+	nav: vertical;
+}
+
+.toggle:focus-visible
+{
+	transform: scale(1.05);
+}
+
+.toggle:active
+{
+	transform: scale(0.95);
+}
+
+/* --- Checkbox variant -------------------------------------------------------------- */
+
+/* A square box with a tick, for lists of options rather than on/off settings. */
+.check
+{
+	display: inline-block;
+	box-sizing: border-box;
+	flex: 0 0 auto;
+	width: 28dp;
+	height: 28dp;
+	border-width: 2dp;
+	nav: vertical;
+}
+
+/* --- Radio group ------------------------------------------------------------------- */
+
+/*
+ *   <div class="radio-group">
+ *     <input type="radio" class="radio focusable" id="q_low" name="quality" value="low"/>
+ *     <span class="radio-label" data-loc="low">Low</span>
+ *     ...
+ *   </div>
+ *
+ * Radios sharing a name are one selection. The input renders no text of its own - it is a
+ * dot and nothing else - so the caption is a sibling element, and the input's state reaches
+ * it through the adjacent sibling combinator. RCSS has +, ~, > and descendant, so styling
+ * forwards along the DOM works; there is still no way to style backwards to a parent.
+ */
+.radio-group
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8dp;
+	flex: 0 0 auto;
+}
+
+.radio
+{
+	display: inline-block;
+	box-sizing: border-box;
+	flex: 0 0 auto;
+	width: 22dp;
+	height: 22dp;
+	border-width: 2dp;
+	nav: auto;
+}
+
+.radio-label
+{
+	flex: 0 0 auto;
+	margin-right: 12dp;
+}
+
+/* --- Segmented control ------------------------------------------------------------- */
+
+/*
+ *   <div class="segmented">
+ *     <div class="segment">
+ *       <input type="radio" class="segment-hit" name="difficulty" id="d_calm" checked/>
+ *       <span class="segment-text" data-loc="calm">Calm</span>
+ *     </div>
+ *     ...
+ *   </div>
+ *
+ * A real radio set, so RmlUi owns the state: clicking or confirming actually changes the
+ * selection, with no C++ and no data binding. An input renders no text of its own, so each
+ * segment is a caption with a full-size input behind it. The input is what takes focus, what
+ * gets clicked, and what carries the selected fill; the caption sits on top of it with
+ * pointer-events: none so hit testing falls through, and picks up its colour through the
+ * adjacent sibling combinator.
+ *
+ * The alternative - a plain div with an .is-selected class - looks identical and does
+ * nothing at all until something external swaps the class, which makes it untestable in the
+ * preview. Bind the checked state with data-checked when the value lives in game settings.
+ */
+.segmented
+{
+	display: flex;
+	flex-direction: row;
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	padding: 3dp;
+	gap: 2dp;
+}
+
+.segment
+{
+	position: relative;
+	display: inline-block;
+	box-sizing: border-box;
+	flex: 0 0 auto;
+}
+
+.segment-hit
+{
+	position: absolute;
+	top: 0dp;
+	left: 0dp;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	border-width: 2dp;
+	nav: auto;
+}
+
+.segment-text
+{
+	display: block;
+	box-sizing: border-box;
+	padding: 5dp 18dp;
+	/* Positioned elements paint above in-flow ones, so without this the input's fill covers
+	   its own caption. Both positioned means DOM order decides, and the caption is second. */
+	position: relative;
+	text-align: center;
+	white-space: nowrap;
+	/* The caption paints over the input, so it has to be transparent to the mouse. */
+	pointer-events: none;
+}
+

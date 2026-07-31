@@ -1,0 +1,129 @@
+/*
+ * Modal dialog.
+ *
+ *   <div class="modal-scrim">
+ *     <div class="modal">
+ *       <div class="modal-title" data-loc="quit_title">Quit to desktop?</div>
+ *       <div class="modal-body"><p data-loc="quit_body">Unsaved progress is lost.</p></div>
+ *       <div class="modal-actions">
+ *         <button class="btn focusable" data-loc="cancel">Cancel</button>
+ *         <button class="btn btn-danger focusable" data-loc="quit">Quit</button>
+ *       </div>
+ *     </div>
+ *   </div>
+ *
+ * Focus trapping is two things, and only one of them is free.
+ *
+ * Free: the navigation search starts at the focused element's nearest scroll container, and
+ * any element whose overflow is not visible on either axis is one, so the modal's
+ * overflow: hidden keeps navigation inside the modal for as long as focus is already there.
+ *
+ * Not free: nothing puts focus there or stops it starting outside. A fresh document focuses
+ * nothing, and the first direction press runs the document's own nav, which finds the first
+ * tabbable element in document order - the content behind the dialog. So the background gets
+ * .is-inert while a dialog is up. Verified: without it, a scripted down/right/up/left walks
+ * the buttons behind the dialog and never reaches Cancel or Quit.
+ *
+ * The scroll container rule is a hazard elsewhere too: an incidental overflow: hidden on a
+ * layout wrapper confines focus just as effectively, and it reads as a navigation bug rather
+ * than a styling one. If focus refuses to leave a region, look for overflow first.
+ */
+.modal-scrim
+{
+	display: flex;
+	position: absolute;
+	top: 0dp;
+	left: 0dp;
+	width: 100%;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+	z-index: 100;
+	animation: 0.15s cubic-out fade-in;
+}
+
+.modal
+{
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	width: 560dp;
+	max-width: 90%;
+	overflow: hidden;
+	border-width: 1dp;
+	animation: 0.18s cubic-out rise-in;
+}
+
+.modal-narrow
+{
+	width: 420dp;
+}
+
+.modal-wide
+{
+	width: 760dp;
+}
+
+/* --- Regions ----------------------------------------------------------------------- */
+
+.modal-title
+{
+	box-sizing: border-box;
+	padding: 20dp 24dp 12dp 24dp;
+}
+
+.modal-body
+{
+	box-sizing: border-box;
+	padding: 0dp 24dp 20dp 24dp;
+}
+
+.modal-actions
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12dp;
+	box-sizing: border-box;
+	padding: 16dp 24dp;
+	border-top-width: 1dp;
+}
+
+/* Stacked actions, for a destructive choice where a horizontal row invites a misclick. */
+.modal-actions-stacked
+{
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.modal-actions-stacked .btn
+{
+	width: 100%;
+	nav: vertical;
+}
+
+/* --- Toast ------------------------------------------------------------------------- */
+
+/* Not a dialog: no focus, no interaction, no scrim. It must never steal navigation. */
+.toast
+{
+	position: absolute;
+	top: 32dp;
+	left: 0dp;
+	width: 100%;
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	z-index: 200;
+	focus: none;
+	pointer-events: none;
+	animation: 0.2s cubic-out rise-in;
+}
+
+.toast-body
+{
+	box-sizing: border-box;
+	padding: 10dp 20dp;
+}
+

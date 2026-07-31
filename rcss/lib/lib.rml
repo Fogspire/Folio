@@ -24,7 +24,14 @@
 	<link type="text/rcss" href="/folio/folio.rcss"/>
 
 	<link type="text/rcss" href="/folio/lib/base.rcss"/>
+	<link type="text/rcss" href="/folio/lib/panel.rcss"/>
 	<link type="text/rcss" href="/folio/lib/button.rcss"/>
+	<link type="text/rcss" href="/folio/lib/menu.rcss"/>
+	<link type="text/rcss" href="/folio/lib/list.rcss"/>
+	<link type="text/rcss" href="/folio/lib/slider.rcss"/>
+	<link type="text/rcss" href="/folio/lib/toggle.rcss"/>
+	<link type="text/rcss" href="/folio/lib/tabbar.rcss"/>
+	<link type="text/rcss" href="/folio/lib/modal.rcss"/>
 
 	<link type="text/rcss" href="/folio/themes/default.rcss"/>
 </head>

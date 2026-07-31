@@ -1,0 +1,78 @@
+/*
+ * Menu and menu item.
+ *
+ *   <div class="menu">
+ *     <div class="menu-item focusable">
+ *       <img class="icon" sprite="icon_play"/>
+ *       <span class="menu-item-label" data-loc="start">Start Game</span>
+ *       <span class="menu-item-hint" data-loc="start_hint">Continue chapter 3</span>
+ *     </div>
+ *   </div>
+ *
+ * The item is the whole row: it is what takes focus, and the icon, label and hint are inert.
+ */
+.menu
+{
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 4dp;
+}
+
+.menu-item
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 16dp;
+	box-sizing: border-box;
+	padding: 12dp 20dp;
+	/* Anchors .menu-marker, which fills the item. */
+	position: relative;
+	/* A menu is unambiguously vertical;
+	left and right are the screen's to use. */
+	nav: vertical;
+}
+
+.menu-item-label
+{
+	flex: 1 1 0;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.menu-item-hint
+{
+	flex: 0 0 auto;
+	text-align: right;
+}
+
+/*
+ * The accent wash that fades in behind a focused item.
+ *
+ * It has to be its own element. Decorators cannot be animated, and putting the opacity on
+ * the item itself would fade the label and icon with it. So the marker is an absolutely
+ * positioned child that fills the item, and the item's focus state reaches it through a
+ * descendant selector - which is the only direction RCSS selectors travel. There is no
+ * parent selector and no :focus-within.
+ *
+ *   <div class="menu-item focusable"><div class="menu-marker"/> ... </div>
+ */
+.menu-marker
+{
+	position: absolute;
+	top: 0dp;
+	left: 0dp;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
+/* --- Vertical menu with a title ---------------------------------------------------- */
+
+.menu-title
+{
+	margin-bottom: 8dp;
+}
+

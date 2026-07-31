@@ -1,0 +1,100 @@
+/*
+ * Tab bar.
+ *
+ *   <tabset class="tabs">
+ *     <tabs>
+ *       <tab class="tab focusable" data-loc="audio">Audio</tab>
+ *     </tabs>
+ *     <panels>
+ *       <panel class="tab-panel"> ... </panel>
+ *     </panels>
+ *   </tabset>
+ *
+ * <tabset> is a real element. It sets :selected on the active tab and its panel and writes
+ * display: none onto the others as an inline property - which is why the hidden panels are
+ * not merely invisible but out of layout, and why nothing inside them can be focused.
+ *
+ * The tabs are shoulder-button territory on a controller, but they still have to be reachable
+ * without one, and a player has to be able to get from the bar down into the panel. So tabs
+ * navigate with plain auto rather than a horizontal lock: `nav: horizontal` would block the
+ * down press that enters the panel, and there is no value that permits down while blocking
+ * left and right, because the keywords filter the incoming direction rather than the search.
+ */
+.tabs
+{
+	display: flex;
+	flex-direction: column;
+}
+
+/*
+ * :first-of-type is not decoration. A tabset creates a `tabs` or `panels` child on demand
+ * whenever it looks for one and does not find it, and during parsing it looks before the
+ * markup's own are in place - so a tabset that declares both still ends up with a spare
+ * empty pair appended after them. A bare `tabs` selector therefore styles two elements, and
+ * the empty one draws this border again at the bottom of the tabset as a stray hairline.
+ */
+.tabs tabs:first-of-type
+{
+	display: flex;
+	flex-direction: row;
+	align-items: flex-end;
+	gap: 4dp;
+	border-bottom-width: 2dp;
+}
+
+.tab
+{
+	display: inline-block;
+	box-sizing: border-box;
+	padding: 10dp 24dp;
+	text-align: center;
+	border-bottom-width: 2dp;
+	margin-bottom: -2dp;
+	nav: auto;
+}
+
+/* The dot that marks a tab with unsaved or unseen content. */
+.tab-badge
+{
+	display: inline-block;
+	width: 8dp;
+	height: 8dp;
+	margin-left: 8dp;
+	vertical-align: middle;
+}
+
+/* --- Panels ------------------------------------------------------------------------ */
+
+.tabs panels:first-of-type
+{
+	display: block;
+}
+
+.tab-panel
+{
+	box-sizing: border-box;
+	padding: 24dp 0dp;
+	animation: 0.18s cubic-out fade-in;
+}
+
+/* --- Shoulder hints ---------------------------------------------------------------- */
+
+/*
+ * The LB/RB affordance beside the bar. Sprite names only, never file paths: an undeclared
+ * name renders as a labelled placeholder and lands in ASSETS_WANTED.md instead of failing
+ * quietly, which is what lets this screen exist before its art does.
+ */
+.tab-shoulder
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8dp;
+}
+
+.tab-shoulder .icon
+{
+	width: 28dp;
+	height: 28dp;
+}
+

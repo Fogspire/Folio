@@ -1,0 +1,87 @@
+/*
+ * Panel: the container everything else sits in.
+ *
+ *   <div class="panel">
+ *     <div class="panel-header"><h2 class="panel-title" data-loc="audio">Audio</h2></div>
+ *     <div class="panel-body"> ... </div>
+ *     <div class="panel-footer"> ... </div>
+ *   </div>
+ *
+ * Deliberately textureless. The frame is a border, the depth is a gradient and a shadow, and
+ * the whole thing resizes to anything without a single sprite.
+ */
+.panel
+{
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	border-width: 20dp;
+}
+
+.panel-flat
+{
+	border-width: 0dp;
+}
+
+/* --- Regions ----------------------------------------------------------------------- */
+
+.panel-header
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16dp;
+	box-sizing: border-box;
+	padding: 16dp 20dp;
+	border-bottom-width: 1dp;
+}
+
+.panel-title
+{
+	margin-bottom: 0dp;
+}
+
+.panel-body
+{
+	box-sizing: border-box;
+	padding: 20dp;
+	/* Basis auto, not 0. In a column flex container with no definite height, a basis of 0
+	   makes the item's hypothetical size 0, so the panel collapses to its header and the
+	   body's content spills out below it. */
+	flex: 1 1 auto;
+}
+
+.panel-body-tight
+{
+	padding: 8dp;
+}
+
+.panel-footer
+{
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12dp;
+	box-sizing: border-box;
+	padding: 16dp 20dp;
+	border-top-width: 1dp;
+}
+
+/* --- Art-backed variant ------------------------------------------------------------ */
+
+/*
+ * For when a panel needs to be an actual drawn frame rather than a rounded rectangle. One
+ * ninepatch serves every size, which is the whole point of using one.
+ *
+ * Until the sprite exists this renders nothing at all: ninepatch is the one decorator that
+ * resolves sprite names only and never reaches the placeholder path, so an undeclared name
+ * warns with a file and line and draws no geometry. That warning is what puts it into
+ * ASSETS_WANTED.md. Do not build a screen on this variant before its art lands.
+ */
+.panel-framed
+{
+	border-width: 0dp;
+}
+

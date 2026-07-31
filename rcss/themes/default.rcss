@@ -253,3 +253,602 @@ scrollbarhorizontal sliderbar:hover
 .btn-ghost:focus-visible  { color: #e8e8f0; }
 
 .btn-small                { font-size: 16dp; }
+
+/* --- panel ----------------------------------------------------------------------- */
+
+.panel
+{
+	background-color: #1f1f28;
+	border-color: #3a3a48;
+	border-radius: 12dp;
+	box-shadow: #ff000059 0dp 6dp 18dp;
+}
+
+/* A top-lit surface. One gradient reads as a bevel without any art. */
+.panel-lit
+{
+	decorator: vertical-gradient(#ffffff0f #ffffff00);
+}
+
+.panel-flat
+{
+	box-shadow: none;
+	background-color: #1f1f28;
+}
+
+.panel-sunken
+{
+	background-color: #0e0e13;
+	border-color: #2b2b36;
+	box-shadow: none;
+}
+
+/* --- Regions ----------------------------------------------------------------------- */
+
+.panel-header
+{
+	border-bottom-color: #3a3a48;
+}
+
+.panel-title
+{
+	font-size: 22dp;
+	font-weight: bold;
+	color: #e8e8f0;
+}
+
+.panel-subtitle
+{
+	font-size: 16dp;
+	color: #8a8a99;
+}
+
+.panel-footer
+{
+	border-top-color: #3a3a48;
+}
+
+/* --- menu ------------------------------------------------------------------------ */
+
+.menu-item
+{
+	background-color: transparent;
+	color: #8a8a99;
+	border-radius: 8dp;
+}
+
+.menu-item:hover
+{
+	color: #e8e8f0;
+}
+
+.menu-item:focus-visible
+{
+	color: #e8e8f0;
+	background-color: #2b2b36;
+}
+
+/*
+ * The selected item, for a menu that keeps a persistent selection rather than only a focus
+ * position. Set from C++ or a data binding; it is not a focus state.
+ */
+.menu-item.is-selected
+{
+	color: #f0c674;
+	background-color: #1f1f28;
+}
+
+.menu-item-label
+{
+	font-size: 22dp;
+}
+
+.menu-item-hint
+{
+	font-size: 16dp;
+	color: #5c5c6b;
+}
+
+/*
+ * The accent wash that fades in behind a focused item.
+ *
+ * It has to be its own element. Decorators cannot be animated, and putting the opacity on
+ * the item itself would fade the label and icon with it. So the marker is an absolutely
+ * positioned child that fills the item, and the item's focus state reaches it through a
+ * descendant selector - which is the only direction RCSS selectors travel. There is no
+ * parent selector and no :focus-within.
+ *
+ *   <div class="menu-item focusable"><div class="menu-marker"/> ... </div>
+ */
+.menu-marker
+{
+	decorator: horizontal-gradient(#f0c67433 #f0c67400);
+	opacity: 0;
+	transition: opacity 0.15s cubic-out;
+}
+
+.menu-item:focus-visible .menu-marker
+{
+	opacity: 1;
+}
+
+/* --- Vertical menu with a title ---------------------------------------------------- */
+
+.menu-title
+{
+	font-size: 13dp;
+	text-transform: uppercase;
+	letter-spacing: 1dp;
+	color: #5c5c6b;
+}
+
+/* --- list ------------------------------------------------------------------------ */
+
+.list-row
+{
+	background-color: transparent;
+	color: #e8e8f0;
+	border-radius: 6dp;
+}
+
+.list-row:focus-visible
+{
+	background-color: #2b2b36;
+}
+
+/* Zebra striping, so a long list stays readable without a border per row. */
+.list-striped .list-row:nth-child(even)
+{
+	background-color: #1f1f2880;
+}
+
+.list-row.is-selected
+{
+	background-color: #1f1f28;
+	color: #f0c674;
+}
+
+.list-cell-num
+{
+	font-weight: bold;
+	letter-spacing: 0.5dp;
+}
+
+.list-cell-muted
+{
+	color: #8a8a99;
+}
+
+/* --- Structure --------------------------------------------------------------------- */
+
+.list-header
+{
+	font-size: 13dp;
+	text-transform: uppercase;
+	letter-spacing: 1dp;
+	color: #5c5c6b;
+	border-bottom-color: #2b2b36;
+}
+
+/* Shown in place of the rows when a data-bound list is empty. Screens forget this case and
+   it is the one a player is most likely to hit first. */
+.list-empty
+{
+	color: #5c5c6b;
+	font-size: 18dp;
+}
+
+.list-scroll-fade
+{
+	decorator: vertical-gradient(#14141a00 #14141a);
+}
+
+/* --- slider ---------------------------------------------------------------------- */
+
+.setting
+{
+	border-radius: 8dp;
+}
+
+/*
+ * A fixed label column, so every control in a list of settings starts at the same x.
+ *
+ * This is a navigation requirement, not a cosmetic one. The spatial heuristic penalises
+ * cross-axis distance about ten thousand times more heavily than distance along the
+ * direction, and only when the target falls outside the source's projected area. Letting the
+ * label grow and the controls sit flush right lines up their right edges and scatters their
+ * left ones, so a narrow control below a wide one is outside its projection and loses to
+ * something much further away that happens to overlap. Observed: a slider between a radio
+ * group and a toggle was skipped entirely by pressing down. Sharing a left edge makes every
+ * control overlap the one above it, and the nearest one below simply wins.
+ */
+.setting-label
+{
+	font-size: 20dp;
+	color: #e8e8f0;
+}
+
+.setting-hint
+{
+	font-size: 16dp;
+	color: #8a8a99;
+}
+
+/* Fixed width so the row does not reflow as the number changes width. */
+.setting-value
+{
+	font-weight: bold;
+	color: #f0c674;
+}
+
+.slider slidertrack
+{
+	background-color: #0e0e13;
+	border-radius: 3dp;
+}
+
+.slider sliderbar
+{
+	background-color: #8a8a99;
+	border-radius: 10dp;
+	border-color: #14141a;
+	transition: background-color 0.12s cubic-out, transform 0.1s cubic-out;
+}
+
+.slider sliderbar:hover
+{
+	background-color: #e8e8f0;
+}
+
+.slider:focus-visible sliderbar
+{
+	background-color: #f0c674;
+	box-shadow: #f0c67459 0dp 0dp 10dp;
+}
+
+/* --- Filled variant ---------------------------------------------------------------- */
+
+/*
+ * The portion left of the thumb, filled. RmlUi's slider does not expose a fill element, so
+ * this is a gradient on the track. It reads as a level meter rather than an exact fill and
+ * is honest about that; use the progress element when the value must be legible from the
+ * bar alone.
+ */
+.slider-filled slidertrack
+{
+	decorator: horizontal-gradient(#f0c67466 #0e0e13);
+}
+
+/* --- Progress bar ------------------------------------------------------------------ */
+
+/*
+ * <progress class="bar" value="0.4" max="1"/> is a real element and fills accurately. Use
+ * it for anything read-only: health, loading, XP.
+ */
+.bar
+{
+	background-color: #0e0e13;
+	border-radius: 6dp;
+}
+
+.bar fill
+{
+	background-color: #f0c674;
+	border-radius: 6dp;
+}
+
+.bar-danger fill
+{
+	background-color: #e06c75;
+}
+
+.bar-success fill
+{
+	background-color: #98c379;
+}
+
+.bar-thin
+{
+	border-radius: 3dp;
+}
+
+.bar-thin fill
+{
+	border-radius: 3dp;
+}
+
+/* --- toggle ---------------------------------------------------------------------- */
+
+.toggle
+{
+	background-color: #0e0e13;
+	border-color: #3a3a48;
+	border-radius: 16dp;
+	decorator: linear-gradient(to right, #8a8a99, #8a8a9900 45%);
+	transition: background-color 0.15s cubic-out, border-color 0.15s cubic-out,
+		transform 0.1s cubic-out;
+}
+
+.toggle:hover
+{
+	border-color: #5c5c6b;
+}
+
+.toggle:checked
+{
+	background-color: #1f1f28;
+	border-color: #f0c674;
+	decorator: linear-gradient(to right, #f0c67400 55%, #f0c674);
+}
+
+.toggle:focus-visible
+{
+	border-color: #f0c674;
+}
+
+/* --- Checkbox variant -------------------------------------------------------------- */
+
+/* A square box with a tick, for lists of options rather than on/off settings. */
+.check
+{
+	background-color: #0e0e13;
+	border-color: #3a3a48;
+	border-radius: 6dp;
+	transition: background-color 0.12s cubic-out, border-color 0.12s cubic-out;
+}
+
+.check:checked
+{
+	background-color: #f0c674;
+	border-color: #f0c674;
+}
+
+.check:focus-visible
+{
+	border-color: #f0c674;
+}
+
+.radio
+{
+	background-color: #0e0e13;
+	border-color: #3a3a48;
+	border-radius: 11dp;
+	transition: background-color 0.12s cubic-out, border-color 0.12s cubic-out;
+}
+
+.radio:hover
+{
+	border-color: #5c5c6b;
+}
+
+.radio:checked
+{
+	background-color: #f0c674;
+	border-color: #f0c674;
+}
+
+.radio:focus-visible
+{
+	border-color: #f0c674;
+}
+
+.radio-label
+{
+	color: #8a8a99;
+	font-size: 18dp;
+	transition: color 0.12s cubic-out;
+}
+
+.radio:checked + .radio-label
+{
+	color: #e8e8f0;
+}
+
+.radio:focus-visible + .radio-label
+{
+	color: #f0c674;
+}
+
+/* --- Segmented control ------------------------------------------------------------- */
+
+/*
+ *   <div class="segmented">
+ *     <div class="segment">
+ *       <input type="radio" class="segment-hit" name="difficulty" id="d_calm" checked/>
+ *       <span class="segment-text" data-loc="calm">Calm</span>
+ *     </div>
+ *     ...
+ *   </div>
+ *
+ * A real radio set, so RmlUi owns the state: clicking or confirming actually changes the
+ * selection, with no C++ and no data binding. An input renders no text of its own, so each
+ * segment is a caption with a full-size input behind it. The input is what takes focus, what
+ * gets clicked, and what carries the selected fill; the caption sits on top of it with
+ * pointer-events: none so hit testing falls through, and picks up its colour through the
+ * adjacent sibling combinator.
+ *
+ * The alternative - a plain div with an .is-selected class - looks identical and does
+ * nothing at all until something external swaps the class, which makes it untestable in the
+ * preview. Bind the checked state with data-checked when the value lives in game settings.
+ */
+.segmented
+{
+	background-color: #0e0e13;
+	border-radius: 8dp;
+}
+
+.segment-hit
+{
+	background-color: transparent;
+	border-color: #ffffff00;
+	border-radius: 6dp;
+	transition: background-color 0.12s cubic-out, border-color 0.12s cubic-out;
+}
+
+.segment-hit:hover
+{
+	background-color: #1f1f28;
+}
+
+.segment-hit:checked
+{
+	background-color: #f0c674;
+}
+
+.segment-hit:focus-visible
+{
+	border-color: #f0c674;
+}
+
+.segment-hit:checked:focus-visible
+{
+	border-color: #ffffff;
+}
+
+.segment-text
+{
+	color: #8a8a99;
+	font-size: 18dp;
+	transition: color 0.12s cubic-out;
+}
+
+.segment-hit:hover + .segment-text
+{
+	color: #e8e8f0;
+}
+
+.segment-hit:checked + .segment-text
+{
+	color: #14141a;
+	font-weight: bold;
+}
+
+/* --- tabbar ---------------------------------------------------------------------- */
+
+/*
+ * :first-of-type is not decoration. A tabset creates a `tabs` or `panels` child on demand
+ * whenever it looks for one and does not find it, and during parsing it looks before the
+ * markup's own are in place - so a tabset that declares both still ends up with a spare
+ * empty pair appended after them. A bare `tabs` selector therefore styles two elements, and
+ * the empty one draws this border again at the bottom of the tabset as a stray hairline.
+ */
+.tabs tabs:first-of-type
+{
+	border-bottom-color: #2b2b36;
+}
+
+.tab
+{
+	background-color: transparent;
+	color: #8a8a99;
+	font-size: 20dp;
+	border-top-left-radius: 8dp;
+	border-top-right-radius: 8dp;
+	border-bottom-color: #ffffff00;
+	transition: background-color 0.12s cubic-out, color 0.12s cubic-out,
+		border-bottom-color 0.15s cubic-out;
+}
+
+.tab:hover
+{
+	color: #e8e8f0;
+	background-color: #1f1f28;
+}
+
+.tab:selected
+{
+	color: #f0c674;
+	border-bottom-color: #f0c674;
+}
+
+.tab:focus-visible
+{
+	color: #e8e8f0;
+	background-color: #2b2b36;
+	border-bottom-color: #f0c674;
+}
+
+/* The dot that marks a tab with unsaved or unseen content. */
+.tab-badge
+{
+	background-color: #e06c75;
+	border-radius: 4dp;
+}
+
+/* --- Shoulder hints ---------------------------------------------------------------- */
+
+/*
+ * The LB/RB affordance beside the bar. Sprite names only, never file paths: an undeclared
+ * name renders as a labelled placeholder and lands in ASSETS_WANTED.md instead of failing
+ * quietly, which is what lets this screen exist before its art does.
+ */
+.tab-shoulder
+{
+	color: #5c5c6b;
+	font-size: 16dp;
+}
+
+/* --- modal ----------------------------------------------------------------------- */
+
+.modal-scrim
+{
+	background-color: #0a0a0ec2;
+}
+
+/* Blurs the screen behind the dialog. Preview-only until the engine renderer implements
+   backdrop filters; it degrades to nothing rather than to something wrong. */
+.modal-scrim-blur
+{
+	backdrop-filter: blur(6dp);
+}
+
+.modal
+{
+	background-color: #1f1f28;
+	border-color: #3a3a48;
+	border-radius: 12dp;
+	box-shadow: #000000a5 0dp 14dp 40dp;
+}
+
+/* --- Regions ----------------------------------------------------------------------- */
+
+.modal-title
+{
+	font-size: 24dp;
+	font-weight: bold;
+	color: #e8e8f0;
+}
+
+.modal-body
+{
+	color: #8a8a99;
+	font-size: 18dp;
+	line-height: 1.5;
+}
+
+.modal-actions
+{
+	background-color: #14141a;
+	border-top-color: #2b2b36;
+}
+
+/* --- Severity ---------------------------------------------------------------------- */
+
+.modal-danger
+{
+	border-color: #e06c75;
+}
+
+.modal-danger .modal-title
+{
+	color: #e06c75;
+}
+
+.toast-body
+{
+	background-color: #2b2b36;
+	color: #e8e8f0;
+	font-size: 18dp;
+	border-radius: 999dp;
+	box-shadow: #0000007f 0dp 6dp 18dp;
+}

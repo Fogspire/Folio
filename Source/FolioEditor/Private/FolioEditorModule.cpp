@@ -1,4 +1,5 @@
 #include "FolioDocumentPathCustomization.h"
+#include "FolioWorldDocumentCustomization.h"
 
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -20,6 +21,11 @@ public:
 			FOnGetPropertyTypeCustomizationInstance::CreateStatic(
 				&FFolioDocumentPathCustomization::MakeInstance));
 
+		PropertyEditor.RegisterCustomClassLayout(
+			TEXT("FolioWorldDocument"),
+			FOnGetDetailCustomizationInstance::CreateStatic(
+				&FFolioWorldDocumentCustomization::MakeInstance));
+
 		PropertyEditor.NotifyCustomizationModuleChanged();
 	}
 
@@ -29,6 +35,7 @@ public:
 			FModuleManager::GetModulePtr<FPropertyEditorModule>(TEXT("PropertyEditor")))
 		{
 			PropertyEditor->UnregisterCustomPropertyTypeLayout(TEXT("FolioDocumentPath"));
+			PropertyEditor->UnregisterCustomClassLayout(TEXT("FolioWorldDocument"));
 			PropertyEditor->NotifyCustomizationModuleChanged();
 		}
 	}

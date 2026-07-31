@@ -48,7 +48,7 @@ the first thing a reader will want after this.
   a reader should hear about before choosing a body size rather than after.
 - **Vector art and sprites.** What to hand an artist, and the constraints that actually bite
   (single-colour silhouettes, no gradients yet, no embedded rasters, no ninepatch on the vector
-  atlas). Gradients are on the backlog in `FOLIO_BRIEF.md`, so word this so it does not need
+  atlas). Gradients are on the backlog, so word this so it does not need
   rewriting when they land.
 - ~~**Performance and profiling.**~~ Written: `performance_profiling.md`. Covers `stat Folio`, the
   trace channel, the invalidation path with its trace and its escape hatch, and the ordered list of

@@ -352,6 +352,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	int32 GetScreenHeightPixels() const;
 
+	/**
+	 * The same measurement against a camera given rather than found, for the editor's viewport.
+	 *
+	 * There is no player camera while authoring, and the whole point of the button that uses this is to
+	 * measure against the view the author has arranged.
+	 */
+	int32 ComputeScreenHeightPixels(const FVector& CameraLocation, float FovDegrees,
+		int32 ViewportHeight) const;
+
+	/**
+	 * Picks the density that lays the document out at roughly one document pixel per screen pixel.
+	 *
+	 * The only estimate that means anything: a document laid out much larger than the panel covers on
+	 * screen is minified, so its text is drawn at a fraction of the size it was authored at, and no
+	 * amount of target resolution makes two-pixel-tall text readable. What this cannot know is the
+	 * distance intended, which is why it takes one rather than guessing.
+	 *
+	 * Returns false when there is nothing sensible to set, which is a surface of no height or a screen
+	 * measurement of zero.
+	 */
+	bool SetPixelsPerUnitForScreenHeight(int32 ScreenHeightPixels);
+
 	/** Fires when GetRenderTarget starts returning a different target, which a resolution change causes. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSurfaceChanged, UTextureRenderTarget2D*, Target);
 	UPROPERTY(BlueprintAssignable, Category = "Folio")

@@ -179,4 +179,3 @@ markup. That is deliberate.
 
 - **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** — the complete list of what works.
 - **[Testing a document](testing_a_document.md)** — the checks that catch most of what is catchable.
-- **[FOLIO_BRIEF.md](../FOLIO_BRIEF.md)** — the plan of record, including which of these are scheduled.

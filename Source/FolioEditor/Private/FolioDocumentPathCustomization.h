@@ -33,7 +33,7 @@ private:
 	 * Only for a document that says what it wants. Nothing is guessed and nothing is overwritten
 	 * otherwise, so a size someone deliberately set is never quietly replaced by a default.
 	 */
-	void ApplyDeclaredSize(const FString& Path);
+	void ApplyDeclaredSize(const FString& Path, bool bOnlyIfDefault);
 
 	/**
 	 * What the reset arrow restores, which is the class default unless that names nothing.
@@ -48,6 +48,16 @@ private:
 
 	/** The default the archetype holds, or empty when it names no file that exists. */
 	FString GetUsableDefault() const;
+
+	/** What the current document declares, so the row can say whether there is anything to apply. */
+	bool GetDeclaredSize(FVector2D& OutSize) const;
+
+	FText GetSizeNote() const;
+	bool CanApplyDeclaredSize() const;
+	FReply OnApplyDeclaredSize();
+
+	/** Whether this component has a size property to fill at all, from the metadata. */
+	bool HasSizeProperty() const;
 
 	/** The struct property this is drawing, which carries the metadata naming its siblings. */
 	TSharedPtr<IPropertyHandle> StructHandle;

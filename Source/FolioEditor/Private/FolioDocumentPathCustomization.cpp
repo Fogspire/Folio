@@ -12,6 +12,7 @@
 #include "Styling/AppStyle.h"
 #include "UObject/UnrealType.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -44,7 +45,7 @@ void FFolioDocumentPathCustomization::SetPath(const FString& Path)
 		PathHandle->SetValue(UFolioDocumentPathLibrary::MakeDocumentPathPortable(Path));
 	}
 
-	ApplyDeclaredSize(Path);
+	ApplyDeclaredSize(Path, /*bOnlyIfDefault*/ true);
 
 	if (ComboButton.IsValid())
 	{
@@ -52,7 +53,7 @@ void FFolioDocumentPathCustomization::SetPath(const FString& Path)
 	}
 }
 
-void FFolioDocumentPathCustomization::ApplyDeclaredSize(const FString& Path)
+void FFolioDocumentPathCustomization::ApplyDeclaredSize(const FString& Path, const bool bOnlyIfDefault)
 {
 	if (!StructHandle.IsValid() || Path.IsEmpty())
 	{
@@ -106,9 +107,13 @@ void FFolioDocumentPathCustomization::ApplyDeclaredSize(const FString& Path)
 		// Never over a size someone chose. A world document's size is the mesh it sits on, measured
 		// against geometry the document knows nothing about, and replacing it with whatever the markup
 		// declares is worse than filling nothing in.
-		if (const UObject* Archetype = Object->GetArchetype())
+		if (bOnlyIfDefault)
 		{
-			const FVector2D* Default = Target->ContainerPtrToValuePtr<FVector2D>(Archetype);
+			const UObject* Archetype = Object->GetArchetype();
+			const FVector2D* Default = Archetype
+				? Target->ContainerPtrToValuePtr<FVector2D>(Archetype)
+				: nullptr;
+
 			if (Default && !Current->Equals(*Default))
 			{
 				continue;
@@ -277,11 +282,97 @@ TSharedRef<SWidget> FFolioDocumentPathCustomization::MakeMenu()
 	return Picker;
 }
 
-void FFolioDocumentPathCustomization::CustomizeChildren(TSharedRef<IPropertyHandle>,
-	IDetailChildrenBuilder&, IPropertyTypeCustomizationUtils&)
+bool FFolioDocumentPathCustomization::HasSizeProperty() const
 {
-	// Nothing. The header is the whole control, and showing the raw string underneath it would offer a
-	// second way to set the value that skips the portability rewrite.
+	return StructHandle.IsValid() && !StructHandle->GetMetaData(TEXT("FolioSizeProperty")).IsEmpty();
+}
+
+bool FFolioDocumentPathCustomization::GetDeclaredSize(FVector2D& OutSize) const
+{
+	const FString Path = GetPath();
+	return !Path.IsEmpty() && UFolioDocumentPathLibrary::GetDeclaredDocumentSize(Path, OutSize);
+}
+
+FText FFolioDocumentPathCustomization::GetSizeNote() const
+{
+	if (GetPath().IsEmpty())
+	{
+		return LOCTEXT("SizeNoDocument", "No document assigned.");
+	}
+
+	FVector2D Size;
+	if (!GetDeclaredSize(Size))
+	{
+		// Said plainly, because the alternative is a disabled button with no explanation and a reader
+		// who assumes the feature is broken rather than that the document is silent.
+		return LOCTEXT("SizeNotDeclared",
+			"This document declares no size. Add <meta name=\"folio-size\" content=\"WxH\"/> to its head.");
+	}
+
+	return FText::Format(LOCTEXT("SizeDeclared", "Declares {0} x {1}."),
+		FText::AsNumber(FMath::RoundToInt(Size.X)), FText::AsNumber(FMath::RoundToInt(Size.Y)));
+}
+
+bool FFolioDocumentPathCustomization::CanApplyDeclaredSize() const
+{
+	FVector2D Size;
+	return GetDeclaredSize(Size);
+}
+
+FReply FFolioDocumentPathCustomization::OnApplyDeclaredSize()
+{
+	// Asked for explicitly, so it writes over whatever is there. The automatic path on assignment is the
+	// one that refuses to touch a value someone set.
+	ApplyDeclaredSize(GetPath(), /*bOnlyIfDefault*/ false);
+	return FReply::Handled();
+}
+
+void FFolioDocumentPathCustomization::CustomizeChildren(TSharedRef<IPropertyHandle>,
+	IDetailChildrenBuilder& Builder, IPropertyTypeCustomizationUtils&)
+{
+	// The raw string is deliberately not offered - a second way to set the value would skip the
+	// portability rewrite. What goes here is what the document says about itself.
+	if (!HasSizeProperty())
+	{
+		return;
+	}
+
+	Builder.AddCustomRow(LOCTEXT("DeclaredSize", "Declared Size"))
+	.NameContent()
+	[
+		SNew(STextBlock)
+			.Text(LOCTEXT("DeclaredSizeName", "Declared Size"))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	.MinDesiredWidth(280.0f)
+	[
+		SNew(SHorizontalBox)
+
+		+ SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+					.Text(this, &FFolioDocumentPathCustomization::GetSizeNote)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+					.AutoWrapText(true)
+			]
+
+		+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(6.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(SButton)
+					.Text(LOCTEXT("ApplySize", "Apply"))
+					.ToolTipText(LOCTEXT("ApplySizeTip",
+						"Sets this component's size from what the document declares, without reassigning it."))
+					.IsEnabled(this, &FFolioDocumentPathCustomization::CanApplyDeclaredSize)
+					.OnClicked(this, &FFolioDocumentPathCustomization::OnApplyDeclaredSize)
+			]
+	];
 }
 
 #undef LOCTEXT_NAMESPACE

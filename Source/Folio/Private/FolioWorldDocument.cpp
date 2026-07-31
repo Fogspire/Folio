@@ -769,6 +769,25 @@ void UFolioWorldDocument::UpdateKeyboardFocus()
 	}
 }
 
+int32 UFolioWorldDocument::ComputeScreenHeightPixels(const FVector& CameraLocation,
+	const float FovDegrees, const int32 ViewportHeight) const
+{
+	if (ViewportHeight <= 0)
+	{
+		return 0;
+	}
+
+	const float Distance = float(FVector::Dist(GetComponentLocation(), CameraLocation));
+	const float HalfFovRadians = FMath::DegreesToRadians(FMath::Clamp(FovDegrees, 1.0f, 170.0f) * 0.5f);
+	const float HalfHeightAtDistance = FMath::Max(1.0f, Distance * FMath::Tan(HalfFovRadians));
+
+	// The vertical axis because that is what FOV describes once the aspect ratio is applied, and the
+	// surface is square-ish enough that one axis decides both.
+	const float WorldHeight = float(WorldSize.Y * GetComponentScale().Y);
+
+	return FMath::RoundToInt((WorldHeight * 0.5f / HalfHeightAtDistance) * float(ViewportHeight));
+}
+
 int32 UFolioWorldDocument::GetScreenHeightPixels() const
 {
 	const UWorld* World = GetWorld();
@@ -783,20 +802,25 @@ int32 UFolioWorldDocument::GetScreenHeightPixels() const
 	int32 ViewportX = 0;
 	int32 ViewportY = 0;
 	Player->GetViewportSize(ViewportX, ViewportY);
-	if (ViewportY <= 0)
+
+	return ComputeScreenHeightPixels(Camera->GetCameraLocation(), Camera->GetFOVAngle(), ViewportY);
+}
+
+bool UFolioWorldDocument::SetPixelsPerUnitForScreenHeight(const int32 ScreenHeightPixels)
+{
+	const double WorldHeight = WorldSize.Y * GetComponentScale().Y;
+
+	if (ScreenHeightPixels <= 0 || WorldHeight <= 0.0)
 	{
-		return 0;
+		return false;
 	}
 
-	const float Distance = float(FVector::Dist(GetComponentLocation(), Camera->GetCameraLocation()));
-	const float HalfFovRadians = FMath::DegreesToRadians(FMath::Clamp(Camera->GetFOVAngle(), 1.0f, 170.0f) * 0.5f);
-	const float HalfHeightAtDistance = FMath::Max(1.0f, Distance * FMath::Tan(HalfFovRadians));
+	// Against the unscaled WorldSize, since that is what PixelsPerUnit multiplies. A component scaled up
+	// covers more screen for the same WorldSize, and the density has to account for it.
+	PixelsPerUnit = FMath::Clamp(float(double(ScreenHeightPixels) / WorldHeight)
+		* float(GetComponentScale().Y), 0.1f, 200.0f);
 
-	// The vertical axis because that is what FOV describes once the aspect ratio is applied, and the
-	// surface is square-ish enough that one axis decides both.
-	const float WorldHeight = float(WorldSize.Y * GetComponentScale().Y);
-
-	return FMath::RoundToInt((WorldHeight * 0.5f / HalfHeightAtDistance) * float(ViewportY));
+	return true;
 }
 
 FIntPoint UFolioWorldDocument::DesiredSurfaceSize() const

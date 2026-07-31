@@ -26,10 +26,10 @@ The same document runs diegetically in the world, readable and interactive from 
 
 | Path | What |
 |---|---|
-| `FOLIO_BRIEF.md` | The plan of record: phases, gates, decisions taken, and the feature backlog |
 | `NOTES.md` | Gotchas ledger. Read this before debugging anything surprising |
 | `Source/Folio/` | The UE module: renderer, input, document lifecycle |
 | `Source/FolioCore/` | Portable core shared by both renderers: font engine, distance fields, atlases |
+| `Source/FolioEditor/` | Details-panel customisations: the document picker and the density button |
 | `Tools/uipreview/` | The standalone preview tool (C++20, CMake, GLFW + OpenGL 3.3) |
 | `Tools/msdfbake/` | Bakes font atlases and vector sprite sheets offline |
 | `Tools/vscode-folio/` | The editor extension: highlighting, live preview, click-to-find-the-rule |
@@ -37,10 +37,9 @@ The same document runs diegetically in the world, readable and interactive from 
 | `rcss/` | `folio.rcss`, the component library, the default theme, and the recipes |
 | `fonts/` | The variable typefaces Folio ships as defaults |
 | `examples/` | Documents to look at and copy |
-| `dev/` | Fixtures the console commands and verify scripts load. Not examples |
+| `docs/` | The manual. `docs/README.md` is the index |
 | `scripts/build.sh` | The supported build entry point |
 | `scripts/verify.sh` | The verification harness |
-| `ASSETS_WANTED.md` | Art request queue, maintained automatically by `uipreview` |
 
 ## Building
 

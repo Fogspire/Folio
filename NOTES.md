@@ -479,7 +479,7 @@ right capture by looking for a render target the size of the document window.
 
 ## Folio bundles typefaces, reversing the brief
 
-`FOLIO_BRIEF.md` says "Font registration defaults to Unreal's Roboto ... Do not bundle a
+The brief said "Font registration defaults to Unreal's Roboto ... Do not bundle a
 typeface." Folio ships Inter and RobotoMono, both variable, under `fonts/`, and that was a
 deliberate reversal agreed when the distance-field engine went in.
 
@@ -890,7 +890,7 @@ left believing a key is still held misbehaves the next time that key arrives.
 `SFolioCanvas::Tick` calls `Context::Update()` and `OnPaint` calls `Context::Render()` unconditionally,
 so an idle document costs a full layout traversal, a full render traversal and a fresh set of Slate
 draw elements every frame. UMG under an invalidation panel skips all of it. This is the one known
-structural disadvantage against UMG and it is written up in `docs/FOLIO_BRIEF.md` Phase 6.
+structural disadvantage against UMG.
 
 The reason it has not been fixed casually: RmlUi exposes no dirty signal. There is no context-level
 flag, `ElementDocument::IsLayoutDirty()` is private, and active animations are private per-element. So

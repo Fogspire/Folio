@@ -1,0 +1,87 @@
+# Console commands
+
+Everything Folio adds to the console. All of it is compiled out of Shipping — the commands put a
+document on screen, drive it or reload it, which is development tooling, and leaving it in retail
+would let a player open a test document over the game.
+
+Type `folio.` in the console and Unreal will complete the rest.
+
+## While authoring
+
+| | |
+|---|---|
+| `folio.Show <document>` | Puts a document on screen, over the game. `folio.Hide` to close. |
+| `folio.ShowWindow <document>` | The same in a movable window, which is easier to compare against a reference. `folio.CloseWindow`. |
+| `folio.HotReload` | Rebuilds the open documents from disk. An `.rcss` edit reloads stylesheets only, keeping the DOM, focus and scroll; an `.rml` edit rebuilds. |
+| `folio.ReloadTextures` | Picks up a re-baked atlas. **RmlUi caches a texture by path forever**, so this is what makes `msdfbake` output appear without reopening. `folio.ReloadTextures all` releases every texture whether or not it looks changed. |
+| `folio.Debugger [on\|off]` | RmlUi's element inspector on the focused document: the live DOM, computed properties, and which rule set what. |
+| `folio.MockData` | Mounts the `ui/mock/<model>.json` a document names, so a screen shows data in PIE without the gameplay behind it. |
+| `folio.MouseMode [on\|off]` | Shows the cursor and stops the game consuming the mouse. What you want before clicking anything in a HUD. |
+
+## Themes and localisation
+
+| | |
+|---|---|
+| `folio.Theme` | Lists which themes are on. |
+| `folio.Theme <name> [0\|1]` | Turns one on or off across every open document, and remembers it for documents opened later. |
+| `folio.Loc.Report [document]` | Every `data-loc` key and whether it resolves. The quickest way to find a key that was renamed on one side only. |
+
+## Navigation
+
+| | |
+|---|---|
+| `folio.Nav.Arrows` `folio.Nav.WASD` `folio.Nav.IJKL` `folio.Nav.Gamepad` | Each scheme on or off. A game that binds WASD to movement while a HUD is up wants that one off. |
+| `folio.Nav.SwapConfirmBack [0\|1]` | Swaps which face button confirms. Changes what the two buttons *do* and updates every open document in the same frame. |
+| `folio.Nav.Bind <key> <action>` | Binds a key at runtime. Actions: `Up`, `Down`, `Left`, `Right`, `Confirm`, `Back`, `NextTab`, `PreviousTab`, or `None` to unbind. |
+| `folio.Nav.Bindings` | What every action currently answers to. |
+| `folio.Nav.ResetBindings` | Back to the built-in schemes. |
+| `folio.NavTest [document\|off]` | Opens a boxed document with keyboard focus, so arrows, WASD, IJKL and the pad can be tried by hand. |
+
+A binding wins over the built-in schemes and ignores the `folio.Nav.*` switches — a project that
+bound a key meant it. See **[input and navigation](input_and_navigation.md)**.
+
+## Documents in the world
+
+| | |
+|---|---|
+| `folio.WorldTest [document\|off\|report]` | Puts a document on a surface in front of the camera, with no actor to place. `report` prints what it is drawing. |
+| `folio.World.ShowSurface` | Logs what the pointer is doing on a world document. This is how you tell "nothing is driving the pointer" from "the pointer is in the wrong place". |
+| `folio.World.Occlusion` | Whether a world document is occluded by the scene. |
+| `folio.World.SurfaceAutoResolution` | Whether a surface re-renders when its on-screen size changes. |
+| `folio.World.Verify [document]` | Asserts the world path still applies `transform` and `opacity`. Records the document twice, once with a property set, and checks the geometry moved. |
+
+See **[documents in the world](world_documents.md)**.
+
+## Measuring
+
+| | |
+|---|---|
+| `stat Folio` | What the UI costs per frame. Start here. |
+| `folio.Invalidation` | Whether the skip-if-unchanged path is on. Turn it off to find out whether a bug is the invalidation or the document. |
+| `folio.Invalidation.Trace` | Why a document is not idling. A screen that never settles is usually one element still transitioning something invisible. |
+| `folio.Input.Trace` | Every input event as it reaches a document, and what consumed it. |
+| `folio.Font.Report` | Which faces are loaded, their variation tuples, and what they cost in atlas pages and glyphs. Finds a screen that quietly instantiated nine weights. |
+| `folio.Font.ClearCache` | Drops the generated fields and regenerates. For proving a bake rather than a cache. |
+
+See **[performance and profiling](performance_profiling.md)**.
+
+## Producing files
+
+These are the engine's answer to `uipreview`'s flags, and exist so the two renderers can be asked the
+same question without a person watching.
+
+| | |
+|---|---|
+| `folio.Surface.Shot <document> <out.png> [w] [h]` | Renders a document the way a surface does and writes a PNG. A viewport screenshot would carry the game behind it; this is the document alone on a transparent ground. |
+| `folio.Metrics.Report <document> <out.json> [w] [h] [dp]` | The same report `uipreview --metrics-report` writes, so where text landed can be diffed between renderers. |
+
+## Gates
+
+| | |
+|---|---|
+| `folio.Gate [document] [shot\|off]` | Shows a document between two viewport markers, for a comparison shot against another implementation. |
+
+## Where to go next
+
+- **[Testing a document](testing_a_document.md)** — the preview-side equivalents.
+- **[Performance and profiling](performance_profiling.md)** — what the numbers mean.

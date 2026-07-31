@@ -162,8 +162,9 @@ staged path collapses back to the project root — which is exactly where Folio 
 the `fonts` line if you ship your own faces in `ui/fonts`.
 
 List your own subdirectories rather than `ui` wholesale if the tree holds things a player should not
-receive. There is no way to exclude a subdirectory of one you have staged, which is why Folio's own
-test documents live in `Plugins/Folio/dev` rather than under `rcss`.
+receive. **There is no way to exclude a subdirectory of one you have staged**, which is why Folio's
+own demo documents live in `Plugins/Folio/examples` rather than under `rcss` - staging the stylesheets
+a game needs would otherwise stage the demos with them.
 
 To check it worked, look for your files in the staging manifest rather than launching the build:
 

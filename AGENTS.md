@@ -170,6 +170,9 @@ ui/
 | [docs/testing_a_document.md](docs/testing_a_document.md) | every check and what it catches |
 | [docs/accessibility.md](docs/accessibility.md) | the four annotations and the build gate |
 | [docs/known_gaps.md](docs/known_gaps.md) | every known limit, when something does not work and you need to know whether it can |
+| [docs/form_controls.md](docs/form_controls.md) | the real element types, and why `<button>` is not a button |
+| [docs/modals.md](docs/modals.md) | trapping focus in a dialog, which is wrong by default |
+| [docs/console.md](docs/console.md) | every `folio.*` command |
 
 ## What not to do
 

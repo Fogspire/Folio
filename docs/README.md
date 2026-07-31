@@ -12,6 +12,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Hello world](hello_world.md)** | Install the plugin, get a document on screen, cook and ship it. |
 | **[Setting up VSCode](vscode.md)** | Highlighting, a live preview beside the document, click-to-find-the-rule. Five minutes, and it is where the authoring time goes. |
 | **[Testing a document](testing_a_document.md)** | `uipreview`, `--strict`, screenshots, and the checks that stop a broken stylesheet shipping. |
+| **[Assigning a document](assigning_documents.md)** | The editor picker, portable paths, and why a wrong one now says so. |
 
 ## Building a screen
 
@@ -23,13 +24,18 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Images and sprites](images.md)** | Spritesheets, the image decorator's fit modes, ninepatch, and when a PNG is the right answer. |
 | **[Vector art](vectors.md)** | SVG baked to distance fields: infinitely scalable icons, the colour-layer stack, and what a field cannot represent. |
 | **[Animation](animation.md)** | Transitions, keyframes, what is cheap to animate and what will cost you frames. |
+| **[The shader decorator](shader_decorator.md)** | Additive blending, scanlines and sweeps - the effects RCSS has no syntax for. |
+| **[Scrolling and scrollbars](scrolling.md)** | One serious trap, and why an incidental `overflow` confines focus. |
 
 ## Making it respond
 
 | | |
 |---|---|
 | **[Input and navigation](input_and_navigation.md)** | Keyboard, gamepad and mouse; the one `nav` rule that everything else follows from; rebinding. |
+| **[Form controls](form_controls.md)** | The real element types, and the tabset trap that looks like a layout bug. |
+| **[Modals and focus trapping](modals.md)** | The one interaction everybody gets wrong first time. |
 | **[Drag, drop and resize](drag_and_resize.md)** | Moving, dropping and resizing with no code, and where the game takes over. |
+| **[UI sounds](ui_sounds.md)** | Four moments reported, nothing played. |
 | **[Data binding](data_binding.md)** | Driving a document from gameplay, and whether you want MVVM. |
 | **[Generating a view model](view_models.md)** | The codegen path, when reflection is not enough. |
 | **[Calling into game code](hosting.md)** | Hosting a document in an existing widget tree, events, and the CommonUI focus trap. |
@@ -49,6 +55,8 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Accessibility](accessibility.md)** | Contrast, hit targets, focus visibility and control names, checked in the build. |
 | **[Localisation](localization.md)** | `data-loc`, the gather, and previewing pseudo-loc before translation exists. |
 | **[Performance and profiling](performance_profiling.md)** | `stat Folio`, the invalidation path, and what actually makes a screen slow. |
+| **[Console commands](console.md)** | Everything Folio adds to the console, and what each is for. |
+| **[Packaging](hello_world.md)** §7 | Documents are files, not assets - they need staging, or every screen is empty in a build that worked. |
 
 ## Tutorials
 

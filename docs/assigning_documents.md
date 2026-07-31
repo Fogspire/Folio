@@ -1,0 +1,85 @@
+# Assigning a document in the editor
+
+Every Folio component takes a **Document Path** rather than an asset reference, because a document is
+text a person edits rather than something to import. The editor makes that behave like a picker.
+
+## The picker
+
+Click the field and you get a collapsible tree of every `.rml` under the project and the plugin, with
+a filter box focused on open.
+
+- **Typing filters** on the whole path, so `screens` finds a directory as readily as `hud` finds a
+  document. A filtered tree opens fully — a match three levels down is no use collapsed.
+- **Unfiltered, it opens to the current selection** and scrolls it into view.
+- Directories are drawn quieter than documents, because a directory is not a choice.
+
+## Absolute paths are rewritten
+
+Paste or drag in an absolute path and it is rewritten to the portable form the moment the field
+commits. Under the project it becomes `ui/screens/hud.rml`; under the plugin it becomes
+`/folio/examples/...`, which resolves from any content root.
+
+This is not cosmetic. **An absolute path is wrong the moment anyone else opens the level**, and the
+failure is a screen that renders nothing on their machine and works perfectly on yours.
+
+Plugin mounts are tested before the project root, so a plugin document does not become
+`Plugins/Folio/examples/...` — that would resolve only from this project rather than from any.
+
+## A path that names nothing
+
+A warning icon appears in the field, with the resolved path in its tooltip.
+
+The same thing is reported when the document is loaded, and it names what it tried:
+
+```
+Folio: 'ui/screens/hud.rml' does not exist. It resolved to 'X:/Game/ui/screens/hud.rml'.
+Folio: a relative path is read against the content root, which is 'X:/Game'.
+Folio: documents that do exist:
+    ui/screens/settings.rml
+    ui/hud/nameplate.rml
+    ...
+```
+
+The list is there because the answer is almost always a typo against something in it, and printing it
+turns a guess into a comparison.
+
+**A missing document and a document that fails to parse are reported differently.** Both render
+nothing, and telling them apart by looking is impossible.
+
+## Hiding things from the picker
+
+**Project Settings → Plugins → Folio**:
+
+| | |
+|---|---|
+| `Hidden Document Directories` | Prefixes, relative to the project. One entry hides a tree. |
+| `Show Plugin Documents In Picker` | On by default. Turn it off once the game has its own screens and the examples are only in the way. |
+
+A game accumulates markup that is not a screen anyone opens — fragments, templates, a scratch
+directory — and a picker listing all of it is as unhelpful as no picker.
+
+## From code
+
+The path is an `FFolioDocumentPath`, which reads and writes as a string everywhere: assignment,
+comparison and the Blueprint node all take an `FString`, and `*DocumentPath` is a `TCHAR*` exactly as
+`*FString` is.
+
+```cpp
+Document->LoadDocument(TEXT("ui/screens/hud.rml"));
+```
+
+`UFolioDocumentPathLibrary` exposes the same helpers the editor uses, and they are Blueprint-callable:
+
+| | |
+|---|---|
+| `ResolveDocumentPath` | The absolute path Folio will open, or empty. |
+| `DocumentExists` | Whether it names a file. |
+| `MakeDocumentPathPortable` | Absolute to project-relative, leaving anything already portable alone. |
+
+A level saved when this property was a plain `FString` still loads — the struct reads the old value.
+
+## Where to go next
+
+- **[Hosting a document](hosting.md)** — `UFolioWidget` in an existing widget tree.
+- **[Documents in the world](world_documents.md)** — the world component's own properties.
+- **[Nameplates and markers](markers.md)** — the marker component's.

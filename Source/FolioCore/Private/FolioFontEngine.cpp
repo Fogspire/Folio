@@ -691,7 +691,9 @@ namespace Folio
 			return 0;
 		}
 
-		MeshList.clear();
+		// Deliberately not cleared. RmlUi calls this once per laid-out line with one accumulating
+		// list, so clearing it drops every line but the last - correct layout, and only the final
+		// line drawn.
 
 		// Effects are extra passes over the same glyphs, drawn first so the text lands on top.
 		// They share the atlas and differ only in which threshold the shader reads it at, so an
@@ -768,11 +770,31 @@ namespace Folio
 
 				if (MeshForPage[Box->Page] < 0)
 				{
-					MeshForPage[Box->Page] = int(MeshList.size());
-					MeshList.emplace_back();
-					MeshList.back().texture = Effect != nullptr
+					const Rml::Texture Texture = Effect != nullptr
 						? Face.GetEffectTexture(RenderManager, Box->Page, *Effect)
 						: Face.GetPageTexture(RenderManager, Box->Page);
+
+					// A mesh already in the list for this texture belongs to an earlier line of the
+					// same element, and joining it keeps a paragraph to one draw rather than one per
+					// line. Order is unaffected: every pass of every line resolves to the same entry.
+					int Existing = -1;
+					for (std::size_t Index = 0; Index < MeshList.size(); ++Index)
+					{
+						if (MeshList[Index].texture == Texture)
+						{
+							Existing = int(Index);
+							break;
+						}
+					}
+
+					if (Existing < 0)
+					{
+						Existing = int(MeshList.size());
+						MeshList.emplace_back();
+						MeshList.back().texture = Texture;
+					}
+
+					MeshForPage[Box->Page] = Existing;
 				}
 
 				Rml::Mesh& Mesh = MeshList[std::size_t(MeshForPage[Box->Page])].mesh;

@@ -7,7 +7,9 @@
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
 #include "PropertyHandle.h"
+#include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
+#include "UObject/UnrealType.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -41,9 +43,91 @@ void FFolioDocumentPathCustomization::SetPath(const FString& Path)
 		PathHandle->SetValue(UFolioDocumentPathLibrary::MakeDocumentPathPortable(Path));
 	}
 
+	ApplyDeclaredSize(Path);
+
 	if (ComboButton.IsValid())
 	{
 		ComboButton->SetIsOpen(false);
+	}
+}
+
+void FFolioDocumentPathCustomization::ApplyDeclaredSize(const FString& Path)
+{
+	if (!StructHandle.IsValid() || Path.IsEmpty())
+	{
+		return;
+	}
+
+	const FString SizeProperty = StructHandle->GetMetaData(TEXT("FolioSizeProperty"));
+	if (SizeProperty.IsEmpty())
+	{
+		return;
+	}
+
+	FVector2D Declared;
+	if (!UFolioDocumentPathLibrary::GetDeclaredDocumentSize(Path, Declared))
+	{
+		return;
+	}
+
+	TArray<UObject*> Objects;
+	StructHandle->GetOuterObjects(Objects);
+
+	if (Objects.IsEmpty())
+	{
+		return;
+	}
+
+	// Named rather than assumed, because a world document's size is in world units and everything
+	// else's is in pixels.
+	const FString DivisorProperty = StructHandle->GetMetaData(TEXT("FolioSizeDivisor"));
+
+	FScopedTransaction Transaction(LOCTEXT("SetDeclaredSize", "Set Folio Document Size"));
+	bool bChanged = false;
+
+	for (UObject* Object : Objects)
+	{
+		if (!Object)
+		{
+			continue;
+		}
+
+		FStructProperty* Target = CastField<FStructProperty>(
+			Object->GetClass()->FindPropertyByName(FName(*SizeProperty)));
+
+		if (!Target || Target->Struct != TBaseStructure<FVector2D>::Get())
+		{
+			continue;
+		}
+
+		FVector2D Size = Declared;
+
+		// Read as it stands, so changing the divisor afterwards does not retroactively rescale a size
+		// that was already written.
+		if (!DivisorProperty.IsEmpty())
+		{
+			if (const FFloatProperty* Divisor = CastField<FFloatProperty>(
+				Object->GetClass()->FindPropertyByName(FName(*DivisorProperty))))
+			{
+				const float Scale = Divisor->GetPropertyValue_InContainer(Object);
+				if (Scale > 0.0f)
+				{
+					Size /= Scale;
+				}
+			}
+		}
+
+		Object->Modify();
+		*Target->ContainerPtrToValuePtr<FVector2D>(Object) = Size;
+
+		FPropertyChangedEvent Changed(Target, EPropertyChangeType::ValueSet);
+		Object->PostEditChangeProperty(Changed);
+		bChanged = true;
+	}
+
+	if (!bChanged)
+	{
+		Transaction.Cancel();
 	}
 }
 
@@ -76,6 +160,7 @@ FText FFolioDocumentPathCustomization::GetWarningTooltip() const
 void FFolioDocumentPathCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> Handle,
 	FDetailWidgetRow& Row, IPropertyTypeCustomizationUtils&)
 {
+	StructHandle = Handle;
 	PathHandle = Handle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FFolioDocumentPath, Path));
 
 	Row

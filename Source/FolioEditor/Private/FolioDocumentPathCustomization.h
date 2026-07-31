@@ -27,6 +27,17 @@ private:
 	EVisibility GetWarningVisibility() const;
 	FText GetWarningTooltip() const;
 
+	/**
+	 * Writes the document's declared size into the sibling property named by FolioSizeProperty.
+	 *
+	 * Only for a document that says what it wants. Nothing is guessed and nothing is overwritten
+	 * otherwise, so a size someone deliberately set is never quietly replaced by a default.
+	 */
+	void ApplyDeclaredSize(const FString& Path);
+
+	/** The struct property this is drawing, which carries the metadata naming its siblings. */
+	TSharedPtr<IPropertyHandle> StructHandle;
+
 	TSharedPtr<IPropertyHandle> PathHandle;
 	TSharedPtr<SComboButton> ComboButton;
 };

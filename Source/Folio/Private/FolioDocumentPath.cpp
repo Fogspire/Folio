@@ -6,6 +6,7 @@
 #include "FolioRmlUi.h"
 
 #include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
 #include "UObject/PropertyTag.h"
 #include "Misc/Paths.h"
 
@@ -113,6 +114,85 @@ bool UFolioDocumentPathLibrary::DocumentExists(const FString& DocumentPath)
 {
 	const FString Resolved = ResolveDocumentPath(DocumentPath);
 	return !Resolved.IsEmpty() && FPaths::FileExists(Resolved);
+}
+
+bool UFolioDocumentPathLibrary::GetDeclaredDocumentSize(const FString& DocumentPath, FVector2D& OutSize)
+{
+	const FString Resolved = ResolveDocumentPath(DocumentPath);
+
+	FString Markup;
+	if (Resolved.IsEmpty() || !FFileHelper::LoadFileToString(Markup, *Resolved))
+	{
+		return false;
+	}
+
+	// The head only, so the same text inside a template's body cannot be mistaken for a declaration.
+	const int32 HeadEnd = Markup.Find(TEXT("</head>"), ESearchCase::IgnoreCase);
+	if (HeadEnd != INDEX_NONE)
+	{
+		Markup.LeftInline(HeadEnd);
+	}
+
+	const int32 Anchor = Markup.Find(TEXT("folio-size"), ESearchCase::IgnoreCase);
+	if (Anchor == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const int32 ContentAt = Markup.Find(TEXT("content"), ESearchCase::IgnoreCase, ESearchDir::FromStart, Anchor);
+	if (ContentAt == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// Between the quotes after `content=`, taking whichever quote character opened it so both forms
+	// work without deciding which one the author should have used.
+	int32 Open = INDEX_NONE;
+	for (int32 Index = ContentAt; Index < Markup.Len(); ++Index)
+	{
+		if (Markup[Index] == TEXT('"') || Markup[Index] == TEXT('\''))
+		{
+			Open = Index;
+			break;
+		}
+	}
+
+	if (Open == INDEX_NONE)
+	{
+		return false;
+	}
+
+	const int32 Close = Markup.Find(FString::Chr(Markup[Open]), ESearchCase::CaseSensitive,
+		ESearchDir::FromStart, Open + 1);
+
+	if (Close == INDEX_NONE || Close <= Open + 1)
+	{
+		return false;
+	}
+
+	FString Value = Markup.Mid(Open + 1, Close - Open - 1);
+	Value.TrimStartAndEndInline();
+
+	FString Width;
+	FString Height;
+	if (!Value.Split(TEXT("x"), &Width, &Height, ESearchCase::IgnoreCase))
+	{
+		return false;
+	}
+
+	const double W = FCString::Atod(*Width.TrimStartAndEnd());
+	const double H = FCString::Atod(*Height.TrimStartAndEnd());
+
+	if (W <= 0.0 || H <= 0.0)
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("'%s' declares folio-size '%s', which is not two positive numbers. Ignoring it."),
+			*DocumentPath, *Value);
+		return false;
+	}
+
+	OutSize = FVector2D(W, H);
+	return true;
 }
 
 FString UFolioDocumentPathLibrary::MakeDocumentPathPortable(const FString& DocumentPath)

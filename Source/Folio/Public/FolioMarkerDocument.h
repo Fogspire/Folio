@@ -39,7 +39,8 @@ public:
 	 *
 	 * A leading /folio/ resolves inside the plugin instead.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (FolioSizeProperty = "Size"))
 	FFolioDocumentPath DocumentPath;
 
 	/** The document's size in dp. It is laid out at this size wherever it ends up on screen. */

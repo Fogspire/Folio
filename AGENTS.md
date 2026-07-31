@@ -59,7 +59,21 @@ That gives you the whole component library. Then compose its classes rather than
 `div`s - the components already have the `box-sizing`, flex bases, scrollbar geometry, `tab-index`
 and `nav` right, and every one of those is a documented trap.
 
-### 4. Put colour in the right place
+### 4. Say what size the document was designed for
+
+One line in the head, and whoever assigns the document in the editor gets the size filled in for them
+rather than guessing it:
+
+```html
+<meta name="folio-size" content="1024x640"/>
+```
+
+Nothing measures this - `body` is almost always `100%`, so a laid-out document only ever reports the
+size it was already given. Write it for any document with a size it assumes, which is every world
+document, terminal, panel and nameplate. A full-screen HUD that genuinely fills whatever it is given
+should leave it out.
+
+### 5. Put colour in the right place
 
 | | |
 |---|---|
@@ -73,7 +87,7 @@ a component rule** - it can then only be overridden by restating the rule in ful
 Use the token classes (`.c-accent`, `.t-title`, `.s-pad-m`, `.focusable`) and retune what they mean,
 rather than inventing parallel ones.
 
-### 5. Make it navigable
+### 6. Make it navigable
 
 **Every focusable element carries its own `tab-index: auto` and its own `nav`.** A container's `nav`
 is never consulted.
@@ -89,7 +103,7 @@ are real element types. Everything else is a generic element with no behaviour u
 
 Style `:focus-visible`, never `:focus`.
 
-### 6. Label anything a player reads
+### 7. Label anything a player reads
 
 ```html
 <p data-loc="start">Start Game</p>
@@ -100,7 +114,7 @@ Style `:focus-visible`, never `:focus`.
 `folio-label` on any control whose visible content is not its name. Both are cheap now and expensive
 to retrofit across a finished game.
 
-### 7. Verify before you say it is done
+### 8. Verify before you say it is done
 
 ```bash
 ./Plugins/Folio/bin/win64/uipreview.exe ui/screens/yours.rml --root . --strict --a11y

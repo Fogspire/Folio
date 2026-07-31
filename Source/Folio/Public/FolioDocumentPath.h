@@ -101,6 +101,22 @@ public:
 	static FString MakeDocumentPathPortable(const FString& DocumentPath);
 
 	/**
+	 * The size a document says it wants, from `<meta name="folio-size" content="WxH">` in its head.
+	 *
+	 * Declared rather than measured. A document has no intrinsic size - RCSS is written against
+	 * whatever box it is given, and `body` is almost always `100%` - so there is nothing to read off a
+	 * laid-out document that would not just be the size it was already laid out at. Asking the markup
+	 * is the only answer that is not a guess, and a document that does not say gets left alone.
+	 *
+	 * In pixels, which is what the document is laid out in whatever it is eventually drawn on.
+	 *
+	 * Returns false when the document has no such tag, does not exist, or gives a size that is not two
+	 * positive numbers.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	static bool GetDeclaredDocumentSize(const FString& DocumentPath, FVector2D& OutSize);
+
+	/**
 	 * Logs why a document did not load, naming what was tried.
 	 *
 	 * A path that resolves to nothing renders nothing, which is indistinguishable from a document that

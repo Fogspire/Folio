@@ -1,6 +1,7 @@
 <rml>
 <head>
 	<title>Folio navigation test</title>
+	<meta name="folio-size" content="960x720"/>
 	<link type="text/rcss" href="/folio/folio.rcss"/>
 	<style>
 		/*

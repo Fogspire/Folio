@@ -88,7 +88,10 @@ public:
 	 *
 	 * A leading /folio/ resolves inside the plugin instead.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	// WorldSize is in world units, not pixels, so the declared size is divided by PixelsPerUnit. Set
+	// that first: assigning a document reads it as it stands.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (FolioSizeProperty = "WorldSize", FolioSizeDivisor = "PixelsPerUnit"))
 	FFolioDocumentPath DocumentPath;
 
 	/**

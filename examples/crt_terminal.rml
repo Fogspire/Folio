@@ -1,6 +1,7 @@
 <rml>
 <head>
 	<title>CRT terminal</title>
+	<meta name="folio-size" content="1024x640"/>
 	<link type="text/rcss" href="/folio/folio.rcss"/>
 	<style>
 		/* Written for an oval screen wider than it is tall. The document is still a rectangle - a render

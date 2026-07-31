@@ -46,6 +46,34 @@ turns a guess into a comparison.
 **A missing document and a document that fails to parse are reported differently.** Both render
 nothing, and telling them apart by looking is impossible.
 
+## Letting a document set its own size
+
+A document can declare the size it was designed for, and picking it fills in the component's size
+property:
+
+```html
+<head>
+	<title>CRT terminal</title>
+	<meta name="folio-size" content="1024x640"/>
+</head>
+```
+
+| Component | Property it fills |
+|---|---|
+| `UFolioWidget` | `Desired Size`, in pixels. |
+| `UFolioMarkerDocument` | `Size`, in pixels. |
+| `UFolioWorldDocument` | `World Size`, in world units — the declared pixels divided by `Pixels Per Unit`. Set that first. |
+
+**Declared, not measured.** A document has no intrinsic size to read: RCSS is written against whatever
+box it is given and `body` is almost always `100%`, so laying one out to ask how big it is would only
+ever return the size it was already laid out at. Asking the markup is the only answer that is not a
+guess.
+
+Nothing is filled in for a document that stays silent, and a size that is already set is only ever
+replaced by an explicit declaration — so a size someone deliberately chose is never quietly
+overwritten. Both numbers must be positive; a malformed value is logged and ignored rather than half
+applied.
+
 ## Hiding things from the picker
 
 **Project Settings → Plugins → Folio**:
@@ -75,6 +103,7 @@ Document->LoadDocument(TEXT("ui/screens/hud.rml"));
 | `ResolveDocumentPath` | The absolute path Folio will open, or empty. |
 | `DocumentExists` | Whether it names a file. |
 | `MakeDocumentPathPortable` | Absolute to project-relative, leaving anything already portable alone. |
+| `GetDeclaredDocumentSize` | The `folio-size` the markup declares, or false if it declares none. |
 
 A level saved when this property was a plain `FString` still loads — the struct reads the old value.
 

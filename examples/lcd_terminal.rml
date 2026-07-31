@@ -1,6 +1,7 @@
 <rml>
 <head>
 	<title>LCD terminal</title>
+	<meta name="folio-size" content="1280x720"/>
 	<link type="text/rcss" href="/folio/folio.rcss"/>
 	<style>
 		/* The flat-panel counterpart to crt_terminal.rml. Same interactions, opposite treatment: a

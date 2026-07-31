@@ -1,0 +1,456 @@
+<rml>
+<head>
+	<title>LCD terminal</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* The flat-panel counterpart to crt_terminal.rml. Same interactions, opposite treatment: a
+		   rectangular 16:9 panel, no curvature to design around, and nothing pretending to be a tube.
+
+		   Where the CRT spends its budget on phosphor, bloom and scan gaps, this spends it on
+		   alignment. A modern interface reads as clean because things line up, the type has one
+		   scale, and colour is used sparingly - so the accent appears on exactly two things, and
+		   everything else is a step on one neutral ramp. */
+		body {
+			font-family: Inter;
+			font-size: 20dp;
+			color: #e8ecf2;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			position: relative;
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+		}
+
+		/* --- chrome ---------------------------------------------------------------------- */
+
+		.titlerow {
+			display: flex;
+			align-items: center;
+			padding: 20dp 28dp;
+			border-bottom: 1dp #ffffff14;
+			flex: 0 0 auto;
+		}
+
+		.mark {
+			width: 10dp; height: 10dp;
+			border-radius: 5dp;
+			background-color: #4ea1ff;
+			margin-right: 12dp;
+			flex: 0 0 auto;
+		}
+
+		.product { font-weight: 600; letter-spacing: 0.5dp; }
+		.spacer { flex: 1 1 0; }
+
+		/* A status pill. Border and tinted fill rather than a solid block, so it sits at the same
+		   visual weight as the text beside it instead of shouting over it. */
+		.pill {
+			font-size: 15dp;
+			padding: 5dp 12dp;
+			border-radius: 999dp;
+			border: 1dp #3ddc9740;
+			background-color: #3ddc9714;
+			color: #3ddc97;
+		}
+
+		/* --- body ------------------------------------------------------------------------ */
+
+		.content {
+			flex: 1 1 auto;
+			display: flex;
+			padding: 28dp;
+			overflow: hidden;
+		}
+
+		.column { display: flex; flex-direction: column; }
+		.left   { flex: 1 1 0; margin-right: 28dp; }
+		.right  { flex: 1 1 0; position: relative; }
+
+		.section {
+			font-size: 13dp;
+			font-weight: 600;
+			letter-spacing: 1.5dp;
+			text-transform: uppercase;
+			color: #7c8798;
+			margin-bottom: 14dp;
+		}
+
+		.field-row { margin-bottom: 18dp; }
+
+		label {
+			display: block;
+			font-size: 15dp;
+			color: #9aa5b5;
+			margin-bottom: 7dp;
+		}
+
+		/* One radius, one border weight, one focus treatment - reused by every control on the panel.
+		   The consistency is the style. */
+		input.field {
+			display: block;
+			width: 100%;
+			height: 46dp;
+			box-sizing: border-box;
+			padding: 0 14dp;
+			background-color: #161b23;
+			border: 1dp #ffffff1f;
+			border-radius: 10dp;
+			color: #e8ecf2;
+			caret-color: #4ea1ff;
+			tab-index: auto;
+			nav: vertical;
+			transition: border-color 0.14s cubic-out, background-color 0.14s cubic-out;
+		}
+
+		input.field:hover         { border-color: #ffffff33; }
+		input.field:focus-visible { border-color: #4ea1ff; background-color: #1a212b; }
+		input.field selection     { background-color: #4ea1ff4d; }
+
+		/* --- segmented control ------------------------------------------------------------ */
+
+		/* A track with the buttons inside it, which is the modern idiom: the group reads as one
+		   control rather than as three that happen to be adjacent. */
+		.segmented {
+			display: flex;
+			padding: 4dp;
+			background-color: #161b23;
+			border-radius: 10dp;
+			border: 1dp #ffffff14;
+		}
+
+		.segment { position: relative; flex: 1 1 0; }
+
+		/* The real input, invisible and filling its segment: it keeps the focus, the checked state and
+		   the click target, and the span beside it carries every pixel of the appearance. */
+		.segment input {
+			position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+			opacity: 0;
+			tab-index: auto;
+			nav: horizontal;
+		}
+
+		.segment span {
+			display: block;
+			padding: 9dp 0;
+			text-align: center;
+			font-size: 16dp;
+			border-radius: 7dp;
+			color: #9aa5b5;
+			transition: background-color 0.14s cubic-out, color 0.14s cubic-out;
+		}
+
+		.segment input:hover ~ span          { color: #e8ecf2; }
+		.segment input:checked ~ span        { background-color: #273040; color: #ffffff; }
+		.segment input:focus-visible ~ span  { border: 1dp #4ea1ff; padding: 8dp 0; }
+
+		/* --- buttons ---------------------------------------------------------------------- */
+
+		.actions { display: flex; margin-top: 26dp; }
+
+		button {
+			flex: 1 1 0;
+			padding: 12dp 0;
+			text-align: center;
+			font-size: 17dp;
+			font-weight: 600;
+			border-radius: 10dp;
+			border: 1dp #ffffff1f;
+			background-color: #161b23;
+			color: #e8ecf2;
+			tab-index: auto;
+			nav: auto;
+			transition: background-color 0.14s cubic-out, border-color 0.14s cubic-out,
+			            transform 0.10s cubic-out;
+		}
+
+		button + button { margin-left: 12dp; }
+
+		button:hover         { background-color: #1e2530; border-color: #ffffff33; }
+		button:focus-visible { border-color: #4ea1ff; }
+		/* A press is a small scale rather than a colour change: it reads as a physical response and
+		   costs no layout, where animating padding or size would reflow on every frame. */
+		button:active        { transform: scale(0.98); }
+
+		button.primary {
+			background-color: #4ea1ff;
+			border-color: #4ea1ff;
+			color: #06121f;
+		}
+		button.primary:hover { background-color: #6cb2ff; border-color: #6cb2ff; }
+		/* Its border is already the accent, so a focus ring has to come from somewhere else. */
+		button.primary:focus-visible { background-color: #6cb2ff; box-shadow: #4ea1ff66 0dp 0dp 0dp 3dp; }
+
+		/* --- readout ---------------------------------------------------------------------- */
+
+		.meter { margin-bottom: 18dp; }
+
+		.meter-head {
+			display: flex;
+			align-items: center;
+			font-size: 15dp;
+			color: #9aa5b5;
+			margin-bottom: 8dp;
+		}
+
+		.meter-name  { flex: 0 0 auto; }
+		.meter-value { flex: 0 0 auto; color: #e8ecf2; }
+
+		.track {
+			height: 6dp;
+			border-radius: 3dp;
+			background-color: #ffffff14;
+		}
+
+		.fill {
+			height: 100%;
+			border-radius: 3dp;
+			background-color: #4ea1ff;
+		}
+
+		.fill.warn { background-color: #ffb454; }
+
+		/* --- window ----------------------------------------------------------------------- */
+
+		/* Same behaviour as the CRT's disk utility - a handle to move it, a handle to resize it, an
+		   animated close - with flat-panel dressing. Absolutely positioned, because a handle writes
+		   left, top, width and height and those mean nothing to a flex item. */
+		.window {
+			position: absolute;
+			left: 4%; top: 42%;
+			width: 340dp; height: 230dp;
+			min-width: 220dp; min-height: 150dp;
+			background-color: #131922;
+			border: 1dp #ffffff1f;
+			border-radius: 12dp;
+			box-shadow: #00000073 0dp 18dp 40dp;
+			overflow: hidden;
+		}
+
+		.titlebar {
+			display: block;
+			padding: 11dp 16dp;
+			font-size: 15dp;
+			font-weight: 600;
+			color: #cbd4e1;
+			background-color: #1a212b;
+			border-bottom: 1dp #ffffff14;
+			cursor: move;
+		}
+
+		.close {
+			position: absolute;
+			right: 8dp; top: 7dp;
+			width: 26dp; height: 26dp;
+			line-height: 26dp;
+			text-align: center;
+			font-size: 15dp;
+			border-radius: 6dp;
+			color: #9aa5b5;
+			tab-index: auto;
+			nav: auto;
+			transition: background-color 0.14s cubic-out, color 0.14s cubic-out;
+		}
+
+		.close:hover,
+		.close:focus-visible { background-color: #ff5f57; color: #1a0505; }
+
+		.window-body { position: relative; height: 100%; }
+
+		.grip {
+			position: absolute;
+			right: 0; bottom: 0;
+			width: 24dp; height: 24dp;
+			cursor: nwse-resize;
+		}
+
+		/* --- files ------------------------------------------------------------------------ */
+
+		.file {
+			position: absolute;
+			width: 108dp;
+			padding: 12dp 6dp;
+			text-align: center;
+			font-size: 14dp;
+			color: #cbd4e1;
+			border-radius: 10dp;
+			border: 1dp #ffffff00;
+			transition: background-color 0.14s cubic-out, border-color 0.14s cubic-out;
+		}
+
+		.file:hover { background-color: #ffffff0f; border-color: #ffffff1f; }
+		.file.folio-dragging { opacity: 0.5; }
+
+		.file-icon {
+			display: block;
+			width: 34dp; height: 42dp;
+			margin: 0 auto 8dp auto;
+			border-radius: 5dp;
+			background-color: #2a3444;
+			border: 1dp #ffffff26;
+		}
+
+		.bin {
+			position: absolute;
+			right: 28dp; bottom: 28dp;
+			width: 116dp;
+			padding: 14dp 8dp;
+			text-align: center;
+			font-size: 14dp;
+			color: #7c8798;
+			border-radius: 12dp;
+			border: 1dp #ffffff26;
+			transition: background-color 0.14s cubic-out, border-color 0.14s cubic-out,
+			            color 0.14s cubic-out;
+		}
+
+		/* Drop feedback. Without it there is no way to tell whether a release will land, and the
+		   feature reads as broken even when it works. */
+		.bin.folio-dragover {
+			border-color: #ff5f57;
+			background-color: #ff5f571a;
+			color: #ff9d97;
+		}
+
+		.bin-icon {
+			display: block;
+			width: 26dp; height: 30dp;
+			margin: 0 auto 8dp auto;
+			border-radius: 4dp;
+			border: 1dp #ffffff33;
+		}
+
+		/* --- leaving ---------------------------------------------------------------------- */
+
+		/* folio-close and folio-drop both set folio-closing and wait for the animation before removing
+		   anything. Without one, the element goes at once.
+
+		   Scaled and faded in place rather than thrown off the edge: on a surface the render target is
+		   the document, so anything translated past its edge is clipped and reads as vanishing partway
+		   rather than travelling. */
+		@keyframes dismiss {
+			from { transform: scale(1); opacity: 1; }
+			to   { transform: scale(0.94) translateY(12dp); opacity: 0; }
+		}
+
+		.window.folio-closing { animation: 0.24s cubic-in dismiss; }
+
+		@keyframes discard {
+			from { transform: scale(1); opacity: 1; }
+			to   { transform: scale(0.2); opacity: 0; }
+		}
+
+		.file.folio-closing { animation: 0.26s cubic-in discard; }
+
+		/* --- glass ------------------------------------------------------------------------ */
+
+		/* An LCD's tell is not scan lines - it is that the panel is a flat sheet with a sheen on it and
+		   a slightly darker edge. One gradient each, and no animation: a modern monitor holds still. */
+		.sheen, .edge { pointer-events: none; }
+
+		.sheen {
+			position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+			decorator: linear-gradient(160deg, #ffffff0a 0%, #ffffff00 42%);
+		}
+
+		.edge {
+			position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+			decorator: radial-gradient(ellipse farthest-side, #00000000 74%, #0000004d 100%);
+		}
+	</style>
+</head>
+
+<body>
+	<div class="titlerow">
+		<div class="mark" folio-hidden></div>
+		<span class="product">Atrium Console</span>
+		<span class="spacer"></span>
+		<span class="pill">Linked</span>
+	</div>
+
+	<div class="content">
+		<div class="column left">
+			<div class="section">Session</div>
+
+			<div class="field-row">
+				<label for="operator">Operator</label>
+				<input type="text" class="field" id="operator" maxlength="24"/>
+			</div>
+
+			<div class="field-row">
+				<label for="access">Access key</label>
+				<input type="password" class="field" id="access" maxlength="16"/>
+			</div>
+
+			<div class="field-row">
+				<label>Channel</label>
+				<div class="segmented">
+					<div class="segment">
+						<input type="radio" name="channel" id="ch_a" checked/>
+						<span>Alpha</span>
+					</div>
+					<div class="segment">
+						<input type="radio" name="channel" id="ch_b"/>
+						<span>Beta</span>
+					</div>
+					<div class="segment">
+						<input type="radio" name="channel" id="ch_c"/>
+						<span>Gamma</span>
+					</div>
+				</div>
+			</div>
+
+			<div class="actions">
+				<button id="connect" class="primary">Connect</button>
+				<button id="reset">Reset</button>
+			</div>
+		</div>
+
+		<div class="column right">
+			<div class="section">Diagnostics</div>
+
+			<div class="meter">
+				<div class="meter-head"><span class="meter-name">Throughput</span><span class="spacer"></span><span class="meter-value">68%</span></div>
+				<div class="track"><div class="fill" style="width: 68%;"></div></div>
+			</div>
+
+			<div class="meter">
+				<div class="meter-head"><span class="meter-name">Storage</span><span class="spacer"></span><span class="meter-value">91%</span></div>
+				<div class="track"><div class="fill warn" style="width: 91%;"></div></div>
+			</div>
+
+			<div class="meter">
+				<div class="meter-head"><span class="meter-name">Latency</span><span class="spacer"></span><span class="meter-value">12 ms</span></div>
+				<div class="track"><div class="fill" style="width: 22%;"></div></div>
+			</div>
+
+			<div id="win" class="window">
+				<handle class="titlebar" move_target="win">Files</handle>
+				<div class="close" folio-close="win" folio-label="Close">&#215;</div>
+
+				<div class="window-body">
+					<div id="file_a" class="file" drag="drag-drop" folio-drag="move"
+						style="left: 22dp; top: 58dp;">
+						<span class="file-icon" folio-hidden></span>core.dat
+					</div>
+					<div id="file_b" class="file" drag="drag-drop" folio-drag="move"
+						style="left: 150dp; top: 58dp;">
+						<span class="file-icon" folio-hidden></span>log.txt
+					</div>
+				</div>
+
+				<handle class="grip" size_target="win" folio-label="Resize"></handle>
+			</div>
+
+			<div class="bin" folio-drop="remove">
+				<span class="bin-icon" folio-hidden></span>Discard
+			</div>
+		</div>
+	</div>
+
+	<div class="sheen" folio-hidden></div>
+	<div class="edge" folio-hidden></div>
+</body>
+</rml>

@@ -3,6 +3,9 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "FolioDocumentPath.h"
+#include "FolioWorldDocument.h"
+
+#include "Misc/DataValidation.h"
 
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
@@ -130,6 +133,35 @@ bool FFolioDocumentOptionsTest::RunTest(const FString&)
 			AddError(FString::Printf(TEXT("'%s' should only appear under /folio/"), *Option));
 		}
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioDocumentValidationTest, "Folio.Document.Validation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFolioDocumentValidationTest::RunTest(const FString&)
+{
+	UFolioWorldDocument* Component = NewObject<UFolioWorldDocument>();
+
+	const auto Errors = [Component](const TCHAR* Path)
+	{
+		FDataValidationContext Context;
+		UFolioDocumentPathLibrary::ValidateDocumentPath(*Component, Path, &Context);
+		return Context.GetNumErrors();
+	};
+
+	// The mount begins with a slash and is not a path on this machine, which is the whole reason
+	// this needs a test: every document Folio ships is named this way.
+	TestEqual(TEXT("a /folio/ mount is portable"), Errors(TEXT("/folio/examples/mask_image.rml")), 0);
+
+	TestTrue(TEXT("a path on this machine is not"),
+		Errors(TEXT("X:/Kaboom/Kaboom/ui/screens/hud.rml")) > 0);
+	TestTrue(TEXT("a document that does not exist is reported"),
+		Errors(TEXT("ui/screens/nothing_here.rml")) > 0);
+
+	// Unplaced, so an empty path is a component waiting to be given one from code.
+	TestEqual(TEXT("an empty path on an unplaced component"), Errors(TEXT("")), 0);
 
 	return true;
 }

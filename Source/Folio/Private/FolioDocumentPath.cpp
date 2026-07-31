@@ -335,7 +335,13 @@ void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPat
 			Actor ? *FString::Printf(TEXT(", on actor '%s'"), *Actor->GetActorNameOrLabel()) : TEXT(""));
 	}
 
-	if (FPaths::IsRelative(DocumentPath))
+	if (DocumentPath.StartsWith(TEXT("/folio/")))
+	{
+		UE_LOG(LogFolio, Error,
+			TEXT("%s: /folio/ is the plugin's own mount, so the file is looked for under '%s'."),
+			Context, *(FFolioModule::IsAvailable() ? FFolioModule::Get().GetPluginRoot() : FString()));
+	}
+	else if (FPaths::IsRelative(DocumentPath))
 	{
 		UE_LOG(LogFolio, Error,
 			TEXT("%s: a relative path is read against the content root, which is '%s'."),
@@ -402,8 +408,10 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 			FText::FromString(DocumentPath),
 			FText::FromString(Resolved.IsEmpty() ? TEXT("nothing") : *Resolved));
 	}
-	else if (!FPaths::IsRelative(DocumentPath))
+	else if (!FPaths::IsRelative(DocumentPath) && !DocumentPath.StartsWith(TEXT("/folio/")))
 	{
+		// The mount is portable, and it is the one path that begins with a slash and is not a
+		// path on this machine.
 		Message = FText::Format(
 			NSLOCTEXT("Folio", "AbsoluteDocument",
 				"{0} names '{1}', an absolute path. It will not resolve on another machine - use a "

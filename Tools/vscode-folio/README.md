@@ -48,6 +48,17 @@ you see less of the document at more detail. Text and vector art get *sharper* a
 they are distance fields - which is the only way a preview can tell you whether the real thing is
 crisp. Scaling a screenshot would show you the scaler's work instead.
 
+## Editing
+
+Click an element to select it and jump to the rule that styles it. Drag it to move it, and pick which
+rule the move should edit - `.btn` moves every button, `#continue` moves one.
+
+Edits are a protocol rather than a rewrite: one property, one rule, applied in place with every
+comment and indent preserved, through the editor's undo stack. `rcss.js` does that work and
+`rcss.test.js` covers it; run `npm test`, or `node rcss.test.js`.
+
+Put the caret in a rule in an `.rcss` and the elements it reaches light up in the preview.
+
 ## Syntax highlighting
 
 `.rml` and `.rcss` get highlighted on install. Both reuse VSCode's built-in grammars - XML for markup,

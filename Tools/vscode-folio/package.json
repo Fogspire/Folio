@@ -112,5 +112,8 @@
 				"path": "./syntaxes/rcss.tmLanguage.json"
 			}
 		]
+	},
+	"scripts": {
+		"test": "node rcss.test.js"
 	}
 }

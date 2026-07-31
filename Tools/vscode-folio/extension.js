@@ -21,6 +21,7 @@ const cp = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const rcss = require("./rcss");
 
 /** Properties whose appearance the harness does not compare. Worth saying so on the document. */
 const UNCOMPARED = ["box-shadow", "filter:", "backdrop-filter", "mask-image"];
@@ -52,6 +53,13 @@ const ZOOM_STEPS = [0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4];
 let renderIndex = 0;
 let rendering = false;
 let pending = false;
+
+/** The last provenance report, which is what makes a click mean an element rather than a pixel. */
+let elements = [];
+let selected = null;
+let lastImage = null;
+let lastMessages = "";
+let lastUncompared = [];
 
 function config() {
 	return vscode.workspace.getConfiguration("folio");
@@ -153,7 +161,8 @@ function render() {
 	}
 
 	const output = path.join(os.tmpdir(), `folio-preview-${process.pid}-${++renderIndex}.png`);
-	const args = buildArguments(currentDocument, output);
+	const provenance = `${output}.json`;
+	const args = buildArguments(currentDocument, output).concat(["--provenance-report", provenance]);
 
 	rendering = true;
 	cp.execFile(uipreview, args, { timeout: 30000 }, (error, stdout, stderr) => {
@@ -166,6 +175,14 @@ function render() {
 				error: messages || (error ? String(error) : "uipreview wrote no image"),
 			});
 		} else {
+			// Geometry and rules together, so a click can name an element and say which rule to edit.
+			try {
+				const report = JSON.parse(fs.readFileSync(provenance, "utf8"));
+				elements = report.elements || [];
+			} catch {
+				elements = [];
+			}
+
 			show({
 				image: output,
 				messages,
@@ -190,6 +207,12 @@ function escape(text) {
 function show(state) {
 	if (!panel) {
 		return;
+	}
+
+	if (state.image) {
+		lastImage = state.image;
+		lastMessages = state.messages || "";
+		lastUncompared = state.uncompared || [];
 	}
 
 	const name = currentDocument ? path.basename(currentDocument) : "";
@@ -223,6 +246,21 @@ function show(state) {
 	   here would undo the re-render it came from. */
 	img { display: block; }
 	#viewport { overflow: auto; }
+	.stage { position: relative; display: inline-block; cursor: crosshair; }
+	#overlay { position: absolute; left: 0; top: 0; right: 0; bottom: 0; pointer-events: none; }
+	/* A match from the source side is deliberately a different colour to a selection: one says "this is
+	   what you picked", the other says "this is what that rule reaches", and confusing them would make
+	   the second useless. */
+	#overlay .box.match {
+		outline-color: var(--vscode-editorWarning-foreground);
+		background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent);
+	}
+	#overlay .box {
+		position: absolute;
+		outline: 1px solid var(--vscode-focusBorder);
+		background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
+	}
+	.selection { font-family: var(--vscode-editor-font-family); opacity: 0.9; }
 	button {
 		font: inherit; color: var(--vscode-button-secondaryForeground);
 		background: var(--vscode-button-secondaryBackground);
@@ -253,16 +291,24 @@ function show(state) {
 	</div>
 	${state.error ? `<div class="error">${escape(state.error)}</div>` : ""}
 	${notes.join("")}
+	${selected ? `<div class="selection">${escape(selected.tag)}${selected.id ? "#" + escape(selected.id) : ""}`
+		+ `${selected.classes ? "." + escape(String(selected.classes).trim().split(/\s+/).join(".")) : ""}`
+		+ ` &mdash; ${(selected.properties || []).length} property/ies from `
+		+ `${escape([...new Set((selected.properties || []).map((p) => p.rule))].join(", ")) || "no rule"}</div>`
+		: ""}
 	${state.messages && !state.error
 		? `<div class="${state.warned ? "warn" : "note"}">${escape(state.messages)}</div>`
 		: ""}
-	${source ? `<div id="viewport" class="frame"><img id="render" src="${source}"/></div>` : ""}
+	${source ? `<div id="viewport" class="frame"><div class="stage"><img id="render" src="${source}"/><div id="overlay"></div></div></div>` : ""}
 	<script>
 		const api = acquireVsCodeApi();
+		const elements = ${JSON.stringify(elements)};
+		const selectedPath = ${JSON.stringify(selected && selected.path)};
 
-		// The page does not scale anything. It asks for a zoom and the extension renders at that
-		// resolution, which is the only way the result is as sharp as the game's.
-		function ask(direction) { api.postMessage({ zoom: direction }); }
+		const image = document.getElementById("render");
+		const overlay = document.getElementById("overlay");
+
+		function ask(zoom) { api.postMessage({ kind: "zoom", zoom: zoom }); }
 
 		document.getElementById("in").onclick = () => ask("in");
 		document.getElementById("out").onclick = () => ask("out");
@@ -280,9 +326,276 @@ function show(state) {
 			else if (event.key === "-") { ask("out"); }
 			else if (event.key === "0") { ask("reset"); }
 		});
+
+		/**
+		 * The smallest element containing the point.
+		 *
+		 * Smallest rather than last: a document's order is not its depth, and picking the last match
+		 * selects a full-width overlay whenever one exists rather than the button under the cursor.
+		 */
+		function hitTest(x, y) {
+			let best = null;
+			for (const element of elements) {
+				const [left, top, width, height] = element.rect;
+				if (x < left || y < top || x > left + width || y > top + height) { continue; }
+				if (!best || width * height < best.rect[2] * best.rect[3]) { best = element; }
+			}
+			return best;
+		}
+
+		function documentPoint(event) {
+			const box = image.getBoundingClientRect();
+			return [event.clientX - box.left, event.clientY - box.top];
+		}
+
+		function drawOverlay(element) {
+			overlay.innerHTML = "";
+			if (!element) { return; }
+
+			const [left, top, width, height] = element.rect;
+			const box = document.createElement("div");
+			box.className = "box";
+			box.style.left = left + "px";
+			box.style.top = top + "px";
+			box.style.width = width + "px";
+			box.style.height = height + "px";
+			overlay.appendChild(box);
+		}
+
+		window.addEventListener("message", (event) => {
+			const message = event.data;
+			if (!message || message.kind !== "highlight") { return; }
+
+			overlay.innerHTML = "";
+			for (const path of message.paths || []) {
+				const element = elements.find((entry) => entry.path === path);
+				if (!element) { continue; }
+
+				const [left, top, width, height] = element.rect;
+				const box = document.createElement("div");
+				box.className = "box match";
+				box.style.left = left + "px";
+				box.style.top = top + "px";
+				box.style.width = width + "px";
+				box.style.height = height + "px";
+				overlay.appendChild(box);
+			}
+		});
+
+		if (image) {
+			let current = elements.find((element) => element.path === selectedPath) || null;
+			drawOverlay(current);
+
+			image.parentElement.addEventListener("mousedown", (event) => {
+				const [x, y] = documentPoint(event);
+				const hit = hitTest(x, y);
+				if (!hit) { return; }
+
+				current = hit;
+				drawOverlay(current);
+				api.postMessage({ kind: "select", path: hit.path });
+
+				// A drag from inside the selection moves it; the mouse has to leave the element before
+				// it counts, so a click to select never nudges anything.
+				const startX = x, startY = y;
+				let dragging = false;
+
+				function move(moveEvent) {
+					const [nx, ny] = documentPoint(moveEvent);
+					if (!dragging && Math.abs(nx - startX) < 4 && Math.abs(ny - startY) < 4) { return; }
+
+					dragging = true;
+					const [left, top, width, height] = hit.rect;
+					const box = overlay.firstChild;
+					if (box) {
+						box.style.left = (left + nx - startX) + "px";
+						box.style.top = (top + ny - startY) + "px";
+					}
+				}
+
+				function up(upEvent) {
+					document.removeEventListener("mousemove", move);
+					document.removeEventListener("mouseup", up);
+					if (!dragging) { return; }
+
+					const [nx, ny] = documentPoint(upEvent);
+					api.postMessage({
+						kind: "move", path: hit.path,
+						dx: Math.round(nx - startX), dy: Math.round(ny - startY),
+					});
+				}
+
+				document.addEventListener("mousemove", move);
+				document.addEventListener("mouseup", up);
+			});
+		}
 	</script>
 </body>
 </html>`;
+}
+
+/**
+ * Which rule an edit should land on, and the alternatives.
+ *
+ * A rule is usually the right target rather than an element: moving one button should be able to move
+ * every button. But not always, and the brief is firm that the tool must not silently choose - so the
+ * rule that already sets the property is offered first, the element's own id rule next, and the
+ * author picks. Silently choosing either is wrong half the time.
+ */
+function targetsFor(element, property) {
+	const targets = [];
+
+	for (const declaration of element.properties || []) {
+		if (declaration.name === property) {
+			targets.push({
+				label: `Rule ${declaration.rule}`,
+				detail: `${declaration.file}:${declaration.line} - already sets ${property}: ${declaration.value}`,
+				rule: declaration.rule, file: declaration.file, line: declaration.line,
+			});
+		}
+	}
+
+	// Rules that style this element but do not set this property yet: adding it there is the next most
+	// likely intent, and the most specific one is offered first.
+	for (const declaration of element.properties || []) {
+		if (declaration.name !== property && !targets.some((t) => t.rule === declaration.rule)) {
+			targets.push({
+				label: `Rule ${declaration.rule}`,
+				detail: `${declaration.file}:${declaration.line} - would gain ${property}`,
+				rule: declaration.rule, file: declaration.file, line: declaration.line,
+			});
+		}
+	}
+
+	return targets;
+}
+
+function resolveStylesheet(file) {
+	const root = rootArgument();
+	if (!root) {
+		return null;
+	}
+
+	// The report's paths are as RmlUi resolved them, so /folio/ is the plugin's rcss directory.
+	const relative = String(file).replace(/^\/?folio\//, "Plugins/Folio/rcss/").replace(/^\//, "");
+	const candidate = path.isAbsolute(relative) ? relative : path.join(root, relative);
+	return fs.existsSync(candidate) ? candidate : null;
+}
+
+/** Applies one property to one rule, saves, and lets the save trigger the re-render. */
+async function applyEdit(target, property, value) {
+	const file = resolveStylesheet(target.file);
+	if (!file) {
+		vscode.window.showErrorMessage(`Folio: could not find ${target.file} under the workspace.`);
+		return;
+	}
+
+	const before = fs.readFileSync(file, "utf8");
+	const result = rcss.setProperty(before, target.rule, property, value);
+	if (result.error) {
+		vscode.window.showErrorMessage(`Folio: ${result.error}`);
+		return;
+	}
+
+	// Through the workspace edit API rather than writing the file, so it lands in the editor's undo
+	// stack. An edit a person cannot undo with ctrl+z is not one they will trust.
+	const uri = vscode.Uri.file(file);
+	const document = await vscode.workspace.openTextDocument(uri);
+	const edit = new vscode.WorkspaceEdit();
+	edit.replace(uri, new vscode.Range(
+		document.positionAt(0), document.positionAt(before.length)), result.text);
+
+	await vscode.workspace.applyEdit(edit);
+	await document.save();
+
+	vscode.window.setStatusBarMessage(
+		`Folio: ${result.change.kind} ${property} on ${result.change.selector}`, 4000);
+}
+
+async function handleMessage(message) {
+	if (!message) {
+		return;
+	}
+
+	if (message.kind === "zoom") {
+		const index = ZOOM_STEPS.indexOf(zoom);
+		if (message.zoom === "in") {
+			zoom = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, (index === -1 ? 3 : index) + 1)];
+		} else if (message.zoom === "out") {
+			zoom = ZOOM_STEPS[Math.max(0, (index === -1 ? 3 : index) - 1)];
+		} else {
+			zoom = 1;
+		}
+
+		render();
+		return;
+	}
+
+	const element = elements.find((entry) => entry.path === message.path);
+	if (!element) {
+		return;
+	}
+
+	if (message.kind === "select") {
+		selected = element;
+		revealSource(element);
+		show({ image: lastImage, messages: lastMessages, uncompared: lastUncompared });
+		return;
+	}
+
+	if (message.kind === "move") {
+		await moveElement(element, message.dx, message.dy);
+	}
+}
+
+/** Click in the render, land on the rule in the source. Half of what makes this an editor. */
+async function revealSource(element) {
+	const first = (element.properties || [])[0];
+	if (!first) {
+		return;
+	}
+
+	const file = resolveStylesheet(first.file);
+	if (!file) {
+		return;
+	}
+
+	const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+	const line = Math.max(0, (first.line || 1) - 1);
+	await vscode.window.showTextDocument(document, {
+		preserveFocus: true,
+		selection: new vscode.Range(line, 0, line, 0),
+	});
+}
+
+async function moveElement(element, dx, dy) {
+	if (dx === 0 && dy === 0) {
+		return;
+	}
+
+	const targets = targetsFor(element, "left");
+	if (targets.length === 0) {
+		vscode.window.showWarningMessage(
+			"Folio: nothing styles this element, so there is no rule to move it on. Give it a rule first.");
+		return;
+	}
+
+	const picked = targets.length === 1 ? targets[0] : await vscode.window.showQuickPick(
+		targets.map((target) => ({ label: target.label, detail: target.detail, target })),
+		{ title: `Move ${element.tag}${element.id ? "#" + element.id : ""} by editing which rule?` })
+		.then((choice) => choice && choice.target);
+
+	if (!picked) {
+		return;
+	}
+
+	// The element's laid-out position plus the drag, which is what the author saw happen. Read from the
+	// box rather than from the rule, so a rule with no left yet still lands somewhere sensible.
+	const left = Math.round(element.rect[0] + dx);
+	const top = Math.round(element.rect[1] + dy);
+
+	await applyEdit(picked, "left", `${left}px`);
+	await applyEdit(picked, "top", `${top}px`);
 }
 
 function openPreview() {
@@ -307,22 +620,7 @@ function openPreview() {
 			{ enableScripts: true, retainContextWhenHidden: true,
 				localResourceRoots: [vscode.Uri.file(os.tmpdir())] });
 
-		panel.webview.onDidReceiveMessage((message) => {
-			if (!message || typeof message.zoom !== "string") {
-				return;
-			}
-
-			const index = ZOOM_STEPS.indexOf(zoom);
-			if (message.zoom === "in") {
-				zoom = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, (index === -1 ? 3 : index) + 1)];
-			} else if (message.zoom === "out") {
-				zoom = ZOOM_STEPS[Math.max(0, (index === -1 ? 3 : index) - 1)];
-			} else {
-				zoom = 1;
-			}
-
-			render();
-		});
+		panel.webview.onDidReceiveMessage(handleMessage);
 
 		panel.onDidDispose(() => { panel = null; });
 	}
@@ -345,6 +643,39 @@ function activate(context) {
 		if (/\.(rml|rcss)$/.test(saved.fileName)) {
 			render();
 		}
+	}));
+
+	/*
+	 * The other direction: put the caret in a rule and the elements it styles light up.
+	 *
+	 * Falls out of provenance - every element already carries the rules that styled it - and it is
+	 * most of what makes the tool feel like an editor rather than a viewer, because it answers "what
+	 * does this rule actually reach" without reading the markup.
+	 */
+	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection((event) => {
+		if (!panel || !event.textEditor.document.fileName.endsWith(".rcss")) {
+			return;
+		}
+
+		const line = event.selections[0].active.line + 1;
+		const rules = rcss.listRules(event.textEditor.document.getText());
+
+		// The last rule beginning at or before the caret is the one it is inside.
+		let inside = null;
+		for (const rule of rules) {
+			if (rule.line <= line && (!inside || rule.line > inside.line)) {
+				inside = rule;
+			}
+		}
+
+		if (!inside) {
+			return;
+		}
+
+		const matched = elements.filter((element) =>
+			(element.properties || []).some((declaration) => declaration.rule === inside.selector));
+
+		panel.webview.postMessage({ kind: "highlight", paths: matched.map((element) => element.path) });
 	}));
 
 	// Following the active editor, so flicking between documents previews the one being looked at.

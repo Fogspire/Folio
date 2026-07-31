@@ -64,6 +64,34 @@ A zoom is a render, so it takes as long as a save does.
 renders to an offscreen target, so `3840x2160` on a 1080p monitor produces a real 4K render rather
 than a clamped one.
 
+## Editing from the preview
+
+The preview is not read-only.
+
+**Click an element** to select it. Its box is outlined, the bar underneath names what you picked and
+which rules reach it, and the source jumps to the rule that styles it. That last part is what makes
+this an editor rather than a viewer: seeing a thing and finding the line that made it are the same
+action.
+
+**Drag a selected element** to move it. On release you are asked *which rule* to edit, because that is
+a real choice and getting it wrong silently is worse than asking: moving one button by editing `.btn`
+moves every button, and moving it by editing `#continue` moves only that one. Rules that already set
+the property are offered first.
+
+The edit is applied as **one property on one rule**, in place. Comments, blank lines and indentation
+are untouched - the diff is one line, or one run of characters inside one line. It goes through the
+editor's undo stack, so `Ctrl+Z` reverses it like anything else you typed.
+
+**Put the caret in a rule** in an `.rcss` file and every element that rule reaches lights up in the
+preview, in a different colour to a selection. It answers "what does this actually style" without
+reading the markup.
+
+### What it will not do
+
+It edits properties on rules. It does not add rules, move elements between parents, or write markup -
+documents stay hand-authored text that a tool adjusts. If nothing styles an element, the drag tells you
+so rather than inventing a rule to hold the change.
+
 ## What the preview is worth trusting
 
 This is the whole reason the tool exists, so it is worth being precise about.

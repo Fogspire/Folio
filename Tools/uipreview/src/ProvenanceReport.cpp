@@ -61,7 +61,11 @@ void Walk(Rml::Element* element, ordered_json& out_entries)
 		});
 	}
 
-	if (!properties.empty())
+	// Every element, not only the styled ones. A tool selecting by clicking needs a box for anything
+	// clickable, and an element with no rule of its own is still something an author points at - it is
+	// exactly the case where the answer is "the rule you want belongs to an ancestor".
+	const Rml::Vector2f size = element->GetBox().GetSize(Rml::BoxArea::Border);
+	if (size.x > 0.0f && size.y > 0.0f)
 	{
 		out_entries.push_back({
 			{"path", ComputeElementPath(element)},

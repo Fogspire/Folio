@@ -169,6 +169,7 @@ ui/
 | [docs/data_binding.md](docs/data_binding.md) | driving a document from gameplay |
 | [docs/testing_a_document.md](docs/testing_a_document.md) | every check and what it catches |
 | [docs/accessibility.md](docs/accessibility.md) | the four annotations and the build gate |
+| [docs/known_gaps.md](docs/known_gaps.md) | every known limit, when something does not work and you need to know whether it can |
 
 ## What not to do
 

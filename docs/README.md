@@ -63,6 +63,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 |---|---|
 | **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** | **Authoritative for capability.** What RCSS supports, what is banned, and what silently does nothing. Read it before authoring anything real - RmlUi is close enough to CSS to mislead. |
 | **[AGENTS.md](../AGENTS.md)** | The cold-start brief. What to hand an agent asked to build UI in a project it has not seen. |
+| **[What Folio does not do yet](known_gaps.md)** | Every known limit, in one place. Read it before designing around something. |
 | **[NOTES.md](../NOTES.md)** | Build and engine-integration hazards. Not for authoring. |
 
 ## The one thing to know first

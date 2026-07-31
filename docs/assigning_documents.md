@@ -46,6 +46,18 @@ turns a guess into a comparison.
 **A missing document and a document that fails to parse are reported differently.** Both render
 nothing, and telling them apart by looking is impossible.
 
+## Finding them in a level
+
+Every report names the component *and its actor*, and appears as a clickable entry in **Window >
+Message Log > Folio** - Map Check and asset validation carry the same tokens, so wherever the
+mistake surfaces, the entry selects the actor and opens the asset.
+
+For a level with more than one, the **Folio** button in the level toolbar has **Select Actors With
+Broken Documents**. It selects every actor holding a document component whose path names nothing, or
+that has no path at all, and lists them in the Message Log. A directory rename tends to break dozens
+at once, and selecting them all puts them in the details panel together, where one edit to the shared
+property fixes the set. The selection is transacted, so undo puts back whatever was selected before.
+
 ## Resetting the field
 
 The reset arrow restores the class default, as it does anywhere else — **unless that default names a

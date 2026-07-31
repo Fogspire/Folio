@@ -151,5 +151,14 @@ public:
 	 */
 	static bool ValidateDocumentPath(const UActorComponent& Component, const FString& DocumentPath,
 		class FDataValidationContext* Validation);
+
+	/**
+	 * What is wrong with a component's document path, without reporting it anywhere.
+	 *
+	 * The same rules the two checks above apply, so a sweep over a level and a validation pass never
+	 * disagree about which components are broken. Returns false when nothing is wrong.
+	 */
+	static bool DescribeDocumentPathIssue(const UActorComponent& Component, const FString& DocumentPath,
+		FText& OutMessage);
 #endif
 };

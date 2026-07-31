@@ -25,6 +25,8 @@ public class FolioEditor : ModuleRules
 			"EditorStyle",
 			// The Message Log listing a missing document is reported into.
 			"MessageLog",
+			// The toolbar entry, which is a ToolMenus extension rather than a Slate widget.
+			"ToolMenus",
 			"Projects",
 			"Folio",
 			// FolioModule.h reaches RmlUi types through FolioRmlUi.h, so anything including it needs

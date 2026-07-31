@@ -2,10 +2,14 @@
 #include "FolioWorldDocumentCustomization.h"
 
 #include "FolioDocumentPath.h"
+#include "FolioEditorStyle.h"
+#include "FolioLevelActions.h"
 
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "MessageLogModule.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "Folio"
 
@@ -45,6 +49,59 @@ public:
 		Options.bAllowClear = true;
 
 		MessageLog.RegisterLogListing(FolioMessageLogName, LOCTEXT("FolioLog", "Folio"), Options);
+
+		FFolioEditorStyle::Register();
+		UToolMenus::RegisterStartupCallback(
+			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FFolioEditorModule::RegisterMenus));
+	}
+
+	/**
+	 * The toolbar button, beside the other plugin ones.
+	 *
+	 * A combo button with a single item rather than a plain button: what belongs here grows, and a
+	 * menu that gains a second entry is less disruptive than a button that turns into a menu.
+	 */
+	void RegisterMenus()
+	{
+		FToolMenuOwnerScoped OwnerScoped(this);
+
+		UToolMenu* ToolBar = UToolMenus::Get()->ExtendMenu(TEXT("LevelEditor.LevelEditorToolBar.PlayToolBar"));
+		if (!ToolBar)
+		{
+			return;
+		}
+
+		FToolMenuEntry Entry = FToolMenuEntry::InitComboButton(
+			TEXT("FolioMenu"),
+			FUIAction(),
+			FOnGetContent::CreateRaw(this, &FFolioEditorModule::BuildMenu),
+			LOCTEXT("FolioToolbar", "Folio"),
+			LOCTEXT("FolioToolbarTip", "Folio tools for this level."),
+			FSlateIcon(FFolioEditorStyle::GetStyleSetName(), FFolioEditorStyle::GetToolbarIconName()));
+
+		// The style that gives a toolbar button its label beside the icon, and the position that puts
+		// it next to the other plugin menus rather than in among the play controls.
+		Entry.StyleNameOverride = TEXT("CalloutToolbar");
+		Entry.InsertPosition = FToolMenuInsert(TEXT("MCPMenu"), EToolMenuInsertType::After);
+
+		ToolBar->FindOrAddSection(TEXT("Play")).AddEntry(Entry);
+	}
+
+	TSharedRef<SWidget> BuildMenu()
+	{
+		FMenuBuilder Menu(/*bInShouldCloseWindowAfterMenuSelection*/ true, nullptr);
+
+		Menu.BeginSection(TEXT("FolioLevel"), LOCTEXT("FolioLevelSection", "This Level"));
+		Menu.AddMenuEntry(
+			LOCTEXT("SelectBroken", "Select Actors With Broken Documents"),
+			LOCTEXT("SelectBrokenTip",
+				"Selects every actor holding a document component whose path names nothing, or that has "
+				"no path at all. One edit in the details panel then fixes the whole set."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::SelectActorsWithBrokenDocuments)));
+		Menu.EndSection();
+
+		return Menu.MakeWidget();
 	}
 
 	virtual void ShutdownModule() override
@@ -61,6 +118,10 @@ public:
 		{
 			MessageLog->UnregisterLogListing(FolioMessageLogName);
 		}
+
+		UToolMenus::UnRegisterStartupCallback(this);
+		UToolMenus::UnregisterOwner(this);
+		FFolioEditorStyle::Unregister();
 	}
 };
 

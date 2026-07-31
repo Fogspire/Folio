@@ -406,8 +406,8 @@ void UFolioDocumentPathLibrary::ReportMissingDocument(const FString& DocumentPat
 
 #if WITH_EDITOR
 
-bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Component,
-	const FString& DocumentPath, FDataValidationContext* Validation)
+bool UFolioDocumentPathLibrary::DescribeDocumentPathIssue(const UActorComponent& Component,
+	const FString& DocumentPath, FText& OutMessage)
 {
 	const AActor* Owner = Component.GetOwner();
 
@@ -415,7 +415,14 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 	// path is only wrong once something has been placed in a level.
 	const bool bPlaced = Owner && Owner->GetLevel() != nullptr;
 
-	FText Message;
+	// The component named with its actor, because a level holds many of both and the component's own
+	// name is usually the class name repeated.
+	const FText Where = Owner
+		? FText::Format(NSLOCTEXT("Folio", "ComponentOnActor", "{0} on '{1}'"),
+			FText::FromString(Component.GetName()), FText::FromString(Owner->GetActorNameOrLabel()))
+		: FText::FromString(Component.GetName());
+
+	FText& Message = OutMessage;
 
 	if (DocumentPath.IsEmpty())
 	{
@@ -426,7 +433,7 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 
 		Message = FText::Format(
 			NSLOCTEXT("Folio", "NoDocument", "{0} has no document assigned, so it will render nothing."),
-			FText::FromString(Component.GetName()));
+			Where);
 	}
 	else if (!DocumentExists(DocumentPath))
 	{
@@ -437,7 +444,7 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 		Message = FText::Format(
 			NSLOCTEXT("Folio", "MissingDocument",
 				"{0} names '{1}', which does not exist. It resolves to '{2}'."),
-			FText::FromString(Component.GetName()),
+			Where,
 			FText::FromString(DocumentPath),
 			FText::FromString(Resolved.IsEmpty() ? TEXT("nothing") : *Resolved));
 	}
@@ -449,7 +456,7 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 			NSLOCTEXT("Folio", "AbsoluteDocument",
 				"{0} names '{1}', an absolute path. It will not resolve on another machine - use a "
 				"project-relative path such as UI/screens/hud.rml."),
-			FText::FromString(Component.GetName()),
+			Where,
 			FText::FromString(DocumentPath));
 	}
 	else
@@ -457,16 +464,38 @@ bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Comp
 		return false;
 	}
 
+	return true;
+}
+
+bool UFolioDocumentPathLibrary::ValidateDocumentPath(const UActorComponent& Component,
+	const FString& DocumentPath, FDataValidationContext* Validation)
+{
+	FText Message;
+	if (!DescribeDocumentPathIssue(Component, DocumentPath, Message))
+	{
+		return false;
+	}
+
+	AActor* Owner = const_cast<AActor*>(Component.GetOwner());
+
+	// Tokenised either way, so an entry is a thing to click rather than a name to go hunting for.
+	// Validation runs on save and on a cook, Map Check when someone asks; the reader is the same
+	// person wanting the same actor.
 	if (Validation)
 	{
-		Validation->AddError(Message);
+		const TSharedRef<FTokenizedMessage> Entry =
+			Validation->AddMessage(EMessageSeverity::Error, FText::GetEmpty());
+
+		if (Owner)
+		{
+			Entry->AddToken(FUObjectToken::Create(Owner));
+		}
+		Entry->AddToken(FTextToken::Create(Message));
 	}
 	else if (Owner)
 	{
-		// Map Check, which is where anyone looks after a level misbehaves. The token makes the entry
-		// select the actor, so the report is a list of things to click rather than names to hunt for.
 		FMessageLog(TEXT("MapCheck")).Error()
-			->AddToken(FUObjectToken::Create(const_cast<AActor*>(Owner)))
+			->AddToken(FUObjectToken::Create(Owner))
 			->AddToken(FTextToken::Create(Message));
 	}
 

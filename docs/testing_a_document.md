@@ -95,6 +95,27 @@ anything is found.
 `./scripts/check_world_path.sh` is for anyone changing the renderer rather than a document - it
 catches a property that the world-space path silently drops.
 
+**`./scripts/compare_images.sh <a.png> <b.png>`** compares two shots numerically, which is the only
+way anyone is going to notice that a shadow moved by two pixels.
+
+```bash
+./scripts/compare_images.sh before.png after.png --gate rgba --out diff.png
+```
+
+It reports max and mean difference for colour and for alpha **separately**, how many pixels are past
+the tolerance, and the box containing them. `--out` writes a heat map: black where the two agree,
+rising through red to white where they do not, which answers *where* rather than *how much*.
+
+Alpha and colour are split because they mean different things here. **Across renderers, RGB will
+never match** — the preview does no sRGB conversion where Slate linearises vertex colour and applies
+display gamma — so gating on it produces a check nobody can keep green. Coverage is different: where
+a glyph, a shadow or a mask puts its alpha is geometry, and geometry must match. `--gate rgba` is for
+two shots from the *same* renderer, where any difference is a regression.
+
+**One trap it warns about rather than hides:** a document with an opaque background has the same alpha
+in every pixel, so `--gate alpha` compares nothing and passes whatever it is given. Compare on a
+transparent ground, or gate on `rgb`.
+
 `./scripts/check_headers.sh` catches a public header that includes a private one. The build cannot:
 a module's own sources have `Private` on their include path, so it compiles here and fails only for
 whoever consumes the plugin, naming the public header that looked fine.

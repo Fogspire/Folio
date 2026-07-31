@@ -128,8 +128,18 @@ The invalidation trace is how you find an animation you forgot about: a document
 usually one element still transitioning something invisible. `folio.Invalidation.Trace`, and
 **[performance](performance_profiling.md)**.
 
+## What transitions cannot do
+
+A transition fires on a state change and runs a fixed curve to completion. It has no notion of
+current velocity, so it cannot express a continuous response to a signal that never settles - a HUD
+trailing a moving camera, kicked again before it arrives.
+
+That is a spring, and it is a component rather than a stylesheet feature. See
+**[a HUD that responds to the camera](hud_motion.md)**.
+
 ## Where to go next
 
+- **[A HUD that responds to the camera](hud_motion.md)** — springs, for motion a curve cannot describe.
 - **[Drag, drop and resize](drag_and_resize.md)** — `folio-closing` and animated removal.
 - **[Data binding](data_binding.md)** — driving classes from gameplay.
 - **[Performance and profiling](performance_profiling.md)** — when the animation is the cost.

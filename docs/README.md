@@ -40,6 +40,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 |---|---|
 | **[Documents in the world](world_documents.md)** | A monitor on a desk, a sign on a wall. The three draw modes and the surface setup. |
 | **[Nameplates and markers](markers.md)** | Screen-space documents that follow a world location. |
+| **[A HUD that responds to the camera](hud_motion.md)** | Springs, so a visor lags a turn and settles. What transitions cannot express. |
 
 ## Shipping
 

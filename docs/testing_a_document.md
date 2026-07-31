@@ -116,6 +116,9 @@ two shots from the *same* renderer, where any difference is a regression.
 in every pixel, so `--gate alpha` compares nothing and passes whatever it is given. Compare on a
 transparent ground, or gate on `rgb`.
 
+`./scripts/check_recipes.sh` runs the four shipped recipes under `--strict --a11y`. They are what
+people copy to start a screen, so a finding in one is inherited by everyone who uses it.
+
 `./scripts/check_headers.sh` catches a public header that includes a private one. The build cannot:
 a module's own sources have `Private` on their include path, so it compiles here and fails only for
 whoever consumes the plugin, naming the public header that looked fine.

@@ -76,6 +76,12 @@ dialog, a nameplate. They are **meant to be copied into your own `ui/`, not link
 That is deliberate. A recipe is a starting point you own and edit; a linked one is a dependency you
 cannot change. Nothing in a recipe names Folio's directory except the library link.
 
+All four pass `--strict --a11y` with no findings, and `./scripts/check_recipes.sh` keeps it that way.
+
+**A recipe that binds a model needs a mock beside it.** `nameplate.rml` reads `Name` and `Health`, and
+previews against `ui/mock/nameplate.json` in the plugin. Copy it into your own `ui/mock/` along with
+the document, or the preview reports the binding as a missing variable.
+
 Every recipe passes `--strict` and `--a11y` with no findings, so what you copy starts clean.
 
 ## Themes

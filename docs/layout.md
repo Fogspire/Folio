@@ -3,6 +3,18 @@
 Flexbox, and almost nothing else. RCSS has no grid, no `calc()`, no `aspect-ratio` and no custom
 properties, so the layout vocabulary is small and you will use all of it.
 
+## Copy a screen before you lay one out
+
+`rcss/recipes/` holds complete working screens — `main_menu.rml`, `pause.rml`, `confirm.rml`,
+`nameplate.rml`. **Copy one into your own `ui/` and edit it.** They pass `--strict` and `--a11y` with
+no findings, so what you start from already has the `box-sizing`, flex bases, scrollbar geometry,
+`tab-index` and `nav` right — and every one of those is a trap documented further down this page.
+
+Copied, not linked: a recipe is a starting point you own, and nothing in one names Folio's directory
+except the library link. See **[components, themes and recipes](components_and_themes.md)**.
+
+The rest of this page is for when you need something no recipe covers.
+
 ## Start from the defaults
 
 RmlUi ships no user-agent stylesheet. Every element starts from raw initial values, and several are
@@ -131,7 +143,10 @@ None of these warn. They parse and do nothing.
 
 `rcss/lib/` has the structure for panel, list, modal, tabbar and the rest, with no colour in any of
 them. Compose those rather than starting from a bare `div` - they already have the `box-sizing`, the
-scrollbar geometry and the flex bases right. See **[components and themes](components_and_themes.md)**.
+scrollbar geometry and the flex bases right.
+
+`rcss/recipes/` assembles them into whole screens, which is the level to start from if one of them is
+close to what you want. See **[components, themes and recipes](components_and_themes.md)**.
 
 ## Where to go next
 

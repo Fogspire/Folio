@@ -277,7 +277,8 @@ some preview correctly and render as nothing in engine:
 | `backdrop-filter: outside-blur` | Works. Folio's own; see below |
 | Text, at any size or transform scale | Works. See §6 |
 | `font-effect`, all four | Works, in both renderers, resolved from the field. Bounded in reach - see §6 |
-| **`filter` other than `blur`, `mask-image`, `backdrop-filter` other than `blur`** | **Banned.** The layer machinery is in place and only the shaders are missing, so these parse, log once and render nothing |
+| `filter`: `brightness`, `contrast`, `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate` | Works. Applied to the resolved layer in the order named, before any blur |
+| **`mask-image`, `backdrop-filter` other than `blur`** | **Banned.** These parse, log once and render nothing in engine |
 
 A surface drawn through a layer lands about 3/255 darker than the same colour drawn directly,
 from the 8-bit sRGB round trip through the render target. Visible only side by side, and not

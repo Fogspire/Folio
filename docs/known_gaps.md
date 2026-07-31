@@ -21,13 +21,13 @@ exact falloff of a gradient at its edge.
 
 A document using one gets a note in the VSCode preview saying so. Judge those in the engine.
 
-### `filter` other than `blur`, and `mask-image`
+### `mask-image`
 
-`brightness`, `contrast`, `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate` and
-`mask-image` **parse, log once, and render nothing in the engine.** They all work in `uipreview`.
+**Parses, logs once, and renders nothing in the engine.** It works in `uipreview`.
 
-The layer machinery they need is in place - render targets, clip masks, the stencil path - and only
-the shaders are missing. This is the closest of the renderer gaps to being closed.
+The layer machinery is in place and clip masks are a real stencil, so this is close - but a stencil
+records coverage rather than alpha, so an image mask with a soft edge would come out hard. That is
+the part still to design, not the plumbing.
 
 ### A layer costs about 3/255 of brightness
 

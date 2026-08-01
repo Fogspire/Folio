@@ -185,6 +185,19 @@ public:
 	FOLIO_API void TakeFocus();
 
 	/**
+	 * Puts the focus ring on one named element.
+	 *
+	 * For a screen that swaps pages inside one document. Closing a page hides the element that held
+	 * focus, and a hidden element is one nothing can navigate from, so the next direction press
+	 * starts again from the top rather than from where the player was. Focusing whatever opened the
+	 * page puts them back where they left off.
+	 *
+	 * Returns false if the id names nothing, or names something that cannot take focus.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API bool FocusElement(const FString& ElementId, bool bVisible = true);
+
+	/**
 	 * Escape, or the pad's back button, when nothing in the document consumed it.
 	 *
 	 * This is what makes an input-only screen closable: with `FInputModeUIOnly` the player controller

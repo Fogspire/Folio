@@ -194,6 +194,23 @@ void UFolioWidget::SetInteractive(const bool bInInteractive)
 	}
 }
 
+bool UFolioWidget::FocusElement(const FString& ElementId, const bool bVisible)
+{
+	if (!Canvas.IsValid())
+	{
+		return false;
+	}
+
+	Rml::ElementDocument* Document = Canvas->GetDocument();
+	if (!Document)
+	{
+		return false;
+	}
+
+	Rml::Element* Element = Document->GetElementById(Folio::ToRmlString(ElementId));
+	return Element && Element->Focus(bVisible);
+}
+
 void UFolioWidget::TakeFocus()
 {
 	if (Canvas.IsValid() && FSlateApplication::IsInitialized())

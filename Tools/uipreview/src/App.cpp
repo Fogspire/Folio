@@ -557,6 +557,7 @@ void App::RenderFrame()
 {
 	system_interface->AdvanceTime(options.dt_ms / 1000.0);
 	context->Update();
+	behaviours.UpdateScrollState();
 	Backend::BeginFrame();
 	context->Render();
 	Backend::EndFrame();
@@ -933,6 +934,7 @@ int App::RunInteractive()
 		// Interactive mode follows wall time rather than the fixed capture step.
 		system_interface->SetTime(Backend::GetTime());
 		context->Update();
+		behaviours.UpdateScrollState();
 		Backend::BeginFrame();
 		context->Render();
 		Backend::EndFrame();

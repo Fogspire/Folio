@@ -469,6 +469,7 @@ bool FFolioDocumentHost::Update(const float DeltaSeconds, const float DpRatio, c
 	const TCHAR* const Reason = bDirty ? DirtyReason : TEXT("RmlUi asked");
 
 	Context->Update();
+	Behaviours.UpdateScrollState();
 
 	// Read after the update, not before: RmlUi resets the request to infinity as Update starts and fills
 	// it in as elements ask, so before the call it says nothing about this frame.

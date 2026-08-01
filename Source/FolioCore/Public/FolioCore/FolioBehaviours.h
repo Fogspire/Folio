@@ -92,6 +92,25 @@ public:
 		Document.reset();
 	}
 
+	/**
+	 * Says which of the scrolling elements have more above or below what they show.
+	 *
+	 * `folio-scroll-up` and `folio-scroll-down` go on any element with content past its own box, so a
+	 * stylesheet can fade an edge or point at it. RmlUi draws a scrollbar and stops there, and a
+	 * scrollbar answers the wrong question: it is a thing to grab with a mouse, it is missing on a
+	 * pad entirely, and a list one row too long shows a slider that fills its whole track.
+	 *
+	 * Called after the context update, when layout has settled. A rule keyed off these classes must
+	 * not change the element's own layout, or it changes the answer and the two fight every frame.
+	 */
+	void UpdateScrollState()
+	{
+		if (Document)
+		{
+			StampScroll(Document.get());
+		}
+	}
+
 	//~ Begin Rml::EventListener
 	virtual void ProcessEvent(Rml::Event& Event) override
 	{
@@ -176,6 +195,54 @@ private:
 	{
 		static const Rml::String Value = "folio-closing";
 		return Value;
+	}
+
+	/**
+	 * The class on the scrolling element, and its counterpart on the parent.
+	 *
+	 * The parent one is what a fade or an arrow is keyed off. Such an overlay cannot live inside the
+	 * scrolling box, or it scrolls away with the content, so it is a sibling - and RCSS matches down
+	 * the tree rather than sideways, leaving the parent as the only thing both can see. With two
+	 * scrolling children under one parent the last one wins, so give them a parent each.
+	 */
+	static void Mark(Rml::Element* Element, const char* Edge, const bool bState)
+	{
+		Element->SetClass(Rml::String("folio-scroll-") + Edge, bState);
+
+		if (Rml::Element* Parent = Element->GetParentNode())
+		{
+			Parent->SetClass(Rml::String("folio-inner-scroll-") + Edge, bState);
+		}
+	}
+
+	static void StampScroll(Rml::Element* Element)
+	{
+		const Rml::ComputedValues& Computed = Element->GetComputedValues();
+
+		if (Computed.overflow_y() != Rml::Style::Overflow::Visible)
+		{
+			const float Hidden = Element->GetScrollHeight() - Element->GetClientHeight();
+			const float At = Element->GetScrollTop();
+
+			// A pixel of slack. A scroll height is a sum of laid out boxes and lands a fraction over
+			// its container often enough that an exact test flickers the affordance on and off.
+			Mark(Element, "up", Hidden > 1.0f && At > 1.0f);
+			Mark(Element, "down", Hidden > 1.0f && At < Hidden - 1.0f);
+		}
+
+		if (Computed.overflow_x() != Rml::Style::Overflow::Visible)
+		{
+			const float Hidden = Element->GetScrollWidth() - Element->GetClientWidth();
+			const float At = Element->GetScrollLeft();
+
+			Mark(Element, "left", Hidden > 1.0f && At > 1.0f);
+			Mark(Element, "right", Hidden > 1.0f && At < Hidden - 1.0f);
+		}
+
+		for (int Index = 0; Index < Element->GetNumChildren(); ++Index)
+		{
+			StampScroll(Element->GetChild(Index));
+		}
 	}
 
 	static Rml::Vector<Rml::EventId> Events()

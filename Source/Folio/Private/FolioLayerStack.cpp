@@ -73,9 +73,28 @@ void FFolioLayerStack::Release(UTextureRenderTarget2D* Target)
 	}
 }
 
-bool FFolioLayerStack::Push(const FIntPoint Size)
+bool FFolioLayerStack::Push(const FIntPoint Size, const FIntPoint Origin)
 {
-	return Size.X > 0 && Size.Y > 0 && Acquire(Size) != nullptr;
+	if (Size.X <= 0 || Size.Y <= 0 || !Acquire(Size))
+	{
+		return false;
+	}
+
+	Stack.Last().Origin = Origin;
+	return true;
+}
+
+bool FFolioLayerStack::HasDocumentLayer() const
+{
+	for (const FLayer& Layer : Stack)
+	{
+		if (!Layer.bCallerOwned)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool FFolioLayerStack::PushMatchingTop()
@@ -88,6 +107,7 @@ bool FFolioLayerStack::PushMatchingTop()
 	// Copied before acquiring, which appends to the stack and would leave a reference dangling.
 	const FIntPoint Size = Stack.Last().Size;
 	const FIntPoint Clip = Stack.Last().ClipSize;
+	const FIntPoint Origin = Stack.Last().Origin;
 
 	if (Size.X <= 0 || Size.Y <= 0 || !Acquire(Size))
 	{
@@ -97,6 +117,7 @@ bool FFolioLayerStack::PushMatchingTop()
 	// Carried too, or a layer over a supersampled surface would replay the same geometry at the
 	// target's scale instead of the document's.
 	Stack.Last().ClipSize = Clip;
+	Stack.Last().Origin = Origin;
 	return true;
 }
 
@@ -283,10 +304,15 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	const FVector2f Size(Source.Size.X, Source.Size.Y);
 	const FLinearColor White(1.0f, 1.0f, 1.0f, 1.0f);
 
-	Draw.Vertices.Add({ FVector2f(0.0f, 0.0f),     FVector2f(0.0f, 0.0f), White });
-	Draw.Vertices.Add({ FVector2f(Size.X, 0.0f),   FVector2f(1.0f, 0.0f), White });
-	Draw.Vertices.Add({ FVector2f(Size.X, Size.Y), FVector2f(1.0f, 1.0f), White });
-	Draw.Vertices.Add({ FVector2f(0.0f, Size.Y),   FVector2f(0.0f, 1.0f), White });
+	// Where the source sits in the destination's space. The two match whenever a layer was pushed to
+	// match the one below it, and differ when the source covers only its element's own region.
+	const FVector2f At(float(Source.Origin.X - Destination.Origin.X),
+		float(Source.Origin.Y - Destination.Origin.Y));
+
+	Draw.Vertices.Add({ At,                                   FVector2f(0.0f, 0.0f), White });
+	Draw.Vertices.Add({ At + FVector2f(Size.X, 0.0f),         FVector2f(1.0f, 0.0f), White });
+	Draw.Vertices.Add({ At + FVector2f(Size.X, Size.Y),       FVector2f(1.0f, 1.0f), White });
+	Draw.Vertices.Add({ At + FVector2f(0.0f, Size.Y),         FVector2f(0.0f, 1.0f), White });
 	Draw.Indices = { 0, 1, 2, 0, 2, 3 };
 
 	Destination.Draws.GetDraws().Add(MoveTemp(Draw));
@@ -371,7 +397,7 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 				FExclusiveDepthStencil::DepthNop_StencilWrite);
 
 			GraphBuilder.AddPass(RDG_EVENT_NAME("FolioLayer"), Parameters, ERDGPassFlags::Raster,
-				[Parameters, Size, Draws = MoveTemp(Draws)](FRHICommandList& RHICmdList)
+				[Parameters, Size, Clip, Draws = MoveTemp(Draws)](FRHICommandList& RHICmdList)
 				{
 					const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 					TShaderMapRef<FFolioUIVS> VertexShader(ShaderMap);
@@ -380,6 +406,12 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 					TShaderMapRef<FFolioUIMaskPS> MaskShader(ShaderMap);
 
 					RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
+					RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+
+					const FIntRect Whole(0, 0, Size.X, Size.Y);
+					const FVector2f Ratio(Clip.X > 0 ? float(Size.X) / float(Clip.X) : 1.0f,
+						Clip.Y > 0 ? float(Size.Y) / float(Clip.Y) : 1.0f);
+					bool bScissored = false;
 
 					for (const FFolioDraw& Draw : Draws)
 					{
@@ -472,15 +504,33 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 						RHICmdList.UnlockBuffer(IndexBuffer);
 
 						// `overflow: hidden`, which the screen path gives to Slate as a clip zone and a
-						// recording has to carry itself.
-						if (Draw.Scissor.Area() > 0)
+						// recording has to carry itself. Clamped to the layer, because RmlUi's scissor is
+						// against the whole context and a layer is only as big as the element that wanted
+						// it - and the RHI rejects a rectangle reaching past its viewport.
+						// Into the target's pixels. The scissor arrives in the space the geometry was
+						// recorded in, and the vertex shader scales that space onto the target, so a
+						// target that is not the same size scales the rectangle by the same ratio.
+						FIntRect Scissor(
+							FMath::FloorToInt(Draw.Scissor.Min.X * Ratio.X),
+							FMath::FloorToInt(Draw.Scissor.Min.Y * Ratio.Y),
+							FMath::CeilToInt(Draw.Scissor.Max.X * Ratio.X),
+							FMath::CeilToInt(Draw.Scissor.Max.Y * Ratio.Y));
+
+						Scissor.Clip(Whole);
+						Scissor.Max.X = FMath::Max(Scissor.Min.X, Scissor.Max.X);
+						Scissor.Max.Y = FMath::Max(Scissor.Min.Y, Scissor.Max.Y);
+
+						// A rectangle covering the whole layer is left to the viewport. It is the common
+						// case, since RmlUi sets the scissor to the context whenever nothing is clipping,
+						// and an empty intersection still has to be set: that draw is wholly outside its
+						// clip and turning the scissor off would draw the one thing meant to be hidden.
+						const bool bWanted = Draw.Scissor.Area() > 0 && Scissor != Whole;
+
+						if (bWanted || bScissored)
 						{
-							RHICmdList.SetScissorRect(true, Draw.Scissor.Min.X, Draw.Scissor.Min.Y,
-								Draw.Scissor.Max.X, Draw.Scissor.Max.Y);
-						}
-						else
-						{
-							RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+							RHICmdList.SetScissorRect(bWanted, Scissor.Min.X, Scissor.Min.Y,
+								Scissor.Max.X, Scissor.Max.Y);
+							bScissored = bWanted;
 						}
 
 						RHICmdList.SetStreamSource(0, VertexBuffer, 0);

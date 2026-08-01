@@ -112,6 +112,35 @@ Widget->Scale = 1.0f;   // a multiplier on top, which a HUD scale slider writes
 `Min Scale` and `Max Scale` bound the result, zero for no bound - a hard stop on what a 4K window is
 allowed to do.
 
+## Smoothing the edges
+
+A background carries its own antialiasing: a one pixel skirt of coverage on its outer boundary, which
+is exactly what a browser does and is exact. It is also the least that can look smooth. A shallow
+edge - a slanted card, a long diagonal, a wide curve - advances one pixel every six or more, so the
+straight run between two steps is visible however accurate the blend is. Widening the skirt with
+`folio.Antialias.Width` trades a hard step for a blurry one rather than fixing it.
+
+**`Supersample` is the fix.** Set it to 2 and the document is laid out into a context twice the size
+each way, drawn into a target of its own, and scaled down - four samples per pixel on every edge.
+
+```cpp
+Widget->Supersample = 2;
+```
+
+Nothing in the markup changes: the dp ratio is multiplied by the same number, so the layout is
+identical and only the rasterisation is denser.
+
+What it costs:
+
+- A render target of the viewport times the sample count, squared. At 4K and 2x that is about 32MB,
+  per supersampled document.
+- One composite a frame.
+- **Text gains nothing.** Glyphs are distance fields and are already resolution independent, so they
+  go through a resample they did not need. A screen that is mostly text is paying for nothing.
+
+So it is per document rather than a project setting: on for a menu or a HUD with slanted panels, off
+for a text-heavy screen or a tight memory budget.
+
 `folio.Screens` reports what every screen document is laid out against: pixels, the ratio, what UMG
 would use, and what the document actually covers. **`drawn` has to match `px`**; when it does not,
 the document lands short of one corner and past the other, and no amount of stylesheet work will fix

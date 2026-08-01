@@ -1030,7 +1030,7 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 	// scissor is the element's own clip, so it is a different space every time.
 	//
 	// mask-image is where that shows, since the mask and what it masks are read at the same coordinate.
-	if (!Layers.IsEmpty())
+	if (Layers.HasDocumentLayer())
 	{
 		if (!Layers.PushMatchingTop())
 		{
@@ -1054,7 +1054,7 @@ Rml::LayerHandle FFolioRenderInterface::PushLayer()
 
 	LayerOrigin = Origin;
 
-	if (!Layers.Push(Size))
+	if (!Layers.Push(Size, Origin))
 	{
 		UE_LOG(LogFolio, Warning, TEXT("could not allocate a %dx%d layer"), Size.X, Size.Y);
 	}
@@ -1314,6 +1314,9 @@ void FFolioRenderInterface::PopLayer()
 
 	Layers.Pop();
 	LayerDepth = FMath::Max(0, LayerDepth - 1);
+
+	// Back to whatever the layer below records against, which for a surface is its own target.
+	LayerOrigin = Layers.CurrentOrigin();
 }
 
 Rml::TextureHandle FFolioRenderInterface::GetTransparentTexture()

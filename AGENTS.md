@@ -153,6 +153,11 @@ that is how a scene capture, a paper doll or a rendered item reaches a document.
 fetch the `.ttf` from [fonts.google.com](https://fonts.google.com) and drop it in `UI/fonts/` with
 its licence. Do not settle for a bundled face and call it a constraint.
 
+**Slanted and curved edges want `Supersample = 2` on the widget.** Background antialiasing is one
+pixel of coverage, which is exact and still steps visibly on a shallow diagonal. Supersampling draws
+the document at twice the size and scales it down; the layout is unchanged. It costs a render target
+and gains text nothing, so it is a per-document choice. See [docs/hosting.md](docs/hosting.md).
+
 **A HUD sets `Interactive` false on its `UFolioWidget`.** Anything the player does not click or
 navigate must not be focusable: Slate restores focus to a focusable widget on window reactivation,
 so an interactive HUD steals input on alt-tab and the player cannot move. Pair it with

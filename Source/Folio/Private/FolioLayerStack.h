@@ -36,7 +36,16 @@ public:
 	FFolioLayerStack();
 	~FFolioLayerStack();
 
-	bool Push(FIntPoint Size);
+	bool Push(FIntPoint Size, FIntPoint Origin = FIntPoint::ZeroValue);
+
+	/**
+	 * Whether a layer the document pushed is open.
+	 *
+	 * A surface's target is on the stack too, and it is the destination rather than a layer of the
+	 * document: the first layer over it is still the document's first, and has to be sized and placed
+	 * like one or SaveLayerAsTexture reads a target the size of the whole screen.
+	 */
+	bool HasDocumentLayer() const;
 
 	/**
 	 * Pushes a layer matching the current one's geometry.
@@ -87,6 +96,9 @@ public:
 	/** The recording the top layer is filling, so a scissor can be set on it. Null when empty. */
 	FFolioDrawList* CurrentDrawList();
 
+	/** Where the top layer sits, which is the origin geometry is recorded against. */
+	FIntPoint CurrentOrigin() const { return Stack.IsEmpty() ? FIntPoint::ZeroValue : Stack.Last().Origin; }
+
 	/** Resolves the current layer and composites it into the one below. */
 	void CompositeDown(bool bBlend, float BlurSigma,
 		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr);
@@ -111,6 +123,9 @@ private:
 	{
 		TStrongObjectPtr<UTextureRenderTarget2D> Target;
 		FIntPoint Size = FIntPoint::ZeroValue;
+
+		/** Where the layer sits in the space below it, for the quad that composites it down. */
+		FIntPoint Origin = FIntPoint::ZeroValue;
 
 		/**
 		 * The space the recorded geometry is in, when that is not the target's own size.

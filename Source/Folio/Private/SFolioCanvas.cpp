@@ -287,51 +287,62 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			TargetBrush.ImageSize = FVector2D(ContextSize);
 			TargetBrush.DrawAs = ESlateBrushDrawType::Image;
 
-			// Resolved here, on the game thread. A box element with a render target on it takes
-			// Slate's dynamic-resource path, which asks for the frame time on the render thread and
-			// ensures its way through every frame.
-			TargetHandle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(TargetBrush);
 		}
 
-		if (Renderer->BeginSurface(ContextSize, Target.Get()))
+		// Every paint, on the game thread. A handle to a render target goes stale when the resource
+		// behind it is recreated - which a resize, a device loss or a level change all do - and a
+		// stale one draws nothing at all. Resolving a brush that has not changed is a lookup.
+		TargetHandle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(TargetBrush);
+
+		if (!TargetHandle.IsValid())
+		{
+			// Better a hard edge than an empty screen.
+			static bool bWarned = false;
+			if (!bWarned)
+			{
+				bWarned = true;
+				UE_LOG(LogFolio, Warning,
+					TEXT("supersampling has no drawable handle for its render target, so the document "
+						"is being drawn directly. Set Supersample to 1 to silence this."));
+			}
+		}
+
+		if (TargetHandle.IsValid() && Renderer->BeginSurface(ContextSize, Target.Get()))
 		{
 			Context->Render();
 			Renderer->EndSurface();
 
-			if (TargetHandle.IsValid())
+			const FVector2f Size = AllottedGeometry.GetLocalSize();
+			const FSlateRenderTransform& ToWindow = AllottedGeometry.GetAccumulatedRenderTransform();
+
+			const FVector2f Corners[4] = {
+				FVector2f(0.0f, 0.0f), FVector2f(Size.X, 0.0f),
+				FVector2f(Size.X, Size.Y), FVector2f(0.0f, Size.Y),
+			};
+
+			TArray<FSlateVertex> Quad;
+			Quad.SetNumUninitialized(4);
+
+			for (int32 Index = 0; Index < 4; ++Index)
 			{
-				const FVector2f Size = AllottedGeometry.GetLocalSize();
-				const FSlateRenderTransform& ToWindow = AllottedGeometry.GetAccumulatedRenderTransform();
-				const FColor White(255, 255, 255, 255);
-
-				TArray<FSlateVertex> Quad;
-				Quad.SetNumUninitialized(4);
-				const FVector2f Corners[4] = {
-					FVector2f(0.0f, 0.0f), FVector2f(Size.X, 0.0f),
-					FVector2f(Size.X, Size.Y), FVector2f(0.0f, Size.Y),
-				};
-				const FVector2f Uvs[4] = {
-					FVector2f(0.0f, 0.0f), FVector2f(1.0f, 0.0f),
-					FVector2f(1.0f, 1.0f), FVector2f(0.0f, 1.0f),
-				};
-
-				for (int32 Index = 0; Index < 4; ++Index)
-				{
-					FSlateVertex& Vertex = Quad[Index];
-					Vertex = FSlateVertex();
-					Vertex.Position = FVector2f(TransformPoint(ToWindow, Corners[Index]));
-					Vertex.TexCoords[0] = Uvs[Index].X;
-					Vertex.TexCoords[1] = Uvs[Index].Y;
-					Vertex.MaterialTexCoords = Uvs[Index];
-					Vertex.Color = White;
-				}
-
-				static const TArray<SlateIndex> Indices = { 0, 1, 2, 0, 2, 3 };
-
-				// Premultiplied, because that is how the document composited into the target.
-				FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, TargetHandle, Quad, Indices,
-					nullptr, 0, 0, ESlateDrawEffect::PreMultipliedAlpha);
+				FSlateVertex& Vertex = Quad[Index];
+				Vertex = FSlateVertex();
+				Vertex.Position = FVector2f(TransformPoint(ToWindow, Corners[Index]));
+				Vertex.TexCoords[0] = Index == 1 || Index == 2 ? 1.0f : 0.0f;
+				Vertex.TexCoords[1] = Index >= 2 ? 1.0f : 0.0f;
+				Vertex.TexCoords[2] = 1.0f;
+				Vertex.TexCoords[3] = 1.0f;
+				Vertex.MaterialTexCoords = FVector2f(Vertex.TexCoords[0], Vertex.TexCoords[1]);
+				Vertex.Color = FColor(255, 255, 255, 255);
 			}
+
+			static const TArray<SlateIndex> Indices = { 0, 1, 2, 0, 2, 3 };
+
+			// Custom vertices rather than a box, which resolves the target on the render thread and
+			// asks there for a frame time it has no business knowing. Premultiplied, because that is
+			// how the document composited into the target.
+			FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, TargetHandle, Quad, Indices,
+				nullptr, 0, 0, ESlateDrawEffect::PreMultipliedAlpha);
 
 			return LayerId + 1;
 		}

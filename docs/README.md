@@ -45,6 +45,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | | |
 |---|---|
 | **[Documents in the world](world_documents.md)** | A monitor on a desk, a sign on a wall. The three draw modes and the surface setup. |
+| **[Input prompts](input_prompts.md)** | Showing the key a player actually bound, drawn rather than authored, and swapping when they pick up a pad. |
 | **[Nameplates and markers](markers.md)** | Screen-space documents that follow a world location. |
 | **[A HUD that responds to the camera](hud_motion.md)** | Springs, so a visor lags a turn and settles. What transitions cannot express. |
 
@@ -65,6 +66,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[A CRT terminal in the world](tutorials/crt_terminal.md)** | The whole vocabulary in one build: an oval screen, a text field, a draggable window with a bin and an animated close, onto a curved surface with scan lines. |
 | **[An inventory screen](tutorials/inventory.md)** | A grid, drag and drop between slots, gamepad navigation, and a data model behind it. |
 | **[A list of ten thousand items](tutorials/long_lists.md)** | Binding a fixed-size window instead of the array, so scrolling allocates nothing at all. |
+| **[A controls screen](tutorials/keybinding.md)** | Rebinding against Enhanced Input's own profile: a press-any-key panel that catches keys the game has bound, and what to do when one is already taken. |
 | **[A helmet HUD that responds to the player](tutorials/visor_hud.md)** | A first-person visor with no art at all: a helmet made of one border, curvature without 3D transforms, and two components trailing the camera and the stride. |
 
 ## Reference

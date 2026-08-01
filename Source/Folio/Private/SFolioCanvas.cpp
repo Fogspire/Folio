@@ -35,7 +35,13 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 	SetCanTick(true);
 	SetInteractive(InArgs._Interactive);
 	SetScale(InArgs._ScaleFollow, InArgs._Scale, InArgs._MinScale, InArgs._MaxScale);
+
 	SetSupersample(InArgs._Supersample);
+
+	// A player who swaps between the pad and the keyboard expects the document to be ready for
+	// whichever they just picked up, without a press that only serves to wake it.
+	DeviceChanged = FFolioModule::Get().OnInputDeviceChanged().AddSPLambda(this,
+		[this](Folio::EInputDevice) { FocusFirstElement(); });
 
 	// A context needs a size before it will lay anything out, and the real one only arrives with the
 	// first geometry. Starting at the requested desired size means a document loaded now is laid out
@@ -66,6 +72,7 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 SFolioCanvas::~SFolioCanvas()
 {
 	LiveCanvases.RemoveSingleSwap(this);
+	FFolioModule::Get().OnInputDeviceChanged().Remove(DeviceChanged);
 	Sounds.Detach();
 	Host.Destroy();
 }
@@ -634,6 +641,43 @@ FReply SFolioCanvas::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAn
 	}
 
 	return FReply::Unhandled();
+}
+
+FReply SFolioCanvas::OnFocusReceived(const FGeometry& MyGeometry, const FFocusEvent& FocusEvent)
+{
+	MarkDirty(TEXT("focus received"));
+	FocusFirstElement();
+
+	return SLeafWidget::OnFocusReceived(MyGeometry, FocusEvent);
+}
+
+void SFolioCanvas::FocusFirstElement()
+{
+	Rml::Context* Context = Host.GetContext();
+	Rml::ElementDocument* Document = Host.GetDocument();
+
+	if (!bInteractive || !Context || !Document)
+	{
+		return;
+	}
+
+	// Only when nothing in the document holds focus. A player halfway down a list who picks up the
+	// pad has not asked to start again, and a text field being typed into least of all.
+	const Rml::Element* Focus = Context->GetFocusElement();
+	if (Focus && Focus != Document && Focus != Context->GetRootElement())
+	{
+		return;
+	}
+
+	// Visibly, unless the player is on a mouse: the ring is how anyone navigating knows where they
+	// are, and a document that focuses invisibly reads as one that has not focused at all.
+	const bool bVisible = FFolioModule::Get().GetInputDevice() != Folio::EInputDevice::Mouse;
+
+	if (Rml::Element* First = Document->FindNextTabElement(Document, /*forward*/ true))
+	{
+		First->Focus(bVisible);
+		MarkDirty(TEXT("first focus"));
+	}
 }
 
 void SFolioCanvas::OnFocusLost(const FFocusEvent& FocusEvent)

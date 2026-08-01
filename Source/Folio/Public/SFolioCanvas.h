@@ -140,7 +140,21 @@ public:
 	virtual FReply OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent) override;
 	virtual FReply OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& CharacterEvent) override;
 	virtual FReply OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& AnalogEvent) override;
+	virtual FReply OnFocusReceived(const FGeometry& MyGeometry, const FFocusEvent& FocusEvent) override;
 	virtual void OnFocusLost(const FFocusEvent& FocusEvent) override;
+
+	/**
+	 * Focuses something navigable, if nothing in the document is focused yet.
+	 *
+	 * RmlUi navigates from the focused element, and a document that has just been shown focuses
+	 * itself rather than anything in it. A player who reaches for the d-pad first then presses
+	 * directions at a document with nowhere to move from, and nothing happens until they press
+	 * confirm - which is not a thing anyone would guess.
+	 *
+	 * The first element in tab order, or the one marked `autofocus`, which is RmlUi's own answer to
+	 * where a document starts.
+	 */
+	void FocusFirstElement();
 
 	/** What the player last touched. Documents swap button glyphs on it. */
 	Folio::EInputDevice GetLastInputDevice() const;
@@ -237,6 +251,9 @@ private:
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;
 	bool bKeepFocus = false;
+
+	/** Watches the module for the device changing, so focus can follow it. */
+	FDelegateHandle DeviceChanged;
 	bool bInteractive = true;
 
 	/** Screen space to the context's own pixel space. */

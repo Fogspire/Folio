@@ -237,6 +237,47 @@ UWidget* UMyScreen::GetDesiredFocusTarget() const override { return Document; }
 See **[hosting a document](hosting.md)**. Folio links no CommonUI and behaves the same in a project
 that has never heard of it - the integration is entirely on the game's side.
 
+## If the gamepad confirms the wrong control
+
+CommonUI turns the pad's accept button into a **left mouse click at its software cursor**, so a
+confirm presses whatever the cursor happens to be sitting over rather than what is focused. It looks
+exactly like a focus bug and is not one: the giveaway is that keyboard enter works, the pad does not,
+and Folio's input trace shows nothing at all for the press because it never arrives as a key.
+
+Two console variables, both defaulting on, in `DefaultEngine.ini`:
+
+```ini
+[ConsoleVariables]
+CommonUI.ShouldVirtualAcceptSimulateMouseButton=0
+CommonUI.EnableVirtualPointer=0
+```
+
+The second turns off the software cursor itself. Leave it on and the stick drives the pointer, which
+means a player holding only a pad is generating real mouse movement - so hover follows the stick, and
+anything keyed off which device is in use flickers between pad and mouse several times a second.
+
+## Binding a key while a screen is up
+
+A focused document is where Slate routes input, so a player controller's own bindings do not fire
+while one is open. A menu button that should close the menu is the usual casualty.
+
+Folio consumes only what a document claims - navigation, confirm and back, whether RmlUi could act on
+them or not, so none of those reach the pawn behind the screen. Everything else is offered back:
+
+```cpp
+Document->OnUnclaimedKey.AddDynamic(this, &AMyHud::HandleUnclaimedKey);
+
+void AMyHud::HandleUnclaimedKey(const FKey Key)
+{
+	if (Key == EKeys::Gamepad_Special_Right)
+	{
+		CloseMenu();
+	}
+}
+```
+
+`OnBack` is the same idea for escape and the pad's back button, which Folio does claim.
+
 ## Where to go next
 
 - **[Hosting a document](hosting.md)** — the widget-tree boundary and the focus override.

@@ -618,6 +618,11 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		return FReply::Handled();
 	}
 
+	if (!bClaimed)
+	{
+		OnUnclaimedKey.ExecuteIfBound(KeyEvent.GetKey());
+	}
+
 	return bClaimed ? FReply::Handled() : FReply::Unhandled();
 }
 

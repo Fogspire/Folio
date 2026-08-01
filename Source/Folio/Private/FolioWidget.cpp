@@ -35,6 +35,7 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 		.Supersample(Supersample);
 
 	Canvas->OnBack.BindWeakLambda(this, [this] { OnBack.Broadcast(); });
+	Canvas->OnUnclaimedKey.BindWeakLambda(this, [this](const FKey Key) { OnUnclaimedKey.Broadcast(Key); });
 
 	ApplyBindings();
 	Canvas->LoadDocument(DocumentPath);
@@ -192,6 +193,26 @@ void UFolioWidget::SetInteractive(const bool bInInteractive)
 	{
 		Canvas->SetInteractive(bInInteractive);
 	}
+}
+
+bool UFolioWidget::ScrollElement(const FString& ElementId, const float Fraction)
+{
+	Rml::ElementDocument* Document = Canvas.IsValid() ? Canvas->GetDocument() : nullptr;
+	if (!Document)
+	{
+		return false;
+	}
+
+	Rml::Element* Element = Document->GetElementById(Folio::ToRmlString(ElementId));
+	if (!Element)
+	{
+		return false;
+	}
+
+	const float Range = Element->GetScrollHeight() - Element->GetClientHeight();
+	Element->SetScrollTop(FMath::Clamp(Fraction, 0.0f, 1.0f) * FMath::Max(Range, 0.0f));
+
+	return true;
 }
 
 bool UFolioWidget::FocusElement(const FString& ElementId, const bool bVisible)

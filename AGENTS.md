@@ -164,6 +164,21 @@ right is a judgement about one document's edges at one resolution, and it is not
 can make from the source. A command makes it an A/B you can run in the game in a second. Untouched
 it costs nothing at runtime, and changing it costs one document rebuild.
 
+**If the project uses CommonUI, turn off its virtual pointer.** Both default on, and both are in the
+game's `DefaultEngine.ini` rather than anything Folio owns:
+
+```ini
+[ConsoleVariables]
+CommonUI.ShouldVirtualAcceptSimulateMouseButton=0
+CommonUI.EnableVirtualPointer=0
+```
+
+The first stops the pad's accept button becoming a left mouse click at CommonUI's software cursor,
+which presses whatever the cursor is over rather than what is focused. The second stops the stick
+driving that cursor, which otherwise makes a player holding only a pad generate real mouse movement.
+Both present as focus bugs and neither is one. See
+[docs/input_and_navigation.md](docs/input_and_navigation.md).
+
 **A HUD sets `Interactive` false on its `UFolioWidget`.** Anything the player does not click or
 navigate must not be focusable: Slate restores focus to a focusable widget on window reactivation,
 so an interactive HUD steals input on alt-tab and the player cannot move. Pair it with

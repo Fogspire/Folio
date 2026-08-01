@@ -198,6 +198,21 @@ public:
 	FOLIO_API bool FocusElement(const FString& ElementId, bool bVisible = true);
 
 	/**
+	 * Scrolls one element to a fraction of its own range. Zero is the top, one is the bottom.
+	 *
+	 * For an affordance beside a scrolling box rather than in it: a fade or an arrow saying there is
+	 * more, which a player should be able to press rather than only read.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API bool ScrollElement(const FString& ElementId, float Fraction);
+
+	/** A key the document had no meaning for, so a game can bind one while a screen is up. */
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFolioUnclaimedKey, FKey, Key);
+
+	UPROPERTY(BlueprintAssignable, Category = "Folio")
+	FFolioUnclaimedKey OnUnclaimedKey;
+
+	/**
 	 * Escape, or the pad's back button, when nothing in the document consumed it.
 	 *
 	 * This is what makes an input-only screen closable: with `FInputModeUIOnly` the player controller

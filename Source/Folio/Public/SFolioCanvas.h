@@ -271,6 +271,20 @@ private:
 	/** Whether this key belongs to the focused document, and so must not reach the game behind it. */
 	bool ClaimsKey(const FKey& Key) const;
 
+public:
+	/**
+	 * A key the document had no meaning for.
+	 *
+	 * While a screen holds focus the game's own bindings do not fire, because Slate routes to the
+	 * focused widget and a player controller is not it. A menu button that should close the menu is
+	 * the obvious casualty. This is the seam: navigation, confirm and back never reach it, and
+	 * everything else does.
+	 */
+	DECLARE_DELEGATE_OneParam(FOnUnclaimedKey, FKey);
+	FOnUnclaimedKey OnUnclaimedKey;
+
+private:
+
 	FFolioDocumentHost Host;
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;

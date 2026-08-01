@@ -72,6 +72,18 @@ namespace
 		return *Claiming;
 	}
 
+	/**
+	 * Whether a screen document is asking to hold input.
+	 *
+	 * A menu is open in front of the world. Routing the pad to a panel on a wall behind it is never
+	 * what the player meant, so this is checked before the world sink gets a look in.
+	 */
+	bool ScreenClaimsInput()
+	{
+		const TArray<SFolioCanvas*>& Live = SFolioCanvas::GetLiveCanvases();
+		return Live.ContainsByPredicate([](const SFolioCanvas* Canvas) { return Canvas->WantsFocus(); });
+	}
+
 	bool Tracing()
 	{
 		return CVarInputTrace.GetValueOnAnyThread() != 0;
@@ -121,9 +133,10 @@ void FFolioInputPreprocessor::Unregister()
 
 bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
-	// A world document holds focus through its own sink, which is not a canvas. It is checked first
-	// because a screen document and a document on a monitor are never both driving the pad.
-	if (SFolioWorldFocus::IsActive())
+	// A world document holds focus through its own sink, which is not a canvas. A screen document
+	// asking for input comes first: with a menu open, every pad press belongs to the menu and not to
+	// a panel on a wall behind it.
+	if (SFolioWorldFocus::IsActive() && !ScreenClaimsInput())
 	{
 		SFolioWorldFocus::ReclaimFocus(SlateApp, InKeyEvent.GetUserIndex());
 
@@ -164,7 +177,7 @@ bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, cons
 		return false;
 	}
 
-	if (SFolioWorldFocus::IsActive())
+	if (SFolioWorldFocus::IsActive() && !ScreenClaimsInput())
 	{
 		// Paired with the press, or RmlUi keeps thinking the button is held.
 		SFolioWorldFocus::RouteGamepadKeyUp(InKeyEvent);
@@ -189,7 +202,7 @@ bool FFolioInputPreprocessor::HandleAnalogInputEvent(FSlateApplication& SlateApp
 		return false;
 	}
 
-	if (SFolioWorldFocus::IsActive())
+	if (SFolioWorldFocus::IsActive() && !ScreenClaimsInput())
 	{
 		SFolioWorldFocus::RouteGamepadAnalog(InAnalogInputEvent);
 		return true;

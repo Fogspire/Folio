@@ -132,6 +132,15 @@ public:
 	//
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+
+	/**
+	 * The second press of a fast pair.
+	 *
+	 * Slate sends this instead of a button-down once two clicks land inside the double-click time,
+	 * so without it every other click on a stepper is dropped and the control reads as though it has
+	 * a cooldown. A document that wants double-clicks reads the dblclick RmlUi raises from the pair.
+	 */
+	virtual FReply OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;

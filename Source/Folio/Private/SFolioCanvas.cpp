@@ -465,6 +465,11 @@ FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoint
 	return FReply::Handled().CaptureMouse(SharedThis(this)).SetUserFocus(SharedThis(this), EFocusCause::Mouse);
 }
 
+FReply SFolioCanvas::OnMouseButtonDoubleClick(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	return OnMouseButtonDown(MyGeometry, MouseEvent);
+}
+
 FReply SFolioCanvas::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,

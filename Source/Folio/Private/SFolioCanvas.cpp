@@ -756,6 +756,12 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 		return false;
 	}
 
+	// Navigating is a statement that the mouse is not what is steering. RmlUi recomputes the hover
+	// chain only when the pointer moves, so without this the last hovered element keeps its
+	// highlight for as long as the cursor sits still, even once the page it belonged to is hidden.
+	// Two lit controls, and the stale one is the one that catches the eye.
+	Context->ProcessMouseLeave();
+
 	// Down and up together. RmlUi navigates on the press, but an element left thinking a key is
 	// still held misbehaves the next time the same key arrives.
 	const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);

@@ -27,7 +27,11 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 	// binding would render as literal braces.
 	Canvas = SNew(SFolioCanvas)
 		.DesiredSize(DesiredSize)
-		.Interactive(bInteractive);
+		.Interactive(bInteractive)
+		.ScaleFollow(ScaleFollow)
+		.Scale(Scale)
+		.MinScale(MinScale)
+		.MaxScale(MaxScale);
 
 	ApplyBindings();
 	Canvas->LoadDocument(DocumentPath);
@@ -166,6 +170,14 @@ void UFolioWidget::UnregisterTexture(const FName Name)
 {
 	Folio::UnregisterTexture(Name);
 	OwnedTextures.Remove(Name);
+}
+
+void UFolioWidget::ApplyScale()
+{
+	if (Canvas.IsValid())
+	{
+		Canvas->SetScale(ScaleFollow, Scale, MinScale, MaxScale);
+	}
 }
 
 void UFolioWidget::SetInteractive(const bool bInInteractive)

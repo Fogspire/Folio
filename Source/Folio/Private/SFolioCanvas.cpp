@@ -31,6 +31,7 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 	LiveCanvases.AddUnique(this);
 	SetCanTick(true);
 	SetInteractive(InArgs._Interactive);
+	SetScale(InArgs._ScaleFollow, InArgs._Scale, InArgs._MinScale, InArgs._MaxScale);
 
 	// A context needs a size before it will lay anything out, and the real one only arrives with the
 	// first geometry. Starting at the requested desired size means a document loaded now is laid out
@@ -133,11 +134,46 @@ bool SFolioCanvas::RouteGamepadAnalog(const FAnalogInputEvent& AnalogEvent)
 
 
 
+void SFolioCanvas::SetScale(const float InFollow, const float InScale, const float InMinScale,
+	const float InMaxScale)
+{
+	ScaleFollow = InFollow;
+	Scale = InScale;
+	MinScale = InMinScale;
+	MaxScale = InMaxScale;
+}
+
+void SFolioCanvas::GetScaleReport(FIntPoint& OutContextSize, float& OutDpRatio,
+	float& OutContextToLocal) const
+{
+	const FGeometry& Geometry = GetTickSpaceGeometry();
+	OutContextSize = ContextSize;
+	OutDpRatio = ScaleFor(Geometry);
+	OutContextToLocal = ContextToLocal(Geometry);
+}
+
+float SFolioCanvas::ContextToLocal(const FGeometry& AllottedGeometry) const
+{
+	// RmlUi has already turned dp into context units by the time anything is drawn, so a context unit
+	// is a pixel and Slate must not scale it again. Applying Slate's scale on top is what squares the
+	// ratio: a 452dp card lands at 452 x scale x scale pixels, which is right at 1080p and wrong
+	// everywhere else.
+	return AllottedGeometry.Scale > KINDA_SMALL_NUMBER ? 1.0f / AllottedGeometry.Scale : 1.0f;
+}
+
+float SFolioCanvas::ScaleFor(const FGeometry& AllottedGeometry) const
+{
+	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale);
+}
+
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 {
-	const FVector2f Local = AllottedGeometry.GetLocalSize();
-	ContextSize = FIntPoint(FMath::Max(1, FMath::RoundToInt(Local.X)),
-		FMath::Max(1, FMath::RoundToInt(Local.Y)));
+	// Pixels, because that is what a context unit is. The dp ratio is carried separately and RmlUi
+	// applies it to dp lengths itself.
+	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale;
+
+	ContextSize = FIntPoint(FMath::Max(1, FMath::RoundToInt(Pixels.X)),
+		FMath::Max(1, FMath::RoundToInt(Pixels.Y)));
 	Host.SetSize(ContextSize);
 }
 
@@ -171,7 +207,7 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const float RenderScale =
 		AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
 
-	Host.Update(InDeltaTime, AllottedGeometry.Scale, RenderScale);
+	Host.Update(InDeltaTime, ScaleFor(AllottedGeometry), RenderScale * ContextToLocal(AllottedGeometry));
 }
 
 
@@ -199,7 +235,14 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 		return LayerId;
 	}
 
-	Renderer->BeginFrame(OutDrawElements, AllottedGeometry, LayerId, ContextSize);
+	// RmlUi emits geometry in context units, and the context is sized in dp rather than in Slate's
+	// local units. Those agree only while dp follows Slate's own scale, so the draw goes through a
+	// child geometry that carries the difference. Without it a document lands short of the bottom
+	// right on a window Slate scales down, and past it on one Slate scales up.
+	const FGeometry Paint = AllottedGeometry.MakeChild(FVector2D(ContextSize),
+		FSlateLayoutTransform(ContextToLocal(AllottedGeometry)));
+
+	Renderer->BeginFrame(OutDrawElements, Paint, LayerId, ContextSize);
 	Context->Render();
 	Renderer->EndFrame();
 
@@ -212,9 +255,9 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 
 FVector2f SFolioCanvas::ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const
 {
-	// The context is sized in whole pixels from the widget's local size, so local space is
-	// already context space. Slate's layout scale is carried separately as the dp ratio.
-	return FVector2f(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
+	// The context is sized in pixels, and Slate's local space is pixels over Slate's own scale.
+	const FVector2f Local = FVector2f(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
+	return Local * MyGeometry.Scale;
 }
 
 FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

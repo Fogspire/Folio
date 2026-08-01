@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FolioDocumentHost.h"
+#include "FolioScale.h"
 #include "FolioNavigation.h"
 #include "FolioUiSounds.h"
 
@@ -12,6 +13,7 @@ namespace Rml
 	class Context;
 	class ElementDocument;
 }
+
 
 /**
  * The entire Unreal-side surface: one widget acting as a dumb canvas.
@@ -30,6 +32,10 @@ public:
 		: _DocumentPath()
 		, _DesiredSize(FVector2D(1920.0, 1080.0))
 		, _Interactive(true)
+		, _ScaleFollow(1.0f)
+		, _Scale(1.0f)
+		, _MinScale(0.0f)
+		, _MaxScale(0.0f)
 	{}
 		/** Document to load, relative to the project directory. */
 		SLATE_ARGUMENT(FString, DocumentPath)
@@ -39,6 +45,16 @@ public:
 
 		/** False for a readout nobody clicks. See SetInteractive. */
 		SLATE_ARGUMENT(bool, Interactive)
+
+		/** How much dp follows the viewport. See Folio::ScaleRatio. */
+		SLATE_ARGUMENT(float, ScaleFollow)
+
+		/** A multiplier on the result. A HUD scale slider writes this. */
+		SLATE_ARGUMENT(float, Scale)
+
+		/** Bounds on the result. Zero for no bound. */
+		SLATE_ARGUMENT(float, MinScale)
+		SLATE_ARGUMENT(float, MaxScale)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -57,6 +73,9 @@ public:
 
 	/** Re-reads every stylesheet, leaving the DOM, focus, scroll and data model alone. */
 	void ReloadStyleSheets();
+
+	/** Changes how dp resolves on a canvas that is already up. */
+	void SetScale(float InFollow, float InScale, float InMinScale, float InMaxScale);
 
 	/**
 	 * Says the document has changed and must be updated and repainted.
@@ -124,6 +143,9 @@ public:
 	 * the way of anything real.
 	 */
 	bool HasObjectModel(const FString& ModelName) const { return Host.HasObjectModel(ModelName); }
+
+	/** What the last tick laid out against: context size in dp, the dp ratio, and context-to-local. */
+	void GetScaleReport(FIntPoint& OutContextSize, float& OutDpRatio, float& OutContextToLocal) const;
 
 	/** Every live canvas, so the input pre-processor can tell whether the focused widget is one. */
 	static const TArray<SFolioCanvas*>& GetLiveCanvases();
@@ -193,6 +215,17 @@ private:
 
 	/** RmlUi sizes in whole pixels, so a fractional widget size has to be resolved somewhere. */
 	void UpdateContextSize(const FGeometry& AllottedGeometry);
+
+	/** The dp ratio this canvas lays out against, after the mode and the bounds. */
+	float ScaleFor(const FGeometry& AllottedGeometry) const;
+
+	/** How much one context unit is worth in Slate's local units. One while dp follows Slate. */
+	float ContextToLocal(const FGeometry& AllottedGeometry) const;
+
+	float ScaleFollow = 1.0f;
+	float Scale = 1.0f;
+	float MinScale = 0.0f;
+	float MaxScale = 0.0f;
 
 	FVector2D DesiredSize = FVector2D(1920.0, 1080.0);
 

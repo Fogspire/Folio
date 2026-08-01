@@ -5,6 +5,8 @@
 
 #include "CoreMinimal.h"
 
+#include "FolioScale.h"
+
 #include "FolioWidget.generated.h"
 
 class SFolioCanvas;
@@ -77,6 +79,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
 	bool bInteractive = true;
 
+	/**
+	 * How much dp follows the viewport.
+	 *
+	 * 1 is Unreal's UI scale, so the document keeps the same fraction of the screen at every
+	 * resolution - right for a menu. 0 is a constant pixel size. A HUD wants something in between:
+	 * around 0.5 it grows with the window without inflating, and the corners still move.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Folio|Scale", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float ScaleFollow = 1.0f;
+
+	/** A multiplier on the result. A HUD scale slider writes this. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Folio|Scale", meta = (ClampMin = "0.1", ClampMax = "8.0"))
+	float Scale = 1.0f;
+
+	/** Bounds on the result, so a 4K window does not have to draw a HUD twice the size. Zero for no bound. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Folio|Scale", meta = (ClampMin = "0.0", ClampMax = "8.0"))
+	float MinScale = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Folio|Scale", meta = (ClampMin = "0.0", ClampMax = "8.0"))
+	float MaxScale = 0.0f;
+
 	/** Loads a different document, replacing whatever is up. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void LoadDocument(const FString& InDocumentPath);
@@ -136,6 +159,10 @@ public:
 	/** Turns input on or off on a document that is already up. See bInteractive. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void SetInteractive(bool bInInteractive);
+
+	/** Applies the scale properties to a document that is already up. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void ApplyScale();
 
 	/** Moves keyboard focus to the document. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")

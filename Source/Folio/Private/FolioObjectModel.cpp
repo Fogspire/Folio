@@ -228,6 +228,34 @@ struct FFolioObjectModel::FDefinitions
 		}
 	};
 
+	/**
+	 * A row that is no longer there.
+	 *
+	 * An array shrinking is ordinary: a kill feed drops its oldest line every few seconds. RmlUi's
+	 * data-for still holds bindings to the rows it had when the frame started, and it reads them
+	 * before it rebuilds, so the frame an array shrinks is a frame of reads past its end. Answering
+	 * those with an invalid variable is what makes RmlUi log every one of them as an error.
+	 *
+	 * This answers anything asked of it, with nothing. The view rebuilds a moment later and the
+	 * reads land on real rows again.
+	 */
+	class FVoidDefinition final : public Rml::VariableDefinition
+	{
+	public:
+		FVoidDefinition() : VariableDefinition(Rml::DataVariableType::Struct) {}
+
+		bool Get(void*, Rml::Variant& Variant) override
+		{
+			Variant = Rml::String();
+			return true;
+		}
+
+		Rml::DataVariable Child(void* Ptr, const Rml::DataAddressEntry&) override
+		{
+			return Rml::DataVariable(this, Ptr);
+		}
+	};
+
 	/** One element of an array of structs or objects, addressed by member name. */
 	class FRowDefinition final : public Rml::VariableDefinition
 	{
@@ -294,7 +322,7 @@ struct FFolioObjectModel::FDefinitions
 
 			if (!Field.Rows.IsValidIndex(Address.index))
 			{
-				return Rml::DataVariable();
+				return Rml::DataVariable(&Owner.Gone, Ptr);
 			}
 
 			FRow& Row = *Field.Rows[Address.index];
@@ -312,6 +340,7 @@ struct FFolioObjectModel::FDefinitions
 	FCountDefinition Count;
 	FRowDefinition Element{ *this };
 	FArrayDefinition List{ *this };
+	FVoidDefinition Gone;
 };
 
 FFolioObjectModel::FFolioObjectModel()

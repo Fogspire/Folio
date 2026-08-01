@@ -121,8 +121,9 @@ public:
 	/**
 	 * The document to drive.
 	 *
-	 * Found automatically from a UFolioWidget or a world document on the same actor, so the usual case
-	 * needs nothing. Set it when an actor owns more than one.
+	 * A world document on the same actor is found automatically, so that case needs nothing. Set this
+	 * when the actor owns more than one, or for a screen-space HUD: a UFolioWidget lives in a widget
+	 * tree rather than on an actor, so it can only arrive by being named.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void SetDocumentSource(UObject* Source);

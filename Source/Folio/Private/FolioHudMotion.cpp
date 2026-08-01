@@ -7,6 +7,7 @@
 #include "FolioRmlUi.h"
 #include "FolioWidget.h"
 #include "FolioWorldDocument.h"
+#include "SFolioCanvas.h"
 
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/Pawn.h"
@@ -56,6 +57,17 @@ FFolioDocumentHost* UFolioHudMotion::FindHost() const
 	if (const UFolioWorldDocument* World = Cast<UFolioWorldDocument>(DocumentSource))
 	{
 		return World->GetHost();
+	}
+
+	// A screen-space HUD is a UMG widget rather than a component, so it can only arrive by being named.
+	if (const UFolioWidget* Widget = Cast<UFolioWidget>(DocumentSource))
+	{
+		if (const TSharedPtr<SFolioCanvas> Canvas = Widget->GetCanvas())
+		{
+			return &Canvas->GetHost();
+		}
+
+		return nullptr;
 	}
 
 	if (const AActor* Owner = GetOwner())

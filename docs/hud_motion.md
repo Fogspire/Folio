@@ -24,6 +24,13 @@ you want to move:
 
 That is the feature. The component finds the document on the same actor, so nothing else is wired.
 
+**A screen-space HUD has to be named.** `UFolioWidget` sits in a widget tree, not on an actor, so
+there is nothing to search — hand it over once and the rest is the same:
+
+```cpp
+Motion->SetDocumentSource(HudWidget);
+```
+
 ## Weight, and why it is negative
 
 **Negative trails the motion, which is what a physical object does.** Turn right and a loosely

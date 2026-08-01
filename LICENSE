@@ -1,0 +1,146 @@
+Copyright (c) 2026 Jared Taylor
+
+Folio, a plugin for Unreal Engine 5, including its source code, build files,
+Blueprints, and content assets (the "software").
+
+# Software License (Strict, Embedding Permitted) 1.0
+
+This license is adapted from the structure of a strict source-available
+license. All trademark and origin references from the original have been
+removed, as that original requires when it is modified.
+
+## Acceptance
+
+In order to get any license under these terms, you must agree to them as both
+strict obligations and conditions to all your licenses.
+
+## Copyright License
+
+The licensor grants you a copyright license for the software to do everything
+you might do with the software that would otherwise infringe the licensor's
+copyright in it for any permitted purpose, other than distributing the software
+except as allowed under **Embedding** below.
+
+## Changes
+
+You may make changes to, and new works based on, the software (each a "modified
+version") for any permitted purpose. This license, including every restriction
+in it, applies in full to every modified version. You may not distribute any
+modified version except as allowed under **Embedding** below.
+
+## Embedding
+
+You may distribute the software, and any modified version, only as a compiled or
+packaged component embedded within a game that you create, and only as part of
+that game. You may distribute those games to end users by any means and for any
+purpose, including commercially.
+
+The software remains embedded within a game for the purposes of these terms
+where the ordinary Unreal Engine packaging process places its compiled binaries
+or cooked content in separate files inside that packaged game.
+
+You may not distribute the software, or any modified version, as source code, as
+an installable plugin, or as a standalone component, to anyone. You may not
+distribute it as part of an uncooked or source-form project, template, or sample
+that you share with anyone.
+
+## Permitted Purpose
+
+Developing, testing, maintaining, and distributing games that you create is a
+permitted purpose, whether or not those games are commercial.
+
+## Extraction from Distributed Games
+
+The parties acknowledge that packaged games can be disassembled, unpacked, or
+reverse-engineered by third parties, and that the software, when distributed
+inside your games, may be recoverable in whole or in part by such means as an
+inherent characteristic of the platform.
+
+You are not in breach of these terms, and bear no liability, where a third party
+obtains the software by reverse-engineering, unpacking, or extracting it from a
+game you have distributed, provided you did not intentionally facilitate,
+encourage, or arrange that act. You are under no obligation to obfuscate,
+encrypt, sign, or otherwise protect the software beyond the ordinary cook and
+package process of Unreal Engine, and in particular you are under no obligation
+to enable pak file encryption or signing.
+
+## Patent License
+
+The licensor grants you a patent license for the software that covers patent
+claims the licensor can license, or becomes able to license, that you would
+infringe by using the software.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the law. These terms do not
+limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of your licenses to
+anyone else, or prevent the licensor from granting licenses to anyone else. These
+terms do not imply any other licenses.
+
+## Ownership
+
+The licensor owns the original software and all intellectual property rights in
+it. As between you and the licensor, you own any modified version you create, but
+your rights to use and distribute that modified version are limited by these
+terms, and these terms do not transfer ownership of the original software to you.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or contributes to
+infringement of any patent, your patent license for the software granted under
+these terms ends immediately. If your company makes such a claim, your patent
+license ends immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have violated any of these
+terms, or done anything with the software not covered by your licenses, your
+licenses can nonetheless continue if you come into full compliance with these
+terms, and take practical steps to correct past violations, within 32 days of
+receiving notice. Otherwise, all your licenses end immediately.
+
+Games you distributed before your licenses ended may continue to be distributed
+and supported.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without any warranty or
+condition, and the licensor will not be liable to you for any damages arising out
+of these terms or the use or nature of the software, under any kind of legal
+claim. The software is provided free of charge, and these terms do not entitle
+you to any support, updates, or new versions.***
+
+## Governing Law
+
+These terms are governed by the laws of the State of Delaware, USA, without
+regard to its conflict-of-laws rules. The parties submit to the exclusive
+jurisdiction of the state and federal courts located in Delaware.
+
+## Definitions
+
+The **licensor** is the individual or entity offering these terms, and the
+**software** is the software the licensor makes available under these terms.
+
+**You** refers to the individual or entity agreeing to these terms.
+
+A **modified version** is any change to, or new work based on, the software.
+
+A **game** is an interactive software application created by you, in which the
+software functions only as an internal component and not as a separately usable
+extension, plugin, library, or tool.
+
+**Your company** is any legal entity, sole proprietorship, or other kind of
+organization that you work for, plus all organizations that have control over,
+are under the control of, or are under common control with that organization.
+**Control** means ownership of substantially all the assets of an entity, or the
+power to direct its management and policies by vote, contract, or otherwise.
+Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the software under
+these terms.
+
+**Use** means anything you do with the software requiring one of your licenses.

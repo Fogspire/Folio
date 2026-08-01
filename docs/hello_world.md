@@ -127,6 +127,16 @@ Then:
 ./bin/win64/uipreview.exe <YourProject>/UI/hello.rml --root <YourProject>
 ```
 
+`--root` is the path to the project directory, not its name, and every asset the document references
+is resolved beneath it. Running from inside the plugin that is:
+
+```bash
+./bin/win64/uipreview.exe ../../UI/hello.rml --root ../..
+```
+
+A root that does not exist reports the document as unopenable rather than complaining about the root
+itself, so check it first when a file you can see will not load.
+
 It watches the file and reloads on save, so the loop is edit, save, look — no compiling and no
 editor restart. This is where you will spend most of your authoring time.
 

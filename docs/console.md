@@ -62,6 +62,7 @@ See **[documents in the world](world_documents.md)**.
 | `folio.Input.Trace` | Every input event as it reaches a document, and what consumed it. |
 | `folio.Font.Report` | Which faces are loaded, their variation tuples, and what they cost in atlas pages and glyphs. Finds a screen that quietly instantiated nine weights. |
 | `folio.Font.ClearCache` | Drops the generated fields and regenerates. For proving a bake rather than a cache. |
+| `folio.Marker.Test [distance] [document]` | Puts a marker in front of the player with a fade band, so the distance settings can be seen without building a level for them. Again to remove it. |
 
 See **[performance and profiling](performance_profiling.md)**.
 

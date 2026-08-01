@@ -243,9 +243,7 @@ Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Sp
 const TArray<FSlateVertex>& FFolioRenderInterface::PositionedVertices(const FCompiledGeometry& Compiled,
 	const Rml::Vector2f Translation, FVector2f& OutOffset)
 {
-	const bool bFading = FrameAlpha < 1.0f - UE_SMALL_NUMBER;
-
-	if (!bHasTransform && !bFading)
+	if (!bHasTransform)
 	{
 		OutOffset = FVector2f(Translation.x, Translation.y);
 		return Compiled.Vertices;
@@ -260,25 +258,10 @@ const TArray<FSlateVertex>& FFolioRenderInterface::PositionedVertices(const FCom
 	for (const FSlateVertex& Source : Compiled.Vertices)
 	{
 		FSlateVertex& Out = ScratchVertices.Add_GetRef(Source);
-
-		if (bHasTransform)
-		{
-			Out.Position = FVector2f(TransformPoint(RmlTransform, FVector2f(Source.Position) + Offset));
-		}
-
-		if (bFading)
-		{
-			// Every channel, because RmlUi composites premultiplied: scaling alpha alone would leave the
-			// colour at full strength and the document would brighten as it faded.
-			Out.Color.R = uint8(float(Out.Color.R) * FrameAlpha);
-			Out.Color.G = uint8(float(Out.Color.G) * FrameAlpha);
-			Out.Color.B = uint8(float(Out.Color.B) * FrameAlpha);
-			Out.Color.A = uint8(float(Out.Color.A) * FrameAlpha);
-		}
+		Out.Position = FVector2f(TransformPoint(RmlTransform, FVector2f(Source.Position) + Offset));
 	}
 
-	// A transform bakes the offset into the positions; a fade on its own leaves it to the caller.
-	OutOffset = bHasTransform ? FVector2f::ZeroVector : Offset;
+	OutOffset = FVector2f::ZeroVector;
 	return ScratchVertices;
 }
 
@@ -418,6 +401,16 @@ void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, cons
 	{
 		FSlateVertex& Out = ScratchVertices.Add_GetRef(Source);
 		Out.Position = FVector2f(TransformPoint(Transform, FVector2f(Source.Position)));
+
+		// Every channel, because RmlUi composites premultiplied: scaling the alpha alone leaves the
+		// colour at full strength, and a document would brighten as it faded rather than going away.
+		if (FrameAlpha < 1.0f - UE_SMALL_NUMBER)
+		{
+			Out.Color.R = uint8(float(Out.Color.R) * FrameAlpha);
+			Out.Color.G = uint8(float(Out.Color.G) * FrameAlpha);
+			Out.Color.B = uint8(float(Out.Color.B) * FrameAlpha);
+			Out.Color.A = uint8(float(Out.Color.A) * FrameAlpha);
+		}
 
 		// A shader's geometry carries pixel offsets inside the element box rather than UVs,
 		// so the gradient path normalises them against the box it baked the texture for.

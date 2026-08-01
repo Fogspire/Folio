@@ -2,7 +2,11 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "FolioMarkerDocument.h"
 #include "FolioModule.h"
+
+#include "Camera/PlayerCameraManager.h"
+#include "EngineUtils.h"
 #include "FolioDebugger.h"
 #include "FolioLocalization.h"
 #include "FolioNavBindings.h"
@@ -1578,6 +1582,68 @@ namespace
 			"is on. A theme is an @media (theme: name) block in a stylesheet."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunTheme));
 
+	/**
+	 * Puts a marker in front of the player, so the distance behaviour can be seen without building a
+	 * level for it.
+	 *
+	 * The fade band is set from where it is spawned to twice that, which is what makes walking away
+	 * from it show the transition rather than a cut.
+	 */
+	void TestMarker(const TArray<FString>& Args)
+	{
+		UWorld* World = FindViewport() ? FindViewport()->GetWorld() : nullptr;
+		if (!World)
+		{
+			UE_LOG(LogFolio, Warning, TEXT("folio.Marker.Test needs a running game."));
+			return;
+		}
+
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->GetName().StartsWith(TEXT("FolioTestMarker")))
+			{
+				It->Destroy();
+				UE_LOG(LogFolio, Display, TEXT("folio.Marker.Test: removed"));
+				return;
+			}
+		}
+
+		const APlayerController* Controller = World->GetFirstPlayerController();
+		const APlayerCameraManager* Camera = Controller ? Controller->PlayerCameraManager : nullptr;
+		if (!Camera)
+		{
+			return;
+		}
+
+		const float Reach = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 400.0f;
+		const FVector Where = Camera->GetCameraLocation() + Camera->GetActorForwardVector() * Reach;
+
+		FActorSpawnParameters Params;
+		Params.Name = TEXT("FolioTestMarker");
+		AActor* Actor = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(Where), Params);
+		if (!Actor)
+		{
+			return;
+		}
+
+		Actor->SetRootComponent(NewObject<USceneComponent>(Actor, TEXT("Root")));
+		Actor->GetRootComponent()->RegisterComponent();
+		Actor->SetActorLocation(Where);
+
+		UFolioMarkerDocument* Marker = NewObject<UFolioMarkerDocument>(Actor, TEXT("Marker"));
+		Marker->DocumentPath = Args.Num() > 1 ? Args[1] : TEXT("/folio/recipes/nameplate.rml");
+		Marker->Size = FVector2D(256.0, 96.0);
+		Marker->FadeStartDistance = Reach;
+		Marker->FadeEndDistance = Reach * 2.0f;
+		Marker->AttachToComponent(Actor->GetRootComponent(),
+			FAttachmentTransformRules::KeepRelativeTransform);
+		Marker->RegisterComponent();
+
+		UE_LOG(LogFolio, Display,
+			TEXT("folio.Marker.Test: '%s' at %s, fading between %.0f and %.0f. Run it again to remove it."),
+			*Marker->DocumentPath, *Where.ToCompactString(), Marker->FadeStartDistance, Marker->FadeEndDistance);
+	}
+
 	FAutoConsoleCommand WorldVerifyCommand(
 		TEXT("folio.World.Verify"),
 		TEXT("folio.World.Verify [document]. Asserts the world path still applies transform and opacity, "
@@ -1603,6 +1669,12 @@ namespace
 		TEXT("folio.MouseMode [on|off]. Shows the cursor and stops the game consuming the mouse, "
 			"so a document can be clicked."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&SetMouseMode));
+
+	FAutoConsoleCommand MarkerTestCommand(
+		TEXT("folio.Marker.Test"),
+		TEXT("folio.Marker.Test [distance] [document]. Puts a marker in front of the player with a fade "
+			"band, so walking away from it shows what the distance settings do. Again to remove it."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&TestMarker));
 
 	FAutoConsoleCommand ReloadTexturesCommand(
 		TEXT("folio.ReloadTextures"),

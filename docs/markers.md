@@ -45,6 +45,9 @@ as the player walks towards it - which is the thing that makes a naively built n
 past the second. Both zero switches this off. It matters more than it looks: thirty markers on a
 screen is noise, and distance is the cheapest way to thin them.
 
+`folio.Marker.Test` puts one in front of the player with a fade band already set, which is the quickest
+way to see what any of this does.
+
 **`Distance Transition`** is what it does across the stretch:
 
 | | |

@@ -27,6 +27,8 @@
 #include "FolioDrawList.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
+
+#include "Engine/UserInterfaceSettings.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Containers/Ticker.h"
 #include "UnrealClient.h"
@@ -1675,6 +1677,71 @@ namespace
 		TEXT("folio.Marker.Test [distance] [document]. Puts a marker in front of the player with a fade "
 			"band, so walking away from it shows what the distance settings do. Again to remove it."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&TestMarker));
+
+	/**
+	 * What each screen document is actually laid out against.
+	 *
+	 * The number that matters is the dp ratio: a HUD written in dp keeps its share of the screen only
+	 * if the ratio moves with the resolution. A ratio stuck at 1 while the window shrinks makes a HUD
+	 * grow; a ratio applied twice makes it shrink twice as fast.
+	 */
+	void ReportScreens(const TArray<FString>& Args)
+	{
+		// Deferred on request, because the first frame has no settled geometry and a startup ExecCmds
+		// otherwise reports the placeholder size rather than the window.
+		if (Args.Num() > 0)
+		{
+			const float Delay = FCString::Atof(*Args[0]);
+			UWorld* World = Delay > 0.0f && FindViewport() ? FindViewport()->GetWorld() : nullptr;
+			if (World)
+			{
+				FTimerHandle Handle;
+				World->GetTimerManager().SetTimer(Handle,
+					FTimerDelegate::CreateLambda([] { ReportScreens({}); }), Delay, false);
+				return;
+			}
+		}
+
+		const TArray<SFolioCanvas*>& Canvases = SFolioCanvas::GetLiveCanvases();
+		if (Canvases.IsEmpty())
+		{
+			UE_LOG(LogFolio, Display, TEXT("folio.Screens: nothing on screen."));
+			return;
+		}
+
+		for (const SFolioCanvas* Canvas : Canvases)
+		{
+			const FFolioDocumentHost& Host = const_cast<SFolioCanvas*>(Canvas)->GetHost();
+			const FGeometry& Geometry = Canvas->GetTickSpaceGeometry();
+
+			FIntPoint Size;
+			float DpRatio = 0.0f;
+			float ContextToLocal = 0.0f;
+			Canvas->GetScaleReport(Size, DpRatio, ContextToLocal);
+
+			// Drawn is what the document actually covers. It has to match the pixel size, or the
+			// document lands short of one corner and past the other.
+			// UMG's own answer for this viewport, so "the same as a UMG widget" is something the log
+			// states rather than something the reader has to take on trust.
+			const FVector2f Pixels = Geometry.GetAbsoluteSize();
+			const float UmgScale = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(
+				FIntPoint(FMath::RoundToInt(Pixels.X), FMath::RoundToInt(Pixels.Y)));
+
+			UE_LOG(LogFolio, Display,
+				TEXT("folio.Screens: '%s' context %dx%d dp, %.0fx%.0f px, drawn %.0fx%.0f px, "
+					"dp ratio %.4f, UMG would use %.4f"),
+				*Host.GetDocumentPath(), Size.X, Size.Y,
+				Pixels.X, Pixels.Y,
+				Size.X * ContextToLocal * Geometry.Scale, Size.Y * ContextToLocal * Geometry.Scale,
+				DpRatio, UmgScale);
+		}
+	}
+
+	FAutoConsoleCommand ScreensCommand(
+		TEXT("folio.Screens"),
+		TEXT("folio.Screens [delay]. Reports the size and dp ratio every screen document is laid out "
+			"against. A delay defers it, which a startup ExecCmds needs."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ReportScreens));
 
 	FAutoConsoleCommand ReloadTexturesCommand(
 		TEXT("folio.ReloadTextures"),

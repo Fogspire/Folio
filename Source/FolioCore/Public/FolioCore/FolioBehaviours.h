@@ -105,6 +105,15 @@ public:
 	 */
 	void UpdateScrollState()
 	{
+		if (ActiveFrames > 0 && --ActiveFrames == 0)
+		{
+			if (Rml::Element* Element = Active.get())
+			{
+				Element->SetClass(ActivatedClass(), false);
+			}
+			Active.reset();
+		}
+
 		if (Document)
 		{
 			StampScroll(Document.get());
@@ -161,7 +170,18 @@ public:
 			}
 			break;
 
+		case Rml::EventId::Mousedown:
+			// Remembered so the click that follows can be told apart from a synthesized one.
+			Pressed = Target->GetObserverPtr();
+			break;
+
 		case Rml::EventId::Click:
+			if (Pressed.get() != Target)
+			{
+				Activated(*Target);
+			}
+			Pressed.reset();
+
 			if (Rml::Element* Button = Bearing(Target, "folio-close"))
 			{
 				Close(*Button);
@@ -189,6 +209,29 @@ private:
 	{
 		static const Rml::String Value = "folio-dragover";
 		return Value;
+	}
+
+	static const Rml::String& ActivatedClass()
+	{
+		static const Rml::String Value = "folio-activated";
+		return Value;
+	}
+
+	/**
+	 * A control activated by a key or a pad rather than by the mouse.
+	 *
+	 * RmlUi emulates a click for enter and space but never sets `:active`, so a button styled to sink
+	 * when pressed does nothing at all on a pad: the one control that has to feel like it was pressed
+	 * is the one that gives no sign of it. This puts `folio-activated` on for a moment so a stylesheet
+	 * can play the same press it plays for a mouse.
+	 *
+	 * Cleared on the frame after the class was set, which is enough for an animation to latch.
+	 */
+	void Activated(Rml::Element& Element)
+	{
+		Element.SetClass(ActivatedClass(), true);
+		Active = Element.GetObserverPtr();
+		ActiveFrames = 2;
 	}
 
 	static const Rml::String& ClosingClass()
@@ -255,6 +298,7 @@ private:
 			Rml::EventId::Dragdrop,
 			Rml::EventId::Dragend,
 			Rml::EventId::Click,
+			Rml::EventId::Mousedown,
 			Rml::EventId::Animationend,
 		};
 	}
@@ -457,6 +501,12 @@ private:
 	 * survives all three and writes into freed memory on the next pointer move. An observer goes null.
 	 */
 	Rml::ObserverPtr<Rml::Element> Document;
+
+	/** What the mouse last pressed, so a click that had no press behind it can be spotted. */
+	Rml::ObserverPtr<Rml::Element> Pressed;
+
+	Rml::ObserverPtr<Rml::Element> Active;
+	int32 ActiveFrames = 0;
 
 	/**
 	 * An element taken out of the tree, held until the next event so it is not freed mid-dispatch.

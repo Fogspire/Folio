@@ -455,8 +455,16 @@ bool FFolioDocumentHost::Update(const float DeltaSeconds, const float DpRatio, c
 
 	// Backgrounds carry their own antialiasing because there is no multisampling to soften a rounded
 	// corner. The generator works in document units, so it needs one rendered pixel expressed in them.
+	//
+	// One pixel of coverage is correct and is what a browser does. It is also the least that can look
+	// smooth, and a shallow edge - a slanted card, a long diagonal - advances a pixel every six or
+	// more, so the steps between are visible however exact the blend is. Widening the skirt trades
+	// sharpness for smoothness on those, which is a taste decision rather than a correctness one.
+	static const auto* CVarAntialias = IConsoleManager::Get().FindConsoleVariable(TEXT("folio.Antialias.Width"));
+	const float Widen = CVarAntialias ? FMath::Max(0.0f, CVarAntialias->GetFloat()) : 1.0f;
+
 	Rml::MeshUtilities::SetBackgroundAntialiasWidth(
-		RenderScale > KINDA_SMALL_NUMBER ? 1.0f / RenderScale : 1.0f);
+		RenderScale > KINDA_SMALL_NUMBER ? Widen / RenderScale : Widen);
 
 	const TCHAR* const Reason = bDirty ? DirtyReason : TEXT("RmlUi asked");
 

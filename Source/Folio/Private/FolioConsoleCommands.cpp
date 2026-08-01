@@ -1737,6 +1737,26 @@ namespace
 		}
 	}
 
+	/**
+	 * Backgrounds are generated once and kept, so changing the width alone changes nothing that is
+	 * already on screen. Every live document restyles when it moves, which is what regenerates them.
+	 */
+	void OnAntialiasWidthChanged(IConsoleVariable*)
+	{
+		for (SFolioCanvas* Canvas : SFolioCanvas::GetLiveCanvases())
+		{
+			Canvas->ReloadStyleSheets();
+		}
+	}
+
+	TAutoConsoleVariable<float> CVarAntialiasWidth(
+		TEXT("folio.Antialias.Width"), 1.0f,
+		TEXT("How wide the transparent skirt on a background's outer edge is, in rendered pixels. "
+			"One is a browser's answer and is exact; a shallow diagonal looks smoother at 1.5 or 2, "
+			"at the cost of a softer edge everywhere. Zero disables it."),
+		FConsoleVariableDelegate::CreateStatic(&OnAntialiasWidthChanged),
+		ECVF_Default);
+
 	FAutoConsoleCommand ScreensCommand(
 		TEXT("folio.Screens"),
 		TEXT("folio.Screens [delay]. Reports the size and dp ratio every screen document is laid out "

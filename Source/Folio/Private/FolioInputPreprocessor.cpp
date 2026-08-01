@@ -174,9 +174,12 @@ bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, co
 	const bool bConsumed = Canvas && Canvas->RouteGamepadKeyDown(InKeyEvent);
 	Trace(TEXT("key down"), InKeyEvent, InKeyEvent.GetKey(), Canvas, bConsumed);
 
-	// Consumed whenever a document was focused, handled or not. A pad press that a document chose
-	// to ignore must not fall through and drive the player character behind it.
-	return Canvas != nullptr;
+	// Only what the document claimed. Navigation, confirm and back are claimed whether RmlUi could
+	// act on them or not, so none of those reach the pawn behind the menu. Anything else - start,
+	// select, a shoulder button - is a key the document has no meaning for, and a game is entitled
+	// to bind it while a menu is up. Swallowing those is how a start button that should close the
+	// menu ends up doing nothing at all.
+	return bConsumed;
 }
 
 bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
@@ -194,13 +197,13 @@ bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, cons
 	}
 
 	SFolioCanvas* Canvas = CanvasForEvent(SlateApp, InKeyEvent);
-	if (Canvas)
+	if (!Canvas)
 	{
-		// Paired with the press, or RmlUi keeps thinking the button is held.
-		Canvas->RouteGamepadKeyUp(InKeyEvent);
+		return false;
 	}
 
-	return Canvas != nullptr;
+	// Paired with the press, or RmlUi keeps thinking the button is held. Consumed on the same terms.
+	return Canvas->RouteGamepadKeyUp(InKeyEvent);
 }
 
 bool FFolioInputPreprocessor::HandleAnalogInputEvent(FSlateApplication& SlateApp,

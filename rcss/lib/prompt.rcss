@@ -1,0 +1,286 @@
+/*
+ * Input prompts: "press this to do that".
+ *
+ * Structure only, no colour - the skin is in the theme, like every other component.
+ *
+ * Every glyph here is drawn from boxes, borders and radii. That is deliberate rather than a
+ * limitation: a drawn glyph is sharp at any size, recolours with the theme, needs no atlas and no
+ * per-platform art request, and is usually what a stylised game wants anyway. A project that has
+ * licensed button art points the same prompt at `.pg-image` instead and nothing else changes.
+ *
+ * The three sources a prompt can carry, one per element:
+ *
+ *   .pg-drawn   these shapes
+ *   .pg-sprite  a sprite from the game's own spritesheet
+ *   .pg-image   a texture the game registered, which is how CommonInput's brushes arrive
+ */
+
+.prompt {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.prompt-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 22dp;
+}
+
+/* No size here: each shape sets its own, and a rule with two selectors would beat every one. */
+.pg {
+	display: inline-block;
+	vertical-align: middle;
+	position: relative;
+	box-sizing: border-box;
+}
+
+.pg-label {
+	display: inline-block;
+	vertical-align: middle;
+	margin-left: 8dp;
+}
+
+/* ------------------------------------------------------------------------ keycap */
+
+/*
+ * A key, with a skirt. The cap grows with its text rather than wrapping it, which is what makes F
+ * and LSHIFT the same rule, and the thicker bottom border is the moulding a real cap has - one
+ * property instead of a second element.
+ */
+/*
+ * An automatic width comes out as the padding on one side plus the text, so a cap sized purely by
+ * its label runs its last letter under the right border. The minimum is what actually holds a cap
+ * open; six characters fit, which covers LSHIFT and everything shorter.
+ */
+.pg-key {
+	width: auto;
+	min-width: 52dp;
+	height: 32dp;
+	padding: 0dp 10dp 0dp 10dp;
+	border-width: 2dp;
+	border-bottom-width: 5dp;
+	border-radius: 7dp 7dp 8dp 8dp;
+	text-align: center;
+	line-height: 25dp;
+}
+
+/* ------------------------------------------------------------------------- mouse */
+
+/*
+ * A mouse seen from above: rounded shoulders, a straighter tail, a seam between the two buttons and
+ * a wheel across it. The button the prompt is about is filled rather than labelled.
+ */
+.pg-mouse { width: 26dp; height: 36dp; }
+
+.pg-mouse .body {
+	position: absolute;
+	left: 0dp;
+	top: 0dp;
+	right: 0dp;
+	bottom: 0dp;
+	border-width: 2dp;
+	border-radius: 13dp 13dp 8dp 8dp;
+	box-sizing: border-box;
+}
+
+.pg-mouse .lmb, .pg-mouse .rmb {
+	position: absolute;
+	top: 2dp;
+	width: 10dp;
+	height: 12dp;
+}
+
+.pg-mouse .lmb { left: 2dp; border-radius: 11dp 0dp 0dp 0dp; }
+.pg-mouse .rmb { right: 2dp; border-radius: 0dp 11dp 0dp 0dp; }
+
+/* The line the two buttons meet on, and the one under them. */
+.pg-mouse .seam {
+	position: absolute;
+	left: 11dp;
+	top: 2dp;
+	width: 2dp;
+	height: 13dp;
+}
+
+.pg-mouse .rail {
+	position: absolute;
+	left: 2dp;
+	right: 2dp;
+	top: 15dp;
+	height: 2dp;
+}
+
+.pg-mouse .wheel {
+	position: absolute;
+	left: 10dp;
+	top: 3dp;
+	width: 4dp;
+	height: 10dp;
+	border-radius: 3dp 3dp 3dp 3dp;
+	border-width: 1dp;
+	box-sizing: border-box;
+}
+
+/* Side buttons, for the two thumb keys a prompt otherwise has no way to point at. */
+.pg-mouse .side {
+	position: absolute;
+	left: -2dp;
+	top: 17dp;
+	width: 4dp;
+	height: 7dp;
+	border-radius: 2dp 0dp 0dp 2dp;
+}
+
+.pg-mouse .side.two { top: 26dp; }
+
+/* --------------------------------------------------------------------- face pads */
+
+.pg-face {
+	width: 30dp;
+	height: 30dp;
+	border-width: 2dp;
+	border-radius: 20dp 20dp 20dp 20dp;
+	text-align: center;
+	line-height: 26dp;
+}
+
+/*
+ * PlayStation's four marks, drawn. A letter would be wrong on that platform and a sprite would be
+ * art nobody has yet, so they are bars and rings positioned inside the same circle.
+ */
+.pg-face .mark {
+	position: absolute;
+	left: 0dp;
+	top: 0dp;
+	right: 0dp;
+	bottom: 0dp;
+}
+
+.pg-face .mark u {
+	position: absolute;
+	display: block;
+}
+
+/* Cross: two bars through the middle. */
+.pg-cross .mark u { left: 5dp; top: 11.5dp; width: 16dp; height: 3dp; }
+.pg-cross .mark u:nth-child(1) { transform: rotate(45deg); }
+.pg-cross .mark u:nth-child(2) { transform: rotate(-45deg); }
+.pg-cross .mark u:nth-child(3) { display: none; }
+
+/* Circle: a ring inside the pad. */
+.pg-circle .mark u:nth-child(1) {
+	left: 7dp;
+	top: 7dp;
+	width: 12dp;
+	height: 12dp;
+	border-width: 2dp;
+	border-radius: 8dp 8dp 8dp 8dp;
+	box-sizing: border-box;
+}
+
+.pg-circle .mark u:nth-child(2) { display: none; }
+
+/* Square. */
+.pg-square .mark u:nth-child(1) {
+	left: 8dp;
+	top: 8dp;
+	width: 10dp;
+	height: 10dp;
+	border-width: 2dp;
+	box-sizing: border-box;
+}
+
+.pg-square .mark u:nth-child(2) { display: none; }
+
+/* Triangle: three bars of the same length, each turned into one side. */
+.pg-triangle .mark u { width: 15dp; height: 3dp; }
+.pg-triangle .mark u:nth-child(1) { left: 5.5dp; top: 15.8dp; }
+.pg-triangle .mark u:nth-child(2) { left: 1.8dp; top: 9.3dp; transform: rotate(-60deg); }
+.pg-triangle .mark u:nth-child(3) { left: 9.3dp; top: 9.3dp; transform: rotate(60deg); }
+
+/* --------------------------------------------------------- shoulders and triggers */
+
+.pg-bumper {
+	width: auto;
+	min-width: 36dp;
+	height: 24dp;
+	padding: 0dp 6dp 0dp 6dp;
+	border-width: 2dp;
+	border-radius: 12dp 12dp 5dp 5dp;
+	text-align: center;
+	line-height: 20dp;
+}
+
+.pg-trigger {
+	width: auto;
+	min-width: 36dp;
+	height: 28dp;
+	padding: 0dp 6dp 0dp 6dp;
+	border-width: 2dp;
+	border-radius: 14dp 14dp 4dp 4dp;
+	text-align: center;
+	line-height: 24dp;
+}
+
+/* ------------------------------------------------------------------------ sticks */
+
+.pg-stick { width: 30dp; height: 30dp; }
+
+.pg-stick .base {
+	position: absolute;
+	left: 0dp;
+	top: 0dp;
+	right: 0dp;
+	bottom: 0dp;
+	border-width: 2dp;
+	border-radius: 20dp 20dp 20dp 20dp;
+	box-sizing: border-box;
+}
+
+.pg-stick .top {
+	position: absolute;
+	left: 8dp;
+	top: 8dp;
+	width: 14dp;
+	height: 14dp;
+	border-radius: 9dp 9dp 9dp 9dp;
+}
+
+/* A pushed direction moves the cap, which reads faster than an arrow beside it. */
+.pg-stick.up .top    { top: 4dp; }
+.pg-stick.down .top  { top: 12dp; }
+.pg-stick.left .top  { left: 4dp; }
+.pg-stick.right .top { left: 12dp; }
+
+/* ------------------------------------------------------------------------- d-pad */
+
+.pg-dpad { width: 30dp; height: 30dp; }
+
+.pg-dpad u {
+	position: absolute;
+	display: block;
+	border-width: 2dp;
+	box-sizing: border-box;
+}
+
+.pg-dpad u:nth-child(1) { left: 10dp; top: 1dp; width: 10dp; height: 12dp; }
+.pg-dpad u:nth-child(2) { left: 10dp; bottom: 1dp; width: 10dp; height: 12dp; }
+.pg-dpad u:nth-child(3) { left: 1dp; top: 10dp; width: 12dp; height: 10dp; }
+.pg-dpad u:nth-child(4) { right: 1dp; top: 10dp; width: 12dp; height: 10dp; }
+
+/* ------------------------------------------------------------- the other sources */
+
+.pg-sprite, .pg-image { width: 32dp; height: 32dp; }
+
+.pg-image img { width: 30dp; height: 30dp; }
+
+/* Nothing bound. Shown rather than hidden, so a missing binding is visible in the screen. */
+.pg-unbound {
+	width: 30dp;
+	height: 30dp;
+	border-width: 2dp;
+	border-radius: 6dp 6dp 6dp 6dp;
+	text-align: center;
+	line-height: 26dp;
+}

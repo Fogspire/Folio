@@ -898,3 +898,56 @@ scrollbarhorizontal sliderbar:hover
 
 	.panel                    { border-color: #7a7a8a; }
 }
+
+/* --- prompt ---------------------------------------------------------------------- */
+
+/*
+ * Drawn glyphs, so a project gets working prompts with no art at all. Ink on light, which reads on
+ * the dark surfaces the rest of this theme uses and stays legible over a scene.
+ */
+
+.prompt { color: #e8e8f0; font-size: 17dp; }
+
+.prompt .pg-label { color: #c8c8d4; font-size: 17dp; }
+
+.pg-key, .pg-face, .pg-bumper, .pg-trigger, .pg-unbound {
+	background-color: #e8e8f0;
+	border-color: #0c0c12;
+	color: #14141c;
+	font-weight: 700;
+	font-size: 15dp;
+}
+
+/* The skirt, which is what makes a cap look pressable rather than printed. */
+.pg-key { border-bottom-color: #8d8da0; }
+
+
+.pg-unbound { background-color: #00000000; border-color: #6a6a7a; color: #6a6a7a; }
+
+.pg-mouse .body { background-color: #e8e8f0; border-color: #0c0c12; }
+.pg-mouse .lmb, .pg-mouse .rmb, .pg-mouse .side { background-color: #00000000; }
+.pg-mouse .seam, .pg-mouse .rail { background-color: #0c0c12; }
+.pg-mouse .wheel { background-color: #e8e8f0; border-color: #0c0c12; }
+
+/* The button the prompt is about, filled in the accent so it reads at a glance. */
+.pg-mouse.left .lmb    { background-color: #f0c674; }
+.pg-mouse.right .rmb   { background-color: #f0c674; }
+.pg-mouse.middle .wheel { background-color: #f0c674; }
+.pg-mouse.wheel .wheel  { background-color: #f0c674; }
+.pg-mouse.side-one .side { background-color: #f0c674; }
+.pg-mouse.side-two .side.two { background-color: #f0c674; }
+
+.pg-face .mark u { background-color: #14141c; border-color: #14141c; }
+
+/* PlayStation's marks carry their own colours; a platform that does not want them restates these. */
+.pg-cross .mark u    { background-color: #7aa7ff; }
+.pg-circle .mark u   { border-color: #ff6f6f; }
+.pg-square .mark u   { border-color: #f08cd0; }
+.pg-triangle .mark u { background-color: #56d6a0; }
+
+.pg-stick .base { background-color: #e8e8f0; border-color: #0c0c12; }
+.pg-stick .top  { background-color: #8d8da0; }
+.pg-stick.pressed .top { background-color: #f0c674; }
+
+.pg-dpad u { background-color: #e8e8f0; border-color: #0c0c12; }
+.pg-dpad u.on { background-color: #f0c674; }

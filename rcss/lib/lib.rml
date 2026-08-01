@@ -29,6 +29,7 @@
 	<link type="text/rcss" href="/folio/lib/menu.rcss"/>
 	<link type="text/rcss" href="/folio/lib/list.rcss"/>
 	<link type="text/rcss" href="/folio/lib/slider.rcss"/>
+	<link type="text/rcss" href="/folio/lib/prompt.rcss"/>
 	<link type="text/rcss" href="/folio/lib/toggle.rcss"/>
 	<link type="text/rcss" href="/folio/lib/tabbar.rcss"/>
 	<link type="text/rcss" href="/folio/lib/modal.rcss"/>

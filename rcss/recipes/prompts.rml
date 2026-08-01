@@ -1,0 +1,108 @@
+<rml>
+<head>
+	<title>Input prompts</title>
+	<meta name="folio-size" content="1100x760"/>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		body {
+			background-color: #16161e;
+			padding: 30dp;
+		}
+
+		h1 {
+			display: block;
+			font-size: 13dp;
+			letter-spacing: 2dp;
+			color: #6a6a7a;
+			margin-bottom: 12dp;
+		}
+
+		.sheet { display: flex; flex-direction: column; gap: 22dp;
+			left: 61px;
+			top: 90px; }
+
+		.row {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			gap: 26dp;
+			flex-wrap: wrap;
+			left: 56px;
+			top: 257px;
+		}
+	</style>
+</head>
+<body>
+
+<div class="sheet">
+
+	<div>
+		<h1>KEYBOARD</h1>
+		<div class="row">
+			<span class="prompt"><span class="pg pg-key">F</span><span class="pg-label">Interact</span></span>
+			<span class="prompt"><span class="pg pg-key">LSHIFT</span><span class="pg-label">Sprint</span></span>
+			<span class="prompt"><span class="pg pg-key">SPACE</span><span class="pg-label">Jump</span></span>
+			<span class="prompt"><span class="pg pg-key">ENTER</span><span class="pg-label">Say</span></span>
+			<span class="prompt"><span class="pg pg-key">ESC</span><span class="pg-label">Back</span></span>
+		</div>
+	</div>
+
+	<div>
+		<h1>ARROWS</h1>
+		<div class="row">
+			<span class="prompt"><span class="pg pg-key">UP</span></span>
+			<span class="prompt"><span class="pg pg-key">DOWN</span></span>
+			<span class="prompt"><span class="pg pg-key">LEFT</span></span>
+			<span class="prompt"><span class="pg pg-key">RIGHT</span><span class="pg-label">Lean</span></span>
+		</div>
+	</div>
+
+	<div>
+		<h1>MOUSE</h1>
+		<div class="row">
+			<span class="prompt"><span class="pg pg-mouse left"><span class="body"/><span class="lmb"/><span class="rmb"/><span class="seam"/><span class="rail"/><span class="wheel"/><span class="side"/><span class="side two"/></span><span class="pg-label">Fire</span></span>
+			<span class="prompt"><span class="pg pg-mouse right"><span class="body"/><span class="lmb"/><span class="rmb"/><span class="seam"/><span class="rail"/><span class="wheel"/><span class="side"/><span class="side two"/></span><span class="pg-label">Aim</span></span>
+			<span class="prompt"><span class="pg pg-mouse middle"><span class="body"/><span class="lmb"/><span class="rmb"/><span class="seam"/><span class="rail"/><span class="wheel"/><span class="side"/><span class="side two"/></span><span class="pg-label">Melee</span></span>
+			<span class="prompt"><span class="pg pg-mouse side-one"><span class="body"/><span class="lmb"/><span class="rmb"/><span class="seam"/><span class="rail"/><span class="wheel"/><span class="side"/><span class="side two"/></span><span class="pg-label">Ability</span></span>
+		</div>
+	</div>
+
+	<div>
+		<h1>GAMEPAD &#183; PLAYSTATION</h1>
+		<div class="row">
+			<span class="prompt"><span class="pg pg-face pg-cross"><span class="mark"><u/><u/><u/></span></span><span class="pg-label">Confirm</span></span>
+			<span class="prompt"><span class="pg pg-face pg-circle"><span class="mark"><u/><u/><u/></span></span><span class="pg-label">Back</span></span>
+			<span class="prompt"><span class="pg pg-face pg-square"><span class="mark"><u/><u/><u/></span></span><span class="pg-label">Reload</span></span>
+			<span class="prompt"><span class="pg pg-face pg-triangle"><span class="mark"><u/><u/><u/></span></span><span class="pg-label">Swap</span></span>
+		</div>
+	</div>
+
+	<div>
+		<h1>GAMEPAD &#183; LETTERED</h1>
+		<div class="row">
+			<span class="prompt"><span class="pg pg-face">A</span></span>
+			<span class="prompt"><span class="pg pg-face">B</span></span>
+			<span class="prompt"><span class="pg pg-face">X</span></span>
+			<span class="prompt"><span class="pg pg-face">Y</span><span class="pg-label">Swap</span></span>
+			<span class="prompt"><span class="pg pg-bumper">LB</span></span>
+			<span class="prompt"><span class="pg pg-bumper">RB</span></span>
+			<span class="prompt"><span class="pg pg-trigger">LT</span></span>
+			<span class="prompt"><span class="pg pg-trigger">RT</span><span class="pg-label">Fire</span></span>
+		</div>
+	</div>
+
+	<div>
+		<h1>STICKS AND D-PAD</h1>
+		<div class="row">
+			<span class="prompt"><span class="pg pg-stick"><span class="base"/><span class="top"/></span><span class="pg-label">Move</span></span>
+			<span class="prompt"><span class="pg pg-stick up"><span class="base"/><span class="top"/></span></span>
+			<span class="prompt"><span class="pg pg-stick pressed"><span class="base"/><span class="top"/></span><span class="pg-label">Crouch</span></span>
+			<span class="prompt"><span class="pg pg-dpad"><u class="on"/><u/><u/><u/></span><span class="pg-label">Callout</span></span>
+			<span class="prompt"><span class="pg pg-unbound">&#8212;</span><span class="pg-label">Unbound</span></span>
+		</div>
+	</div>
+
+</div>
+
+</body>
+</rml>

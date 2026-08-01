@@ -47,6 +47,14 @@ public class Folio : ModuleRules
 			// the ModelViewViewModel plugin: a UMVVMViewModelBase implements it, so Folio binds view
 			// models without depending on MVVM and a project ignoring MVVM pays nothing.
 			"FieldNotification",
+			// The source of truth for what a key is bound to. Prompts and rebinding both read the
+			// player's own mapping profile rather than keeping a second copy of it.
+			"EnhancedInput",
+			// MapPlayerKey reports failures as tags.
+			"GameplayTags",
+			// Controller art, for projects that have licensed it. Folio draws its own glyphs when
+			// this finds nothing, so the dependency buys a source rather than requiring one.
+			"CommonInput",
 			"RmlUiLibrary",
 			"FolioCore",
 		});

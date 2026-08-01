@@ -51,6 +51,12 @@ of the screen with no body under it. Behind the camera the projection mirrors th
 the component corrects for that, so a marker behind you is pinned to the correct edge rather than the
 opposite one.
 
+**`Clamp Max Distance`** stops clamping past a distance, in world units, and hides the marker instead.
+Zero is no limit, which is the default. Clamping exists so a player does not lose something they
+cannot see; a rim of arrows for everything a mile behind them is the opposite of that, and the far
+ones are the least worth the space. This is the same thinning `Fade End Distance` does for markers
+that are on screen.
+
 ## Data
 
 Same as anywhere else in Folio - bind an object and the document reads its properties:

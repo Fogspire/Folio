@@ -108,6 +108,20 @@ public:
 	float ClampMargin = 48.0f;
 
 	/**
+	 * How far away a marker may be and still be clamped, in world units. Zero is no limit.
+	 *
+	 * Clamping is what stops the player losing an objective they cannot see. It is not what should
+	 * happen to every marker in the level: a rim of arrows for things a mile behind them is noise,
+	 * and the far ones are the least useful. Past this distance an off-screen marker is simply
+	 * hidden, as an unclamped one is.
+	 *
+	 * Off by default, so clamping behaves as it always has until a game asks for the limit.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (EditCondition = "bClampToScreenEdge", ClampMin = "0.0", ForceUnits = "cm"))
+	float ClampMaxDistance = 0.0f;
+
+	/**
 	 * Which player sees it. Zero is the first local player, which is the answer in a single-player game.
 	 *
 	 * A marker is drawn for one viewport, because a projection is only meaningful for one camera.

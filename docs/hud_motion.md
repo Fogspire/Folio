@@ -1,7 +1,7 @@
 # A HUD that responds to the camera
 
 A visor that lags a hard turn. A reticle that drifts and settles. A readout that sways with a run.
-The Metroid Prime helmet.
+A helmet with mass.
 
 None of it is expressible in RCSS, and it is worth being clear about why before reaching for the
 component: a **transition** fires on a state change and runs a fixed curve to completion. What this

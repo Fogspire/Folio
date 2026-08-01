@@ -196,6 +196,13 @@ bool UFolioMarkerDocument::Project(float& OutOpacity)
 			return false;
 		}
 
+		// Past the cut-off an off-screen marker is hidden rather than pinned, so the edge of the screen
+		// carries the ones worth walking towards instead of every marker in the level.
+		if (ClampMaxDistance > 0.0f && Distance > ClampMaxDistance)
+		{
+			return false;
+		}
+
 		// Behind the camera, the projection mirrors through the origin, so the direction has to be
 		// flipped before it means anything. Without this a marker behind you is pinned to the opposite
 		// edge from where it actually is.

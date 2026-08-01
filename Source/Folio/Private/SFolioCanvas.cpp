@@ -265,6 +265,14 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 		return LayerId;
 	}
 
+	// Nothing to draw until it has been laid out once. RmlUi's defaults are not the author's - a body
+	// with no background rule computed yet is opaque white - so painting a document on the frame it
+	// loaded is a white frame every time a screen opens.
+	if (!Host.IsLaidOut())
+	{
+		return LayerId;
+	}
+
 	FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
 	if (!Renderer)
 	{
@@ -618,16 +626,25 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		return FReply::Handled();
 	}
 
-	if (!bClaimed)
+	// A key the game asked for is consumed here and handed over once, rather than reaching both this
+	// and the player controller.
+	const bool bGameKey = GameKeys.Contains(KeyEvent.GetKey());
+
+	if (bGameKey || !bClaimed)
 	{
 		OnUnclaimedKey.ExecuteIfBound(KeyEvent.GetKey());
 	}
 
-	return bClaimed ? FReply::Handled() : FReply::Unhandled();
+	return bClaimed || bGameKey ? FReply::Handled() : FReply::Unhandled();
 }
 
 bool SFolioCanvas::ClaimsKey(const FKey& Key) const
 {
+	if (GameKeys.Contains(Key))
+	{
+		return true;
+	}
+
 	// Two keys always escape, whatever has focus. The console is how a document that has gone wrong
 	// gets closed, and Escape is how PIE gets stopped when the console cannot be opened.
 	if (Key == EKeys::Escape)

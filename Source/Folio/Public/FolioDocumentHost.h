@@ -102,6 +102,16 @@ public:
 	 */
 	bool Update(float DeltaSeconds, float DpRatio, float RenderScale);
 
+	/**
+	 * Whether the document has been laid out at least once.
+	 *
+	 * A document that has loaded but never updated has no computed styles, and RmlUi's defaults are
+	 * not the author's: a body with no background rule yet is opaque white. Painting one is a white
+	 * frame every time a screen opens, which reads as a flash and is really the document being shown
+	 * before it has been dressed.
+	 */
+	bool IsLaidOut() const { return bLaidOut; }
+
 	/** Polled sources are read here even when the update is skipped, so one still reports a change. */
 	void TickDataModels();
 
@@ -153,5 +163,8 @@ private:
 	double NextUpdateIn = 0.0;
 
 	bool bDirty = true;
+
+	/** Set once the document has been through a context update, so it has computed styles. */
+	bool bLaidOut = false;
 	const TCHAR* DirtyReason = TEXT("first frame");
 };

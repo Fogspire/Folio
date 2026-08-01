@@ -195,6 +195,14 @@ void UFolioWidget::SetInteractive(const bool bInInteractive)
 	}
 }
 
+void UFolioWidget::ClaimKey(const FKey Key)
+{
+	if (Canvas.IsValid())
+	{
+		Canvas->ClaimKey(Key);
+	}
+}
+
 bool UFolioWidget::ScrollElement(const FString& ElementId, const float Fraction)
 {
 	Rml::ElementDocument* Document = Canvas.IsValid() ? Canvas->GetDocument() : nullptr;

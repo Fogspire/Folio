@@ -213,6 +213,16 @@ public:
 	FFolioUnclaimedKey OnUnclaimedKey;
 
 	/**
+	 * Takes a key for the game while this document holds focus.
+	 *
+	 * It arrives through OnUnclaimedKey and goes no further, so a player controller binding for the
+	 * same key does not also fire. Without this a menu key that closes on the document and opens on
+	 * the controller does both in one press.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void ClaimKey(FKey Key);
+
+	/**
 	 * Escape, or the pad's back button, when nothing in the document consumed it.
 	 *
 	 * This is what makes an input-only screen closable: with `FInputModeUIOnly` the player controller

@@ -180,6 +180,8 @@ public:
 	/** How far the pointer has travelled since the pad was last used. */
 	float MouseTravel = 0.0f;
 
+	TSet<FKey> GameKeys;
+
 	/** What the player last touched. Documents swap button glyphs on it. */
 	Folio::EInputDevice GetLastInputDevice() const;
 
@@ -282,6 +284,15 @@ public:
 	 */
 	DECLARE_DELEGATE_OneParam(FOnUnclaimedKey, FKey);
 	FOnUnclaimedKey OnUnclaimedKey;
+
+	/**
+	 * Keys the game wants while this document holds focus.
+	 *
+	 * A claimed key is consumed here and offered to OnUnclaimedKey, so the game acts on it once. Left
+	 * unclaimed it falls through to the player controller as well, and a key both of them act on -
+	 * one closing a menu, the other opening it - reads as a button that does nothing.
+	 */
+	void ClaimKey(const FKey& Key) { GameKeys.Add(Key); }
 
 private:
 

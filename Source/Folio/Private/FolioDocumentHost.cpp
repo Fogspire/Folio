@@ -171,6 +171,10 @@ void FFolioDocumentHost::SetReferencer(const UObject* InReferencer)
 
 void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 {
+	// Until the new one has been through an update it has no computed styles, and drawing it would
+	// be a frame of RmlUi's defaults rather than the author's.
+	bLaidOut = false;
+
 	if (!Context)
 	{
 		return;
@@ -470,6 +474,8 @@ bool FFolioDocumentHost::Update(const float DeltaSeconds, const float DpRatio, c
 
 	Context->Update();
 	Behaviours.UpdateScrollState();
+
+	bLaidOut = true;
 
 	// Read after the update, not before: RmlUi resets the request to infinity as Update starts and fills
 	// it in as elements ask, so before the call it says nothing about this frame.

@@ -24,6 +24,11 @@ body { font-family: Inter; font-size: 16dp; }
 A family name is one Folio registered, not a filename. Resolution order is `--font` → the game's
 `UI/fonts/` → the plugin's bundled faces → the engine's Roboto.
 
+**The bundled two are a floor, not the palette.** A screen with a voice of its own wants a face that
+has one, and [fonts.google.com](https://fonts.google.com) is an open-licensed library that covers
+most of them - fetch the `.ttf`, put it in `UI/fonts/`, ship the licence beside it. Designing around
+Inter because it is what is already there is the wrong reason to pick a typeface.
+
 **Nothing renders at all until a family is named.** RCSS's initial `font-family` is empty, so a
 document with no family set is blank rather than wrong-looking.
 

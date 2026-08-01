@@ -27,6 +27,7 @@
 #include "FolioDrawList.h"
 #include "FolioRenderInterface.h"
 #include "SFolioCanvas.h"
+#include "SFolioWorldFocus.h"
 
 #include "Engine/UserInterfaceSettings.h"
 #include "Framework/Application/SlateApplication.h"
@@ -1768,8 +1769,10 @@ namespace
 	{
 		const TArray<SFolioCanvas*>& Live = SFolioCanvas::GetLiveCanvases();
 
-		UE_LOG(LogFolio, Display, TEXT("device is %s, %d screen document(s) live"),
-			Folio::DescribeDevice(FFolioModule::Get().GetInputDevice()), Live.Num());
+		UE_LOG(LogFolio, Display,
+			TEXT("device is %s, %d screen document(s) live, world sink %s"),
+			Folio::DescribeDevice(FFolioModule::Get().GetInputDevice()), Live.Num(),
+			SFolioWorldFocus::IsActive() ? TEXT("HOLDS INPUT") : TEXT("idle"));
 
 		for (const SFolioCanvas* Canvas : Live)
 		{

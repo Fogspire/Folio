@@ -140,6 +140,15 @@ bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, co
 	{
 		SFolioWorldFocus::ReclaimFocus(SlateApp, InKeyEvent.GetUserIndex());
 
+		// Traced like any other route. Without this the one path that consumes input and returns
+		// before every other check is also the one path that says nothing about having done so,
+		// which reads as a trace that is not running at all.
+		if (Tracing())
+		{
+			UE_LOG(LogFolio, Display, TEXT("input trace: key down %s taken by a world document"),
+				*InKeyEvent.GetKey().ToString());
+		}
+
 		if (InKeyEvent.GetKey().IsGamepadKey())
 		{
 			SFolioWorldFocus::RouteGamepadKeyDown(InKeyEvent);

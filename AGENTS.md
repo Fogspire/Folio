@@ -148,6 +148,15 @@ variants.
 **Text** is distance-field and scales freely - pick sizes for the design. Font effects reach about
 0.104em, so an outline on small text gets clamped.
 
+**Fonts are not limited to the bundled Inter and Roboto Mono.** Pick the face the design wants,
+fetch the `.ttf` from [fonts.google.com](https://fonts.google.com) and drop it in `UI/fonts/` with
+its licence. Do not settle for a bundled face and call it a constraint.
+
+**A HUD sets `Interactive` false on its `UFolioWidget`.** Anything the player does not click or
+navigate must not be focusable: Slate restores focus to a focusable widget on window reactivation,
+so an interactive HUD steals input on alt-tab and the player cannot move. See
+[docs/hosting.md](docs/hosting.md).
+
 **Drag and drop**: `drag: drag-drop` to pick up (not `drag: drag`, which never finds a drop target),
 `folio-drag="move"` to actually move it, `folio-drop="remove|hide|accept"` on the zone. Style
 `.folio-dragging` and `.folio-dragover`.

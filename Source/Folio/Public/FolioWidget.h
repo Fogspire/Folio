@@ -64,6 +64,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
 	FVector2D DesiredSize = FVector2D(1920.0, 1080.0);
 
+	/**
+	 * Whether the document takes input at all.
+	 *
+	 * Turn it off for a HUD. A HUD is a readout drawn over a game that is still being played, and it
+	 * must never be a focus target: Slate restores focus to a focusable widget when the window is
+	 * reactivated, so a HUD that can hold focus takes it on alt-tab and the game stops receiving input
+	 * with nothing in the log to say why. Off also makes the widget hit-test invisible, so clicks
+	 * reach the game rather than being swallowed by a readout that does nothing with them.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	bool bInteractive = true;
+
 	/** Loads a different document, replacing whatever is up. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void LoadDocument(const FString& InDocumentPath);
@@ -85,6 +97,23 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API bool BindViewModel(FName ModelName, UObject* Source, bool bPollEveryFrame = true);
+
+	/**
+	 * Writes one inline property on an element, by id, and marks the document dirty.
+	 *
+	 * For a value the game drives every frame from something a stylesheet cannot express - a spring, a
+	 * signal that never settles - which is what UFolioHudMotion does through the same route. Anything
+	 * that is really a state change belongs in RCSS as a class and a transition, and anything that is
+	 * really data belongs in a view model; reach for this when it is neither.
+	 *
+	 * False if no document is up or nothing carries that id.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API bool SetElementProperty(const FString& ElementId, const FString& Property, const FString& Value);
+
+	/** Turns input on or off on a document that is already up. See bInteractive. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void SetInteractive(bool bInInteractive);
 
 	/** Moves keyboard focus to the document. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")

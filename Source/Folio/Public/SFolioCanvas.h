@@ -29,12 +29,16 @@ public:
 	SLATE_BEGIN_ARGS(SFolioCanvas)
 		: _DocumentPath()
 		, _DesiredSize(FVector2D(1920.0, 1080.0))
+		, _Interactive(true)
 	{}
 		/** Document to load, relative to the project directory. */
 		SLATE_ARGUMENT(FString, DocumentPath)
 
 		/** What the widget reports when its container asks. It fills whatever it is given. */
 		SLATE_ARGUMENT(FVector2D, DesiredSize)
+
+		/** False for a readout nobody clicks. See SetInteractive. */
+		SLATE_ARGUMENT(bool, Interactive)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -82,7 +86,7 @@ public:
 
 	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
 
-	virtual bool SupportsKeyboardFocus() const override { return true; }
+	virtual bool SupportsKeyboardFocus() const override { return bInteractive; }
 
 	//
 	// Input. Forwarded straight into the RmlUi context: Slate's own focus and navigation
@@ -138,7 +142,22 @@ public:
 	 * the canvas rather than a fight over it.
 	 */
 	void SetKeepFocus(bool bInKeepFocus) { bKeepFocus = bInKeepFocus; }
-	bool WantsFocus() const { return bKeepFocus; }
+	bool WantsFocus() const { return bInteractive && bKeepFocus; }
+
+	/**
+	 * Whether the document takes input at all.
+	 *
+	 * A HUD is not a screen. It is a readout drawn over a game that is still being played, and it must
+	 * never be a focus target: Slate restores focus to a focusable widget when the window is
+	 * reactivated, so a HUD that can hold focus takes it on alt-tab and the game stops receiving
+	 * input with nothing in the log to say why.
+	 *
+	 * Off makes the widget hit-test invisible and unfocusable, so the mouse and the keyboard pass
+	 * through to whatever is behind. Everything else - painting, motion, data binding, hot reload -
+	 * is unaffected.
+	 */
+	void SetInteractive(bool bInInteractive);
+	bool IsInteractive() const { return bInteractive; }
 
 	/**
 	 * Gamepad entry points for the input pre-processor, which has an event but no geometry.
@@ -167,6 +186,7 @@ private:
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;
 	bool bKeepFocus = false;
+	bool bInteractive = true;
 
 	/** Screen space to the context's own pixel space. */
 	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;

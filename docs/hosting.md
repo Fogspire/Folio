@@ -46,6 +46,26 @@ after the screen is visible and expecting `{{ braces }}` to start resolving.
 
 [Data binding](data_binding.md) covers the document side.
 
+## A HUD is not a screen
+
+**Turn `Interactive` off for anything the player does not interact with.** A HUD is a readout drawn
+over a game that is still being played, and it must never be a focus target:
+
+```cpp
+Widget->bInteractive = false;   // or SetInteractive(false) on one already up
+```
+
+Leave it on and the HUD is focusable, which breaks the game in a way that looks nothing like a UI
+bug: **alt-tab away and back, and the player can no longer move.** Slate restores focus to a
+focusable widget when the window is reactivated, the HUD is the widget it finds, and the pawn stops
+receiving input with nothing in the log to say why. It also swallows every click that lands on it.
+
+Off makes the canvas unfocusable and hit-test invisible, so the mouse and the keyboard pass through
+to the game. Painting, HUD motion, data binding and hot reload are unaffected - the only thing it
+gives up is input, which a HUD never wanted.
+
+Everything below is about screens the player *does* interact with.
+
 ## Focus
 
 This is the part that goes wrong silently, so it is worth understanding rather than copying.

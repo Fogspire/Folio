@@ -1,7 +1,11 @@
 #include "FolioWidget.h"
 
 #include "FolioModule.h"
+#include "FolioRmlUi.h"
 #include "SFolioCanvas.h"
+
+#include <RmlUi/Core/Element.h>
+#include <RmlUi/Core/ElementDocument.h>
 
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SNullWidget.h"
@@ -21,7 +25,8 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 	// has to exist first; passing the path here would load it before ApplyBindings could run and every
 	// binding would render as literal braces.
 	Canvas = SNew(SFolioCanvas)
-		.DesiredSize(DesiredSize);
+		.DesiredSize(DesiredSize)
+		.Interactive(bInteractive);
 
 	ApplyBindings();
 	Canvas->LoadDocument(DocumentPath);
@@ -111,6 +116,41 @@ bool UFolioWidget::BindViewModel(const FName ModelName, UObject* Source, const b
 	}
 
 	return true;
+}
+
+bool UFolioWidget::SetElementProperty(const FString& ElementId, const FString& Property, const FString& Value)
+{
+	if (!Canvas.IsValid())
+	{
+		return false;
+	}
+
+	Rml::ElementDocument* Document = Canvas->GetDocument();
+	if (!Document)
+	{
+		return false;
+	}
+
+	Rml::Element* Element = Document->GetElementById(Folio::ToRmlString(ElementId));
+	if (!Element)
+	{
+		return false;
+	}
+
+	Element->SetProperty(Folio::ToRmlString(Property), Folio::ToRmlString(Value));
+	Canvas->MarkDirty(TEXT("element property"));
+
+	return true;
+}
+
+void UFolioWidget::SetInteractive(const bool bInInteractive)
+{
+	bInteractive = bInInteractive;
+
+	if (Canvas.IsValid())
+	{
+		Canvas->SetInteractive(bInInteractive);
+	}
 }
 
 void UFolioWidget::TakeFocus()

@@ -7,6 +7,8 @@
 #include "FolioInput.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/SlateUser.h"
 #include "GameFramework/InputSettings.h"
 
 #include <RmlUi/Core/Context.h>
@@ -28,6 +30,7 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 
 	LiveCanvases.AddUnique(this);
 	SetCanTick(true);
+	SetInteractive(InArgs._Interactive);
 
 	// A context needs a size before it will lay anything out, and the real one only arrives with the
 	// first geometry. Starting at the requested desired size means a document loaded now is laid out
@@ -60,6 +63,28 @@ SFolioCanvas::~SFolioCanvas()
 	LiveCanvases.RemoveSingleSwap(this);
 	Sounds.Detach();
 	Host.Destroy();
+}
+
+void SFolioCanvas::SetInteractive(const bool bInInteractive)
+{
+	bInteractive = bInInteractive;
+
+	// Hit-test invisible rather than merely unfocusable: the mouse has to reach the game behind a HUD
+	// as well, and a leaf widget that answers a hit test still swallows a click it does nothing with.
+	SetVisibility(bInteractive ? EVisibility::Visible : EVisibility::HitTestInvisible);
+
+	if (!bInteractive && FSlateApplication::IsInitialized())
+	{
+		// Whatever focus it already had has to go, or the widget stays the focus target until
+		// something else claims it and the game keeps missing input.
+		FSlateApplication::Get().ForEachUser([this](FSlateUser& User)
+		{
+			if (User.GetFocusedWidget().Get() == this)
+			{
+				User.ClearFocus(EFocusCause::SetDirectly);
+			}
+		});
+	}
 }
 
 void SFolioCanvas::LoadDocument(const FString& RelativePath)

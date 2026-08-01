@@ -177,6 +177,9 @@ public:
 
 	Folio::EInputDevice LastDevice = Folio::EInputDevice::Unknown;
 
+	/** How far the pointer has travelled since the pad was last used. */
+	float MouseTravel = 0.0f;
+
 	/** What the player last touched. Documents swap button glyphs on it. */
 	Folio::EInputDevice GetLastInputDevice() const;
 

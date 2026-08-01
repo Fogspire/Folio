@@ -389,11 +389,34 @@ FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEven
 		return FReply::Unhandled();
 	}
 
-	// Only a real move counts. Slate resends the cursor position on its own, and a stationary
-	// mouse would otherwise take the device back from the gamepad every frame.
-	if (!MouseEvent.GetCursorDelta().IsNearlyZero())
+	// Only a real move counts, and taking the device back from a pad takes a deliberate one.
+	//
+	// A stationary mouse resends its position every frame, and a game running CommonUI's analog
+	// cursor has the stick driving the pointer as well, so a single non-zero delta is not evidence
+	// that anyone touched a mouse. Distance since the last pad input is. Any gamepad key resets it.
+	if (const FVector2f Delta = MouseEvent.GetCursorDelta(); !Delta.IsNearlyZero())
 	{
-		NoteDevice(Folio::EInputDevice::Mouse);
+		if (FFolioModule::Get().GetInputDevice() == Folio::EInputDevice::Gamepad)
+		{
+			MouseTravel += Delta.Size();
+			if (MouseTravel >= 24.0f)
+			{
+				NoteDevice(Folio::EInputDevice::Mouse);
+			}
+		}
+		else
+		{
+			NoteDevice(Folio::EInputDevice::Mouse);
+		}
+	}
+
+	// The pointer steers only while the pointer is what the player is holding. Anything else and the
+	// move is dropped before RmlUi sees it, so no hover can exist on a pad or a keyboard at all:
+	// there is one highlight on screen, it is the focus ring, and it is the thing confirm presses.
+	// A real move takes the device back a few lines above and this stops applying on the same event.
+	if (FFolioModule::Get().GetInputDevice() != Folio::EInputDevice::Mouse)
+	{
+		return FReply::Unhandled();
 	}
 
 	const FVector2f Local = ToContextSpace(MyGeometry, MouseEvent);
@@ -539,6 +562,12 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	if (!Context)
 	{
 		return FReply::Unhandled();
+	}
+
+	// A pad press means the pointer is not what is being used, whatever the cursor has been doing.
+	if (KeyEvent.GetKey().IsGamepadKey())
+	{
+		MouseTravel = 0.0f;
 	}
 
 	NoteDevice(Folio::DeviceForKey(KeyEvent.GetKey()));

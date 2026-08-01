@@ -9,10 +9,18 @@
 
 namespace
 {
-	/** How a property is best represented in a data expression. */
-	FFolioObjectModel::FField::EKind KindFor(const FProperty& Property)
+	using FValue = FFolioObjectModel::FValue;
+
+	bool IsContainer(const FProperty& Property)
 	{
-		using EKind = FFolioObjectModel::FField::EKind;
+		return Property.IsA<FArrayProperty>() || Property.IsA<FMapProperty>()
+			|| Property.IsA<FSetProperty>();
+	}
+
+	/** How a property is best represented in a data expression. */
+	FValue::EKind KindFor(const FProperty& Property)
+	{
+		using EKind = FValue::EKind;
 
 		if (Property.IsA<FBoolProperty>())
 		{
@@ -36,10 +44,81 @@ namespace
 
 	bool IsBindable(const FProperty& Property)
 	{
-		// A container needs RmlUi's array or struct registration, which is per element type and
-		// cannot be built from reflection alone. Reported once so the omission is visible.
-		return !Property.IsA<FArrayProperty>() && !Property.IsA<FMapProperty>()
-			&& !Property.IsA<FSetProperty>();
+		// A map or set has no ordering a document could iterate, and RmlUi's data model has no shape
+		// for either. An array does, and is bound as one.
+		return !Property.IsA<FMapProperty>() && !Property.IsA<FSetProperty>();
+	}
+
+	/** Reads one value out of the object graph and into its mirror. True when it moved. */
+	bool ReadInto(FValue& Out, const FProperty& Property, const void* ValuePtr, UObject* Parent)
+	{
+		switch (Out.Kind)
+		{
+		case FValue::EKind::Bool:
+		{
+			const bool bNew = CastFieldChecked<const FBoolProperty>(&Property)->GetPropertyValue(ValuePtr);
+			if (bNew == Out.bValue) { return false; }
+			Out.bValue = bNew;
+			return true;
+		}
+
+		case FValue::EKind::Int:
+		{
+			const int New = static_cast<int>(
+				CastFieldChecked<const FNumericProperty>(&Property)->GetSignedIntPropertyValue(ValuePtr));
+			if (New == Out.IntValue) { return false; }
+			Out.IntValue = New;
+			return true;
+		}
+
+		case FValue::EKind::Float:
+		{
+			const float New = static_cast<float>(
+				CastFieldChecked<const FNumericProperty>(&Property)->GetFloatingPointPropertyValue(ValuePtr));
+			if (New == Out.FloatValue) { return false; }
+			Out.FloatValue = New;
+			return true;
+		}
+
+		default:
+		{
+			FString Text;
+			Property.ExportTextItem_Direct(Text, ValuePtr, nullptr, Parent, PPF_None);
+
+			const Rml::String New = Folio::ToRmlString(Text);
+			if (New == Out.StringValue) { return false; }
+			Out.StringValue = New;
+			return true;
+		}
+		}
+	}
+
+	/** Puts a mirror back to nothing, for a row whose object went away. */
+	bool ResetValue(FValue& Out)
+	{
+		const FValue Empty{ Out.Kind };
+		if (Out.bValue == Empty.bValue && Out.IntValue == Empty.IntValue
+			&& Out.FloatValue == Empty.FloatValue && Out.StringValue == Empty.StringValue)
+		{
+			return false;
+		}
+
+		Out = Empty;
+		return true;
+	}
+
+	/** The properties of a struct or class a document is allowed to read. */
+	void CollectMembers(const UStruct& Owner, TArray<FProperty*>& Out)
+	{
+		for (FProperty* Property = Owner.PropertyLink; Property; Property = Property->PropertyLinkNext)
+		{
+			if (!Property->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_Edit) || IsContainer(*Property))
+			{
+				continue;
+			}
+
+			Out.Add(Property);
+		}
 	}
 
 	/** Whether a data expression can supply this parameter at all. */
@@ -85,40 +164,149 @@ namespace
 }
 
 /**
- * How RmlUi reads and writes one bound property.
+ * How RmlUi reads and writes everything this model binds.
  *
- * One definition serves every field, because the field itself carries its kind. Bound by address of
- * the FField rather than of the mirrored value, which is what makes a write reach the UObject: given
- * only a `float*` RmlUi would set the mirror, the next refresh would overwrite it from the property,
- * and a slider would spring back one frame after being dragged.
+ * Five definitions, held together because the array ones hand out the others. A definition carries no
+ * state of its own: RmlUi pairs it with a pointer, and which mirror that is decides what gets read.
  */
-class FFolioObjectModel::FFieldDefinition final : public Rml::VariableDefinition
+struct FFolioObjectModel::FDefinitions
 {
-public:
-	FFieldDefinition() : VariableDefinition(Rml::DataVariableType::Scalar) {}
-
-	bool Get(void* Ptr, Rml::Variant& Variant) override
+	/**
+	 * A bound property.
+	 *
+	 * Bound by address of the FField rather than of the mirrored value, which is what makes a write
+	 * reach the UObject: given only a `float*` RmlUi would set the mirror, the next refresh would
+	 * overwrite it from the property, and a slider would spring back one frame after being dragged.
+	 */
+	class FFieldDefinition final : public Rml::VariableDefinition
 	{
-		const FField& Field = *static_cast<FField*>(Ptr);
-		switch (Field.Kind)
+	public:
+		FFieldDefinition() : VariableDefinition(Rml::DataVariableType::Scalar) {}
+
+		bool Get(void* Ptr, Rml::Variant& Variant) override
 		{
-		case FField::EKind::Bool:  Variant = Field.bValue; break;
-		case FField::EKind::Int:   Variant = Field.IntValue; break;
-		case FField::EKind::Float: Variant = Field.FloatValue; break;
-		default:                   Variant = Field.StringValue; break;
+			return Read(static_cast<FField*>(Ptr)->Value, Variant);
 		}
-		return true;
-	}
 
-	bool Set(void* Ptr, const Rml::Variant& Variant) override
+		bool Set(void* Ptr, const Rml::Variant& Variant) override
+		{
+			FField& Field = *static_cast<FField*>(Ptr);
+			return Field.Owner != nullptr && Field.Owner->Write(Field, Variant);
+		}
+
+		static bool Read(const FValue& Value, Rml::Variant& Variant)
+		{
+			switch (Value.Kind)
+			{
+			case FValue::EKind::Bool:  Variant = Value.bValue; break;
+			case FValue::EKind::Int:   Variant = Value.IntValue; break;
+			case FValue::EKind::Float: Variant = Value.FloatValue; break;
+			default:                   Variant = Value.StringValue; break;
+			}
+			return true;
+		}
+	};
+
+	/** A mirror inside an array. Read only: an element is a copy, so a write would go nowhere. */
+	class FValueDefinition final : public Rml::VariableDefinition
 	{
-		FField& Field = *static_cast<FField*>(Ptr);
-		return Field.Owner != nullptr && Field.Owner->Write(Field, Variant);
-	}
+	public:
+		FValueDefinition() : VariableDefinition(Rml::DataVariableType::Scalar) {}
+
+		bool Get(void* Ptr, Rml::Variant& Variant) override
+		{
+			return FFieldDefinition::Read(*static_cast<FValue*>(Ptr), Variant);
+		}
+	};
+
+	/** One element of an array of structs or objects, addressed by member name. */
+	class FRowDefinition final : public Rml::VariableDefinition
+	{
+	public:
+		explicit FRowDefinition(FDefinitions& InOwner)
+			: VariableDefinition(Rml::DataVariableType::Struct), Owner(InOwner) {}
+
+		Rml::DataVariable Child(void* Ptr, const Rml::DataAddressEntry& Address) override
+		{
+			for (TUniquePtr<FLeaf>& Leaf : static_cast<FRow*>(Ptr)->Members)
+			{
+				if (Leaf->Name == Address.name)
+				{
+					return Rml::DataVariable(&Owner.Mirror, &Leaf->Value);
+				}
+			}
+
+			return Rml::DataVariable();
+		}
+
+	private:
+		FDefinitions& Owner;
+	};
+
+	/**
+	 * How many elements an array has, as a scalar.
+	 *
+	 * RmlUi calls Size() from data-for and nowhere else, so nothing in a data expression can reach a
+	 * length without this. Matches what the JSON mock models expose, so a document counts the same in
+	 * the preview tool and in the engine.
+	 */
+	class FCountDefinition final : public Rml::VariableDefinition
+	{
+	public:
+		FCountDefinition() : VariableDefinition(Rml::DataVariableType::Scalar) {}
+
+		bool Get(void* Ptr, Rml::Variant& Variant) override
+		{
+			Variant = static_cast<FArrayField*>(Ptr)->Rows.Num();
+			return true;
+		}
+	};
+
+	class FArrayDefinition final : public Rml::VariableDefinition
+	{
+	public:
+		explicit FArrayDefinition(FDefinitions& InOwner)
+			: VariableDefinition(Rml::DataVariableType::Array), Owner(InOwner) {}
+
+		int Size(void* Ptr) override
+		{
+			return static_cast<FArrayField*>(Ptr)->Rows.Num();
+		}
+
+		Rml::DataVariable Child(void* Ptr, const Rml::DataAddressEntry& Address) override
+		{
+			FArrayField& Field = *static_cast<FArrayField*>(Ptr);
+
+			if (Address.index < 0)
+			{
+				// An array has no named members of its own, so this shadows nothing.
+				return Address.name == "size" ? Rml::DataVariable(&Owner.Count, Ptr) : Rml::DataVariable();
+			}
+
+			if (!Field.Rows.IsValidIndex(Address.index))
+			{
+				return Rml::DataVariable();
+			}
+
+			FRow& Row = *Field.Rows[Address.index];
+			return Row.Scalar
+				? Rml::DataVariable(&Owner.Mirror, &Row.Scalar->Value)
+				: Rml::DataVariable(&Owner.Element, &Row);
+		}
+
+	private:
+		FDefinitions& Owner;
+	};
+
+	FFieldDefinition Bound;
+	FValueDefinition Mirror;
+	FCountDefinition Count;
+	FRowDefinition Element{ *this };
+	FArrayDefinition List{ *this };
 };
 
 FFolioObjectModel::FFolioObjectModel()
-	: Definition(MakeUnique<FFieldDefinition>())
+	: Definitions(MakeUnique<FDefinitions>())
 {
 }
 
@@ -163,10 +351,19 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 			continue;
 		}
 
+		if (FArrayProperty* Array = CastField<FArrayProperty>(Property))
+		{
+			if (!BindArray(Constructor, *Array))
+			{
+				++Skipped;
+			}
+			continue;
+		}
+
 		TUniquePtr<FField> Field = MakeUnique<FField>();
 		Field->Property = Property;
 		Field->Name = Folio::ToRmlString(Property->GetName());
-		Field->Kind = KindFor(*Property);
+		Field->Value.Kind = KindFor(*Property);
 		Field->Owner = this;
 
 		// BlueprintReadOnly and EditConst are the author saying this is published for display. A
@@ -178,7 +375,7 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 		// Through the field rather than the mirrored value, so a write can reach the property. See
 		// FFieldDefinition.
 		Constructor.BindCustomDataVariable(Field->Name,
-			Rml::DataVariable(Definition.Get(), Field.Get()));
+			Rml::DataVariable(&Definitions->Bound, Field.Get()));
 
 		Fields.Add(MoveTemp(Field));
 	}
@@ -242,22 +439,47 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 						}
 					}));
 		}
+
+		for (TUniquePtr<FArrayField>& Array : ArrayFields)
+		{
+			const UE::FieldNotification::FFieldId Id =
+				Descriptor.GetField(InSource->GetClass(), Array->Property->GetFName());
+
+			if (!Id.IsValid())
+			{
+				continue;
+			}
+
+			Array->FieldId = Id;
+
+			FArrayField* Raw = Array.Get();
+			Array->Notification = Notifier->AddFieldValueChangedDelegate(Id,
+				INotifyFieldValueChanged::FFieldValueChangedDelegate::CreateLambda(
+					[this, Raw](UObject*, UE::FieldNotification::FFieldId)
+					{
+						if (Refresh(*Raw) && Handle)
+						{
+							Handle.DirtyVariable(Raw->Name);
+							bNotified = true;
+						}
+					}));
+		}
 	}
 
 	// Only where nothing reports changes. Polling a source that does would be pure waste.
 	bPolling = bPollEveryFrame && Notifier == nullptr;
 
 	UE_LOG(LogFolio, Log,
-		TEXT("bound %d property(s) and %d command(s) of '%s' as data model '%s'%s%s"),
-		Fields.Num(), Commands, *InSource->GetName(), *ModelName,
+		TEXT("bound %d property(s), %d array(s) and %d command(s) of '%s' as data model '%s'%s%s"),
+		Fields.Num(), ArrayFields.Num(), Commands, *InSource->GetName(), *ModelName,
 		Notifier ? TEXT(", updating by notification") : TEXT(""),
 		bPolling ? TEXT(", polled every frame") : TEXT(""));
 
 	if (Skipped > 0)
 	{
 		UE_LOG(LogFolio, Warning,
-			TEXT("'%s' has %d array, map or set property(s), which cannot be bound by reflection. "
-				"Expose them as a bound array from game code instead."),
+			TEXT("'%s' has %d property(s) that cannot be bound by reflection. Maps and sets have no "
+				"shape in a data model, and an array of arrays has no element to bind."),
 			*InSource->GetName(), Skipped);
 	}
 
@@ -270,6 +492,77 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 	}
 
 	return true;
+}
+
+bool FFolioObjectModel::BindArray(Rml::DataModelConstructor& Constructor, FArrayProperty& Property)
+{
+	FProperty* Inner = Property.Inner;
+	if (!Inner || IsContainer(*Inner))
+	{
+		return false;
+	}
+
+	TUniquePtr<FArrayField> Field = MakeUnique<FArrayField>();
+	Field->Property = &Property;
+	Field->Name = Folio::ToRmlString(Property.GetName());
+
+	if (const FStructProperty* Struct = CastField<FStructProperty>(Inner))
+	{
+		Field->Element = FArrayField::EElement::Struct;
+		CollectMembers(*Struct->Struct, Field->MemberProperties);
+	}
+	else if (const FObjectProperty* Object = CastField<FObjectProperty>(Inner))
+	{
+		// The declared class, not each element's own: a member list resolved per element would change
+		// shape as the array is refilled, and RmlUi resolves a member name against one shape.
+		Field->Element = FArrayField::EElement::Object;
+		CollectMembers(*Object->PropertyClass, Field->MemberProperties);
+	}
+	else
+	{
+		Field->Element = FArrayField::EElement::Scalar;
+		Field->ScalarKind = KindFor(*Inner);
+	}
+
+	if (Field->Element != FArrayField::EElement::Scalar && Field->MemberProperties.IsEmpty())
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("'%s' has no property a document can read, so '%s' binds as an array of nothing."),
+			*Inner->GetCPPType(), *Property.GetName());
+	}
+
+	Refresh(*Field);
+
+	Constructor.BindCustomDataVariable(Field->Name,
+		Rml::DataVariable(&Definitions->List, Field.Get()));
+
+	ArrayFields.Add(MoveTemp(Field));
+	return true;
+}
+
+TUniquePtr<FFolioObjectModel::FRow> FFolioObjectModel::MakeRow(const FArrayField& Field) const
+{
+	TUniquePtr<FRow> Row = MakeUnique<FRow>();
+
+	if (Field.Element == FArrayField::EElement::Scalar)
+	{
+		Row->Scalar = MakeUnique<FLeaf>();
+		Row->Scalar->Property = Field.Property->Inner;
+		Row->Scalar->Value.Kind = Field.ScalarKind;
+		return Row;
+	}
+
+	Row->Members.Reserve(Field.MemberProperties.Num());
+	for (FProperty* Member : Field.MemberProperties)
+	{
+		TUniquePtr<FLeaf> Leaf = MakeUnique<FLeaf>();
+		Leaf->Property = Member;
+		Leaf->Name = Folio::ToRmlString(Member->GetName());
+		Leaf->Value.Kind = KindFor(*Member);
+		Row->Members.Add(MoveTemp(Leaf));
+	}
+
+	return Row;
 }
 
 bool FFolioObjectModel::BindCommand(Rml::DataModelConstructor& Constructor, UFunction* Function)
@@ -376,6 +669,15 @@ bool FFolioObjectModel::Tick()
 		}
 	}
 
+	for (TUniquePtr<FArrayField>& Field : ArrayFields)
+	{
+		if (Refresh(*Field))
+		{
+			Handle.DirtyVariable(Field->Name);
+			bMoved = true;
+		}
+	}
+
 	return bMoved || bWasNotified;
 }
 
@@ -387,48 +689,63 @@ bool FFolioObjectModel::Refresh(FField& Field)
 		return false;
 	}
 
-	switch (Field.Kind)
+	return ReadInto(Field.Value, *Field.Property,
+		Field.Property->ContainerPtrToValuePtr<void>(Object), Object);
+}
+
+bool FFolioObjectModel::Refresh(FArrayField& Field)
+{
+	UObject* Object = Source.Get();
+	if (!Object || !Field.Property)
 	{
-	case FField::EKind::Bool:
-	{
-		const FBoolProperty* Bool = CastFieldChecked<FBoolProperty>(Field.Property);
-		const bool bNew = Bool->GetPropertyValue_InContainer(Object);
-		if (bNew == Field.bValue) { return false; }
-		Field.bValue = bNew;
-		return true;
+		return false;
 	}
 
-	case FField::EKind::Int:
+	FScriptArrayHelper Helper(Field.Property, Field.Property->ContainerPtrToValuePtr<void>(Object));
+	const int32 Num = Helper.Num();
+
+	bool bMoved = false;
+
+	while (Field.Rows.Num() > Num)
 	{
-		const FNumericProperty* Numeric = CastFieldChecked<FNumericProperty>(Field.Property);
-		const int New = static_cast<int>(
-			Numeric->GetSignedIntPropertyValue(Field.Property->ContainerPtrToValuePtr<void>(Object)));
-		if (New == Field.IntValue) { return false; }
-		Field.IntValue = New;
-		return true;
+		Field.Rows.Pop();
+		bMoved = true;
 	}
 
-	case FField::EKind::Float:
+	while (Field.Rows.Num() < Num)
 	{
-		const FNumericProperty* Numeric = CastFieldChecked<FNumericProperty>(Field.Property);
-		const float New = static_cast<float>(
-			Numeric->GetFloatingPointPropertyValue(Field.Property->ContainerPtrToValuePtr<void>(Object)));
-		if (New == Field.FloatValue) { return false; }
-		Field.FloatValue = New;
-		return true;
+		Field.Rows.Add(MakeRow(Field));
+		bMoved = true;
 	}
 
-	default:
+	for (int32 Index = 0; Index < Num; ++Index)
 	{
-		FString Text;
-		Field.Property->ExportTextItem_InContainer(Text, Object, nullptr, Object, PPF_None);
+		FRow& Row = *Field.Rows[Index];
+		const void* Element = Helper.GetRawPtr(Index);
 
-		const Rml::String New = Folio::ToRmlString(Text);
-		if (New == Field.StringValue) { return false; }
-		Field.StringValue = New;
-		return true;
+		if (Row.Scalar)
+		{
+			bMoved |= ReadInto(Row.Scalar->Value, *Row.Scalar->Property, Element, Object);
+			continue;
+		}
+
+		if (Field.Element == FArrayField::EElement::Object)
+		{
+			Element = CastFieldChecked<FObjectProperty>(Field.Property->Inner)
+				->GetObjectPropertyValue(Element);
+		}
+
+		for (TUniquePtr<FLeaf>& Leaf : Row.Members)
+		{
+			// A null element still occupies a row, so it blanks rather than reading through nothing.
+			bMoved |= Element
+				? ReadInto(Leaf->Value, *Leaf->Property,
+					Leaf->Property->ContainerPtrToValuePtr<void>(Element), Object)
+				: ResetValue(Leaf->Value);
+		}
 	}
-	}
+
+	return bMoved;
 }
 
 bool FFolioObjectModel::Write(FField& Field, const Rml::Variant& Value)
@@ -456,18 +773,18 @@ bool FFolioObjectModel::Write(FField& Field, const Rml::Variant& Value)
 
 	void* Slot = Field.Property->ContainerPtrToValuePtr<void>(Object);
 
-	switch (Field.Kind)
+	switch (Field.Value.Kind)
 	{
-	case FField::EKind::Bool:
+	case FValue::EKind::Bool:
 		CastFieldChecked<FBoolProperty>(Field.Property)->SetPropertyValue(Slot, Value.Get<bool>());
 		break;
 
-	case FField::EKind::Int:
+	case FValue::EKind::Int:
 		CastFieldChecked<FNumericProperty>(Field.Property)
 			->SetIntPropertyValue(Slot, static_cast<int64>(Value.Get<int>()));
 		break;
 
-	case FField::EKind::Float:
+	case FValue::EKind::Float:
 		CastFieldChecked<FNumericProperty>(Field.Property)
 			->SetFloatingPointPropertyValue(Slot, Value.Get<float>());
 		break;
@@ -513,22 +830,23 @@ void FFolioObjectModel::Unsubscribe()
 
 		for (TUniquePtr<FField>& Field : Fields)
 		{
-			if (!Field->Notification.IsValid())
+			if (Field->Notification.IsValid() && Field->FieldId.IsValid())
 			{
-				continue;
+				Notifier->RemoveFieldValueChangedDelegate(Field->FieldId, Field->Notification);
 			}
+		}
 
-			const UE::FieldNotification::FFieldId Id =
-				Descriptor.GetField(Source->GetClass(), Field->Property->GetFName());
-
-			if (Id.IsValid())
+		for (TUniquePtr<FArrayField>& Field : ArrayFields)
+		{
+			if (Field->Notification.IsValid() && Field->FieldId.IsValid())
 			{
-				Notifier->RemoveFieldValueChangedDelegate(Id, Field->Notification);
+				Notifier->RemoveFieldValueChangedDelegate(Field->FieldId, Field->Notification);
 			}
 		}
 	}
 
 	Fields.Empty();
+	ArrayFields.Empty();
 	Handle = Rml::DataModelHandle();
 	Source.Reset();
 }

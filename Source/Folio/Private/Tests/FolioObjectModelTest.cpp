@@ -146,6 +146,72 @@ bool FFolioPolledModelTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioArrayModelTest, "Folio.ViewModel.Arrays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFolioArrayModelTest::RunTest(const FString&)
+{
+	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
+	{
+		AddError(TEXT("RmlUi is not initialised, so no data model can be created."));
+		return false;
+	}
+
+	FScopedContext Scope("FolioTest.Arrays");
+	if (!TestNotNull(TEXT("context"), Scope.Context))
+	{
+		return false;
+	}
+
+	TStrongObjectPtr<UFolioTestPlainModel> Plain(NewObject<UFolioTestPlainModel>());
+	Plain->Party.Add({ TEXT("Ripley"), 1.0f });
+
+	// A map alongside the arrays, because the mount has to keep binding the rest rather than give up
+	// on a source that holds one.
+	Plain->Unbindable.Add(TEXT("mode"), 2);
+
+	FFolioObjectModel Bridge;
+	if (!TestTrue(TEXT("mount"), Bridge.Mount(Scope.Context, TEXT("party"), Plain.Get(), true)))
+	{
+		return false;
+	}
+
+	TestFalse(TEXT("a settled model reports no change"), Bridge.Tick());
+
+	// Length, which is what makes data-for rebuild rather than reuse rows against stale values.
+	Plain->Party.Add({ TEXT("Hicks"), 0.5f });
+	TestTrue(TEXT("an appended element is a change"), Bridge.Tick());
+	TestFalse(TEXT("and settles"), Bridge.Tick());
+
+	// A value inside an element, with the length unchanged. Mirroring per element is the only reason
+	// this is visible at all.
+	Plain->Party[1].Health = 0.25f;
+	TestTrue(TEXT("a member of an element is a change"), Bridge.Tick());
+	TestFalse(TEXT("and settles"), Bridge.Tick());
+
+	Plain->Party[1].Health = 0.25f;
+	TestFalse(TEXT("writing the same value is not a change"), Bridge.Tick());
+
+	Plain->Party.RemoveAt(0);
+	TestTrue(TEXT("a removed element is a change"), Bridge.Tick());
+
+	// A shortened array leaves the removed rows' mirrors behind if they are not dropped, and the
+	// following element then reads the value of the one that used to be after it.
+	Plain->Party.Empty();
+	TestTrue(TEXT("emptying is a change"), Bridge.Tick());
+	TestFalse(TEXT("and an empty array settles"), Bridge.Tick());
+
+	// An array of scalars has no members to address, and binds as the values themselves.
+	Plain->Tags.Add(TEXT("payload"));
+	TestTrue(TEXT("an array of strings is bound too"), Bridge.Tick());
+
+	Plain->Tags[0] = TEXT("koth");
+	TestTrue(TEXT("and its elements are mirrored"), Bridge.Tick());
+	TestFalse(TEXT("and settle"), Bridge.Tick());
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioModelLifetimeTest, "Folio.ViewModel.Lifetime",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

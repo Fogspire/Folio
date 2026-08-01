@@ -179,8 +179,59 @@ change to the source only — the document and the `BindViewModel` call stay as 
   `FString HealthText` on your view model is a smell: it moves a design decision into C++ where a
   designer cannot reach it.
 - **Expose conditions, not appearance.** `bIsLow` or a comparison in the markup, never a colour.
-- **Arrays, maps and sets cannot be bound by reflection.** Folio warns and skips them. An inventory
-  list needs its own binding from game code rather than a `TArray` property.
+- **Maps and sets cannot be bound.** Neither has an order a document could iterate, and RmlUi's data
+  model has no shape for either. Folio warns and skips them. Expose a `TArray` instead - which does
+  bind, and is the next section.
+
+## Lists
+
+A `TArray` binds like anything else, and `data-for` iterates it. A kill feed, a party list, an
+inventory, a scoreboard - all the same shape:
+
+```cpp
+USTRUCT(BlueprintType)
+struct FHudMate
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly, Category = "HUD") FString Name;
+    UPROPERTY(BlueprintReadOnly, Category = "HUD") float Health = 100.0f;
+    UPROPERTY(BlueprintReadOnly, Category = "HUD") bool bTalking = false;
+};
+
+UPROPERTY(BlueprintReadOnly, Category = "HUD")
+TArray<FHudMate> Party;
+```
+
+```html
+<div class="mate" data-for="mate : Party" data-class-talking="mate.bTalking">
+    <span class="name">{{ mate.Name }}</span>
+    <div class="bar"><div class="fill" data-style-width="mate.Health + '%'"></div></div>
+</div>
+```
+
+The element carrying `data-for` is the one repeated, and everything inside it addresses the alias.
+`{{ Party.size }}` gives the length, which is the only way to reach it - a data expression cannot ask
+an array how long it is otherwise, so "3 players" and empty-list messages both need it.
+
+Three element types work:
+
+| | |
+|---|---|
+| `TArray<FSomeStruct>` | Members by name, from the struct's `BlueprintReadOnly` / `EditAnywhere` properties. |
+| `TArray<UObject*>` | The same, from the **declared** class. A derived element's extra properties are not visible, because a member name resolves against one shape. |
+| `TArray<float>`, `TArray<FString>`, … | The element itself: `{{ tag }}`, no member. |
+
+Arrays are read only. An element is mirrored, so a write would land on the copy - bind a command and
+change the array in C++ instead.
+
+**Changing the length is a change.** Appending, removing or emptying dirties the array, and `data-for`
+rebuilds its children rather than reusing them against stale values. That also means a list that
+churns every frame relays out every frame; a kill feed of five rows is nothing, five hundred
+nameplates is not. See **[performance](performance_profiling.md)**.
+
+Nothing needs registering per struct. The member list is resolved once at mount from the inner
+property's type, which is what makes this work on a struct you have not told Folio about.
 
 ## If it does not work
 

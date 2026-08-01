@@ -58,19 +58,23 @@ public:
 
 	const FString& GetModelName() const { return ModelName; }
 
+	/** One mirrored value, and the kind that decides which of the four slots carries it. */
+	struct FValue
+	{
+		enum class EKind : uint8 { Bool, Int, Float, String } Kind = EKind::String;
+
+		bool bValue = false;
+		int IntValue = 0;
+		float FloatValue = 0.0f;
+		Rml::String StringValue;
+	};
+
 	/** One bound property, and the copy of it RmlUi holds the address of. */
 	struct FField
 	{
 		FProperty* Property = nullptr;
 		Rml::String Name;
-
-		// Only one of these is bound, chosen from the property's type.
-		bool bValue = false;
-		int IntValue = 0;
-		float FloatValue = 0.0f;
-		Rml::String StringValue;
-
-		enum class EKind : uint8 { Bool, Int, Float, String } Kind = EKind::String;
+		FValue Value;
 
 		FDelegateHandle Notification;
 		/** Kept so a write can announce itself, not only so the subscription can be removed. */
@@ -84,6 +88,45 @@ public:
 		bool bWarnedReadOnly = false;
 	};
 
+	/** One value inside one element of a bound array. Read only: markup cannot write into a TArray. */
+	struct FLeaf
+	{
+		FProperty* Property = nullptr;
+		Rml::String Name;
+		FValue Value;
+	};
+
+	/** One element of a bound array: a bag of members, or a single value. */
+	struct FRow
+	{
+		TArray<TUniquePtr<FLeaf>> Members;
+		TUniquePtr<FLeaf> Scalar;
+	};
+
+	/**
+	 * One bound TArray, mirrored element by element.
+	 *
+	 * The member list is resolved once from the inner property's type rather than per element, which
+	 * is what makes `{{ Row.Name }}` resolve without a registered struct. For an array of objects that
+	 * means the declared class: a derived element's extra properties are not visible.
+	 */
+	struct FArrayField
+	{
+		FArrayProperty* Property = nullptr;
+		Rml::String Name;
+
+		enum class EElement : uint8 { Scalar, Struct, Object } Element = EElement::Scalar;
+
+		/** Empty for a scalar element. */
+		TArray<FProperty*> MemberProperties;
+		FValue::EKind ScalarKind = FValue::EKind::String;
+
+		TArray<TUniquePtr<FRow>> Rows;
+
+		FDelegateHandle Notification;
+		UE::FieldNotification::FFieldId FieldId;
+	};
+
 private:
 
 	/**
@@ -95,11 +138,30 @@ private:
 	 */
 	bool BindCommand(Rml::DataModelConstructor& Constructor, UFunction* Function);
 
+	/**
+	 * Binds a TArray as an RmlUi array, so `data-for` can iterate it.
+	 *
+	 * Returns false for an element type there is nothing to bind through - an array of arrays, or of
+	 * maps - which is reported with the other omissions rather than failing the mount.
+	 */
+	bool BindArray(Rml::DataModelConstructor& Constructor, FArrayProperty& Property);
+
 	/** Calls the function with whatever the expression supplied, defaulting anything it did not. */
 	void Invoke(UFunction* Function, const Rml::VariantList& Arguments) const;
 
 	/** Reads the property into the mirror. Returns true when the value actually moved. */
 	bool Refresh(FField& Field);
+
+	/**
+	 * Re-reads a bound array: its length, then every mirrored value in it.
+	 *
+	 * Returns true when anything moved, including a change of length, which is what makes `data-for`
+	 * rebuild its children rather than reuse them against stale values.
+	 */
+	bool Refresh(FArrayField& Field);
+
+	/** Builds the mirrors for one element, from the member list the array resolved at mount. */
+	TUniquePtr<FRow> MakeRow(const FArrayField& Field) const;
 
 	/**
 	 * Writes a value from markup back through the property to the source object.
@@ -115,11 +177,12 @@ private:
 	FString ModelName;
 	Rml::DataModelHandle Handle;
 
-	class FFieldDefinition;
+	struct FDefinitions;
 
 	// Held by pointer so the mirrors keep their addresses as the array grows.
 	TArray<TUniquePtr<FField>> Fields;
-	TUniquePtr<FFieldDefinition> Definition;
+	TArray<TUniquePtr<FArrayField>> ArrayFields;
+	TUniquePtr<FDefinitions> Definitions;
 
 	int32 Commands = 0;
 	bool bPolling = false;

@@ -60,6 +60,19 @@ private:
 	UE::FieldNotification::FFieldMulticastDelegate Notifications;
 };
 
+/** A row of a bound array, for the tests that iterate one. */
+USTRUCT(BlueprintType)
+struct FFolioTestRow
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	FString Name;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	float Health = 0.0f;
+};
+
 /**
  * The same two fields on an object that announces nothing.
  *
@@ -77,4 +90,14 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = "Folio")
 	FString PlayerName;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	TArray<FFolioTestRow> Party;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	TArray<FString> Tags;
+
+	/** Nothing can bind a map, and the mount is expected to say so rather than fail. */
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	TMap<FString, int32> Unbindable;
 };

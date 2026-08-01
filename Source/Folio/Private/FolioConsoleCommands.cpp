@@ -1765,8 +1765,24 @@ namespace
 	 * of them can be read off the screen with any certainty: a focus ring is invisible until
 	 * something asks for it, and a hover looks exactly like a focus ring in most stylesheets.
 	 */
-	void ReportInputFocus(const TArray<FString>&)
+	void ReportInputFocus(const TArray<FString>& Args)
 	{
+		// Deferred on request, and it usually has to be. Opening the console takes focus away from
+		// whatever is being diagnosed, and a menu that closes when it loses focus is gone by the time
+		// the command runs: the report would describe the state the console created.
+		if (Args.Num() > 0)
+		{
+			const float Delay = FCString::Atof(*Args[0]);
+			UWorld* World = Delay > 0.0f && FindViewport() ? FindViewport()->GetWorld() : nullptr;
+			if (World)
+			{
+				FTimerHandle Handle;
+				World->GetTimerManager().SetTimer(Handle,
+					FTimerDelegate::CreateLambda([] { ReportInputFocus({}); }), Delay, false);
+				return;
+			}
+		}
+
 		const TArray<SFolioCanvas*>& Live = SFolioCanvas::GetLiveCanvases();
 
 		UE_LOG(LogFolio, Display,
@@ -1798,8 +1814,8 @@ namespace
 
 	FAutoConsoleCommand InputFocusCommand(
 		TEXT("folio.Input.Focus"),
-		TEXT("Reports what holds focus and what the mouse is over, per screen document. The answer to "
-			"'the wrong control activated'."),
+		TEXT("folio.Input.Focus [delay]. Reports what holds focus and what the mouse is over, per screen "
+			"document. A delay defers it, which is what a menu that closes on losing focus needs."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ReportInputFocus));
 
 	FAutoConsoleCommand ScreensCommand(

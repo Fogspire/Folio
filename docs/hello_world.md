@@ -138,10 +138,12 @@ A root that does not exist reports the document as unopenable rather than compla
 itself, so check it first when a file you can see will not load.
 
 It watches the file and reloads on save, so the loop is edit, save, look — no compiling and no
-editor restart. This is where you will spend most of your authoring time.
+editor restart.
 
-**[Setting up VSCode](vscode.md)** puts that loop beside the document instead of in a second window,
-and adds highlighting for `.rml` and `.rcss`. Worth doing before you write anything real.
+**[Setting up VSCode](vscode.md)** is where that loop belongs. The extension drives this same binary
+into a panel beside the document, and adds highlighting for `.rml` and `.rcss`; it is worth doing
+before you write anything real. Reach for the standalone window when you want a real one — a resizable
+viewport, or a live document rather than a rendered image.
 
 Two flags worth knowing on day one:
 

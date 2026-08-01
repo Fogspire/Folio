@@ -36,6 +36,7 @@ public:
 		, _Scale(1.0f)
 		, _MinScale(0.0f)
 		, _MaxScale(0.0f)
+		, _Supersample(1)
 	{}
 		/** Document to load, relative to the project directory. */
 		SLATE_ARGUMENT(FString, DocumentPath)
@@ -55,6 +56,9 @@ public:
 		/** Bounds on the result. Zero for no bound. */
 		SLATE_ARGUMENT(float, MinScale)
 		SLATE_ARGUMENT(float, MaxScale)
+
+		/** How many samples per pixel each way. One draws straight to the screen. See Supersample. */
+		SLATE_ARGUMENT(int32, Supersample)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -76,6 +80,21 @@ public:
 
 	/** Changes how dp resolves on a canvas that is already up. */
 	void SetScale(float InFollow, float InScale, float InMinScale, float InMaxScale);
+
+	/**
+	 * Renders the document larger than the screen and scales the result down.
+	 *
+	 * A background's antialiasing is one pixel of coverage, which is exact and is what a browser
+	 * does. It is also the least that can look smooth: a shallow edge - a slanted card, a long
+	 * diagonal - advances a pixel every six or more, so the steps between are visible however
+	 * accurate the blend is, and no amount of widening the skirt fixes that. Drawing at twice the
+	 * size and filtering down gives four samples per pixel on every edge instead.
+	 *
+	 * Costs a render target of the viewport times this, squared, and one composite a frame. Text is
+	 * a distance field and needs none of this, so a document that is mostly text gains nothing but
+	 * the resample.
+	 */
+	void SetSupersample(int32 InSamples);
 
 	/**
 	 * Says the document has changed and must be updated and repainted.
@@ -146,6 +165,16 @@ public:
 
 	/** What the last tick laid out against: context size in dp, the dp ratio, and context-to-local. */
 	void GetScaleReport(FIntPoint& OutContextSize, float& OutDpRatio, float& OutContextToLocal) const;
+
+	/**
+	 * The back action, when nothing in the document wanted it.
+	 *
+	 * A screen that takes input only - which is what a menu usually wants - leaves the player
+	 * controller receiving nothing, so a game cannot bind escape or the pad's back button itself.
+	 * Without this the only way to close such a screen would be a control inside it, and a menu whose
+	 * back button is the only way out is a menu players complain about.
+	 */
+	FSimpleDelegate OnBack;
 
 	/** Every live canvas, so the input pre-processor can tell whether the focused widget is one. */
 	static const TArray<SFolioCanvas*>& GetLiveCanvases();
@@ -226,6 +255,21 @@ private:
 	float Scale = 1.0f;
 	float MinScale = 0.0f;
 	float MaxScale = 0.0f;
+
+	/** One to draw straight to the screen. */
+	int32 Supersample = 1;
+
+	/** Where a supersampled document is drawn before it is scaled down. Mutable: painting is const. */
+	mutable TStrongObjectPtr<class UTextureRenderTarget2D> Target;
+
+	/** Names that target for Slate. Rebuilt with it, because a brush caches the resource. */
+	mutable FSlateBrush TargetBrush;
+
+	/** Resolved on the game thread, so drawing it does not go through Slate's dynamic resources. */
+	mutable FSlateResourceHandle TargetHandle;
+
+	/** True while the offscreen path is in use, so input and painting agree about the size. */
+	bool SupersamplingNow() const;
 
 	FVector2D DesiredSize = FVector2D(1920.0, 1080.0);
 

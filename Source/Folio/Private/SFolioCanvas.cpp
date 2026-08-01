@@ -7,11 +7,14 @@
 #include "FolioInput.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Rendering/SlateRenderer.h"
 #include "Framework/Application/SlateUser.h"
 #include "GameFramework/InputSettings.h"
 
 #include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
 namespace
@@ -32,6 +35,7 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 	SetCanTick(true);
 	SetInteractive(InArgs._Interactive);
 	SetScale(InArgs._ScaleFollow, InArgs._Scale, InArgs._MinScale, InArgs._MaxScale);
+	SetSupersample(InArgs._Supersample);
 
 	// A context needs a size before it will lay anything out, and the real one only arrives with the
 	// first geometry. Starting at the requested desired size means a document loaded now is laid out
@@ -152,6 +156,27 @@ void SFolioCanvas::GetScaleReport(FIntPoint& OutContextSize, float& OutDpRatio,
 	OutContextToLocal = ContextToLocal(Geometry);
 }
 
+void SFolioCanvas::SetSupersample(const int32 InSamples)
+{
+	const int32 Wanted = FMath::Clamp(InSamples, 1, 4);
+	if (Wanted == Supersample)
+	{
+		return;
+	}
+
+	Supersample = Wanted;
+
+	// Dropped rather than resized: the next paint makes one the right size, and holding a target that
+	// nothing is going to draw into is a target the pool cannot have back.
+	Target.Reset();
+	TargetBrush = FSlateBrush();
+}
+
+bool SFolioCanvas::SupersamplingNow() const
+{
+	return Supersample > 1;
+}
+
 float SFolioCanvas::ContextToLocal(const FGeometry& AllottedGeometry) const
 {
 	// RmlUi has already turned dp into context units by the time anything is drawn, so a context unit
@@ -163,14 +188,17 @@ float SFolioCanvas::ContextToLocal(const FGeometry& AllottedGeometry) const
 
 float SFolioCanvas::ScaleFor(const FGeometry& AllottedGeometry) const
 {
-	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale);
+	// Times the sample count: the document is laid out into a bigger context and has to fill it, or
+	// supersampling would shrink everything rather than sharpening it.
+	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale)
+		* float(Supersample);
 }
 
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 {
 	// Pixels, because that is what a context unit is. The dp ratio is carried separately and RmlUi
 	// applies it to dp lengths itself.
-	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale;
+	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale * float(Supersample);
 
 	ContextSize = FIntPoint(FMath::Max(1, FMath::RoundToInt(Pixels.X)),
 		FMath::Max(1, FMath::RoundToInt(Pixels.Y)));
@@ -235,6 +263,80 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 		return LayerId;
 	}
 
+	/*
+	 * Supersampled: the document is drawn into a target of its own and that target is drawn to the
+	 * screen, filtered down. Four samples an edge instead of one, which is the only thing that helps
+	 * a shallow diagonal.
+	 */
+	if (SupersamplingNow())
+	{
+		if (!Target.IsValid() || Target->SizeX != ContextSize.X || Target->SizeY != ContextSize.Y)
+		{
+			UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
+			Fresh->RenderTargetFormat = RTF_RGBA8;
+			Fresh->ClearColor = FLinearColor::Transparent;
+			Fresh->bAutoGenerateMips = false;
+			Fresh->InitAutoFormat(ContextSize.X, ContextSize.Y);
+			Fresh->UpdateResourceImmediate(true);
+
+			Target.Reset(Fresh);
+
+			// The brush caches its resource, so it is rebuilt with the target rather than repointed.
+			TargetBrush = FSlateBrush();
+			TargetBrush.SetResourceObject(Fresh);
+			TargetBrush.ImageSize = FVector2D(ContextSize);
+			TargetBrush.DrawAs = ESlateBrushDrawType::Image;
+
+			// Resolved here, on the game thread. A box element with a render target on it takes
+			// Slate's dynamic-resource path, which asks for the frame time on the render thread and
+			// ensures its way through every frame.
+			TargetHandle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(TargetBrush);
+		}
+
+		if (Renderer->BeginSurface(ContextSize, Target.Get()))
+		{
+			Context->Render();
+			Renderer->EndSurface();
+
+			if (TargetHandle.IsValid())
+			{
+				const FVector2f Size = AllottedGeometry.GetLocalSize();
+				const FSlateRenderTransform& ToWindow = AllottedGeometry.GetAccumulatedRenderTransform();
+				const FColor White(255, 255, 255, 255);
+
+				TArray<FSlateVertex> Quad;
+				Quad.SetNumUninitialized(4);
+				const FVector2f Corners[4] = {
+					FVector2f(0.0f, 0.0f), FVector2f(Size.X, 0.0f),
+					FVector2f(Size.X, Size.Y), FVector2f(0.0f, Size.Y),
+				};
+				const FVector2f Uvs[4] = {
+					FVector2f(0.0f, 0.0f), FVector2f(1.0f, 0.0f),
+					FVector2f(1.0f, 1.0f), FVector2f(0.0f, 1.0f),
+				};
+
+				for (int32 Index = 0; Index < 4; ++Index)
+				{
+					FSlateVertex& Vertex = Quad[Index];
+					Vertex = FSlateVertex();
+					Vertex.Position = FVector2f(TransformPoint(ToWindow, Corners[Index]));
+					Vertex.TexCoords[0] = Uvs[Index].X;
+					Vertex.TexCoords[1] = Uvs[Index].Y;
+					Vertex.MaterialTexCoords = Uvs[Index];
+					Vertex.Color = White;
+				}
+
+				static const TArray<SlateIndex> Indices = { 0, 1, 2, 0, 2, 3 };
+
+				// Premultiplied, because that is how the document composited into the target.
+				FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, TargetHandle, Quad, Indices,
+					nullptr, 0, 0, ESlateDrawEffect::PreMultipliedAlpha);
+			}
+
+			return LayerId + 1;
+		}
+	}
+
 	// RmlUi emits geometry in context units, and the context is sized in dp rather than in Slate's
 	// local units. Those agree only while dp follows Slate's own scale, so the draw goes through a
 	// child geometry that carries the difference. Without it a document lands short of the bottom
@@ -257,7 +359,7 @@ FVector2f SFolioCanvas::ToContextSpace(const FGeometry& MyGeometry, const FPoint
 {
 	// The context is sized in pixels, and Slate's local space is pixels over Slate's own scale.
 	const FVector2f Local = FVector2f(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
-	return Local * MyGeometry.Scale;
+	return Local * MyGeometry.Scale * float(Supersample);
 }
 
 FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
@@ -322,6 +424,22 @@ FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoint
 	const int32 Modifiers = Folio::ToRmlModifiers(MouseEvent.GetModifierKeys());
 	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y), Modifiers);
 	Context->ProcessMouseButtonDown(Button, Modifiers);
+
+	/*
+	 * A right click, as its own event.
+	 *
+	 * RmlUi has no context menu event, and the button is a parameter of `mousedown` - which a data
+	 * expression cannot read, so `data-event-mousedown` fires for the left button as well and there
+	 * is no way to tell them apart in markup. `rightclick` and `middleclick` give the other two
+	 * buttons somewhere to bind that a left click will never reach.
+	 */
+	if (Button == 1 || Button == 2)
+	{
+		if (Rml::Element* Hovered = Context->GetHoverElement())
+		{
+			Hovered->DispatchEvent(Button == 1 ? "rightclick" : "middleclick", Rml::Dictionary());
+		}
+	}
 
 	// Capturing keeps the release paired with the press even if the cursor leaves, and taking
 	// keyboard focus is what lets a text field receive characters.
@@ -419,7 +537,19 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		}
 
 		const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
-		return bConsumed || bClaimed ? FReply::Handled() : FReply::Unhandled();
+
+		// Escape falls through by default, because it is how a document that has gone wrong gets
+		// closed and how PIE gets stopped. A game that has bound the back action has said it will
+		// handle it, so it stops here - otherwise closing a page and ending the session are the same
+		// keystroke.
+		bool bTookBack = false;
+		if (!bConsumed && Key == Rml::Input::KI_ESCAPE && OnBack.IsBound())
+		{
+			OnBack.Execute();
+			bTookBack = true;
+		}
+
+		return bConsumed || bClaimed || bTookBack ? FReply::Handled() : FReply::Unhandled();
 	}
 
 	if (IsTakingText())
@@ -519,6 +649,14 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 	// still held misbehaves the next time the same key arrives.
 	const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
 	Context->ProcessKeyUp(Key, Modifiers);
+
+	// Nothing in the document wanted the back action, so the game gets told. A modal that closed
+	// itself has consumed it and this does not fire.
+	if (!bConsumed && Key == Rml::Input::KI_ESCAPE)
+	{
+		OnBack.ExecuteIfBound();
+	}
+
 	return bConsumed;
 }
 

@@ -31,7 +31,10 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 		.ScaleFollow(ScaleFollow)
 		.Scale(Scale)
 		.MinScale(MinScale)
-		.MaxScale(MaxScale);
+		.MaxScale(MaxScale)
+		.Supersample(Supersample);
+
+	Canvas->OnBack.BindWeakLambda(this, [this] { OnBack.Broadcast(); });
 
 	ApplyBindings();
 	Canvas->LoadDocument(DocumentPath);
@@ -177,6 +180,7 @@ void UFolioWidget::ApplyScale()
 	if (Canvas.IsValid())
 	{
 		Canvas->SetScale(ScaleFollow, Scale, MinScale, MaxScale);
+		Canvas->SetSupersample(Supersample);
 	}
 }
 

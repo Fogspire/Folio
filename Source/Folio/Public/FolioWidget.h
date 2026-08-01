@@ -47,6 +47,9 @@ struct FFolioViewModelBinding
  * That is the whole integration, and it needs nothing from Folio but this class - which is why
  * Folio links no CommonUI and works the same in a project that has never heard of it.
  */
+/** Raised when the player asks to go back and the document did not handle it. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FFolioBackSignature);
+
 UCLASS(MinimalAPI, meta = (DisplayName = "Folio Document"))
 class UFolioWidget : public UWidget
 {
@@ -99,6 +102,19 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Folio|Scale", meta = (ClampMin = "0.0", ClampMax = "8.0"))
 	float MaxScale = 0.0f;
+
+	/**
+	 * Samples per pixel each way. One draws straight to the screen.
+	 *
+	 * Two is four samples an edge, which is what a slanted or curved edge needs: a background's own
+	 * antialiasing is a single pixel of coverage, and a shallow diagonal advances a pixel every six
+	 * or more, so the run between two steps stays visible however exact the blend is.
+	 *
+	 * It costs a render target of the viewport times this, squared, and one composite a frame. Text
+	 * is a distance field and gains nothing, so a screen that is mostly text is paying for nothing.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Folio|Scale", meta = (ClampMin = "1", ClampMax = "4"))
+	int32 Supersample = 1;
 
 	/** Loads a different document, replacing whatever is up. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
@@ -167,6 +183,15 @@ public:
 	/** Moves keyboard focus to the document. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void TakeFocus();
+
+	/**
+	 * Escape, or the pad's back button, when nothing in the document consumed it.
+	 *
+	 * This is what makes an input-only screen closable: with `FInputModeUIOnly` the player controller
+	 * receives nothing, so the game cannot bind those keys itself.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Folio")
+	FFolioBackSignature OnBack;
 
 	/**
 	 * Holds focus against anything that reassigns it.

@@ -674,9 +674,12 @@ void SFolioCanvas::OnDeviceChanged(const Folio::EInputDevice Device)
 	{
 		// The cursor has not moved, so RmlUi still holds a hover chain and the element under the
 		// pointer keeps its highlight. Two lit controls and only one of them is the one a confirm
-		// will press. Dropped here; the next real move brings it straight back.
+		// will press.
+		//
+		// The last position is kept deliberately. Clearing it would let the next resend of a
+		// stationary cursor through the move filter, and RmlUi would put the hover straight back on
+		// the element this just took it off. Only a move to somewhere else brings it back.
 		Context->ProcessMouseLeave();
-		LastMousePosition.Reset();
 	}
 
 	// Coming off the mouse, whatever holds focus was focused by a click, which means focused

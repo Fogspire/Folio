@@ -1757,6 +1757,48 @@ namespace
 		FConsoleVariableDelegate::CreateStatic(&OnAntialiasWidthChanged),
 		ECVF_Default);
 
+	/**
+	 * What the next confirm will press, and what the mouse is over.
+	 *
+	 * These two disagreeing is what "the wrong button activated" always turns out to be, and neither
+	 * of them can be read off the screen with any certainty: a focus ring is invisible until
+	 * something asks for it, and a hover looks exactly like a focus ring in most stylesheets.
+	 */
+	void ReportInputFocus(const TArray<FString>&)
+	{
+		const TArray<SFolioCanvas*>& Live = SFolioCanvas::GetLiveCanvases();
+
+		UE_LOG(LogFolio, Display, TEXT("device is %s, %d screen document(s) live"),
+			Folio::DescribeDevice(FFolioModule::Get().GetInputDevice()), Live.Num());
+
+		for (const SFolioCanvas* Canvas : Live)
+		{
+			Rml::Context* Context = Canvas->GetContext();
+			if (!Context)
+			{
+				continue;
+			}
+
+			const Rml::Element* Focus = Context->GetFocusElement();
+			const Rml::Element* Hover = Context->GetHoverElement();
+
+			UE_LOG(LogFolio, Display,
+				TEXT("  %s: interactive=%s wants-focus=%s slate-focus=%s focus=%s hover=%s"),
+				*Canvas->GetDocumentPath(),
+				Canvas->IsInteractive() ? TEXT("yes") : TEXT("no"),
+				Canvas->WantsFocus() ? TEXT("yes") : TEXT("no"),
+				Canvas->HasAnyUserFocus().IsSet() ? TEXT("yes") : TEXT("no"),
+				Focus ? *Folio::ToFString(Focus->GetAddress(false, false)) : TEXT("none"),
+				Hover ? *Folio::ToFString(Hover->GetAddress(false, false)) : TEXT("none"));
+		}
+	}
+
+	FAutoConsoleCommand InputFocusCommand(
+		TEXT("folio.Input.Focus"),
+		TEXT("Reports what holds focus and what the mouse is over, per screen document. The answer to "
+			"'the wrong control activated'."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ReportInputFocus));
+
 	FAutoConsoleCommand ScreensCommand(
 		TEXT("folio.Screens"),
 		TEXT("folio.Screens [delay]. Reports the size and dp ratio every screen document is laid out "

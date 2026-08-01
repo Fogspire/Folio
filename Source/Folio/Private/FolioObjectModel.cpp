@@ -125,7 +125,16 @@ namespace
 	bool IsCallableParameter(const FProperty& Property)
 	{
 		// An out parameter has nowhere to go: RmlUi passes values by variant and reads nothing back.
-		if (Property.HasAnyPropertyFlags(CPF_OutParm | CPF_ReferenceParm))
+		//
+		// A *const* reference is an input, not an output, and `const FString&` is how anyone would
+		// write a UFUNCTION that takes a string. Rejecting it silently dropped the whole command, so
+		// the only symptom was a button that did nothing.
+		if (Property.HasAnyPropertyFlags(CPF_OutParm))
+		{
+			return false;
+		}
+
+		if (Property.HasAnyPropertyFlags(CPF_ReferenceParm) && !Property.HasAnyPropertyFlags(CPF_ConstParm))
 		{
 			return false;
 		}

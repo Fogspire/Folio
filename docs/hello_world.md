@@ -28,6 +28,13 @@ cd <YourProject>\Plugins\Folio
 A cold run takes a few minutes and clones dependencies as it goes. If you skip this step the project
 fails to build with a message telling you to come back and do it, so it is hard to get wrong.
 
+The engine comes from your `.uproject`'s `EngineAssociation`. If that cannot be resolved, point at
+the engine yourself:
+
+```bash
+./scripts/build_ue_libs.sh --engine-dir "Z:/Epic Games/Src/5.8/Engine"
+```
+
 ## 3. Enable the plugin
 
 Add Folio to your `.uproject`:

@@ -161,7 +161,8 @@ folio_import_msvc() {
 #
 # Reads EngineAssociation from the .uproject and looks it up in the registry, which is where source
 # builds register themselves. A launcher install stores a version string instead, so that case falls
-# back to the standard install location.
+# back to the standard install location. An association may also be a path to the engine, in which
+# case nothing is looked up.
 #
 folio_resolve_engine() {
 	local project_root="$1"
@@ -173,6 +174,15 @@ folio_resolve_engine() {
 	local association
 	association="$(sed -n 's/.*"EngineAssociation"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$uproject" | head -1)"
 	[[ -n "$association" ]] || folio_die "$(basename "$uproject") has no EngineAssociation. Pass --engine-dir explicitly."
+
+	# A path association is relative to the project unless it is rooted or drive-qualified.
+	if [[ "$association" == */* || "$association" == *\\* ]]; then
+		local candidate="${association//\\//}"
+		[[ "$candidate" == /* || "$candidate" =~ ^[A-Za-z]: ]] || candidate="$project_root/$candidate"
+		[[ -d "$candidate/Engine" ]] || folio_die "'$candidate/Engine' does not exist. Pass --engine-dir explicitly."
+		( cd "$candidate/Engine" && pwd )
+		return
+	fi
 
 	local root=""
 

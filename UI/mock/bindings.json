@@ -1,0 +1,14 @@
+{
+	"Bindings": [
+		{ "Mapping": "Move", "Action": "Move", "Category": "Movement", "PrimaryKey": "W", "SecondaryKey": "", "bCustomised": false },
+		{ "Mapping": "Jump", "Action": "Jump", "Category": "Movement", "PrimaryKey": "SPACE", "SecondaryKey": "LMB", "bCustomised": true },
+		{ "Mapping": "Fire", "Action": "Fire", "Category": "Combat", "PrimaryKey": "LMB", "SecondaryKey": "", "bCustomised": false },
+		{ "Mapping": "Reload", "Action": "Reload", "Category": "Combat", "PrimaryKey": "R", "SecondaryKey": "", "bCustomised": false },
+		{ "Mapping": "Terminal", "Action": "Field Terminal", "Category": "Interface", "PrimaryKey": "O", "SecondaryKey": "", "bCustomised": false }
+	],
+	"bListening": false,
+	"Listening": "",
+	"bConflict": false,
+	"ConflictWith": "",
+	"ConflictKey": ""
+}

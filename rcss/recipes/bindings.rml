@@ -1,0 +1,149 @@
+<rml>
+<head>
+	<title>Controls</title>
+	<meta name="folio-size" content="900x700"/>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		body { background-color: #16161e; padding: 26dp; nav: auto; }
+
+		h1 { display: block; font-size: 13dp; letter-spacing: 2dp; color: #6a6a7a; margin-bottom: 14dp; }
+
+		/*
+		 * Columns anchored to the row rather than shared out by flex. A flex row here grew the action
+		 * name into the space the keys needed and pushed them off the edge; anchoring says where each
+		 * column is and lets the name have whatever is left.
+		 */
+		.bind {
+			position: relative;
+			display: block;
+			height: 46dp;
+			border-bottom: 1dp #2c2c38;
+		}
+
+		.bind:hover { background-color: #1e1e28; }
+
+		/* The action takes the slack and everything to its right is a fixed column, or a long name
+		   pushes the keys off the edge. */
+		/* Percentages, so the columns divide the row whatever the row turns out to be. Anchoring to a
+		   right edge in dp put the keys past it. */
+		.action {
+			position: absolute;
+			left: 2%;
+			right: 42%;
+			top: 14dp;
+			color: #e8e8f0;
+			font-size: 17dp;
+		}
+
+		.cat {
+			position: absolute;
+			left: 60%;
+			width: 16%;
+			top: 16dp;
+			color: #6a6a7a;
+			font-size: 13dp;
+		}
+
+		/* Width as well as an edge: shrink-to-fit against a right edge alone did not hold the column,
+		   and the keys walked off the row. */
+		.keys {
+			position: absolute;
+			left: 70%;
+			width: 26%;
+			top: 8dp;
+			text-align: right;
+		}
+
+		.keys .slot, .keys .reset { display: inline-block; vertical-align: middle; }
+
+		/* Not a flex row: a flex item does not shrink-wrap its text here, so a wide cap came out the
+		   width of a narrow one and clipped its own last letter. */
+		.slot {
+			display: block;
+			width: 74dp;
+			text-align: right;
+		}
+
+		/* The keycaps are the library's, so a rebind row and a prompt agree about what a key looks
+		   like. Focusable because clicking one is how a rebind starts. */
+		.bind .pg { margin-left: 8dp; }
+		.bind .pg:focus-visible { border-color: #f0c674; }
+
+		.reset {
+			tab-index: auto;
+			width: 54dp;
+			text-align: center;
+			margin-left: 10dp;
+			padding: 3dp 8dp 3dp 8dp;
+			border: 1dp #6a6a7a;
+			color: #a8a8b8;
+			font-size: 12dp;
+		}
+
+		.reset:focus-visible { border-color: #f0c674; color: #f0c674; }
+
+		/* Both overlays sit over the list rather than replacing it: the row being changed should
+		   stay visible behind the question about it. */
+		.over {
+			position: absolute;
+			left: 0dp;
+			top: 0dp;
+			right: 0dp;
+			bottom: 0dp;
+			display: none;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			background-color: #0b0b12d0;
+		}
+
+		.over.on { display: flex; }
+
+		.over .big { font-size: 26dp; color: #e8e8f0; margin-bottom: 8dp; }
+		.over .small { font-size: 14dp; color: #a8a8b8; }
+		.over .warn { color: #f0c674; }
+	</style>
+</head>
+<body data-model="bindings">
+
+<h1>CONTROLS</h1>
+
+<div class="rows">
+	<div class="bind" data-for="row : Bindings">
+		<span class="action">{{ row.Action }}</span>
+		<span class="cat">{{ row.Category }}</span>
+
+		<span class="keys">
+			<span class="slot">
+				<span class="pg pg-key focusable" data-if="row.PrimaryKey != ''"
+					data-event-click="Rebind(row.Mapping, 0)">{{ row.PrimaryKey }}</span>
+				<span class="pg pg-unbound focusable" data-if="row.PrimaryKey == ''"
+					data-event-click="Rebind(row.Mapping, 0)">&#8212;</span>
+			</span>
+			<span class="slot">
+				<span class="pg pg-key focusable" data-if="row.SecondaryKey != ''"
+					data-event-click="Rebind(row.Mapping, 1)">{{ row.SecondaryKey }}</span>
+				<span class="pg pg-unbound focusable" data-if="row.SecondaryKey == ''"
+					data-event-click="Rebind(row.Mapping, 1)">&#8212;</span>
+			</span>
+			<span class="reset focusable" data-if="row.bCustomised"
+				data-event-click="ResetBinding(row.Mapping)">reset</span>
+		</span>
+	</div>
+</div>
+
+<div class="over" data-class-on="bListening">
+	<div class="big">PRESS A KEY FOR {{ Listening }}</div>
+	<div class="small">Escape cancels</div>
+</div>
+
+<div class="over" data-class-on="bConflict">
+	<div class="big warn">{{ ConflictKey }} IS ALREADY {{ ConflictWith }}</div>
+	<div class="small">
+		<span class="reset focusable" data-event-click="ConfirmConflict">rebind anyway</span>
+		<span class="reset focusable" data-event-click="CancelRebind">cancel</span>
+	</div>
+</div>
+
+</body>
+</rml>

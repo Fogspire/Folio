@@ -41,9 +41,23 @@ where it draws at its authored size; `Min Scale` and `Max Scale` stop it becomin
 screen. The document is still laid out at its authored size and *then* scaled, so text never rewraps
 as the player walks towards it - which is the thing that makes a naively built nameplate look broken.
 
-**`Fade Start Distance` and `Fade End Distance`** fade it out and then stop drawing it. Both zero
-switches this off. It matters more than it looks: thirty markers on a screen is noise, and distance is
-the cheapest way to thin them.
+**`Fade Start Distance` and `Fade End Distance`** take it away across that stretch and stop drawing it
+past the second. Both zero switches this off. It matters more than it looks: thirty markers on a
+screen is noise, and distance is the cheapest way to thin them.
+
+**`Distance Transition`** is what it does across the stretch:
+
+| | |
+|---|---|
+| `None` | Drawn or not drawn. |
+| `Fade` | Opacity. What a marker did before this was a choice, and still the default. |
+| `Scale` | Shrinks towards its anchor, so it recedes rather than dissolving. |
+| `Fade And Scale` | Both, which is what reads as the marker going away rather than being switched off. |
+
+Scaling eases out rather than running at a constant rate, and stops at **`Transition Scale`** rather
+than at nothing - something that shrinks the whole way to a point spends its last frames as an
+unreadable speck. The anchor is a fraction of the *scaled* document, so a marker shrinking towards a
+head stays on the head.
 
 **`Clamp To Screen Edge`** keeps an off-screen marker at the edge, in the direction of the thing it
 labels. Right for objectives, wrong for nameplates - a clamped nameplate is a label stuck to the side
@@ -51,11 +65,14 @@ of the screen with no body under it. Behind the camera the projection mirrors th
 the component corrects for that, so a marker behind you is pinned to the correct edge rather than the
 opposite one.
 
-**`Clamp Max Distance`** stops clamping past a distance, in world units, and hides the marker instead.
-Zero is no limit, which is the default. Clamping exists so a player does not lose something they
-cannot see; a rim of arrows for everything a mile behind them is the opposite of that, and the far
-ones are the least worth the space. This is the same thinning `Fade End Distance` does for markers
-that are on screen.
+**`Clamp Start Distance` and `Clamp End Distance`** stop a marker being clamped past a distance, in
+world units, and hide it instead. Zero end is no limit, which is the default. Clamping exists so a
+player does not lose something they cannot see; a rim of arrows for everything a mile behind them is
+the opposite of that, and the far ones are the least worth the space.
+
+**`Clamp Transition`** is the same set of choices for that stretch, and applies only while the marker
+is actually clamped. A marker that is both far away and clamped goes through both bands and scales
+once rather than twice.
 
 ## Data
 

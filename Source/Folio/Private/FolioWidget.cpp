@@ -37,6 +37,11 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 	Canvas->OnBack.BindWeakLambda(this, [this] { OnBack.Broadcast(); });
 	Canvas->OnUnclaimedKey.BindWeakLambda(this, [this](const FKey Key) { OnUnclaimedKey.Broadcast(Key); });
 
+	for (const FKey& Key : ClaimedKeys)
+	{
+		Canvas->ClaimKey(Key);
+	}
+
 	ApplyBindings();
 	Canvas->LoadDocument(DocumentPath);
 
@@ -197,6 +202,8 @@ void UFolioWidget::SetInteractive(const bool bInInteractive)
 
 void UFolioWidget::ClaimKey(const FKey Key)
 {
+	ClaimedKeys.AddUnique(Key);
+
 	if (Canvas.IsValid())
 	{
 		Canvas->ClaimKey(Key);

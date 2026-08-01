@@ -586,6 +586,13 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	// The literal key first, so a text field still receives W as a letter. Only when nothing is
 	// taking text does a letter get to mean a direction, which is what lets the arrows, WASD and
 	// IJKL all navigate at once without any of them breaking typing.
+	// Before anything RmlUi might do with it: the game asked for this key outright.
+	if (GameKeys.Contains(KeyEvent.GetKey()))
+	{
+		OnUnclaimedKey.ExecuteIfBound(KeyEvent.GetKey());
+		return FReply::Handled();
+	}
+
 	if (const Rml::Input::KeyIdentifier Key = Folio::ToRmlKey(KeyEvent.GetKey());
 		Key != Rml::Input::KI_UNKNOWN)
 	{
@@ -626,16 +633,12 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		return FReply::Handled();
 	}
 
-	// A key the game asked for is consumed here and handed over once, rather than reaching both this
-	// and the player controller.
-	const bool bGameKey = GameKeys.Contains(KeyEvent.GetKey());
-
-	if (bGameKey || !bClaimed)
+	if (!bClaimed)
 	{
 		OnUnclaimedKey.ExecuteIfBound(KeyEvent.GetKey());
 	}
 
-	return bClaimed || bGameKey ? FReply::Handled() : FReply::Unhandled();
+	return bClaimed ? FReply::Handled() : FReply::Unhandled();
 }
 
 bool SFolioCanvas::ClaimsKey(const FKey& Key) const

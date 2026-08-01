@@ -222,6 +222,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void ClaimKey(FKey Key);
 
+private:
+	/** Held here as well as on the canvas, because a claim usually arrives before there is one. */
+	UPROPERTY()
+	TArray<FKey> ClaimedKeys;
+
+public:
+
 	/**
 	 * Escape, or the pad's back button, when nothing in the document consumed it.
 	 *

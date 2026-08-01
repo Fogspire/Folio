@@ -135,6 +135,61 @@ function buildArguments(document, output) {
 	return args;
 }
 
+/**
+ * Opens the document in the standalone renderer, in its own window.
+ *
+ * The preview here is the same binary rendering to a PNG, which is right for looking and wrong for
+ * anything that needs to run: real keyboard and gamepad input, the RmlUi debugger on F8, an
+ * animation over time. That is what this is for.
+ */
+function openInUipreview() {
+	const editor = vscode.window.activeTextEditor;
+	const document = editor && editor.document.fileName.endsWith(".rml")
+		? editor.document.fileName
+		: currentDocument;
+
+	if (!document) {
+		vscode.window.showErrorMessage("Folio: open an .rml document first.");
+		return;
+	}
+
+	const uipreview = findUipreview();
+	if (!uipreview) {
+		vscode.window.showErrorMessage(
+			"Folio: could not find uipreview. Build it with ./scripts/build.sh, or set folio.uipreviewPath.");
+		return;
+	}
+
+	const settings = config();
+	const args = [document, "--root", rootArgument()];
+
+	const size = settings.get("size");
+	if (size) {
+		args.push("--size", size);
+	}
+
+	if (settings.get("strict")) {
+		args.push("--strict");
+	}
+
+	const culture = settings.get("culture");
+	if (culture) {
+		args.push("--culture", culture);
+	}
+
+	for (const theme of settings.get("themes") || []) {
+		args.push("--theme", theme);
+	}
+
+	// Detached, with no pipes held open: the window is the user's now, and it outlives the editor
+	// closing. Its own file watcher reloads it on save, so nothing here has to follow the document.
+	const child = cp.spawn(uipreview, args, { detached: true, stdio: "ignore" });
+	child.on("error", (error) => {
+		vscode.window.showErrorMessage(`Folio: could not start uipreview. ${error.message}`);
+	});
+	child.unref();
+}
+
 function uncomparedFeatures(document) {
 	try {
 		const text = fs.readFileSync(document, "utf8");
@@ -958,7 +1013,8 @@ async function lockPreviewGroup() {
 function activate(context) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("folio.openPreview", openPreview),
-		vscode.commands.registerCommand("folio.refreshPreview", render));
+		vscode.commands.registerCommand("folio.refreshPreview", render),
+		vscode.commands.registerCommand("folio.openInUipreview", openInUipreview));
 
 	/*
 	 * Reopening the preview after a window reload.

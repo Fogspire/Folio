@@ -43,6 +43,17 @@ and the **Folio: Open Preview** command do the same thing.
 
 The button only appears on `.rml` files, so it is not in the way the rest of the time.
 
+## Open it in the standalone renderer
+
+Beside the preview button is **Folio: Open in uipreview**, which opens the document in its own window
+rather than in a webview.
+
+The preview is the same binary rendering to a PNG, which is right for looking at a document and wrong
+for anything that has to *run*: real keyboard and gamepad input, the RmlUi debugger on F8, an
+animation playing over time. It takes the same `folio.root`, `folio.size`, `folio.strict`,
+`folio.culture` and `folio.themes` settings, watches the file itself, and outlives the editor
+closing.
+
 It re-renders whenever you save an `.rml` **or** an `.rcss`, because a document links several
 stylesheets and a change to one matters as much as a change to the markup. It follows the active
 editor, so switching documents previews the one you are looking at.

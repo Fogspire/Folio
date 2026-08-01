@@ -1,135 +1,145 @@
 {
-	"name": "folio-preview",
-	"displayName": "Folio Preview",
-	"description": "Renders the open RML document with uipreview and re-renders it on save.",
-	"version": "0.1.0",
-	"publisher": "folio",
-	"license": "MIT",
-	"engines": {
-		"vscode": "^1.75.0"
-	},
-	"categories": [
-		"Visualization"
-	],
-	"activationEvents": [
-		"workspaceContains:**/*.rml"
-	],
-	"main": "./extension.js",
-	"contributes": {
-		"commands": [
-			{
-				"command": "folio.openPreview",
-				"title": "Folio: Open Preview",
-				"icon": "$(open-preview)"
-			},
-			{
-				"command": "folio.refreshPreview",
-				"title": "Folio: Refresh Preview",
-				"icon": "$(refresh)"
-			}
-		],
-		"keybindings": [
-			{
-				"command": "folio.openPreview",
-				"key": "ctrl+shift+v",
-				"when": "resourceExtname == .rml"
-			}
-		],
-		"configuration": {
-			"title": "Folio",
-			"properties": {
-				"folio.uipreviewPath": {
-					"type": "string",
-					"default": "",
-					"markdownDescription": "Path to `uipreview`. Empty looks for `Plugins/Folio/bin/win64/uipreview.exe` under the workspace."
-				},
-				"folio.root": {
-					"type": "string",
-					"default": "",
-					"markdownDescription": "Passed as `--root`. Empty uses the workspace folder. A document's `/UI/...` links resolve against this."
-				},
-				"folio.size": {
-					"type": "string",
-					"default": "1280x720",
-					"description": "Render size."
-				},
-				"folio.dpRatio": {
-					"type": "string",
-					"default": "1",
-					"markdownDescription": "Pinned dp ratio, passed as `--dp-ratio`. Empty lets it follow the viewport. Pin it to whatever the game uses, or every length here differs from the game's."
-				},
-				"folio.lockPreviewGroup": {
-					"type": "boolean",
-					"default": true,
-					"markdownDescription": "Lock the preview's editor group, so opening a file never lands on top of the preview."
-				},
-				"folio.strict": {
-					"type": "boolean",
-					"default": true,
-					"markdownDescription": "Run with `--strict`, so a warning is reported rather than rendered past."
-				},
-				"folio.culture": {
-					"type": "string",
-					"default": "",
-					"markdownDescription": "Passed as `--culture`. `pseudo` inflates strings and accents them, which is how overflow is found before translation exists."
-				},
-				"folio.themes": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"default": [],
-					"markdownDescription": "Themes to activate, each passed as `--theme`."
-				}
-			}
-		},
-		"languages": [
-			{
-				"id": "rml",
-				"aliases": [
-					"RML",
-					"rml"
-				],
-				"extensions": [
-					".rml"
-				],
-				"configuration": "./rml-language-configuration.json"
-			},
-			{
-				"id": "rcss",
-				"aliases": [
-					"RCSS",
-					"rcss"
-				],
-				"extensions": [
-					".rcss"
-				],
-				"configuration": "./rcss-language-configuration.json"
-			}
-		],
-		"grammars": [
-			{
-				"language": "rml",
-				"scopeName": "text.rml",
-				"path": "./syntaxes/rml.tmLanguage.json"
-			},
-			{
-				"language": "rcss",
-				"scopeName": "source.rcss",
-				"path": "./syntaxes/rcss.tmLanguage.json"
-			}
-		],
-		"menus": {
-			"editor/title": [
-				{
-					"command": "folio.openPreview",
-					"when": "resourceExtname == .rml",
-					"group": "navigation"
-				}
-			]
-		}
-	},
-	"scripts": {
-		"test": "node rcss.test.js"
-	}
+  "name": "folio-preview",
+  "displayName": "Folio Preview",
+  "description": "Renders the open RML document with uipreview and re-renders it on save.",
+  "version": "0.1.0",
+  "publisher": "folio",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Visualization"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.rml"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "folio.openPreview",
+        "title": "Folio: Open Preview",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "folio.refreshPreview",
+        "title": "Folio: Refresh Preview",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "folio.openInUipreview",
+        "title": "Folio: Open in uipreview",
+        "icon": "$(link-external)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "folio.openPreview",
+        "key": "ctrl+shift+v",
+        "when": "resourceExtname == .rml"
+      }
+    ],
+    "configuration": {
+      "title": "Folio",
+      "properties": {
+        "folio.uipreviewPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to `uipreview`. Empty looks for `Plugins/Folio/bin/win64/uipreview.exe` under the workspace."
+        },
+        "folio.root": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Passed as `--root`. Empty uses the workspace folder. A document's `/UI/...` links resolve against this."
+        },
+        "folio.size": {
+          "type": "string",
+          "default": "1280x720",
+          "description": "Render size."
+        },
+        "folio.dpRatio": {
+          "type": "string",
+          "default": "1",
+          "markdownDescription": "Pinned dp ratio, passed as `--dp-ratio`. Empty lets it follow the viewport. Pin it to whatever the game uses, or every length here differs from the game's."
+        },
+        "folio.lockPreviewGroup": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Lock the preview's editor group, so opening a file never lands on top of the preview."
+        },
+        "folio.strict": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Run with `--strict`, so a warning is reported rather than rendered past."
+        },
+        "folio.culture": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Passed as `--culture`. `pseudo` inflates strings and accents them, which is how overflow is found before translation exists."
+        },
+        "folio.themes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Themes to activate, each passed as `--theme`."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "rml",
+        "aliases": [
+          "RML",
+          "rml"
+        ],
+        "extensions": [
+          ".rml"
+        ],
+        "configuration": "./rml-language-configuration.json"
+      },
+      {
+        "id": "rcss",
+        "aliases": [
+          "RCSS",
+          "rcss"
+        ],
+        "extensions": [
+          ".rcss"
+        ],
+        "configuration": "./rcss-language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rml",
+        "scopeName": "text.rml",
+        "path": "./syntaxes/rml.tmLanguage.json"
+      },
+      {
+        "language": "rcss",
+        "scopeName": "source.rcss",
+        "path": "./syntaxes/rcss.tmLanguage.json"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "folio.openPreview",
+          "when": "resourceExtname == .rml",
+          "group": "navigation"
+        },
+        {
+          "command": "folio.openInUipreview",
+          "when": "resourceExtname == .rml",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node rcss.test.js"
+  }
 }

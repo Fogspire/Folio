@@ -127,7 +127,9 @@ public:
 	 * The target is sized from how large the surface lands on screen, so walking up to it sharpens it
 	 * rather than magnifying a fixed texture. This bounds what that can cost.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio", meta = (ClampMin = "0.25", ClampMax = "4.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (ClampMin = "0.25", ClampMax = "4.0",
+			EditCondition = "DrawMode == EFolioWorldDrawMode::Surface", EditConditionHides))
 	float MaxSurfaceScale = 2.0f;
 
 	/** Whether the document updates and draws in the level viewport, rather than only in play. */
@@ -151,12 +153,12 @@ public:
 	 * project settings it depends on.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
-		meta = (EditCondition = "bPointerFromPlayerView"))
+		meta = (EditCondition = "bPointerFromPlayerView", EditConditionHides))
 	bool bPointerUsesMeshUV = false;
 
 	/** Which channel the mesh trace runs on, when the pointer comes from the mesh's UVs. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
-		meta = (EditCondition = "bPointerFromPlayerView && bPointerUsesMeshUV"))
+		meta = (EditCondition = "bPointerFromPlayerView && bPointerUsesMeshUV", EditConditionHides))
 	TEnumAsByte<ECollisionChannel> PointerTraceChannel = ECC_Visibility;
 
 	/**
@@ -166,7 +168,7 @@ public:
 	 * samples a channel of its own choosing, and reading a different one here points somewhere else.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
-		meta = (EditCondition = "bPointerUsesMeshUV", ClampMin = "0"))
+		meta = (EditCondition = "bPointerUsesMeshUV", EditConditionHides, ClampMin = "0"))
 	int32 PointerUVChannel = 0;
 
 	/**
@@ -184,7 +186,8 @@ public:
 
 	/** How far the player can be from the surface and still point at it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
-		meta = (EditCondition = "bPointerFromPlayerView", ClampMin = "1.0"))
+		meta = (EditCondition = "bPointerFromPlayerView", EditConditionHides, ClampMin = "1.0",
+			ForceUnits = "cm"))
 	float PointerReach = 400.0f;
 
 	/**
@@ -199,7 +202,7 @@ public:
 
 	/** What counts as a click while the pointer comes from the player's view. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Input",
-		meta = (EditCondition = "bPointerFromPlayerView"))
+		meta = (EditCondition = "bPointerFromPlayerView", EditConditionHides))
 	FKey PointerKey;
 
 	/** Loads a different document, replacing whatever is up. */

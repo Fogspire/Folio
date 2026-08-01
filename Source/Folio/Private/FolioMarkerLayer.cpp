@@ -78,7 +78,7 @@ int32 SFolioMarkerLayer::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 			FMath::Max(1, FMath::RoundToInt(Placement->Size.X)),
 			FMath::Max(1, FMath::RoundToInt(Placement->Size.Y)));
 
-		Renderer->BeginFrame(OutDrawElements, Marker, Highest, ContextSize);
+		Renderer->BeginFrame(OutDrawElements, Marker, Highest, ContextSize, Placement->Opacity);
 		Placement->Host->GetContext()->Render();
 		Renderer->EndFrame();
 

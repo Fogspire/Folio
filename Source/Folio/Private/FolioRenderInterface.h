@@ -35,9 +35,16 @@ public:
 	FFolioRenderInterface();
 	virtual ~FFolioRenderInterface() override;
 
-	/** Installs the Slate state that the following RmlUi render calls draw into. */
+	/**
+	 * Installs the Slate state that the following RmlUi render calls draw into.
+	 *
+	 * Alpha multiplies every vertex the frame emits, which is how a caller fades a whole document from
+	 * outside it. RCSS `opacity` cannot do this job: it is an inherited property rather than a group, so
+	 * a child that sets its own overrides the parent instead of multiplying with it, and any document
+	 * with a fade of its own would ignore the one being asked for.
+	 */
 	void BeginFrame(FSlateWindowElementList& InElementList, const FGeometry& InGeometry, int32 InLayerId,
-		FIntPoint InContextSize);
+		FIntPoint InContextSize, float InAlpha = 1.0f);
 
 	/**
 	 * Records the following render calls into a draw list instead of drawing them.
@@ -428,6 +435,9 @@ private:
 	/** Needed to size a layer when nothing has set a scissor region. */
 	FIntPoint ContextSize = FIntPoint(1, 1);
 	int32 LayerId = 0;
+
+	/** Multiplies every vertex the frame emits. One while recording, which has no caller to fade it. */
+	float FrameAlpha = 1.0f;
 	int32 MaxLayerId = 0;
 
 	bool bScissorEnabled = false;

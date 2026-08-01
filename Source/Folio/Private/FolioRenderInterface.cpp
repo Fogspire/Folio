@@ -73,8 +73,9 @@ FFolioRenderInterface::~FFolioRenderInterface()
 }
 
 void FFolioRenderInterface::BeginFrame(FSlateWindowElementList& InElementList, const FGeometry& InGeometry,
-	const int32 InLayerId, const FIntPoint InContextSize)
+	const int32 InLayerId, const FIntPoint InContextSize, const float InAlpha)
 {
+	FrameAlpha = FMath::Clamp(InAlpha, 0.0f, 1.0f);
 	ElementList = &InElementList;
 	Geometry = InGeometry;
 	LayerId = InLayerId;
@@ -104,6 +105,7 @@ void FFolioRenderInterface::BeginRecording(FFolioDrawList& InDrawList, const FIn
 {
 	DrawList = &InDrawList;
 	DrawList->Reset();
+	FrameAlpha = 1.0f;
 
 	ElementList = nullptr;
 	ContextSize = InContextSize;
@@ -241,7 +243,9 @@ Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Sp
 const TArray<FSlateVertex>& FFolioRenderInterface::PositionedVertices(const FCompiledGeometry& Compiled,
 	const Rml::Vector2f Translation, FVector2f& OutOffset)
 {
-	if (!bHasTransform)
+	const bool bFading = FrameAlpha < 1.0f - UE_SMALL_NUMBER;
+
+	if (!bHasTransform && !bFading)
 	{
 		OutOffset = FVector2f(Translation.x, Translation.y);
 		return Compiled.Vertices;
@@ -256,10 +260,25 @@ const TArray<FSlateVertex>& FFolioRenderInterface::PositionedVertices(const FCom
 	for (const FSlateVertex& Source : Compiled.Vertices)
 	{
 		FSlateVertex& Out = ScratchVertices.Add_GetRef(Source);
-		Out.Position = FVector2f(TransformPoint(RmlTransform, FVector2f(Source.Position) + Offset));
+
+		if (bHasTransform)
+		{
+			Out.Position = FVector2f(TransformPoint(RmlTransform, FVector2f(Source.Position) + Offset));
+		}
+
+		if (bFading)
+		{
+			// Every channel, because RmlUi composites premultiplied: scaling alpha alone would leave the
+			// colour at full strength and the document would brighten as it faded.
+			Out.Color.R = uint8(float(Out.Color.R) * FrameAlpha);
+			Out.Color.G = uint8(float(Out.Color.G) * FrameAlpha);
+			Out.Color.B = uint8(float(Out.Color.B) * FrameAlpha);
+			Out.Color.A = uint8(float(Out.Color.A) * FrameAlpha);
+		}
 	}
 
-	OutOffset = FVector2f::ZeroVector;
+	// A transform bakes the offset into the positions; a fade on its own leaves it to the caller.
+	OutOffset = bHasTransform ? FVector2f::ZeroVector : Offset;
 	return ScratchVertices;
 }
 

@@ -93,15 +93,16 @@ public:
 
 	/** Distance in world units at which the document draws at its authored size. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
-		meta = (EditCondition = "bScaleWithDistance", ClampMin = "1.0"))
+		meta = (EditCondition = "bScaleWithDistance", EditConditionHides, ClampMin = "1.0",
+			ForceUnits = "cm"))
 	float ReferenceDistance = 500.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
-		meta = (EditCondition = "bScaleWithDistance", ClampMin = "0.01"))
+		meta = (EditCondition = "bScaleWithDistance", EditConditionHides, ClampMin = "0.01"))
 	float MinScale = 0.4f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
-		meta = (EditCondition = "bScaleWithDistance", ClampMin = "0.01"))
+		meta = (EditCondition = "bScaleWithDistance", EditConditionHides, ClampMin = "0.01"))
 	float MaxScale = 1.5f;
 
 	/**
@@ -110,14 +111,17 @@ public:
 	 * Zero for both switches it off. Thinning by distance matters more than it looks: a screen with
 	 * thirty markers on it reads as noise, and this is the cheapest way to have fewer.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
+		meta = (ClampMin = "0.0", ForceUnits = "cm"))
 	float FadeStartDistance = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
+		meta = (ClampMin = "0.0", ForceUnits = "cm"))
 	float FadeEndDistance = 0.0f;
 
 	/** What it does across that stretch. Fade is what it did before this was a choice. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
+		meta = (EditCondition = "FadeEndDistance > 0.0", EditConditionHides))
 	EFolioMarkerTransition DistanceTransition = EFolioMarkerTransition::Fade;
 
 	/**
@@ -126,11 +130,12 @@ public:
 	 * Off by default, because it is right for objectives and wrong for nameplates: a clamped nameplate
 	 * is a label stuck to the side of the screen with no body under it.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Screen Edge")
 	bool bClampToScreenEdge = false;
 
 	/** How far in dp a clamped marker sits from the edge. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio", meta = (EditCondition = "bClampToScreenEdge"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Screen Edge",
+		meta = (EditCondition = "bClampToScreenEdge", EditConditionHides, ClampMin = "0.0"))
 	float ClampMargin = 48.0f;
 
 	/**
@@ -143,17 +148,19 @@ public:
 	 *
 	 * Zero by default, so clamping behaves as it always has until a game asks for the limit.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
-		meta = (EditCondition = "bClampToScreenEdge", ClampMin = "0.0", ForceUnits = "cm"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Screen Edge",
+		meta = (EditCondition = "bClampToScreenEdge", EditConditionHides, ClampMin = "0.0",
+			ForceUnits = "cm"))
 	float ClampStartDistance = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
-		meta = (EditCondition = "bClampToScreenEdge", ClampMin = "0.0", ForceUnits = "cm"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Screen Edge",
+		meta = (EditCondition = "bClampToScreenEdge", EditConditionHides, ClampMin = "0.0",
+			ForceUnits = "cm"))
 	float ClampEndDistance = 0.0f;
 
 	/** What a clamped marker does across that stretch. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
-		meta = (EditCondition = "bClampToScreenEdge"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Screen Edge",
+		meta = (EditCondition = "bClampToScreenEdge && ClampEndDistance > 0.0", EditConditionHides))
 	EFolioMarkerTransition ClampTransition = EFolioMarkerTransition::FadeAndScale;
 
 	/**
@@ -163,7 +170,8 @@ public:
 	 * an unreadable speck, and stopping short of that reads as a cut rather than a collapse.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
-		meta = (ClampMin = "0.0", ClampMax = "1.0"))
+		meta = (ClampMin = "0.0", ClampMax = "1.0", EditConditionHides,
+			EditCondition = "DistanceTransition == EFolioMarkerTransition::Scale || DistanceTransition == EFolioMarkerTransition::FadeAndScale || ClampTransition == EFolioMarkerTransition::Scale || ClampTransition == EFolioMarkerTransition::FadeAndScale"))
 	float TransitionScale = 0.35f;
 
 	/**

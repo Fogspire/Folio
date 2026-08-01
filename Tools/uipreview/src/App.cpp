@@ -799,11 +799,22 @@ void App::HandleFileChanges(const std::vector<std::string>& changed)
 			continue;
 		}
 
-		if (dependencies.find(path) == dependencies.end())
-			continue;
-
 		const size_t dot = path.find_last_of('.');
 		const std::string extension = dot == std::string::npos ? std::string() : path.substr(dot);
+
+		/*
+		 * Markup and stylesheets act whether or not the document opened them.
+		 *
+		 * The dependency list is what RmlUi actually opened, and it is incomplete more often than it
+		 * looks: a document that failed to load opened almost nothing, a stylesheet reached through a
+		 * cached template was never opened by this process, and a file that does not exist yet cannot
+		 * be in it. Every one of those is a change the author expects to see, and a reload of a
+		 * document that did not need one costs a frame.
+		 */
+		const bool markup = extension == ".rml" || extension == ".rcss";
+
+		if (!markup && dependencies.find(path) == dependencies.end())
+			continue;
 
 		if (extension == ".rml")
 			rebuild_document = true;

@@ -277,6 +277,10 @@ function show(state) {
 		? panel.webview.asWebviewUri(vscode.Uri.file(state.image)).toString() + `?v=${renderIndex}`
 		: null;
 
+	// Collapsed when there is enough of it to bury what is under it, which is the common case on a
+	// document that is mid-edit.
+	const messageLines = state.messages ? state.messages.split(String.fromCharCode(10)).length : 0;
+
 	const notes = [];
 	if (state.uncompared && state.uncompared.length > 0) {
 		notes.push(
@@ -357,6 +361,21 @@ function show(state) {
 		margin: 8px 0; padding: 8px 10px; border-left: 3px solid;
 		white-space: pre-wrap; font-family: var(--vscode-editor-font-family);
 	}
+	/* The harness output folds from either end: a long run of warnings otherwise pushes the render off
+	   the panel, and the way out was at the bottom of it. */
+	details.note, details.warn { padding: 6px 10px; }
+	details summary { cursor: pointer; user-select: none; opacity: 0.85; }
+	details[open] summary { margin-bottom: 6px; }
+	details pre { margin: 0; white-space: pre-wrap; font-family: var(--vscode-editor-font-family); }
+	.fold {
+		margin-top: 6px;
+		background: none;
+		border: 1px solid var(--vscode-foreground);
+		color: var(--vscode-foreground);
+		opacity: 0.7;
+		cursor: pointer;
+	}
+
 	.note  { border-color: var(--vscode-editorInfo-foreground);    background: #8884; }
 	.warn  { border-color: var(--vscode-editorWarning-foreground); background: #fc04; }
 	.error { border-color: var(--vscode-editorError-foreground);   background: #f004; }
@@ -375,16 +394,35 @@ function show(state) {
 	</div>
 	${state.error ? `<div class="error">${escape(state.error)}</div>` : ""}
 	${notes.join("")}
+	${state.messages && !state.error ? `
+	<details id="harness" class="${state.warned ? "warn" : "note"}"${messageLines > 12 ? "" : " open"}>
+		<summary>${messageLines} message${messageLines === 1 ? "" : "s"} from the harness</summary>
+		<pre>${escape(state.messages)}</pre>
+		<button class="fold" id="fold">collapse</button>
+	</details>` : ""}
 	<div class="selection"><span id="readout"></span><span id="rules"></span></div>
-	${state.messages && !state.error
-		? `<div class="${state.warned ? "warn" : "note"}">${escape(state.messages)}</div>`
-		: ""}
-	${source ? `<div id="viewport" class="frame"><div class="stage"><img id="render" src="${source}"/><div id="overlay"></div></div></div>` : ""}
+	${source ? `<div id="viewport" class="frame"><div class="stage"><img id="render" src="${source}" draggable="false"/><div id="overlay"></div></div></div>` : ""}
 	<script>
 		const api = acquireVsCodeApi();
 		const elements = ${JSON.stringify(elements)};
 
 		const image = document.getElementById("render");
+		const viewport = document.getElementById("viewport");
+		const harness = document.getElementById("harness");
+		const fold = document.getElementById("fold");
+
+		if (fold && harness) {
+			fold.addEventListener("click", () => {
+				harness.open = false;
+				harness.scrollIntoView({ block: "nearest" });
+			});
+		}
+
+		// A drag on an image is a file drag in a webview, which is what makes a middle drag move the
+		// picture instead of the view.
+		if (image) {
+			image.addEventListener("dragstart", (event) => event.preventDefault());
+		}
 		const overlay = document.getElementById("overlay");
 		const rules = document.getElementById("rules");
 		const readout = document.getElementById("readout");
@@ -457,6 +495,66 @@ function show(state) {
 			if (stack.length === 0) { return null; }
 			return stack[Math.min(depth || 0, stack.length - 1)];
 		}
+
+		/*
+		 * Panning. A render bigger than the panel is the normal case at any real zoom, and reaching for
+		 * the scrollbars to look at the other corner is the thing that makes the preview tiring.
+		 *
+		 * Middle drag pans on its own. Space plus any drag pans as well, because that is the gesture
+		 * every canvas tool uses and left drag is already picking elements.
+		 */
+		let spaceHeld = false;
+		let panning = null;
+
+		document.addEventListener("keydown", (event) => {
+			if (event.code === "Space" && !spaceHeld) {
+				spaceHeld = true;
+				viewport.style.cursor = "grab";
+				// Or the page scrolls a line down under the drag.
+				event.preventDefault();
+			}
+		});
+
+		document.addEventListener("keyup", (event) => {
+			if (event.code === "Space") {
+				spaceHeld = false;
+				if (!panning) { viewport.style.cursor = ""; }
+			}
+		});
+
+		viewport.addEventListener("mousedown", (event) => {
+			const wants = event.button === 1 || (spaceHeld && event.button === 0);
+			if (!wants) { return; }
+
+			panning = {
+				x: event.clientX,
+				y: event.clientY,
+				left: viewport.scrollLeft,
+				top: viewport.scrollTop,
+			};
+
+			viewport.style.cursor = "grabbing";
+			event.preventDefault();
+			event.stopPropagation();
+		});
+
+		window.addEventListener("mousemove", (event) => {
+			if (!panning) { return; }
+			viewport.scrollLeft = panning.left - (event.clientX - panning.x);
+			viewport.scrollTop = panning.top - (event.clientY - panning.y);
+			event.preventDefault();
+		});
+
+		window.addEventListener("mouseup", () => {
+			if (!panning) { return; }
+			panning = null;
+			viewport.style.cursor = spaceHeld ? "grab" : "";
+		});
+
+		// A middle click otherwise pastes on Linux and scroll-locks on Windows.
+		viewport.addEventListener("auxclick", (event) => {
+			if (event.button === 1) { event.preventDefault(); }
+		});
 
 		/**
 		 * How many CSS pixels the image is drawn at per pixel it contains.
@@ -1058,6 +1156,36 @@ function activate(context) {
 			render();
 		}
 	}));
+
+	/*
+	 * The same thing for changes VSCode did not make.
+	 *
+	 * A save event only fires for a file this editor saved, so a document edited by a script, an
+	 * agent, another editor or a generator left the panel showing something stale with nothing to say
+	 * it had. Watching the workspace covers all of them, and mock data and fonts as well.
+	 */
+	const watcher = vscode.workspace.createFileSystemWatcher("**/*.{rml,rcss,json,png,ttf,otf}");
+	let coalesce = null;
+
+	// Build output is not source. Rendering on a change under these re-runs uipreview while something
+	// is writing it, which on Windows holds the binary open and fails the link that produced it.
+	const IGNORED = /\/(bin|Binaries|Intermediate|Saved|DerivedDataCache|node_modules)\//i;
+
+	const touched = (uri) => {
+		if (!panel || (uri && IGNORED.test(uri.fsPath.split("\\").join("/")))) {
+			return;
+		}
+
+		// A generator can write a dozen files in a row, and one render at the end of that is the
+		// answer to all of them.
+		clearTimeout(coalesce);
+		coalesce = setTimeout(render, 120);
+	};
+
+	watcher.onDidChange(touched);
+	watcher.onDidCreate(touched);
+	watcher.onDidDelete(touched);
+	context.subscriptions.push(watcher);
 
 	/*
 	 * The other direction: put the caret in a rule and the elements it styles light up.

@@ -54,6 +54,10 @@ animation playing over time. It takes the same `folio.root`, `folio.size`, `foli
 `folio.culture` and `folio.themes` settings, watches the file itself, and outlives the editor
 closing.
 
+It re-renders whenever any `.rml`, `.rcss`, `.json`, or font in the workspace changes - saved from
+this editor or written by anything else, so a generator, a script or an agent editing files behind
+your back updates the panel too. Several files changing at once coalesce into one render.
+
 It re-renders whenever you save an `.rml` **or** an `.rcss`, because a document links several
 stylesheets and a change to one matters as much as a change to the markup. It follows the active
 editor, so switching documents previews the one you are looking at.
@@ -65,6 +69,11 @@ past. `UI/examples/button.rml` has one, if you want to see what that looks like.
 ## Zooming
 
 `Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`.
+
+**Drag to pan.** Middle mouse drags the render around; hold space and any drag does the same, which
+is the gesture every canvas tool uses and leaves left-drag free to pick elements. Worth knowing at a
+high zoom, where the render is larger than the panel and reaching for the scrollbars is the thing
+that makes the preview tiring.
 
 **Zooming re-renders rather than magnifying.** It scales the dp ratio, which is what a browser's zoom
 does: the viewport stays the size `folio.size` asks for and the content within it grows, so you see
@@ -169,8 +178,8 @@ All under `folio.` in settings:
   tool has not been built. `./scripts/build.sh`.
 - **The panel is empty and reports nothing.** The document failed to parse. Run it directly to see
   why: `./bin/win64/uipreview.exe <file> --root . --strict`.
-- **Nothing happens on save.** The preview only follows `.rml` and `.rcss`. Saving a `.json` mock or a
-  font will not re-render; use **Folio: Refresh Preview**.
+- **Nothing happens on save.** The preview follows every `.rml`, `.rcss`, `.json` and font in the
+  workspace. A file outside the workspace is the case it cannot see; use **Folio: Refresh Preview**.
 - **The extension is not there after installing.** Reload the window. VSCode scans for extensions once
   at startup.
 

@@ -732,7 +732,11 @@ void SFolioCanvas::OnDeviceChanged(const Folio::EInputDevice Device)
 		}
 	}
 
-	FocusFirstElement();
+	if (Previous == Folio::EInputDevice::Mouse || Previous == Folio::EInputDevice::Unknown)
+	{
+		FocusFirstElement();
+	}
+
 	MarkDirty(TEXT("input device changed"));
 }
 
@@ -793,8 +797,23 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 
 	// Down and up together. RmlUi navigates on the press, but an element left thinking a key is
 	// still held misbehaves the next time the same key arrives.
+	const Rml::Element* Before = Context->GetFocusElement();
+
 	const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
 	Context->ProcessKeyUp(Key, Modifiers);
+
+	static const IConsoleVariable* TraceVar =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("folio.Input.Trace"));
+
+	if (TraceVar && TraceVar->GetInt() != 0)
+	{
+		const Rml::Element* After = Context->GetFocusElement();
+		UE_LOG(LogFolio, Display, TEXT("input trace: nav %d focus %s -> %s%s"),
+			static_cast<int32>(Key),
+			Before ? *Folio::ToFString(Before->GetAddress(false, false)) : TEXT("none"),
+			After ? *Folio::ToFString(After->GetAddress(false, false)) : TEXT("none"),
+			bConsumed ? TEXT(" consumed") : TEXT(""));
+	}
 
 	// Nothing in the document wanted the back action, so the game gets told. A modal that closed
 	// itself has consumed it and this does not fire.

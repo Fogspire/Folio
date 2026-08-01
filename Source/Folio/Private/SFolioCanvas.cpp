@@ -267,10 +267,26 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 
 	// Nothing to draw until it has been laid out once. RmlUi's defaults are not the author's - a body
 	// with no background rule computed yet is opaque white - so painting a document on the frame it
-	// loaded is a white frame every time a screen opens.
+	// loaded would be a frame of the wrong thing.
 	if (!Host.IsLaidOut())
 	{
 		return LayerId;
+	}
+
+	// A diagnostic for a white frame as a screen opens. Slate ticks before it paints, so a document
+	// is always laid out by its first paint and the guard above cannot be what is showing; if
+	// dropping the first painted frames removes the flash it is the content of those frames, and if
+	// it does not the flash is not coming from this widget at all.
+	{
+		static const IConsoleVariable* SkipVar =
+			IConsoleManager::Get().FindConsoleVariable(TEXT("folio.SkipFirstPaints"));
+
+		const int32 Skip = SkipVar ? SkipVar->GetInt() : 0;
+		if (Skip > 0 && PaintsSoFar < Skip)
+		{
+			++PaintsSoFar;
+			return LayerId;
+		}
 	}
 
 	FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();

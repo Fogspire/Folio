@@ -182,6 +182,8 @@ public:
 
 	TSet<FKey> GameKeys;
 
+	mutable int32 PaintsSoFar = 0;
+
 	/** What the player last touched. Documents swap button glyphs on it. */
 	Folio::EInputDevice GetLastInputDevice() const;
 

@@ -1812,6 +1812,12 @@ namespace
 		}
 	}
 
+	TAutoConsoleVariable<int32> CVarSkipFirstPaints(
+		TEXT("folio.SkipFirstPaints"), 0,
+		TEXT("Drops the first N painted frames of every canvas. A diagnostic for a flash as a screen "
+			"opens: if the flash goes, it is the content of those frames."),
+		ECVF_Default);
+
 	FAutoConsoleCommand InputFocusCommand(
 		TEXT("folio.Input.Focus"),
 		TEXT("folio.Input.Focus [delay]. Reports what holds focus and what the mouse is over, per screen "

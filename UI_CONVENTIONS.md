@@ -211,6 +211,12 @@ ones. Name the properties.
 Anything not on these lists does not exist. A misspelled name is a warning, never an error, and
 produces no output.
 
+**A source may name a texture the game registered** rather than a sprite or a file:
+`folio://minimap`. That is the seam for a scene capture, a paper doll or a rendered item - anything
+that is a `UTexture` at the point of use rather than something on disk. It works anywhere a source
+does. `uipreview` draws `UI/art/preview/<name>.png` if it exists and a placeholder otherwise. See
+[docs/images.md](docs/images.md).
+
 **`decorator` and `mask-image`** take: `image`, `ninepatch`, `tiled-horizontal`,
 `tiled-vertical`, `tiled-box`, `text`, `shader`, `gradient`, `horizontal-gradient`,
 `vertical-gradient`, `linear-gradient`, `repeating-linear-gradient`, `radial-gradient`,

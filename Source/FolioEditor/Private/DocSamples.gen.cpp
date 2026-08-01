@@ -19,6 +19,7 @@
 
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Engine/DataTable.h"
+#include "Engine/Texture.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -41,6 +42,7 @@ namespace FolioDocSamples
 	inline UObject* PlayerViewModel = nullptr;
 	inline UObject* Model = nullptr;
 	inline UDataTable* Table = nullptr;
+	inline UTexture* CaptureTarget = nullptr;
 
 	inline Rml::Element* Element = nullptr;
 	// markers.md drives a UMG slot; the tutorials drive an element. Both are named Slot in their own
@@ -96,14 +98,26 @@ namespace FolioDocSamples
 		Document->BindViewModel(TEXT("player"), PlayerViewModel);
 	}
 
+	// docs/hosting.md#1
+	inline void Sample_docs_hosting_md_1()
+	{
+		Document->bInteractive = false;   // or SetInteractive(false) on one already up
+	}
+
 	// docs/hud_motion.md#0
 	inline void Sample_docs_hud_motion_md_0()
 	{
-		Motion->SnapToRest();
+		Motion->SetDocumentSource(Document);
 	}
 
 	// docs/hud_motion.md#1
 	inline void Sample_docs_hud_motion_md_1()
+	{
+		Motion->SnapToRest();
+	}
+
+	// docs/hud_motion.md#2
+	inline void Sample_docs_hud_motion_md_2()
 	{
 		// Two axes, always - a spring here is a point chasing a point. Drive one axis and ignore the other
 		// if that is all you need.
@@ -111,6 +125,12 @@ namespace FolioDocSamples
 		Element->SetProperty("transform",
 		    Folio::ToRmlString(FString::Printf(TEXT("translate(%.2fdp, %.2fdp)"),
 		        Spring.Value.X, Spring.Value.Y)));
+	}
+
+	// docs/images.md#0
+	inline void Sample_docs_images_md_0()
+	{
+		Document->RegisterTexture(TEXT("minimap"), CaptureTarget);
 	}
 
 	// docs/input_and_navigation.md#0
@@ -188,6 +208,18 @@ namespace FolioDocSamples
 	inline void Sample_docs_tutorials_inventory_md_2()
 	{
 		Slot->AddEventListener("dragdrop", Listener);
+	}
+
+	// docs/tutorials/visor_hud.md#0
+	inline void Sample_docs_tutorials_visor_hud_md_0()
+	{
+		Document->bInteractive = false;
+	}
+
+	// docs/tutorials/visor_hud.md#1
+	inline void Sample_docs_tutorials_visor_hud_md_1()
+	{
+		Motion->SetDocumentSource(Document);
 	}
 
 	// docs/ui_sounds.md#1

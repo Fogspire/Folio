@@ -8,6 +8,7 @@
 #include "FolioWidget.generated.h"
 
 class SFolioCanvas;
+class UTexture;
 
 /** One requested binding, kept so it can be applied before the document loads and again on rebuild. */
 USTRUCT()
@@ -111,6 +112,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API bool SetElementProperty(const FString& ElementId, const FString& Property, const FString& Value);
 
+	/**
+	 * Hands a texture to this document under a name it can draw.
+	 *
+	 *     Widget->RegisterTexture(TEXT("minimap"), CaptureTarget);
+	 *     <img src="folio://minimap"/>
+	 *
+	 * For anything a document cannot reach as a file: a scene capture behind a minimap, a paper doll,
+	 * a rendered item. It works everywhere a source does - `img`, every decorator, `mask-image`.
+	 *
+	 * The widget releases the names it registered when it is torn down, so a screen cleans up after
+	 * itself. **Names are global**, because RmlUi caches a texture against its source string and Folio
+	 * has one render manager for the application: two documents naming `portrait` share whichever
+	 * texture was registered last, and the swap is logged. Prefix by screen when that could happen.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void RegisterTexture(FName Name, UTexture* Texture);
+
+	/** Drops a name this widget registered. Called for all of them when the widget goes away. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void UnregisterTexture(FName Name);
+
 	/** Turns input on or off on a document that is already up. See bInteractive. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void SetInteractive(bool bInInteractive);
@@ -146,6 +168,9 @@ private:
 
 	UPROPERTY()
 	TArray<FFolioViewModelBinding> Bindings;
+
+	/** Names this widget put in the registry, so they can be taken back out. */
+	TSet<FName> OwnedTextures;
 
 	TSharedPtr<SFolioCanvas> Canvas;
 };

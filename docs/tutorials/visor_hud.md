@@ -26,7 +26,7 @@ The parts worth reading for themselves:
 Do this before anything else, because the failure it prevents does not look like a UI bug.
 
 ```cpp
-Widget->bInteractive = false;
+Document->bInteractive = false;
 ```
 
 A HUD is a readout drawn over a game that is still being played. Leave it interactive and the canvas
@@ -252,7 +252,7 @@ takes `Camera Turn` only - a strafe should not slide the aim mark sideways.
 an actor and there is nothing to search:
 
 ```cpp
-Motion->SetDocumentSource(HudWidget);
+Motion->SetDocumentSource(Document);
 ```
 
 ## 7. Footsteps are a second component
@@ -311,7 +311,7 @@ game, and components on it tick without any extra wiring.
 ```cpp
 Widget = NewObject<UFolioWidget>(this);
 Widget->DocumentPath = TEXT("UI/screens/visor.rml");
-Widget->bInteractive = false;
+Document->bInteractive = false;
 
 SlateWidget = Widget->TakeWidget();
 GetWorld()->GetGameViewport()->AddViewportWidgetContent(SlateWidget.ToSharedRef(), 0);

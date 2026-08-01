@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string_view>
 
 namespace uipreview {
 
@@ -100,6 +101,16 @@ bool LooksLikeFileReference(const std::string& source)
 	return extension.size() <= 4 && std::all_of(extension.begin(), extension.end(), [](unsigned char c) { return std::isalnum(c); });
 }
 
+/** The name in `folio://<name>`, or empty when the source is not one. */
+std::string NamedTextureOf(const std::string& source)
+{
+	constexpr std::string_view scheme = "folio://";
+	if (source.size() <= scheme.size() || source.compare(0, scheme.size(), scheme) != 0)
+		return {};
+
+	return source.substr(scheme.size());
+}
+
 } // namespace
 
 PreviewRenderInterface::PreviewRenderInterface(Diagnostics& in_diagnostics, MissingAssets& in_missing_assets)
@@ -108,6 +119,46 @@ PreviewRenderInterface::PreviewRenderInterface(Diagnostics& in_diagnostics, Miss
 
 Rml::TextureHandle PreviewRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions, const Rml::String& source)
 {
+	// A texture the game hands the document at runtime - a scene capture, a paper doll, a rendered
+	// item. There is no such thing outside the engine, so a stand-in beside the document is what
+	// keeps the layout honest here.
+	if (const std::string named = NamedTextureOf(source); !named.empty())
+	{
+		const std::string fallback = "UI/art/preview/" + named + ".png";
+
+		std::vector<unsigned char> pixels;
+		Rml::Vector2i size;
+		if (LoadPng(fallback, pixels, size))
+		{
+			texture_dimensions = size;
+			return RenderInterface_GL3::GenerateTexture(
+				Rml::Span<const Rml::byte>(pixels.data(), pixels.size()), size);
+		}
+
+		if (const auto it = placeholder_textures.find(named); it != placeholder_textures.end())
+		{
+			texture_dimensions = {kPlaceholderSize, kPlaceholderSize};
+			return it->second;
+		}
+
+		// Info, not a warning: a document naming a game texture is correct, and it must still pass
+		// --strict. The stand-in is an option, not an obligation.
+		diagnostics.Report(Severity::Info, "I-ASSET-GAMETEXTURE",
+			"'" + std::string(source) + "' is a texture the game provides; rendered as a placeholder. "
+			"Put " + fallback + " beside the document for a stand-in.",
+			{}, 0, {{"texture", named}, {"fallback", fallback}});
+
+		const std::vector<unsigned char> pixels_placeholder = MakePlaceholderPixels(named, kPlaceholderSize);
+		texture_dimensions = {kPlaceholderSize, kPlaceholderSize};
+
+		const Rml::TextureHandle handle = RenderInterface_GL3::GenerateTexture(
+			Rml::Span<const Rml::byte>(pixels_placeholder.data(), pixels_placeholder.size()), texture_dimensions);
+
+		placeholder_textures[named] = handle;
+		placeholder_names[handle] = named;
+		return handle;
+	}
+
 	if (HasExtension(source, ".png"))
 	{
 		// A sheet baked by msdfbake carries a sidecar naming its field parameters. With it, the

@@ -52,7 +52,7 @@ after the screen is visible and expecting `{{ braces }}` to start resolving.
 over a game that is still being played, and it must never be a focus target:
 
 ```cpp
-Widget->bInteractive = false;   // or SetInteractive(false) on one already up
+Document->bInteractive = false;   // or SetInteractive(false) on one already up
 ```
 
 Leave it on and the HUD is focusable, which breaks the game in a way that looks nothing like a UI

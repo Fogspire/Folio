@@ -118,6 +118,51 @@ nothing else.
 Write `#0000007f`. Hex alpha is unambiguous, and `#rgb`, `#rgba`, `#rrggbb` and `#rrggbbaa` all work.
 `hsl()`, `hsla()`, `lab()`, `lch()`, `oklab()`, `oklch()` and the HTML colour names are accepted too.
 
+## Textures the game provides
+
+Everything above is a file. A scene capture behind a minimap, a paper doll, a rendered inventory
+item, a video frame - none of those is a file, and there is no path for a document to name.
+
+Register the texture and name it with the `folio://` scheme:
+
+```cpp
+Document->RegisterTexture(TEXT("minimap"), CaptureTarget);
+```
+```html
+<img src="folio://minimap"/>
+```
+```css
+.portrait { decorator: image(folio://inv/portrait); }
+```
+
+It is a source like any other, so it works with `<img>`, every `image`-family decorator,
+`mask-image` and `image-color`. The texture is any `UTexture` - a render target is the usual one, but
+a streamed texture or a `UTexture2D` built at runtime works the same.
+
+**`UFolioWidget::RegisterTexture` releases its names when the widget is torn down**, which is what you
+want for a screen. `UFolioTextureLibrary` (Blueprint) and `Folio::RegisterTexture` (C++) reach the
+same registry for callers with no widget to hand, and those do not clean up after themselves.
+
+Re-registering a name swaps the texture everywhere it is drawn - the cached handle is released for
+you, so a document that is already up picks up the new one.
+
+### Names are global
+
+RmlUi caches a texture against its source string on a render manager, and Folio has one for the whole
+application. Two documents naming `portrait` get the same texture, whichever registered it last, and
+the swap is logged as a warning. Prefix by screen when that could happen - `hud/minimap`,
+`inv/portrait` - exactly as you would with sprite names.
+
+### It cannot exist in the preview
+
+There is no engine outside the engine, so `uipreview` draws a stand-in. Put a PNG at
+`UI/art/preview/<name>.png` and it draws that; leave it out and you get the usual named placeholder
+and one `I-ASSET-GAMETEXTURE` line. Either way the element occupies the right space and the rest of
+the layout is honest.
+
+**It is reported as info rather than a warning**, so a screen using a game texture still passes
+`--strict`. A document naming one is correct, not incomplete.
+
 ## Missing art
 
 An unresolved sprite renders as a magenta placeholder with its name stamped across it, and the name

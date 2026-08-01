@@ -9,6 +9,7 @@
 #include "FolioCore/FolioShaderEffects.h"
 #include "FolioFileInterface.h"
 #include "FolioModule.h"
+#include "FolioTextures.h"
 #include "HAL/PlatformFileManager.h"
 #include "Brushes/SlateDynamicImageBrush.h"
 #include "Framework/Application/SlateApplication.h"
@@ -597,6 +598,28 @@ Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensio
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_LoadTexture);
 	SCOPE_CYCLE_COUNTER(STAT_FolioLoadTexture);
 	LLM_SCOPE_BYTAG(Folio);
+
+	// A texture the game registered rather than a file. Resolved before the file interface, because
+	// there is no file for it to open and a scene capture has no path.
+	if (const FName Named = Folio::ParseTextureName(Folio::ToFString(Source)); !Named.IsNone())
+	{
+		UTexture* Texture = Folio::FindTexture(Named);
+		if (!Texture)
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("'%s' names a texture the game has not registered. Call Folio::RegisterTexture, or ")
+				TEXT("UFolioWidget::RegisterTexture, before the document draws."),
+				*Folio::ToFString(Source));
+			return 0;
+		}
+
+		const FIntPoint Size(
+			FMath::Max(1, int32(Texture->GetSurfaceWidth())),
+			FMath::Max(1, int32(Texture->GetSurfaceHeight())));
+
+		OutDimensions = Rml::Vector2i(Size.X, Size.Y);
+		return RegisterTexture(Texture, Size);
+	}
 
 	Rml::FileInterface* Files = Rml::GetFileInterface();
 	const Rml::FileHandle File = Files ? Files->Open(Source) : Rml::FileHandle();

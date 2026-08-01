@@ -2,6 +2,7 @@
 
 #include "FolioModule.h"
 #include "FolioRmlUi.h"
+#include "FolioTextures.h"
 #include "SFolioCanvas.h"
 
 #include <RmlUi/Core/Element.h>
@@ -54,6 +55,13 @@ void UFolioWidget::ReleaseSlateResources(const bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
 	Canvas.Reset();
+
+	for (const FName Name : OwnedTextures)
+	{
+		Folio::UnregisterTexture(Name);
+	}
+
+	OwnedTextures.Reset();
 }
 
 void UFolioWidget::LoadDocument(const FString& InDocumentPath)
@@ -141,6 +149,23 @@ bool UFolioWidget::SetElementProperty(const FString& ElementId, const FString& P
 	Canvas->MarkDirty(TEXT("element property"));
 
 	return true;
+}
+
+void UFolioWidget::RegisterTexture(const FName Name, UTexture* Texture)
+{
+	if (Name.IsNone())
+	{
+		return;
+	}
+
+	Folio::RegisterTexture(Name, Texture);
+	OwnedTextures.Add(Name);
+}
+
+void UFolioWidget::UnregisterTexture(const FName Name)
+{
+	Folio::UnregisterTexture(Name);
+	OwnedTextures.Remove(Name);
 }
 
 void UFolioWidget::SetInteractive(const bool bInInteractive)

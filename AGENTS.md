@@ -143,7 +143,8 @@ with the player's UI scale; `px` only for hairlines.
 
 **Images** are sprites from a `@spritesheet`, drawn with `<img sprite="...">` or
 `decorator: image(...)`. Tint single-colour art with `image-color` rather than shipping four
-variants.
+variants. A texture the game registers is named `folio://<name>` and works anywhere a source does -
+that is how a scene capture, a paper doll or a rendered item reaches a document.
 
 **Text** is distance-field and scales freely - pick sizes for the design. Font effects reach about
 0.104em, so an outline on small text gets clamped.

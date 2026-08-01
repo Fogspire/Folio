@@ -28,7 +28,7 @@ That is the feature. The component finds the document on the same actor, so noth
 there is nothing to search — hand it over once and the rest is the same:
 
 ```cpp
-Motion->SetDocumentSource(HudWidget);
+Motion->SetDocumentSource(Document);
 ```
 
 ## Weight, and why it is negative

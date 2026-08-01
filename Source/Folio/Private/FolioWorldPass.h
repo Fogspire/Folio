@@ -109,12 +109,15 @@ private:
 	bool HasSurfaces(bool bInScene) const;
 
 	/**
-	 * Collected on the game thread, read on the render thread.
+	 * What the render thread is drawing. Never touched from the game thread.
 	 *
-	 * The draw lists are shared rather than copied: a document only re-records when it changes, so copying
-	 * every frame would undo the invalidation work. Shared rather than pointed at, because a frame is still
-	 * in flight when the next tick records, and a raw pointer into a list being rewritten is a race - one
-	 * that shows up as geometry flickering while the camera moves.
+	 * A whole snapshot is handed over per frame rather than one array being refilled in place. The render
+	 * thread is a frame behind, so the game thread collecting frame N+1 into an array the render thread is
+	 * still iterating for frame N reallocates it mid-loop: the surface reference the pass is holding
+	 * dangles, and the frame crashes somewhere inside the draw with nothing pointing back here.
+	 *
+	 * The draw lists inside it are shared rather than copied: a document only re-records when it changes,
+	 * so copying every frame would undo the invalidation work.
 	 */
-	TArray<FSurface> Surfaces;
+	TSharedPtr<const TArray<FSurface>> RenderSurfaces;
 };

@@ -49,7 +49,7 @@ bool FFolioWorldPass::IsActiveThisFrame_Internal(const FSceneViewExtensionContex
 
 bool FFolioWorldPass::HasSurfaces(const bool bInScene) const
 {
-	return Surfaces.ContainsByPredicate(
+	return RenderSurfaces.IsValid() && RenderSurfaces->ContainsByPredicate(
 		[bInScene](const FSurface& Surface) { return Surface.bInScene == bInScene; });
 }
 
@@ -57,42 +57,50 @@ void FFolioWorldPass::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	// Collected here because this is the last point on the game thread where a component can safely be
 	// touched. Everything the pass needs is taken now, and nothing reads a UObject afterwards.
-	Surfaces.Reset();
+	TSharedRef<TArray<FSurface>> Collected = MakeShared<TArray<FSurface>>();
 
 	// The live list is process-wide, and so is a view extension. Without this a document placed in the
 	// level draws into every other scene the editor renders: blueprint and material preview viewports,
 	// asset thumbnails, anything with its own world.
 	const UWorld* FamilyWorld = InViewFamily.Scene ? InViewFamily.Scene->GetWorld() : nullptr;
-	if (!FamilyWorld)
+
+	if (FamilyWorld)
 	{
-		return;
+		for (UFolioWorldDocument* Document : UFolioWorldDocument::GetLive())
+		{
+			if (!Document || Document->GetWorld() != FamilyWorld)
+			{
+				continue;
+			}
+
+			// A surface renders itself into a target for a material to sample, so neither route here draws it.
+			if (Document->DrawMode == EFolioWorldDrawMode::Surface)
+			{
+				continue;
+			}
+
+			TSharedPtr<const FFolioDrawList> Draws = Document->GetDrawList();
+			if (!Draws.IsValid() || Draws->IsEmpty())
+			{
+				continue;
+			}
+
+			FSurface& Surface = Collected->AddDefaulted_GetRef();
+			Surface.Draws = MoveTemp(Draws);
+			Surface.DocumentSize = Document->GetDocumentSize();
+			Surface.bInScene = Document->DrawMode == EFolioWorldDrawMode::InScene;
+			Document->GetSurface(Surface.Centre, Surface.Right, Surface.Up);
+		}
 	}
 
-	for (UFolioWorldDocument* Document : UFolioWorldDocument::GetLive())
-	{
-		if (!Document || Document->GetWorld() != FamilyWorld)
+	// Handed over rather than assigned: render commands run in order, so this lands before the passes
+	// for this frame and after the ones already issued for the last. An empty snapshot is enqueued too,
+	// or a scene with nothing in it keeps drawing whatever the previous family collected.
+	ENQUEUE_RENDER_COMMAND(FolioWorldSurfaces)(
+		[this, Collected](FRHICommandListImmediate&)
 		{
-			continue;
-		}
-
-		// A surface renders itself into a target for a material to sample, so neither route here draws it.
-		if (Document->DrawMode == EFolioWorldDrawMode::Surface)
-		{
-			continue;
-		}
-
-		TSharedPtr<const FFolioDrawList> Draws = Document->GetDrawList();
-		if (!Draws.IsValid() || Draws->IsEmpty())
-		{
-			continue;
-		}
-
-		FSurface& Surface = Surfaces.AddDefaulted_GetRef();
-		Surface.Draws = MoveTemp(Draws);
-		Surface.DocumentSize = Document->GetDocumentSize();
-		Surface.bInScene = Document->DrawMode == EFolioWorldDrawMode::InScene;
-		Document->GetSurface(Surface.Centre, Surface.Right, Surface.Up);
-	}
+			RenderSurfaces = Collected;
+		});
 }
 
 void FFolioWorldPass::SubscribeToPostProcessingPass(const EPostProcessingPass Pass, const FSceneView&,
@@ -171,7 +179,7 @@ void FFolioWorldPass::DrawInScene(FRDGBuilder& GraphBuilder, const FSceneView& V
 	const FMatrix ViewProjection =
 		View.ViewMatrices.GetWorldToView() * View.ViewMatrices.GetViewToClipNoAA();
 
-	for (const FSurface& Surface : Surfaces)
+	for (const FSurface& Surface : *RenderSurfaces)
 	{
 		if (Surface.bInScene)
 		{
@@ -264,7 +272,7 @@ FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FScene
 	const FMatrix ViewProjection =
 		View.ViewMatrices.GetWorldToView() * View.ViewMatrices.GetViewToClipNoAA();
 
-	for (const FSurface& Surface : Surfaces)
+	for (const FSurface& Surface : *RenderSurfaces)
 	{
 		if (!Surface.bInScene)
 		{

@@ -10,6 +10,28 @@
 class FFolioDocumentHost;
 
 /**
+ * How a marker leaves the screen when it runs out of distance.
+ *
+ * A marker that vanishes between one frame and the next reads as a bug, and a screen with thirty of
+ * them popping in and out reads as noise. This is what it does across the last stretch instead.
+ */
+UENUM(BlueprintType)
+enum class EFolioMarkerTransition : uint8
+{
+	/** Drawn or not drawn, with nothing in between. */
+	None,
+
+	/** Opacity, which is what a marker did before there was a choice. */
+	Fade,
+
+	/** Shrinks towards its anchor, so it recedes rather than dissolving. */
+	Scale,
+
+	/** Both. It reads as the marker going away rather than being switched off, which is the point. */
+	FadeAndScale,
+};
+
+/**
  * A document that lives on the screen but follows a place in the world.
  *
  * Nameplates, objective markers, damage numbers, interaction prompts, waypoints. The document is laid
@@ -83,16 +105,20 @@ public:
 	float MaxScale = 1.5f;
 
 	/**
-	 * Fades out between these distances, and stops drawing past the second.
+	 * Goes away between these distances, and stops drawing past the second.
 	 *
-	 * Zero for both switches it off. Fading rather than popping matters more here than it looks: a
-	 * screen with thirty markers on it reads as noise, and distance is the cheapest way to thin them.
+	 * Zero for both switches it off. Thinning by distance matters more than it looks: a screen with
+	 * thirty markers on it reads as noise, and this is the cheapest way to have fewer.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance", meta = (ClampMin = "0.0"))
 	float FadeStartDistance = 0.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance", meta = (ClampMin = "0.0"))
 	float FadeEndDistance = 0.0f;
+
+	/** What it does across that stretch. Fade is what it did before this was a choice. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance")
+	EFolioMarkerTransition DistanceTransition = EFolioMarkerTransition::Fade;
 
 	/**
 	 * Keeps an off-screen marker at the edge of the screen, pointing at where it is.
@@ -112,14 +138,33 @@ public:
 	 *
 	 * Clamping is what stops the player losing an objective they cannot see. It is not what should
 	 * happen to every marker in the level: a rim of arrows for things a mile behind them is noise,
-	 * and the far ones are the least useful. Past this distance an off-screen marker is simply
-	 * hidden, as an unclamped one is.
+	 * and the far ones are the least useful. Past `Clamp End Distance` an off-screen marker is hidden,
+	 * as an unclamped one is, and it goes away across the stretch before it.
 	 *
-	 * Off by default, so clamping behaves as it always has until a game asks for the limit.
+	 * Zero by default, so clamping behaves as it always has until a game asks for the limit.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
 		meta = (EditCondition = "bClampToScreenEdge", ClampMin = "0.0", ForceUnits = "cm"))
-	float ClampMaxDistance = 0.0f;
+	float ClampStartDistance = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (EditCondition = "bClampToScreenEdge", ClampMin = "0.0", ForceUnits = "cm"))
+	float ClampEndDistance = 0.0f;
+
+	/** What a clamped marker does across that stretch. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (EditCondition = "bClampToScreenEdge"))
+	EFolioMarkerTransition ClampTransition = EFolioMarkerTransition::FadeAndScale;
+
+	/**
+	 * The size a scaling transition has shrunk to when it stops drawing, as a fraction.
+	 *
+	 * Not zero by default: something that shrinks the whole way to a point spends its last frames as
+	 * an unreadable speck, and stopping short of that reads as a cut rather than a collapse.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance",
+		meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float TransitionScale = 0.35f;
 
 	/**
 	 * Which player sees it. Zero is the first local player, which is the answer in a single-player game.

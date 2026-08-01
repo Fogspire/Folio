@@ -140,6 +140,60 @@ void UFolioMarkerDocument::TickComponent(const float DeltaTime, const ELevelTick
 	Placement.PlayerIndex = PlayerIndex;
 }
 
+namespace
+{
+	/**
+	 * How far through a distance band a marker is: 1 before it starts, 0 at the end.
+	 *
+	 * An end of zero, or one that is not past the start, means there is no band and nothing happens.
+	 */
+	float BandAlpha(const float Distance, const float Start, const float End)
+	{
+		if (End <= 0.0f || End <= Start)
+		{
+			return 1.0f;
+		}
+
+		if (Distance >= End)
+		{
+			return 0.0f;
+		}
+
+		if (Distance <= Start)
+		{
+			return 1.0f;
+		}
+
+		return 1.0f - (Distance - Start) / (End - Start);
+	}
+
+	/** Turns that into what the marker actually does, which is the part a game gets to choose. */
+	void ApplyTransition(const EFolioMarkerTransition Transition, const float Alpha, const float FloorScale,
+		float& InOutOpacity, float& InOutScale)
+	{
+		switch (Transition)
+		{
+		case EFolioMarkerTransition::None:
+			break;
+
+		case EFolioMarkerTransition::Fade:
+			InOutOpacity *= Alpha;
+			break;
+
+		case EFolioMarkerTransition::Scale:
+			// Eased rather than linear: a marker that shrinks at a constant rate reads as being pulled
+			// away, and one that eases out reads as receding.
+			InOutScale *= FMath::Lerp(FloorScale, 1.0f, FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f));
+			break;
+
+		case EFolioMarkerTransition::FadeAndScale:
+			InOutOpacity *= Alpha;
+			InOutScale *= FMath::Lerp(FloorScale, 1.0f, FMath::InterpEaseOut(0.0f, 1.0f, Alpha, 2.0f));
+			break;
+		}
+	}
+}
+
 bool UFolioMarkerDocument::Project(float& OutOpacity)
 {
 	const UWorld* World = GetWorld();
@@ -153,19 +207,15 @@ bool UFolioMarkerDocument::Project(float& OutOpacity)
 	const float Distance = float(FVector::Dist(Controller->PlayerCameraManager->GetCameraLocation(), Location));
 
 	OutOpacity = 1.0f;
+	float TransitionScaleFactor = 1.0f;
 
-	if (FadeEndDistance > 0.0f && FadeEndDistance > FadeStartDistance)
+	const float DistanceAlpha = BandAlpha(Distance, FadeStartDistance, FadeEndDistance);
+	if (DistanceAlpha <= 0.0f)
 	{
-		if (Distance >= FadeEndDistance)
-		{
-			return false;
-		}
-
-		if (Distance > FadeStartDistance)
-		{
-			OutOpacity = 1.0f - (Distance - FadeStartDistance) / (FadeEndDistance - FadeStartDistance);
-		}
+		return false;
 	}
+
+	ApplyTransition(DistanceTransition, DistanceAlpha, TransitionScale, OutOpacity, TransitionScaleFactor);
 
 	FVector2D Screen = FVector2D::ZeroVector;
 	const bool bInFront = UGameplayStatics::ProjectWorldToScreen(Controller, Location, Screen);
@@ -184,7 +234,7 @@ bool UFolioMarkerDocument::Project(float& OutOpacity)
 	const FVector2D ViewportDp = Viewport / SafeDpi;
 	FVector2D Anchored = Screen / SafeDpi;
 
-	const float Scale = bScaleWithDistance
+	float Scale = bScaleWithDistance
 		? FMath::Clamp(ReferenceDistance / FMath::Max(1.0f, Distance), MinScale, MaxScale)
 		: 1.0f;
 
@@ -197,11 +247,15 @@ bool UFolioMarkerDocument::Project(float& OutOpacity)
 		}
 
 		// Past the cut-off an off-screen marker is hidden rather than pinned, so the edge of the screen
-		// carries the ones worth walking towards instead of every marker in the level.
-		if (ClampMaxDistance > 0.0f && Distance > ClampMaxDistance)
+		// carries the ones worth walking towards instead of every marker in the level. The band before
+		// it is what stops that being a pop.
+		const float ClampAlpha = BandAlpha(Distance, ClampStartDistance, ClampEndDistance);
+		if (ClampAlpha <= 0.0f)
 		{
 			return false;
 		}
+
+		ApplyTransition(ClampTransition, ClampAlpha, TransitionScale, OutOpacity, TransitionScaleFactor);
 
 		// Behind the camera, the projection mirrors through the origin, so the direction has to be
 		// flipped before it means anything. Without this a marker behind you is pinned to the opposite
@@ -227,6 +281,9 @@ bool UFolioMarkerDocument::Project(float& OutOpacity)
 
 		Anchored = Centre + Direction * Steps;
 	}
+
+	// After both bands, so a marker that is both far away and clamped shrinks once rather than twice.
+	Scale *= TransitionScaleFactor;
 
 	Anchored += ScreenOffset;
 

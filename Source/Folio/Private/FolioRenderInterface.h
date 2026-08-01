@@ -282,6 +282,9 @@ private:
 
 	void ApplyClipping();
 
+	/** Hands the scissor to whatever recording is open, for the offscreen paths. */
+	void ApplyRecordedScissor();
+
 	/** Draws compiled geometry with an explicit resource, optionally renormalising UVs. */
 	/**
 	 * The geometry's vertices in document space, with any RCSS transform already applied.

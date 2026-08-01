@@ -30,6 +30,16 @@ struct FFolioDraw
 	/** The shader's MsdfField and MsdfEffect, packed by whoever recorded it. */
 	FVector4f Field = FVector4f::Zero();
 	FVector4f Effect = FVector4f::Zero();
+
+	/**
+	 * The scissor this draw is clipped to, in the recording's own space. Empty for none.
+	 *
+	 * `overflow: hidden` is a scissor, and the screen path hands it to Slate as a clip zone. A
+	 * recording has no Slate to hand it to, so it travels with the draw and is set on the command
+	 * list as the draw is replayed. Without this an offscreen document ignores clipping entirely,
+	 * which shows up as content spilling out of anything that scrolls.
+	 */
+	FIntRect Scissor = FIntRect(0, 0, 0, 0);
 };
 
 /**
@@ -50,6 +60,9 @@ public:
 	/** Records a triangle list. Positions are in the recording's own 2D space. */
 	void AddTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
 		UTexture* Texture, FVector2f Offset, bool bMasked, bool bMaskInverted);
+
+	/** The scissor applied to everything recorded from now on. An empty rect clears it. */
+	void SetScissor(const FIntRect& InScissor) { Scissor = InScissor; }
 
 	/**
 	 * Records text, whose texture is a distance field rather than an image.
@@ -91,6 +104,8 @@ public:
 		FVector2f Offset, bool bUnpremultiply, bool bDecodeSrgb, FFolioDraw& OutDraw);
 
 private:
+	FIntRect Scissor = FIntRect(0, 0, 0, 0);
+
 	TArray<FFolioDraw> Draws;
 	bool bDecodeSrgb = true;
 };

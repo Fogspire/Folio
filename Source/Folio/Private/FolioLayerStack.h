@@ -84,6 +84,9 @@ public:
 
 	void EnableClipMask(bool bEnable);
 
+	/** The recording the top layer is filling, so a scissor can be set on it. Null when empty. */
+	FFolioDrawList* CurrentDrawList();
+
 	/** Resolves the current layer and composites it into the one below. */
 	void CompositeDown(bool bBlend, float BlurSigma,
 		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr);

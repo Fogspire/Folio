@@ -194,6 +194,11 @@ void FFolioLayerStack::SetClipMask(const Rml::ClipMaskOperation Operation, const
 	Layer.Draws.AddClipMask(Operation, Vertices, Indices, Offset);
 }
 
+FFolioDrawList* FFolioLayerStack::CurrentDrawList()
+{
+	return Stack.IsEmpty() ? nullptr : &Stack.Last().Draws;
+}
+
 void FFolioLayerStack::EnableClipMask(const bool bEnable)
 {
 	if (!Stack.IsEmpty())
@@ -465,6 +470,18 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 						void* IndexData = RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes, RLM_WriteOnly);
 						FMemory::Memcpy(IndexData, Draw.Indices.GetData(), IndexBytes);
 						RHICmdList.UnlockBuffer(IndexBuffer);
+
+						// `overflow: hidden`, which the screen path gives to Slate as a clip zone and a
+						// recording has to carry itself.
+						if (Draw.Scissor.Area() > 0)
+						{
+							RHICmdList.SetScissorRect(true, Draw.Scissor.Min.X, Draw.Scissor.Min.Y,
+								Draw.Scissor.Max.X, Draw.Scissor.Max.Y);
+						}
+						else
+						{
+							RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+						}
 
 						RHICmdList.SetStreamSource(0, VertexBuffer, 0);
 						RHICmdList.DrawIndexedPrimitive(IndexBuffer, 0, 0, Draw.Vertices.Num(), 0,

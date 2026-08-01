@@ -815,11 +815,39 @@ void FFolioRenderInterface::ReleaseTexture(const Rml::TextureHandle Handle)
 void FFolioRenderInterface::EnableScissorRegion(const bool bEnable)
 {
 	bScissorEnabled = bEnable;
+	ApplyRecordedScissor();
 }
 
 void FFolioRenderInterface::SetScissorRegion(const Rml::Rectanglei Region)
 {
 	ScissorRegion = Region;
+	ApplyRecordedScissor();
+}
+
+/**
+ * The offscreen twin of ApplyClipping.
+ *
+ * A recording has no element list to push a clip zone onto, so the scissor travels with each draw
+ * instead. Layer space and scissor space share an origin, so the rectangle needs only the layer's
+ * own offset taken off it.
+ */
+void FFolioRenderInterface::ApplyRecordedScissor()
+{
+	FFolioDrawList* Recording = DrawList ? DrawList : Layers.CurrentDrawList();
+	if (!Recording)
+	{
+		return;
+	}
+
+	if (!bScissorEnabled)
+	{
+		Recording->SetScissor(FIntRect());
+		return;
+	}
+
+	Recording->SetScissor(FIntRect(
+		ScissorRegion.Left() - LayerOrigin.X, ScissorRegion.Top() - LayerOrigin.Y,
+		ScissorRegion.Right() - LayerOrigin.X, ScissorRegion.Bottom() - LayerOrigin.Y));
 }
 
 void FFolioRenderInterface::ApplyClipping()

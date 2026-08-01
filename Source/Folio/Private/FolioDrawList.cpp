@@ -73,6 +73,7 @@ void FFolioDrawList::AddTriangles(const TArray<FSlateVertex>& Vertices, const TA
 	Draw.bMaskInverted = bMaskInverted;
 	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, bDecodeSrgb, Draw);
 
+	Draw.Scissor = Scissor;
 	Draws.Add(MoveTemp(Draw));
 }
 
@@ -94,6 +95,7 @@ void FFolioDrawList::AddField(const TArray<FSlateVertex>& Vertices, const TArray
 	Draw.Effect = Effect;
 	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ true, bDecodeSrgb, Draw);
 
+	Draw.Scissor = Scissor;
 	Draws.Add(MoveTemp(Draw));
 }
 
@@ -124,6 +126,7 @@ void FFolioDrawList::AddClipMask(const Rml::ClipMaskOperation Operation,
 	}
 
 	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, bDecodeSrgb, Draw);
+	Draw.Scissor = Scissor;
 	Draws.Add(MoveTemp(Draw));
 }
 

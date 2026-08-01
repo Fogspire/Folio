@@ -36,8 +36,14 @@ namespace
 
 		if (const TSharedPtr<SWidget> Focused = SlateApp.GetUserFocusedWidget(Event.GetUserIndex()))
 		{
+			// Interactive only. A HUD or an overlay left holding focus is not an input target, and
+			// treating it as one is indistinguishable from a document that has stopped responding:
+			// every key goes somewhere that does nothing with it and nothing ever reclaims.
 			SFolioCanvas* const* Found = Live.FindByPredicate(
-				[&Focused](const SFolioCanvas* Canvas) { return Canvas == Focused.Get(); });
+				[&Focused](const SFolioCanvas* Canvas)
+				{
+					return Canvas == Focused.Get() && Canvas->IsInteractive();
+				});
 
 			if (Found)
 			{

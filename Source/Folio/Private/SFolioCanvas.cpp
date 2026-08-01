@@ -40,8 +40,9 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 
 	// A player who swaps between the pad and the keyboard expects the document to be ready for
 	// whichever they just picked up, without a press that only serves to wake it.
+	LastDevice = FFolioModule::Get().GetInputDevice();
 	DeviceChanged = FFolioModule::Get().OnInputDeviceChanged().AddSPLambda(this,
-		[this](Folio::EInputDevice) { FocusFirstElement(); });
+		[this](const Folio::EInputDevice Device) { OnDeviceChanged(Device); });
 
 	// A context needs a size before it will lay anything out, and the real one only arrives with the
 	// first geometry. Starting at the requested desired size means a document loaded now is laid out
@@ -649,6 +650,53 @@ FReply SFolioCanvas::OnFocusReceived(const FGeometry& MyGeometry, const FFocusEv
 	FocusFirstElement();
 
 	return SLeafWidget::OnFocusReceived(MyGeometry, FocusEvent);
+}
+
+void SFolioCanvas::OnDeviceChanged(const Folio::EInputDevice Device)
+{
+	const Folio::EInputDevice Previous = LastDevice;
+	LastDevice = Device;
+
+	Rml::Context* Context = Host.GetContext();
+	Rml::ElementDocument* Document = Host.GetDocument();
+
+	if (!bInteractive || !Context || !Document)
+	{
+		return;
+	}
+
+	if (Device != Folio::EInputDevice::Mouse)
+	{
+		// The cursor has not moved, so RmlUi still holds a hover chain and the element under the
+		// pointer keeps its highlight. Two lit controls and only one of them is the one a confirm
+		// will press. Dropped here; the next real move brings it straight back.
+		Context->ProcessMouseLeave();
+		LastMousePosition.Reset();
+	}
+
+	// Coming off the mouse, whatever holds focus was focused by a click, which means focused
+	// invisibly. Re-focusing it visibly needs a blur first: RmlUi sends no focus event when the
+	// element is already the focused one, and the visible flag rides on that event.
+	if (Previous == Folio::EInputDevice::Mouse && Device != Folio::EInputDevice::Mouse)
+	{
+		Rml::Element* Focused = Context->GetFocusElement();
+
+		const bool bReal = Focused && Focused != Document && Focused != Context->GetRootElement();
+
+		// Not a field being typed into. Blurring one to light its ring would move the caret, and a
+		// player typing already knows where they are.
+		const bool bTyping = bReal
+			&& (Focused->GetTagName() == "input" || Focused->GetTagName() == "textarea");
+
+		if (bReal && !bTyping)
+		{
+			Document->Focus();
+			Focused->Focus(true);
+		}
+	}
+
+	FocusFirstElement();
+	MarkDirty(TEXT("input device changed"));
 }
 
 void SFolioCanvas::FocusFirstElement()

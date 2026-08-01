@@ -156,6 +156,18 @@ public:
 	 */
 	void FocusFirstElement();
 
+	/**
+	 * The player picked up something else.
+	 *
+	 * Two things go wrong without this, and both of them point the player at the wrong control.
+	 * The hover chain survives, because the cursor has not moved and RmlUi has no reason to think
+	 * otherwise, so a mouse highlight sits there competing with the focus ring. And the ring itself
+	 * is usually invisible, because whatever holds focus was focused by a click.
+	 */
+	void OnDeviceChanged(Folio::EInputDevice Device);
+
+	Folio::EInputDevice LastDevice = Folio::EInputDevice::Unknown;
+
 	/** What the player last touched. Documents swap button glyphs on it. */
 	Folio::EInputDevice GetLastInputDevice() const;
 

@@ -158,6 +158,12 @@ pixel of coverage, which is exact and still steps visibly on a shallow diagonal.
 the document at twice the size and scales it down; the layout is unchanged. It costs a render target
 and gains text nothing, so it is a per-document choice. See [docs/hosting.md](docs/hosting.md).
 
+Put that choice behind a console command when you wire Folio into a project: take a value of 1 to 4,
+hold it on whatever owns the widget, and rebuild the document when it changes. Whether 1 or 2 is
+right is a judgement about one document's edges at one resolution, and it is not a judgement anyone
+can make from the source. A command makes it an A/B you can run in the game in a second. Untouched
+it costs nothing at runtime, and changing it costs one document rebuild.
+
 **A HUD sets `Interactive` false on its `UFolioWidget`.** Anything the player does not click or
 navigate must not be focusable: Slate restores focus to a focusable widget on window reactivation,
 so an interactive HUD steals input on alt-tab and the player cannot move. Pair it with

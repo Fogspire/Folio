@@ -21,10 +21,10 @@ motion you want keyframes.
 .alert { animation: 1.2s cubic-in-out infinite pulse; }
 ```
 
-## Three things that will bite you
+## Four things that will bite you
 
-These are not style advice. Each produces something that parses cleanly and then does nothing, with no
-warning at all.
+These are not style advice. Each produces something that parses cleanly and then misbehaves, mostly
+with no warning at all.
 
 **Times are seconds, and `ms` does not exist.** `transition: opacity 120ms` reads `120` as a *reverse
 adjustment factor* and the transition ends up with no duration. Write `0.12s`.
@@ -43,6 +43,35 @@ and `cubic-in-out` for something moving between two places.
 
 **3D transforms do not map onto the renderer.** No `rotateX`, `rotateY` or `perspective`. 2D only:
 `translate`, `scale`, `rotate`, `skew`.
+
+**`opacity` on an element with overlapping children fades wrong, and the middle of the fade is the
+only place it shows.** RCSS inherits `opacity`, unlike CSS, and multiplies it into premultiplied
+vertex colours rather than compositing the subtree as one image. Every descendant is drawn on its
+own, overlapping quads accumulate instead of blending, and a light panel over a dark shadow blows
+out to white halfway through. Both ends look right, which is what makes it hard to place: the
+symptom is a flash partway through an entry animation, not a wrong final state.
+
+```css
+/* A card that is a plate over a shadow. This flashes white as it arrives. */
+@keyframes card-in {
+	from { transform: translateY(28dp) scale(0.94); opacity: 0; }
+	to   { transform: translateY(0dp) scale(1); opacity: 1; }
+}
+
+/* Move it instead, and let the elements keep their own alpha. */
+@keyframes card-in {
+	from { transform: translateY(28dp) scale(0.94); }
+	to   { transform: translateY(0dp) scale(1); }
+}
+```
+
+Put opacity on a single leaf element, or animate `transform` alone. Fading a group *as one image*
+means compositing it, which means a `filter`, which costs a render target - a deliberate choice
+rather than something to reach for.
+
+A property carrying both a transition and an animation is the related trap: a transition is an
+animation here, so one of the two is dropped. The log says `Could not animate property 'opacity' on
+element` and names neither rule.
 
 ## What is cheap
 

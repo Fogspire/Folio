@@ -163,6 +163,13 @@ the layout is honest.
 **It is reported as info rather than a warning**, so a screen using a game texture still passes
 `--strict`. A document naming one is correct, not incomplete.
 
+### The capture behind it
+
+Registering is one call; the capture that fills the target is where the work is. **[A paper doll, and
+3D items in a grid](tutorials/paper_doll.md)** covers isolating one without a staging area, lighting
+it apart from the level, the premultiply step a cutout needs, and driving a page of inventory cells
+from one rig.
+
 ## Missing art
 
 An unresolved sprite renders as a magenta placeholder with its name stamped across it, and the name

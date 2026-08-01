@@ -164,6 +164,16 @@ right is a judgement about one document's edges at one resolution, and it is not
 can make from the source. A command makes it an A/B you can run in the game in a second. Untouched
 it costs nothing at runtime, and changing it costs one document rebuild.
 
+**Never animate `opacity` on an element with overlapping children.** It is inherited in RCSS, unlike
+CSS, and it is multiplied into premultiplied vertex colours rather than compositing the subtree as
+one image. Each descendant is drawn separately and overlapping quads accumulate, so a light panel
+over a dark shadow blows out to white halfway through the fade and is correct at both ends. Animate
+`transform` for an entry, or put the opacity on a single leaf element. Fading a group as one image
+needs a `filter`, which costs a render target.
+
+The same property carrying both a transition and an animation loses one of them, silently apart from
+a warning that names neither rule. One or the other, never both.
+
 **If the project uses CommonUI, turn off its virtual pointer.** Both default on, and both are in the
 game's `DefaultEngine.ini` rather than anything Folio owns:
 

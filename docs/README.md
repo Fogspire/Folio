@@ -68,6 +68,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[A list of ten thousand items](tutorials/long_lists.md)** | Binding a fixed-size window instead of the array, so scrolling allocates nothing at all. |
 | **[A controls screen](tutorials/keybinding.md)** | Rebinding against Enhanced Input's own profile: a press-any-key panel that catches keys the game has bound, and what to do when one is already taken. |
 | **[A helmet HUD that responds to the player](tutorials/visor_hud.md)** | A first-person visor with no art at all: a helmet made of one border, curvature without 3D transforms, and two components trailing the camera and the stride. |
+| **[A paper doll, and 3D items in a grid](tutorials/paper_doll.md)** | A character in a profile frame and meshes in inventory cells: isolating a capture without a staging area, the premultiply trap, and one rig feeding a page of targets. |
 
 ## Reference
 

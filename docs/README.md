@@ -65,6 +65,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[A CRT terminal in the world](tutorials/crt_terminal.md)** | The whole vocabulary in one build: an oval screen, a text field, a draggable window with a bin and an animated close, onto a curved surface with scan lines. |
 | **[An inventory screen](tutorials/inventory.md)** | A grid, drag and drop between slots, gamepad navigation, and a data model behind it. |
 | **[A list of ten thousand items](tutorials/long_lists.md)** | Binding a fixed-size window instead of the array, so scrolling allocates nothing at all. |
+| **[A helmet HUD that responds to the player](tutorials/visor_hud.md)** | A first-person visor with no art at all: a helmet made of one border, curvature without 3D transforms, and two components trailing the camera and the stride. |
 
 ## Reference
 

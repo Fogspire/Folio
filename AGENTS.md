@@ -155,8 +155,20 @@ its licence. Do not settle for a bundled face and call it a constraint.
 
 **A HUD sets `Interactive` false on its `UFolioWidget`.** Anything the player does not click or
 navigate must not be focusable: Slate restores focus to a focusable widget on window reactivation,
-so an interactive HUD steals input on alt-tab and the player cannot move. See
-[docs/hosting.md](docs/hosting.md).
+so an interactive HUD steals input on alt-tab and the player cannot move. Pair it with
+`SetAllUserFocusToGameViewport()` on `OnApplicationActivationStateChanged`, because anything *else*
+the game put on the viewport can take focus the same way. See [docs/hosting.md](docs/hosting.md).
+
+**Sizing already matches UMG. Leave it alone.** `Scale Follow` defaults to 1, which is literally
+`GetDPIScaleBasedOnSize` for the viewport, so a document sizes exactly as a UMG widget in the same
+game does. 0 is a constant pixel size and in between grows less than proportionally, but reach for
+those only when a design asks.
+
+If a HUD looks correct at 1080p and grows or shrinks twice as fast as it should elsewhere, **it is a
+squared ratio, not a stylesheet problem.** A context unit is a pixel; RmlUi converts dp lengths
+itself, so scaling drawn geometry by the ratio again squares it. `Folio.Scale.MatchesUMG` guards
+that. Diagnose with `folio.Screens` - `drawn` must equal `px` - and with `kb.ScaleProbe`, which puts a
+real UMG box on screen to measure against.
 
 **Drag and drop**: `drag: drag-drop` to pick up (not `drag: drag`, which never finds a drop target),
 `folio-drag="move"` to actually move it, `folio-drop="remove|hide|accept"` on the zone. Style

@@ -64,6 +64,64 @@ Off makes the canvas unfocusable and hit-test invisible, so the mouse and the ke
 to the game. Painting, HUD motion, data binding and hot reload are unaffected - the only thing it
 gives up is input, which a HUD never wanted.
 
+**If input is still lost on alt-tab with the HUD non-interactive, the HUD is not what took it.**
+Anything else the game put on the viewport - a UMG widget added with `AddToPlayerScreen`, a CommonUI
+layer - is a candidate, and the cheapest way to stop hunting is to reassert focus when the window
+comes back:
+
+```cpp
+FSlateApplication::Get().OnApplicationActivationStateChanged().AddUObject(
+    this, &AMyHud::OnActivationChanged);
+
+void AMyHud::OnActivationChanged(const bool bIsActive)
+{
+    if (bIsActive)
+    {
+        FSlateApplication::Get().SetAllUserFocusToGameViewport();
+    }
+}
+```
+
+Do that as well as turning `Interactive` off, not instead of it: a focusable HUD still swallows
+clicks while the window is active.
+
+## How big a HUD draws
+
+`dp` resolves against a ratio, and **`Scale Follow`** decides how much that ratio moves with the
+viewport:
+
+| | |
+|---|---|
+| `1` | Unreal's UI scale - literally `GetDPIScaleBasedOnSize` for the viewport, so the document sizes exactly as a UMG widget would. The default. |
+| `0` | A constant pixel size. Resizing the window moves the corners without touching what is in them. |
+| in between | Grows with the window, but less than proportionally. |
+
+**Leave it at `1` unless a design asks for something else.** It matches every UMG widget in the same
+game, which is the behaviour players and designers already expect, and `folio.Screens` prints UMG's
+own answer beside the one in use so the two can be checked rather than assumed.
+
+The dial exists because a corner-anchored HUD has a real argument against following: its dp box grows
+with the viewport, so a wide viewport pushes the health and ammo cards apart. Lowering it trades that
+against a HUD that covers more of a small window.
+
+```cpp
+Widget->ScaleFollow = 1.0f;
+Widget->Scale = 1.0f;   // a multiplier on top, which a HUD scale slider writes
+```
+
+`Min Scale` and `Max Scale` bound the result, zero for no bound - a hard stop on what a 4K window is
+allowed to do.
+
+`folio.Screens` reports what every screen document is laid out against: pixels, the ratio, what UMG
+would use, and what the document actually covers. **`drawn` has to match `px`**; when it does not,
+the document lands short of one corner and past the other, and no amount of stylesheet work will fix
+it.
+
+A context unit is a *pixel*, not a dp. RmlUi converts dp lengths itself using the ratio, so anything
+that scales the drawn geometry by the ratio as well squares it - correct at the resolution the ratio
+happens to be 1, and wrong at every other. If a document looks right at 1080p and grows or shrinks
+twice as fast as it should elsewhere, that is what happened.
+
 Everything below is about screens the player *does* interact with.
 
 ## Focus

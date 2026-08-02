@@ -292,6 +292,106 @@ bool IsClipped(Rml::Element* element, float& out_over_x, float& out_over_y)
 	return out_over_x > 2.0f || out_over_y > 2.0f;
 }
 
+/** Whether one element is the other, or somewhere inside it. */
+bool IsSelfOrDescendant(Rml::Element* candidate, Rml::Element* of)
+{
+	for (Rml::Element* at = candidate; at; at = at->GetParentNode())
+	{
+		if (at == of)
+			return true;
+	}
+
+	return false;
+}
+
+/**
+ * Whether a point is inside every clip between an element and the document.
+ *
+ * A list item scrolled out of view is not covered, it is elsewhere, and asking the context what is at
+ * its centre would answer with whatever the scroll box is showing instead.
+ */
+bool IsPointUnclipped(Rml::Element* element, Rml::Vector2f point)
+{
+	for (Rml::Element* at = element->GetParentNode(); at; at = at->GetParentNode())
+	{
+		const Rml::ComputedValues& computed = at->GetComputedValues();
+		if (computed.overflow_x() == Rml::Style::Overflow::Visible
+			&& computed.overflow_y() == Rml::Style::Overflow::Visible)
+			continue;
+
+		const Rml::Vector2f corner = at->GetAbsoluteOffset(Rml::BoxArea::Padding);
+		const Rml::Vector2f size = at->GetBox().GetSize(Rml::BoxArea::Padding);
+
+		if (point.x < corner.x || point.y < corner.y
+			|| point.x > corner.x + size.x || point.y > corner.y + size.y)
+			return false;
+	}
+
+	return true;
+}
+
+/**
+ * Whether the player can move this out of the way.
+ *
+ * A floating window sitting over a form is a different thing from a scrim that has faded out and gone
+ * on eating clicks: one is in the way until it is dragged off, the other is in the way forever. Only
+ * the second is a defect, so the first is not reported.
+ */
+bool IsMovable(Rml::Element* element, Rml::ElementDocument* document)
+{
+	Rml::ElementList handles;
+	document->GetElementsByTagName(handles, "handle");
+
+	for (Rml::Element* at = element; at; at = at->GetParentNode())
+	{
+		if (at->GetComputedValues().drag() != Rml::Style::Drag::None)
+			return true;
+
+		const Rml::String& id = at->GetId();
+		if (id.empty())
+			continue;
+
+		for (Rml::Element* handle : handles)
+		{
+			if (handle->GetAttribute<Rml::String>("move_target", "") == id)
+				return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * What the pointer would actually hit at the middle of a control.
+ *
+ * Asked of the context rather than worked out from boxes and z-indices, because that is the same code
+ * a click goes through: whatever this returns is what the player presses. Null where the control is
+ * scrolled out of its own container, which is not the same thing as being covered.
+ */
+Rml::Element* WhatIsOnTop(Rml::Context* context, Rml::Element* element)
+{
+	const Rml::Vector2f offset = element->GetAbsoluteOffset(Rml::BoxArea::Border);
+	const Rml::Vector2f size = element->GetBox().GetSize(Rml::BoxArea::Border);
+	const Rml::Vector2f centre = offset + size * 0.5f;
+
+	if (!IsPointUnclipped(element, centre))
+		return nullptr;
+
+	Rml::Element* hit = context->GetElementAtPoint(centre);
+	if (!hit || IsSelfOrDescendant(hit, element))
+		return nullptr;
+
+	// A control drawn at zero opacity over its own hit area is the styled-checkbox pattern: the input
+	// is what the click lands on, and the thing you see is a sibling above it. Nothing is wrong there.
+	if (IsSelfOrDescendant(element, hit))
+		return nullptr;
+
+	if (Rml::ElementDocument* document = element->GetOwnerDocument(); document && IsMovable(hit, document))
+		return nullptr;
+
+	return hit;
+}
+
 /** Whether anything in the document takes focus at all, which is what makes it a screen rather than a HUD. */
 bool IsNavigable(Rml::Element* element)
 {
@@ -307,9 +407,9 @@ bool IsNavigable(Rml::Element* element)
 	return false;
 }
 
-void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& options, float dp_ratio,
-	const std::map<Rml::Element*, float>& unscaled_text, bool out_navigable, std::vector<Finding>& out,
-	bool& out_backdrop_unknown)
+void Walk(Rml::Element* element, Rml::ElementDocument* document, Rml::Context* context,
+	const Options& options, float dp_ratio, const std::map<Rml::Element*, float>& unscaled_text,
+	bool out_navigable, std::vector<Finding>& out, bool& out_backdrop_unknown)
 {
 	if (!element)
 		return;
@@ -416,6 +516,19 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 			// A control the pointer can press and navigation cannot reach. Only asked on a document
 			// that navigates at all: a HUD with nothing focusable is not a screen anyone walks, and
 			// reporting every clickable thing in one would train people to ignore this.
+			// Something is sitting on top of it and taking the click. The case that bites is an overlay
+			// faded to nothing: an element at zero opacity is still hit tested, so a scroll affordance
+			// or a scrim that has faded out goes on eating presses on whatever is under it.
+			if (Rml::Element* over = WhatIsOnTop(context, element))
+			{
+				out.push_back({"W-A11Y-COVERED", ComputeElementPath(element),
+					"something is on top of this control and will take the click: "
+						+ ComputeElementPath(over)
+						+ " - give the thing above it pointer-events: none, or move it",
+					{{"covering", ComputeElementPath(over)},
+						{"coveringTag", over->GetTagName()}}});
+			}
+
 			if (out_navigable && computed.tab_index() != Rml::Style::TabIndex::Auto)
 			{
 				out.push_back({"W-A11Y-UNREACHABLE", ComputeElementPath(element),
@@ -454,8 +567,8 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 	}
 
 	for (int i = 0; i < element->GetNumChildren(); ++i)
-		Walk(element->GetChild(i), document, options, dp_ratio, unscaled_text, out_navigable, out,
-			out_backdrop_unknown);
+		Walk(element->GetChild(i), document, context, options, dp_ratio, unscaled_text, out_navigable,
+			out, out_backdrop_unknown);
 }
 
 /**
@@ -533,7 +646,7 @@ std::vector<Finding> Collect(const Options& options, App& app, bool& out_backdro
 
 	const std::map<Rml::Element*, float> unscaled = MeasureUnscaledText(document, options);
 
-	Walk(document, document, options, context->GetDensityIndependentPixelRatio(), unscaled,
+	Walk(document, document, context, options, context->GetDensityIndependentPixelRatio(), unscaled,
 		IsNavigable(document), findings, out_backdrop_unknown);
 
 	SuppressTransitions(document, false);

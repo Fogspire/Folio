@@ -84,6 +84,7 @@ anyone tracking them over time.
 | `W-A11Y-NONAME` | A control with nothing to read out. |
 | `W-A11Y-NOFOCUS` | Focusing the control changes nothing you can see. |
 | `W-A11Y-UNREACHABLE` | A control only a pointer can reach, on a screen that otherwise navigates. |
+| `W-A11Y-COVERED` | Something the player cannot move is on top of a control and will take the click. |
 | `W-A11Y-FLASH` | Under `--flash-check`, flashing over three times a second. |
 | `W-A11Y-CLIPPED` | Something is bigger than the box it is in, and the box hides what does not fit. |
 | `W-A11Y-CVD` | Under `--simulate`, text that only passes contrast because of a hue difference that vision does not have. |
@@ -111,6 +112,24 @@ in one would train people to ignore the check.
 The fix is usually `tab-index: auto` plus a focus style, even for something only a pointer can
 meaningfully operate: a keyboard player still has to be able to reach a window and be told it is
 there.
+
+### Covered controls
+
+A control can be named, focusable, big enough and still unpressable, because something is drawn on top
+of it. `W-A11Y-COVERED` asks the context what the pointer would actually hit at the middle of each
+control - the same code a click goes through - and reports anything that answers with something else.
+
+The case that bites is an overlay faded to nothing: **an element at zero opacity is still hit
+tested**, so a scrim or a scroll affordance that has faded out goes on eating presses on whatever is
+under it. `pointer-events: none` is the fix, given back only while the thing is really there.
+
+Two things are deliberately not reported. A control drawn at `opacity: 0` over its own hit area is the
+styled-checkbox pattern and is working as intended. And something the player can drag off - a floating
+window, a draggable icon - is in the way rather than broken.
+
+Two things it cannot see, both from being one static frame: a control scrolled out of view is skipped
+rather than guessed at, and an overlay that only covers something in a state this frame is not in will
+not be caught. Run it in the states that matter.
 
 ### Flashing
 
@@ -825,6 +844,10 @@ game's own reader does cover them: the review cursor reads every live document, 
 `folio.Accessibility.Dump` prints them, marked as reachable only that way. A nameplate over a
 character is not a control; a terminal the player walks up to and uses is, and the answer for one of
 those is still to put its interface on a screen document while it is being used.
+
+The Widget Reflector shows the proxies while the tree is built, named by what they say - `button
+"Apply"` rather than a column of identical class names. Its picker still lands on the canvas, because
+the proxies are hit-test invisible by design, so this is the tree view only.
 
 Text scale reaches type sized in `rem` and nothing sized in `dp`. Reduced motion reaches anything a
 stylesheet moves and nothing a shader, a video or your own per-frame code moves.

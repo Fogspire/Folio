@@ -965,7 +965,7 @@ Six attributes, one command that fails the build if you skip them, a screen read
 result, and three settings that change how a screen is presented.
 
 ```
-uipreview <file.rml> --a11y --strict     # contrast, text size, hit targets, names, focus
+uipreview <file.rml> --a11y --strict     # contrast, size, targets, names, focus, reachability
 uipreview <file.rml> --a11y-tree         # what a screen reader is read out of, in reading order
 ```
 

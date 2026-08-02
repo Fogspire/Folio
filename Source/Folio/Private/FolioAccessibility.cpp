@@ -12,6 +12,7 @@
 
 #include "HAL/IConsoleManager.h"
 #include "Layout/ArrangedChildren.h"
+#include "Types/ReflectionMetadata.h"
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
@@ -420,6 +421,20 @@ void SFolioAccessibleElement::Update(const Folio::FSemanticNode& InNode, const f
 	}
 
 	bUpdatedOnce = true;
+
+#if !UE_BUILD_SHIPPING
+	// So the Widget Reflector shows "button Apply" rather than a column of identical class names. The
+	// proxies are hit-test invisible, so the reflector's picker still lands on the canvas and this is
+	// only useful in the tree view - which is where anyone looking at a document's structure is.
+	if (const TSharedPtr<FReflectionMetaData> Existing = GetMetaData<FReflectionMetaData>())
+	{
+		Existing->Name = FName(*Describe());
+	}
+	else
+	{
+		AddMetadata(MakeShared<FReflectionMetaData>(FName(*Describe()), nullptr, nullptr, nullptr));
+	}
+#endif
 }
 
 bool SFolioAccessibleElement::SyncGeometry(const float InContextToLocal)

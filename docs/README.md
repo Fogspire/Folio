@@ -57,6 +57,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Accessibility](accessibility.md)** | Contrast, hit targets, focus visibility and control names, checked in the build. |
 | **[Localisation](localization.md)** | `data-loc`, the gather, and previewing pseudo-loc before translation exists. |
 | **[Performance and profiling](performance_profiling.md)** | `stat Folio`, the invalidation path, and what actually makes a screen slow. |
+| **[Supersampling](supersampling.md)** | More samples per pixel for a slanted edge: what it must not change, why text is drawn separately, and the downsample that makes it worse than not doing it. |
 | **[Console commands](console.md)** | Everything Folio adds to the console, and what each is for. |
 | **[Packaging](hello_world.md)** §7 | Documents are files, not assets - they need staging, or every screen is empty in a build that worked. |
 

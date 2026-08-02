@@ -449,8 +449,20 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 	// smaller, or that moves an absolutely positioned element, leaves the old image behind it.
 	const bool bClear = Layer.bCallerOwned;
 
+	// A clip mask is what the stencil is for, and most layers have none. Allocating one anyway costs a
+	// depth-stencil the size of the target every time a layer resolves, which is a page of memory at
+	// one sample per pixel and several at sixteen.
+	bool bNeedsStencil = false;
+	for (const FFolioDraw& Draw : Draws)
+	{
+		bNeedsStencil = bNeedsStencil
+			|| Draw.bMasked
+			|| (Draw.Kind != FFolioDraw::EKind::Geometry && Draw.Kind != FFolioDraw::EKind::Field);
+	}
+
 	ENQUEUE_RENDER_COMMAND(FolioResolveLayer)(
-		[Resource, Size, Clip, bClear, Draws = MoveTemp(Draws)](FRHICommandListImmediate& RHICmdList) mutable
+		[Resource, Size, Clip, bClear, bNeedsStencil, Draws = MoveTemp(Draws)]
+		(FRHICommandListImmediate& RHICmdList) mutable
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
 
@@ -459,9 +471,13 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 
 			// The stencil only has to live as long as this layer's replay, which is exactly
 			// why the draws are recorded and resolved together rather than one at a time.
-			const FRDGTextureDesc StencilDesc = FRDGTextureDesc::Create2D(Size, PF_DepthStencil,
-				FClearValueBinding::DepthZero, TexCreate_DepthStencilTargetable);
-			FRDGTextureRef Stencil = GraphBuilder.CreateTexture(StencilDesc, TEXT("FolioLayerStencil"));
+			FRDGTextureRef Stencil = nullptr;
+			if (bNeedsStencil)
+			{
+				const FRDGTextureDesc StencilDesc = FRDGTextureDesc::Create2D(Size, PF_DepthStencil,
+					FClearValueBinding::DepthZero, TexCreate_DepthStencilTargetable);
+				Stencil = GraphBuilder.CreateTexture(StencilDesc, TEXT("FolioLayerStencil"));
+			}
 
 			FFolioUIParameters* Parameters = GraphBuilder.AllocParameters<FFolioUIParameters>();
 			Parameters->UISampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
@@ -473,9 +489,12 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 			Parameters->ClipTransform = FVector4f(2.0f / Clip.X, -2.0f / Clip.Y, -1.0f, 1.0f);
 			Parameters->RenderTargets[0] = FRenderTargetBinding(Colour,
 				bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
-			Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(Stencil,
-				ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,
-				FExclusiveDepthStencil::DepthNop_StencilWrite);
+			if (Stencil)
+			{
+				Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(Stencil,
+					ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,
+					FExclusiveDepthStencil::DepthNop_StencilWrite);
+			}
 
 			// Never culled: with every glyph run held back for the screen there is nothing to draw, and
 			// the pass is then here only to clear the target - which is exactly when it must still run.

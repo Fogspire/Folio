@@ -161,7 +161,9 @@ What it costs:
 - One composite a frame.
 
 So it is per document rather than a project setting: on for a menu or a HUD with slanted panels, off
-for one with nothing but text on it or a tight memory budget.
+for one with nothing but text on it or a tight memory budget. **[Supersampling](supersampling.md)**
+is the whole of it: what it must not change, and the three ways of getting it wrong that all look
+like it making the picture worse.
 
 `folio.Screens` reports what every screen document is laid out against: pixels, the ratio, what UMG
 would use, and what the document actually covers. **`drawn` has to match `px`**; when it does not,

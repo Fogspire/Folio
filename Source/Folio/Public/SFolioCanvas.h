@@ -339,6 +339,12 @@ private:
 	/** Where a supersampled document is drawn before it is scaled down. Mutable: painting is const. */
 	mutable TStrongObjectPtr<class UTextureRenderTarget2D> Target;
 
+	/** The same document at one sample per pixel, which is what the composite draws. */
+	mutable TStrongObjectPtr<class UTextureRenderTarget2D> Resolved;
+
+	/** A transparent RGBA8 target of this size, for the two above. */
+	static class UTextureRenderTarget2D* MakeTarget(FIntPoint Size);
+
 	/** Names that target for Slate. Rebuilt with it, because a brush caches the resource. */
 	mutable FSlateBrush TargetBrush;
 

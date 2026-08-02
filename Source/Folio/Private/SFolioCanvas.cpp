@@ -4,6 +4,7 @@
 
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
+#include "FolioResolveShader.h"
 #include "FolioInput.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
@@ -180,21 +181,24 @@ void SFolioCanvas::SetSupersample(const int32 InSamples)
 		return;
 	}
 
-	const bool bHadDocument = Host.IsValid();
 	Supersample = Wanted;
 
 	// Dropped rather than resized: the next paint makes one the right size, and holding a target that
 	// nothing is going to draw into is a target the pool cannot have back.
 	Target.Reset();
+	Resolved.Reset();
 	TargetBrush = FSlateBrush();
+}
 
-	// A background's antialiasing skirt is baked into its geometry in rendered pixels, and the sample
-	// count is what a rendered pixel is worth. Restyling is what regenerates it; without this the
-	// skirt keeps the width the count it was built under wanted.
-	if (bHadDocument)
-	{
-		Host.ReloadStyleSheets();
-	}
+UTextureRenderTarget2D* SFolioCanvas::MakeTarget(const FIntPoint Size)
+{
+	UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
+	Fresh->RenderTargetFormat = RTF_RGBA8;
+	Fresh->ClearColor = FLinearColor::Transparent;
+	Fresh->bAutoGenerateMips = false;
+	Fresh->InitAutoFormat(Size.X, Size.Y);
+	Fresh->UpdateResourceImmediate(true);
+	return Fresh;
 }
 
 bool SFolioCanvas::SupersamplingNow() const
@@ -260,11 +264,11 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const float RenderScale =
 		AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
 
-	// Times the sample count, because a background's antialiasing skirt is measured in rendered pixels
-	// and a supersampled document has more of them per document pixel. Left out, the skirt is as wide
-	// as it is on screen and the supersampling has nothing left to sharpen.
-	Host.Update(InDeltaTime, ScaleFor(AllottedGeometry),
-		RenderScale * ContextToLocal(AllottedGeometry) * float(Supersample));
+	// Not touched by the sample count. A background's antialiasing skirt is part of the document's
+	// geometry, so keeping it a screen pixel wide is what makes the geometry identical however densely
+	// it is rasterised - and it is what stops supersampling ever looking harder than not supersampling,
+	// since the samples then add to the skirt rather than replacing it.
+	Host.Update(InDeltaTime, ScaleFor(AllottedGeometry), RenderScale * ContextToLocal(AllottedGeometry));
 }
 
 
@@ -338,19 +342,16 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 
 		if (!Target.IsValid() || Target->SizeX != TargetSize.X || Target->SizeY != TargetSize.Y)
 		{
-			UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
-			Fresh->RenderTargetFormat = RTF_RGBA8;
-			Fresh->ClearColor = FLinearColor::Transparent;
-			Fresh->bAutoGenerateMips = false;
-			Fresh->InitAutoFormat(TargetSize.X, TargetSize.Y);
-			Fresh->UpdateResourceImmediate(true);
+			Target.Reset(MakeTarget(TargetSize));
 
-			Target.Reset(Fresh);
+			// One sample per pixel, which is what the screen takes. The document is drawn into the big
+			// one and averaged into this, rather than left for the composite's sampler to shrink.
+			Resolved.Reset(MakeTarget(ContextSize));
 
 			// The brush caches its resource, so it is rebuilt with the target rather than repointed.
 			TargetBrush = FSlateBrush();
-			TargetBrush.SetResourceObject(Fresh);
-			TargetBrush.ImageSize = FVector2D(TargetSize);
+			TargetBrush.SetResourceObject(Resolved.Get());
+			TargetBrush.ImageSize = FVector2D(ContextSize);
 			TargetBrush.DrawAs = ESlateBrushDrawType::Image;
 
 		}
@@ -383,6 +384,10 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			NativeTextRuns = Renderer->NumDeferredFields();
 			Renderer->EndSurface();
 
+			// The box filter, done here rather than left to the composite's sampler, which only averages
+			// the whole block when the quad happens to land exactly on the texel grid.
+			Folio::ResolveSupersample(Target.Get(), Resolved.Get(), Supersample);
+
 			const FVector2f Size = AllottedGeometry.GetLocalSize();
 			const FSlateRenderTransform& ToWindow = AllottedGeometry.GetAccumulatedRenderTransform();
 
@@ -390,6 +395,13 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 				FVector2f(0.0f, 0.0f), FVector2f(Size.X, 0.0f),
 				FVector2f(Size.X, Size.Y), FVector2f(0.0f, Size.Y),
 			};
+
+			// One texel to one pixel, so the composite is a copy rather than a second resample. Only
+			// while the widget is axis-aligned: a rotated one has no pixel grid to snap to, and is
+			// being resampled by the rotation anyway.
+			float RowAX, RowAY, RowBX, RowBY;
+			ToWindow.GetMatrix().GetMatrix(RowAX, RowAY, RowBX, RowBY);
+			const bool bSnap = FMath::IsNearlyZero(RowAY) && FMath::IsNearlyZero(RowBX);
 
 			TArray<FSlateVertex> Quad;
 			Quad.SetNumUninitialized(4);
@@ -399,6 +411,12 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 				FSlateVertex& Vertex = Quad[Index];
 				Vertex = FSlateVertex();
 				Vertex.Position = FVector2f(TransformPoint(ToWindow, Corners[Index]));
+
+				if (bSnap)
+				{
+					Vertex.Position = FVector2f(FMath::RoundToFloat(Vertex.Position.X),
+						FMath::RoundToFloat(Vertex.Position.Y));
+				}
 				Vertex.TexCoords[0] = Index == 1 || Index == 2 ? 1.0f : 0.0f;
 				Vertex.TexCoords[1] = Index >= 2 ? 1.0f : 0.0f;
 				Vertex.TexCoords[2] = 1.0f;

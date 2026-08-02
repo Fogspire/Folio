@@ -547,17 +547,94 @@ void FFolioRenderInterface::FlushCoveredFields(const FSlateRect& Bounds, const i
 
 	for (int32 Index = 0; Index < DeferredFields.Num(); )
 	{
-		if (FSlateRect::DoRectanglesIntersect(DeferredFields[Index].Bounds, Bounds))
-		{
-			ReturnFieldToLayer(DeferredFields[Index], DepthFromTop);
+		FDeferredField& Field = DeferredFields[Index];
 
-			// Order matters and this keeps it: what goes back goes back in the order it arrived.
-			DeferredFields.RemoveAt(Index);
+		if (!FSlateRect::DoRectanglesIntersect(Field.Bounds, Bounds))
+		{
+			++Index;
 			continue;
 		}
 
-		++Index;
+		// Only the glyphs the draw actually reaches. A run is a line of them and its bounds are the
+		// whole line, so a card overlapping one word would otherwise cost the sentence.
+		FDeferredField Covered;
+		if (SplitCoveredGlyphs(Field, Bounds, Covered))
+		{
+			ReturnFieldToLayer(Covered, DepthFromTop);
+			++Index;
+			continue;
+		}
+
+		ReturnFieldToLayer(Field, DepthFromTop);
+
+		// Order matters and this keeps it: what goes back goes back in the order it arrived.
+		DeferredFields.RemoveAt(Index);
 	}
+}
+
+bool FFolioRenderInterface::SplitCoveredGlyphs(FDeferredField& Field, const FSlateRect& Bounds,
+	FDeferredField& OutCovered)
+{
+	// One quad per glyph, four vertices and six indices each, which is what RmlUi's font engine emits.
+	// Anything else is not a run of glyphs and is handled whole.
+	const int32 Quads = Field.Run.Vertices.Num() / 4;
+	if (Quads < 2 || Field.Run.Vertices.Num() % 4 != 0 || Field.Run.Indices.Num() != Quads * 6)
+	{
+		return false;
+	}
+
+	TArray<FSlateVertex> KeptVertices;
+	TArray<FSlateVertex> CoveredVertices;
+
+	for (int32 Quad = 0; Quad < Quads; ++Quad)
+	{
+		const TArrayView<const FSlateVertex> Corners(&Field.Run.Vertices[Quad * 4], 4);
+
+		FVector2f Min = FVector2f(Corners[0].Position);
+		FVector2f Max = Min;
+
+		for (const FSlateVertex& Corner : Corners)
+		{
+			Min = FVector2f::Min(Min, FVector2f(Corner.Position));
+			Max = FVector2f::Max(Max, FVector2f(Corner.Position));
+		}
+
+		TArray<FSlateVertex>& Into = FSlateRect::DoRectanglesIntersect(
+			FSlateRect(Min.X, Min.Y, Max.X, Max.Y), Bounds) ? CoveredVertices : KeptVertices;
+
+		Into.Append(Corners.GetData(), 4);
+	}
+
+	if (CoveredVertices.IsEmpty() || KeptVertices.IsEmpty())
+	{
+		return false;
+	}
+
+	// Rebuilt rather than sliced: the two halves are no longer contiguous in the original.
+	const auto QuadIndices = [](const int32 Count)
+	{
+		TArray<SlateIndex> Indices;
+		Indices.Reserve(Count * 6);
+
+		for (int32 Quad = 0; Quad < Count; ++Quad)
+		{
+			const SlateIndex Base = static_cast<SlateIndex>(Quad * 4);
+			Indices.Append({ Base, SlateIndex(Base + 1), SlateIndex(Base + 2),
+				Base, SlateIndex(Base + 2), SlateIndex(Base + 3) });
+		}
+
+		return Indices;
+	};
+
+	OutCovered = Field;
+	OutCovered.Run.Vertices = MoveTemp(CoveredVertices);
+	OutCovered.Run.Indices = QuadIndices(OutCovered.Run.Vertices.Num() / 4);
+
+	Field.Run.Vertices = MoveTemp(KeptVertices);
+	Field.Run.Indices = QuadIndices(Field.Run.Vertices.Num() / 4);
+	Field.Bounds = BoundsOf(Field.Run.Vertices, FVector2f::ZeroVector);
+
+	return true;
 }
 
 int32 FFolioRenderInterface::DrawDeferredFields(FSlateWindowElementList& InElementList,

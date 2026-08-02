@@ -1,0 +1,41 @@
+// Averages a supersampled target down to one sample per pixel.
+//
+// The composite quad cannot be trusted to do this. Its texture coordinates only land on texel corners
+// when the widget's rectangle happens to be an exact whole number of pixels at exactly the sample
+// count, and anywhere else the hardware filter takes one texel rather than the block of them - which
+// is a nearest-neighbour decimation of an unfiltered raster, and looks worse than not supersampling
+// at all. Reading the block here makes the filter exact wherever the quad lands.
+//
+// Everything is premultiplied alpha, matching RmlUi 6.x, so the channels average independently.
+
+#include "/Engine/Public/Platform.ush"
+
+Texture2D SourceTexture;
+SamplerState SourceSampler;
+
+// x: samples each way. yz: one source texel, in UV. w: unused.
+float4 ResolveParameters;
+
+float2 InvSize;
+
+float4 MainPS(float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	const int Samples = (int)ResolveParameters.x;
+	const float2 Texel = ResolveParameters.yz;
+
+	// The block of source texels this pixel covers. Point sampled at texel centres, so each one is
+	// read exactly once and the average is the box filter rather than an approximation of it.
+	const float2 Base = floor(SvPosition.xy) * Samples;
+
+	float4 Sum = 0.0f;
+
+	for (int Y = 0; Y < Samples; ++Y)
+	{
+		for (int X = 0; X < Samples; ++X)
+		{
+			Sum += SourceTexture.SampleLevel(SourceSampler, (Base + float2(X, Y) + 0.5f) * Texel, 0);
+		}
+	}
+
+	return Sum / (float)(Samples * Samples);
+}

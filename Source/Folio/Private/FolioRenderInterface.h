@@ -460,6 +460,16 @@ private:
 	 */
 	void FlushCoveredFields(const FSlateRect& Bounds, int32 DepthFromTop = 0);
 
+	/**
+	 * Takes the glyphs a rectangle covers out of a run, leaving the rest of it held back.
+	 *
+	 * A run is a whole line, and its bounds are that line's; a card overlapping one word at the end of
+	 * it would otherwise put the entire sentence through the target. False when the run is not a plain
+	 * list of glyph quads, or when the rectangle covers all of it or none of it, and the caller then
+	 * deals with the run whole.
+	 */
+	bool SplitCoveredGlyphs(FDeferredField& Field, const FSlateRect& Bounds, FDeferredField& OutCovered);
+
 	/** Records one held-back run into the surface at its own clip. */
 	void ReturnFieldToLayer(const FDeferredField& Field, int32 DepthFromTop);
 

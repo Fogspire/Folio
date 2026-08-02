@@ -943,7 +943,9 @@ scrollbarhorizontal sliderbar:hover
 .pg-key { border-bottom-color: #8d8da0; }
 
 
-.pg-unbound { background-color: #00000000; border-color: #6a6a7a; color: #6a6a7a; }
+/* The dash is text, so it is held to the same 4.5:1 as any other text - the border it sits in can be
+   dimmer than the glyph, and is. */
+.pg-unbound { background-color: #00000000; border-color: #6a6a7a; color: #8a8a99; }
 
 .pg-mouse .body { background-color: #e8e8f0; border-color: #0c0c12; }
 .pg-mouse .lmb, .pg-mouse .rmb, .pg-mouse .side { background-color: #00000000; }

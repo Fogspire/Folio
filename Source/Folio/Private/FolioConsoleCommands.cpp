@@ -16,7 +16,9 @@
 #include "FolioDocumentHost.h"
 #include "FolioTheme.h"
 
+#include "FolioAccessibility.h"
 #include "FolioCore/FolioElementPath.h"
+#include "FolioCore/FolioSemantics.h"
 
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonSerializer.h"
@@ -1812,6 +1814,102 @@ namespace
 		}
 	}
 
+	/**
+	 * What a screen reader would be read out of every live document.
+	 *
+	 * From the live tree when one exists, and from the document itself when it does not - so this
+	 * answers the question without needing NVDA running, and answers the harder one (is the tree Slate
+	 * actually holds the tree the document describes) when it is.
+	 */
+	void DumpAccessibility(const TArray<FString>& Args)
+	{
+		// Through the ticker rather than a world timer, because the case this is most needed in is a
+		// document in its own window in the editor, where there is no world to hang a timer on.
+		if (const float Delay = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.0f; Delay > 0.0f)
+		{
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)
+			{
+				DumpAccessibility({});
+				return false;
+			}), Delay);
+
+			return;
+		}
+
+		const TArray<SFolioCanvas*>& Canvases = SFolioCanvas::GetLiveCanvases();
+		if (Canvases.IsEmpty())
+		{
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Dump: nothing on screen."));
+			return;
+		}
+
+		for (const SFolioCanvas* Canvas : Canvases)
+		{
+			TArray<FString> Lines;
+			Canvas->DescribeAccessibility(Lines);
+
+			const bool bLive = !Lines.IsEmpty();
+			if (!bLive)
+			{
+				// Nothing is listening, so no widgets exist. The same walk still answers what would be
+				// read, which is the question anyone typing this is asking.
+				Folio::VisitSemanticTree(Folio::BuildSemanticTree(Canvas->GetDocument()),
+					[&Lines](const Folio::FSemanticNode& Node, const int32 Depth)
+					{
+						FString Line = FString::ChrN(Depth * 2, TEXT(' '));
+						Line += ANSI_TO_TCHAR(Folio::RoleName(Node.Role));
+
+						if (!Node.Name.empty())
+						{
+							Line += FString::Printf(TEXT(" \"%s\""), *Folio::ToFString(Node.Name));
+						}
+						else if (Node.Interactive)
+						{
+							Line += TEXT(" <unnamed>");
+						}
+
+						if (!Node.Value.empty() && Node.Role != Folio::ESemanticRole::Text)
+						{
+							Line += TEXT(" = ") + Folio::ToFString(Node.Value);
+						}
+
+						if (Node.Checkable)
+						{
+							Line += Node.Checked ? TEXT(" [checked]") : TEXT(" [unchecked]");
+						}
+
+						if (Node.Disabled)
+						{
+							Line += TEXT(" [disabled]");
+						}
+
+						Lines.Add(MoveTemp(Line));
+					});
+			}
+
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Dump: '%s', %d node(s), %s"),
+				*Canvas->GetDocumentPath(), Lines.Num(),
+				bLive ? TEXT("live tree") : TEXT("nothing listening - this is what would be built"));
+
+			for (const FString& Line : Lines)
+			{
+				UE_LOG(LogFolio, Display, TEXT("  %s"), *Line);
+			}
+		}
+	}
+
+	void SayAccessibility(const TArray<FString>& Args)
+	{
+		const FString Text = FString::Join(Args, TEXT(" "));
+		if (Text.IsEmpty())
+		{
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Say <text>"));
+			return;
+		}
+
+		FFolioAccessibilityTree::Announce(Text);
+	}
+
 	TAutoConsoleVariable<int32> CVarSkipFirstPaints(
 		TEXT("folio.SkipFirstPaints"), 0,
 		TEXT("Drops the first N painted frames of every canvas. A diagnostic for a flash as a screen "
@@ -1829,6 +1927,19 @@ namespace
 		TEXT("folio.Screens [delay]. Reports the size and dp ratio every screen document is laid out "
 			"against. A delay defers it, which a startup ExecCmds needs."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ReportScreens));
+
+	FAutoConsoleCommand AccessibilityDumpCommand(
+		TEXT("folio.Accessibility.Dump"),
+		TEXT("folio.Accessibility.Dump [delay]. Prints what a screen reader would read out of every "
+			"screen document, in reading order. A delay defers it, which a menu that closes on losing "
+			"focus needs."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&DumpAccessibility));
+
+	FAutoConsoleCommand AccessibilitySayCommand(
+		TEXT("folio.Accessibility.Say"),
+		TEXT("folio.Accessibility.Say <text>. Announces a string through whatever screen reader is "
+			"running, which is what folio-announce and game code both end up calling."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&SayAccessibility));
 
 	FAutoConsoleCommand ReloadTexturesCommand(
 		TEXT("folio.ReloadTextures"),

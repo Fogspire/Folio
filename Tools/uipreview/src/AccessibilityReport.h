@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdio>
 #include <string>
 
 namespace uipreview {
@@ -24,5 +25,17 @@ void CheckAccessibility(const Options& options, App& app, Diagnostics& diagnosti
 /** The findings again, as JSON, for a caller that wants to track them over time. */
 bool WriteAccessibilityReport(const std::string& path, const Options& options, App& app,
 	Diagnostics& diagnostics, std::string& out_error);
+
+/**
+ * The tree a screen reader is read out of, as JSON.
+ *
+ * The same walk the engine builds its Slate accessibility tree from, so what this prints is what a
+ * player using NVDA hears, in the order they hear it - checkable in a diff rather than by listening.
+ */
+bool WriteAccessibilityTree(const std::string& path, const Options& options, App& app,
+	std::string& out_error);
+
+/** The same tree, indented, for reading rather than diffing. */
+void PrintAccessibilityTree(App& app, std::FILE* stream);
 
 } // namespace uipreview

@@ -99,6 +99,10 @@
 		}
 		.channel input:hover ~ span { border-color: #b9ffcb; color: #eaffef; }
 		.channel input:checked ~ span { background-color: #7dff9b33; border-color: #b9ffcb; color: #eaffef; }
+		/* After the checked rule, and not only a border colour: the two have the same specificity, so a
+		   focus treatment written above this one loses on the chip that is already selected - which is
+		   the one the player is most likely to be standing on. */
+		.channel input:focus-visible ~ span { border-color: #eaffef; color: #eaffef; background-color: #7dff9b5c; }
 
 		/* Cursor block, so the screen looks alive while nothing is being typed. */
 		@keyframes blink { from { opacity: 1; } to { opacity: 0; } }
@@ -302,7 +306,7 @@
 					<span class="glyph"></span>LOG.TXT
 				</div>
 			</div>
-			<handle class="grip" size_target="win"></handle>
+			<handle class="grip" size_target="win" folio-label="Resize"></handle>
 		</div>
 
 		<!-- folio-drop is Folio's: hide the dropped element, remove it, or accept it and do the rest

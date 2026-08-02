@@ -66,6 +66,10 @@ struct Options {
 	/** Contrast, text size, hit target, accessible name, visible focus. Implied by --a11y-report. */
 	bool a11y = false;
 	std::string a11y_report;
+	/** Print the tree a screen reader is read out of. */
+	bool a11y_tree = false;
+	/** The same tree as JSON, which is what a test diffs. */
+	std::string a11y_tree_report;
 	/** WCAG AA for normal text. Large text is held to 3:1 regardless, as WCAG defines it. */
 	float a11y_contrast = 4.5f;
 	/** Floors, in dp. The target size is WCAG 2.2 AA; the text size is a house rule, since WCAG
@@ -107,7 +111,8 @@ struct Options {
 
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty()
-		|| !provenance_report.empty() || !a11y_report.empty() || a11y || !filmstrip.empty(); }
+		|| !provenance_report.empty() || !a11y_report.empty() || a11y || a11y_tree
+		|| !a11y_tree_report.empty() || !filmstrip.empty(); }
 };
 
 enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };

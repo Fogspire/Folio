@@ -114,6 +114,10 @@ Style `:focus-visible`, never `:focus`.
 `folio-label` on any control whose visible content is not its name. Both are cheap now and expensive
 to retrofit across a finished game.
 
+`folio-label` is not only for the checker: while a screen reader is running it is what the player
+hears. `uipreview --a11y-tree` prints the whole document as it will be read out, which is the fastest
+way to see whether a screen makes sense to someone who cannot see it.
+
 ### 8. Verify before you say it is done
 
 ```bash
@@ -246,7 +250,7 @@ UI/
 | [docs/input_and_navigation.md](docs/input_and_navigation.md) | the `nav` rule and everything from it |
 | [docs/data_binding.md](docs/data_binding.md) | driving a document from gameplay |
 | [docs/testing_a_document.md](docs/testing_a_document.md) | every check and what it catches |
-| [docs/accessibility.md](docs/accessibility.md) | the four annotations and the build gate |
+| [docs/accessibility.md](docs/accessibility.md) | the annotations, the build gate and the screen reader |
 | [docs/rich_text.md](docs/rich_text.md) | `<text>`, terms and the typewriter |
 | [docs/known_gaps.md](docs/known_gaps.md) | every known limit, when something does not work and you need to know whether it can |
 | [docs/form_controls.md](docs/form_controls.md) | the real element types, and why `<button>` is not a button |

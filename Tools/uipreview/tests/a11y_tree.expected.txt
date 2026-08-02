@@ -1,0 +1,18 @@
+group "Settings"
+  group "Audio"
+    text "Audio"
+    slider "Master volume" = 60
+    combobox "Output device" = Speakers
+    checkbox "Subtitles" [checked]
+  group "Profile"
+    text "Profile"
+    textbox "Callsign" = Vega
+    textbox "Passphrase"
+    progressbar "Sync" = 0.4
+  group "Saves"
+    list "Saves"
+      listitem "Sector 1"
+      listitem "Sector 2"
+  button "Apply"
+  button "Revert" [disabled]
+  button "Close"

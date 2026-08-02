@@ -1,0 +1,105 @@
+<rml>
+<head>
+	<title>Settings</title>
+	<style>
+		body { font-family: Roboto; font-size: 16dp; color: #e8e8f0; background-color: #14141a;
+		       padding: 18dp; }
+		h2 { font-size: 18dp; color: #cfcfe0; margin-bottom: 8dp; }
+		.panel { margin-bottom: 16dp; padding: 12dp; background-color: #1c1c24; border-radius: 4dp; }
+		.row { display: flex; flex-direction: row; align-items: center; margin-bottom: 10dp; }
+		.row > label { width: 180dp; color: #cfcfe0; }
+		.field {
+			tab-index: auto; nav: auto;
+			width: 240dp; height: 32dp; padding: 4dp 8dp;
+			background-color: #0e0e13; color: #e8e8f0; border: 2dp #4a4a5c; border-radius: 4dp;
+		}
+		.field:focus-visible { border-color: #f0c674; }
+
+		button {
+			tab-index: auto; nav: auto;
+			min-width: 120dp; height: 36dp; padding: 6dp 14dp;
+			background-color: #2a2a36; color: #e8e8f0; border: 2dp #4a4a5c; border-radius: 4dp;
+		}
+		button:focus-visible { border-color: #f0c674; }
+		button:disabled { color: #9a9aa8; }
+
+		/* The invisible input over its own hit area, which is how every styled control in the library
+		   is built and the one case a zero-opacity element still belongs in the tree. */
+		.switch { position: relative; width: 64dp; height: 32dp; margin-right: 12dp; }
+		.switch input { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+		                opacity: 0; tab-index: auto; nav: auto; }
+		.switch .track { display: block; width: 64dp; height: 32dp; background-color: #33333f;
+		                 border: 2dp #4a4a5c; border-radius: 16dp; }
+		.switch input:checked ~ .track { background-color: #3d5d3d; }
+		.switch input:focus-visible ~ .track { border-color: #f0c674; background-color: #4a6a4a; }
+
+		input[type="range"] { width: 240dp; height: 32dp; border: 2dp #14141a; }
+		input[type="range"]:focus-visible { border-color: #f0c674; }
+		select { width: 240dp; height: 32dp; tab-index: auto; nav: auto;
+		         background-color: #0e0e13; color: #e8e8f0; border: 2dp #4a4a5c; }
+		select:focus-visible { border-color: #f0c674; }
+		progress { width: 240dp; height: 24dp; background-color: #0e0e13; }
+		progress fill { background-color: #f0c674; }
+
+		.rule { height: 2dp; background-color: #2a2a36; margin: 12dp 0; }
+		.entry { height: 32dp; color: #cfcfe0; }
+	</style>
+</head>
+<body>
+	<div class="panel" folio-label="Audio" folio-description="Volume and output device">
+		<h2>Audio</h2>
+
+		<div class="row">
+			<label for="volume">Master volume</label>
+			<input type="range" id="volume" min="0" max="100" step="5" value="60"/>
+		</div>
+
+		<div class="row">
+			<label for="device">Output device</label>
+			<select id="device">
+				<option value="speakers" selected>Speakers</option>
+				<option value="headset">Headset</option>
+			</select>
+		</div>
+
+		<div class="row">
+			<div class="switch">
+				<input type="checkbox" id="subtitles" checked/><span class="track"></span>
+			</div>
+			<label for="subtitles">Subtitles</label>
+		</div>
+	</div>
+
+	<div class="panel" folio-label="Profile">
+		<h2>Profile</h2>
+
+		<div class="row">
+			<label for="callsign">Callsign</label>
+			<input type="text" class="field" id="callsign" value="Vega"/>
+		</div>
+
+		<div class="row">
+			<label for="passphrase">Passphrase</label>
+			<input type="password" class="field" id="passphrase" value="hunter2"/>
+		</div>
+
+		<div class="row">
+			<label for="sync">Sync</label>
+			<progress id="sync" value="0.4" max="1"/>
+		</div>
+	</div>
+
+	<div class="rule" folio-hidden></div>
+
+	<div class="panel" folio-label="Saves">
+		<div folio-role="list" folio-label="Saves">
+			<div class="entry" folio-role="listitem" tab-index="auto" nav="auto">Sector 1</div>
+			<div class="entry" folio-role="listitem" tab-index="auto" nav="auto">Sector 2</div>
+		</div>
+	</div>
+
+	<button id="apply">Apply</button>
+	<button id="revert" disabled>Revert</button>
+	<button id="close" folio-label="Close" folio-description="Discards anything not applied">X</button>
+</body>
+</rml>

@@ -5,6 +5,8 @@
 #include "ElementPath.h"
 #include "Options.h"
 
+#include "FolioCore/FolioSemantics.h"
+
 #include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
@@ -17,6 +19,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
 #include <vector>
 
@@ -139,103 +142,12 @@ bool ResolveBackdrop(Rml::Element* element, Rml::Colourb& out_colour)
 	return false;
 }
 
-/** The element's own text, trimmed, empty when it has none directly inside it. */
-std::string OwnText(Rml::Element* element)
-{
-	std::string joined;
-
-	for (int i = 0; i < element->GetNumChildren(); ++i)
-	{
-		if (Rml::ElementText* text = rmlui_dynamic_cast<Rml::ElementText*>(element->GetChild(i)))
-			joined += text->GetText();
-	}
-
-	const auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
-	const auto first = std::find_if_not(joined.begin(), joined.end(), is_space);
-	if (first == joined.end())
-		return {};
-
-	const auto last = std::find_if_not(joined.rbegin(), joined.rend(), is_space).base();
-	return std::string(first, last);
-}
-
-/** Text anywhere inside, for naming a control whose label is in a child. */
-bool IsInteractive(Rml::Element* element);
-
-bool HasTextWithin(Rml::Element* element)
-{
-	if (!OwnText(element).empty())
-		return true;
-
-	for (int i = 0; i < element->GetNumChildren(); ++i)
-	{
-		if (HasTextWithin(element->GetChild(i)))
-			return true;
-	}
-
-	return false;
-}
-
-/**
- * What a screen reader would read this element out as, if one were listening.
- *
- * `folio-label` wins over text because a control whose visible label is an icon still needs a name,
- * and because a name that differs from the visible text is occasionally right - "close" on an X.
- */
-std::string AccessibleName(Rml::Element* element)
-{
-	if (element->HasAttribute("folio-label"))
-		return element->GetAttribute<Rml::String>("folio-label", "");
-
-	const std::string own = OwnText(element);
-	if (!own.empty())
-		return own;
-
-	if (HasTextWithin(element))
-		return "<from a child>";
-
-	// A checkbox or a radio has no text of its own and never will: the label is the element beside it,
-	// which is how the component library is built. Reporting those as unnamed would train people to
-	// ignore the check, which is the one failure mode a linter cannot recover from.
-	const Rml::String id = element->GetId();
-	if (!id.empty())
-	{
-		if (Rml::ElementDocument* document = element->GetOwnerDocument())
-		{
-			Rml::ElementList labels;
-			document->GetElementsByTagName(labels, "label");
-			for (Rml::Element* label : labels)
-			{
-				if (label->GetAttribute<Rml::String>("for", "") == id && HasTextWithin(label))
-					return "<from its label>";
-			}
-		}
-	}
-
-	// Either side: a segmented control puts its text after the input, a labelled field puts it before.
-	for (Rml::Element* beside : {element->GetNextSibling(), element->GetPreviousSibling()})
-	{
-		if (beside && !IsInteractive(beside) && HasTextWithin(beside))
-			return "<from the element beside it>";
-	}
-
-	return {};
-}
-
-bool IsInteractive(Rml::Element* element)
-{
-	const Rml::String tag = element->GetTagName();
-	if (tag == "button" || tag == "input" || tag == "select" || tag == "textarea" || tag == "handle")
-		return true;
-
-	if (element->HasAttribute("folio-close") || element->HasAttribute("folio-drag")
-		|| element->HasAttribute("onclick"))
-		return true;
-
-	// tab-index: auto is RCSS's own statement that this takes focus, which is a better signal than any
-	// list of tags: it is what the navigation actually walks.
-	return element->GetComputedValues().tab_index() == Rml::Style::TabIndex::Auto;
-}
+// Naming, interactivity and what counts as decoration all come from the semantic walk the engine
+// builds its accessibility tree with, so a control the checker calls named is a control a screen
+// reader will read out. See FolioCore/FolioSemantics.h.
+using Folio::AccessibleName;
+using Folio::IsInteractive;
+using Folio::OwnText;
 
 /** Properties whose change between rest and focus a person could see. */
 const Rml::PropertyId kFocusVisible[] = {
@@ -361,20 +273,23 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 		return;
 
 	// An author saying this is decoration is the end of the conversation: a spacer, a rule, a glow.
-	if (element->HasAttribute("folio-hidden"))
+	if (Folio::IsHiddenFromAccessibility(element))
 		return;
 
 	const Rml::ComputedValues& computed = element->GetComputedValues();
 	const Rml::Vector2f size = element->GetBox().GetSize(Rml::BoxArea::Border);
-	const bool visible = size.x > 0.0f && size.y > 0.0f && computed.opacity() > 0.0f
-		&& computed.visibility() == Rml::Style::Visibility::Visible;
+	const bool visible = Folio::IsVisibleForAccessibility(element);
 
-	if (visible)
+	// A control at zero opacity over its own hit area is the styled-checkbox pattern rather than a
+	// hidden control, and it is still what a click hits and what focus lands on. So the control checks
+	// run on it, while contrast and text size - which are about what is on screen - do not.
+	const bool reachable = Folio::IsInAccessibilityTree(element);
+
 	{
 		const std::string path = ComputeElementPath(element);
 		const std::string own = OwnText(element);
 
-		if (!own.empty())
+		if (visible && !own.empty())
 		{
 			const float px = computed.font_size() / std::max(0.01f, dp_ratio);
 			if (px < options.a11y_min_text)
@@ -406,7 +321,7 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 			}
 		}
 
-		if (IsInteractive(element))
+		if (reachable && IsInteractive(element))
 		{
 			if (AccessibleName(element).empty())
 			{
@@ -508,6 +423,133 @@ void CheckAccessibility(const Options& options, App& app, Diagnostics& diagnosti
 			"judge those against the scene they are drawn over",
 			options.document);
 	}
+}
+
+namespace {
+
+ordered_json TreeToJson(const Folio::FSemanticNode& node, float dp_ratio)
+{
+	const float scale = std::max(0.01f, dp_ratio);
+
+	ordered_json entry;
+	entry["role"] = Folio::RoleName(node.Role);
+	entry["path"] = ComputeElementPath(node.Element);
+	entry["name"] = node.Name;
+
+	if (!node.Description.empty())
+		entry["description"] = node.Description;
+
+	if (!node.Value.empty())
+		entry["value"] = node.Value;
+
+	if (node.Interactive)
+		entry["interactive"] = true;
+
+	if (node.Disabled)
+		entry["disabled"] = true;
+
+	if (node.Checkable)
+		entry["checked"] = node.Checked;
+
+	if (node.HasRange)
+	{
+		entry["minimum"] = Round2(node.Minimum);
+		entry["maximum"] = Round2(node.Maximum);
+		if (node.Step != 0.0f)
+			entry["step"] = Round2(node.Step);
+	}
+
+	entry["bounds"] = {
+		{"x", Round2(node.Offset.x / scale)},
+		{"y", Round2(node.Offset.y / scale)},
+		{"width", Round2(node.Size.x / scale)},
+		{"height", Round2(node.Size.y / scale)},
+	};
+
+	if (!node.Children.empty())
+	{
+		ordered_json children = ordered_json::array();
+		for (const Folio::FSemanticNode& child : node.Children)
+			children.push_back(TreeToJson(child, dp_ratio));
+
+		entry["children"] = std::move(children);
+	}
+
+	return entry;
+}
+
+} // namespace
+
+bool WriteAccessibilityTree(const std::string& path, const Options& options, App& app,
+	std::string& out_error)
+{
+	Rml::ElementDocument* document = app.GetDocument();
+	Rml::Context* context = app.GetContext();
+	if (!document || !context)
+	{
+		out_error = "no document";
+		return false;
+	}
+
+	const float dp_ratio = context->GetDensityIndependentPixelRatio();
+
+	ordered_json report;
+	report["schema"] = 1;
+	report["tool"] = {{"name", "uipreview"}};
+	report["command"] = {{"document", options.document}};
+	report["dpRatio"] = Round2(dp_ratio);
+
+	int nodes = 0;
+	int unnamed = 0;
+	const Folio::FSemanticNode root = Folio::BuildSemanticTree(document);
+	Folio::VisitSemanticTree(root, [&nodes, &unnamed](const Folio::FSemanticNode& node, int) {
+		++nodes;
+		if (node.Interactive && node.Name.empty())
+			++unnamed;
+	});
+
+	report["totals"] = {{"nodes", nodes}, {"unnamedControls", unnamed}};
+	report["tree"] = TreeToJson(root, dp_ratio);
+
+	std::ofstream file(path, std::ios::binary | std::ios::trunc);
+	if (!file)
+	{
+		out_error = "could not open for writing";
+		return false;
+	}
+
+	file << report.dump(2) << "\n";
+	return true;
+}
+
+void PrintAccessibilityTree(App& app, std::FILE* stream)
+{
+	Rml::ElementDocument* document = app.GetDocument();
+	if (!document)
+		return;
+
+	const Folio::FSemanticNode root = Folio::BuildSemanticTree(document);
+
+	Folio::VisitSemanticTree(root, [stream](const Folio::FSemanticNode& node, const int depth) {
+		std::string line(size_t(depth) * 2, ' ');
+		line += Folio::RoleName(node.Role);
+
+		if (!node.Name.empty())
+			line += " \"" + node.Name + "\"";
+		else if (node.Interactive)
+			line += " <unnamed>";
+
+		if (!node.Value.empty() && node.Role != Folio::ESemanticRole::Text)
+			line += " = " + node.Value;
+
+		if (node.Checkable)
+			line += node.Checked ? " [checked]" : " [unchecked]";
+
+		if (node.Disabled)
+			line += " [disabled]";
+
+		std::fprintf(stream, "%s\n", line.c_str());
+	});
 }
 
 bool WriteAccessibilityReport(const std::string& path, const Options& options, App& app,

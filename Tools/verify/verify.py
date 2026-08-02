@@ -273,6 +273,39 @@ def main() -> int:
             else:
                 harness.ok(label)
 
+    # --- Accessibility tree -----------------------------------------------------------------
+
+    # What a screen reader is read out of, against a committed transcript. The engine builds its
+    # Slate accessibility tree from this same walk, so a change in what this prints is a change in
+    # what a player using NVDA hears - and that is not a thing anyone notices by looking.
+    print("Accessibility tree")
+    tree_doc = tests_dir / "a11y_tree.rml"
+    expected_path = tests_dir / "a11y_tree.expected.txt"
+    if not tree_doc.is_file() or not expected_path.is_file():
+        harness.fail("missing a11y_tree.rml or its expected transcript")
+    else:
+        result = harness.run([str(tree_doc), "--strict", "--no-assets-wanted", "--a11y",
+                              "--a11y-tree"])
+
+        if result.returncode != 0:
+            harness.fail(f"a11y_tree.rml exited {result.returncode} - the fixture must stay clean")
+            for line in (result.stdout + result.stderr).splitlines()[:5]:
+                print(f"    {line}")
+        else:
+            produced = result.stdout.splitlines()
+            expected = expected_path.read_text(encoding="utf-8").splitlines()
+            if produced != expected:
+                harness.fail("the accessibility tree changed")
+                for index in range(max(len(produced), len(expected))):
+                    was = expected[index] if index < len(expected) else "<end>"
+                    now = produced[index] if index < len(produced) else "<end>"
+                    if was != now:
+                        print(f"    line {index}")
+                        print(f"      was: {was}")
+                        print(f"      now: {now}")
+            else:
+                harness.ok(f"{len(expected)} nodes, unchanged")
+
     # --- Texture reload ---------------------------------------------------------------------
 
     # What a hot reload does, done twice in one process: render, throw every texture away, render again.

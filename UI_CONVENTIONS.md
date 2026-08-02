@@ -948,31 +948,38 @@ Assume translated strings are up to 40% longer than English.
 
 ## 15. Accessibility
 
-Three attributes, and one command that fails the build if you skip them.
+Five attributes, one command that fails the build if you skip them, and a screen reader that reads
+the result.
 
 ```
-uipreview <file.rml> --a11y --strict
+uipreview <file.rml> --a11y --strict     # contrast, text size, hit targets, names, focus
+uipreview <file.rml> --a11y-tree         # what a screen reader is read out of, in reading order
 ```
 
-It checks contrast against the real backdrop, text under 12dp, hit targets under 24dp, controls with
-no name, and controls whose focus state is invisible. Every recipe and the default theme pass with no
-findings, so building on the component library inherits that.
+The checks cover contrast against the real backdrop, text under 12dp, hit targets under 24dp,
+controls with no name, and controls whose focus state is invisible. Every recipe and the default
+theme pass with no findings, so building on the component library inherits that.
 
 | | |
 |---|---|
 | `folio-label="..."` | Names a control that has no text of its own, and overrides text that reads wrong out loud. |
 | `folio-role="..."` | What kind of control this is, when the tag does not say. Inferred from the tag otherwise. |
-| `folio-hidden` | Decoration. Skipped by the checks and, later, by the screen-reader tree. |
+| `folio-description="..."` | A sentence read after the name, for a consequence the name cannot carry. |
+| `folio-hidden` | Decoration. Skipped by the checks and by the screen-reader tree. |
+| `folio-announce` | A line that is read out whenever it changes, wherever the reader happens to be. |
 
 A control counts as named if it has `folio-label`, its own text, text inside it, a `<label for>`
-pointing at it, or a non-interactive sibling with text on either side. You only write `folio-label`
-for icon-only controls and for text that reads wrong - an `X` that means Close.
+pointing at it, or - for a form control - a wrapping `<label>` or a non-interactive sibling with text
+on either side. You only write `folio-label` for icon-only controls and for text that reads wrong -
+an `X` that means Close.
 
 Do not use `folio-hidden` to silence a finding on something a person is meant to read.
 
-Screen readers are not supported yet: Folio draws through one Slate widget, so nothing inside the
-document reaches NVDA, JAWS or console TTS. Annotating now is what makes that a drop-in change later.
-See **[docs/accessibility.md](docs/accessibility.md)**.
+While a screen reader is running, the document is walked into a tree of Slate widgets, one per thing
+worth announcing, and NVDA, JAWS and console TTS read that. Nothing is built while nothing is
+listening. `--a11y-tree` prints the same tree the engine builds, so it is checkable without a screen
+reader; `folio.Accessibility.Dump` prints it from a running game. See
+**[docs/accessibility.md](docs/accessibility.md)**.
 
 ---
 

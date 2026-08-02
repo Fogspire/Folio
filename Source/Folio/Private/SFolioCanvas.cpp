@@ -1,5 +1,6 @@
 #include "SFolioCanvas.h"
 
+#include "FolioAccessibility.h"
 #include "FolioInsights.h"
 
 #include "FolioModule.h"
@@ -25,6 +26,11 @@ namespace
 const TArray<SFolioCanvas*>& SFolioCanvas::GetLiveCanvases()
 {
 	return LiveCanvases;
+}
+
+SFolioCanvas::SFolioCanvas()
+	: AccessibleChildren(this)
+{
 }
 
 void SFolioCanvas::Construct(const FArguments& InArgs)
@@ -57,7 +63,19 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 	// Sounds are the canvas's rather than the host's: a world-space document has no UI audio of its own
 	// and would not want the same events. The listener holds the document, so it lets go while the
 	// document is still alive and attaches to the new one afterwards.
-	Host.OnDocumentClosing = [this] { Sounds.Detach(); };
+	//
+	// The accessibility tree observes the elements of the document being closed, so it has to let go
+	// here for the same reason: on the next load those elements are freed.
+	Host.OnDocumentClosing = [this]
+	{
+		Sounds.Detach();
+
+		if (Accessibility.IsValid())
+		{
+			Accessibility->Clear();
+			AccessibleChildren.Empty();
+		}
+	};
 	Host.OnDocumentLoaded = [this](Rml::ElementDocument* Loaded) { Sounds.Attach(Loaded); };
 
 	// Slate caches draw elements for a non-volatile widget inside an invalidation root, so a paint has
@@ -215,7 +233,7 @@ void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 
 void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	SLeafWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	SPanel::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
 	if (!Host.IsValid())
 	{
@@ -243,13 +261,134 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const float RenderScale =
 		AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
 
-	Host.Update(InDeltaTime, ScaleFor(AllottedGeometry), RenderScale * ContextToLocal(AllottedGeometry));
+	const bool bUpdated = Host.Update(InDeltaTime, ScaleFor(AllottedGeometry),
+		RenderScale * ContextToLocal(AllottedGeometry));
+
+	UpdateAccessibility(bUpdated, AllottedGeometry);
 }
 
 
 FVector2D SFolioCanvas::ComputeDesiredSize(float) const
 {
 	return DesiredSize;
+}
+
+//
+// Accessibility. Everything here is inert until a screen reader turns on.
+//
+
+FChildren* SFolioCanvas::GetChildren()
+{
+	return &AccessibleChildren;
+}
+
+void SFolioCanvas::OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const
+{
+	if (AccessibleChildren.Num() == 0)
+	{
+		return;
+	}
+
+	// One child, the document itself, filling the canvas. Everything below it is placed by that widget
+	// against the offsets the document laid out at.
+	const TSharedRef<SWidget>& Root = AccessibleChildren[0];
+	if (ArrangedChildren.Accepts(Root->GetVisibility()))
+	{
+		ArrangedChildren.AddWidget(AllottedGeometry.MakeChild(Root,
+			FVector2D(AllottedGeometry.GetLocalSize()), FSlateLayoutTransform()));
+	}
+}
+
+void SFolioCanvas::UpdateAccessibility(const bool bDocumentChanged, const FGeometry& AllottedGeometry)
+{
+	if (!FFolioAccessibilityTree::IsWanted())
+	{
+		if (Accessibility.IsValid())
+		{
+			Accessibility.Reset();
+			AccessibleChildren.Empty();
+			AccessibilityScale = 0.0f;
+			Invalidate(EInvalidateWidgetReason::ChildOrder);
+		}
+
+		return;
+	}
+
+	// Nothing to describe until the document has been through a layout: an element with no computed
+	// box is one with no name, no state and no position.
+	if (!Host.IsLaidOut())
+	{
+		return;
+	}
+
+	if (!Accessibility.IsValid())
+	{
+		Accessibility = MakeUnique<FFolioAccessibilityTree>();
+		Accessibility->OnChanged = FSimpleDelegate::CreateSP(this, &SFolioCanvas::OnAccessibilityChanged);
+	}
+
+	// A context unit is a pixel of the context, and a supersampled context has more of them per Slate
+	// unit than the screen does. Proxies are placed on screen, so they follow the screen.
+	const float Scale = ContextToLocal(AllottedGeometry) / float(Supersample);
+
+	if (bDocumentChanged || Accessibility->IsEmpty() || Scale != AccessibilityScale)
+	{
+		AccessibilityScale = Scale;
+		Accessibility->Refresh(Host.GetDocument(), Scale);
+
+		// Only when the root widget itself is a different one. Detaching and reattaching the same
+		// widget would tell the platform its parent had changed on every frame the document moved.
+		const TSharedPtr<SFolioAccessibleElement> Root = Accessibility->GetRoot();
+		const bool bAlreadyThere = AccessibleChildren.Num() == (Root.IsValid() ? 1 : 0)
+			&& (!Root.IsValid() || &AccessibleChildren[0].Get() == Root.Get());
+
+		if (!bAlreadyThere)
+		{
+			AccessibleChildren.Empty();
+			if (Root.IsValid())
+			{
+				AccessibleChildren.Add(Root.ToSharedRef());
+			}
+
+			Invalidate(EInvalidateWidgetReason::ChildOrder);
+		}
+	}
+
+	// Every frame rather than only on a change: focus moves without the document changing shape, and
+	// this is what makes navigating a menu say what was navigated onto.
+	Accessibility->SyncFocus(Host.GetContext());
+}
+
+void SFolioCanvas::OnAccessibilityChanged()
+{
+	MarkDirty(TEXT("screen reader"));
+}
+
+void SFolioCanvas::DescribeAccessibility(TArray<FString>& Out) const
+{
+	if (Accessibility.IsValid())
+	{
+		Accessibility->Describe(Out);
+	}
+}
+
+int32 SFolioCanvas::PaintAccessibility(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
+	const FSlateRect& CullingRect, FSlateWindowElementList& OutDrawElements, const int32 LayerId,
+	const FWidgetStyle& InWidgetStyle, const bool bParentEnabled) const
+{
+	if (AccessibleChildren.Num() == 0)
+	{
+		return LayerId;
+	}
+
+	// The proxies emit no geometry. This is here because Slate records a widget's bounds when it is
+	// painted, and those bounds are what the platform hit tests and what a screen reader's cursor
+	// follows: a proxy that is never painted is a control at the origin, one pixel across.
+	FArrangedChildren Arranged(EVisibility::All);
+	ArrangeChildren(AllottedGeometry, Arranged);
+
+	return PaintArrangedChildren(Args, Arranged, AllottedGeometry, CullingRect, OutDrawElements, LayerId,
+		InWidgetStyle, bParentEnabled);
 }
 
 int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& CullingRect,
@@ -376,6 +515,9 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, TargetHandle, Quad, Indices,
 				nullptr, 0, 0, ESlateDrawEffect::PreMultipliedAlpha);
 
+			PaintAccessibility(Args, AllottedGeometry, CullingRect, OutDrawElements, LayerId,
+				InWidgetStyle, bParentEnabled);
+
 			return LayerId + 1;
 		}
 	}
@@ -390,6 +532,9 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 	Renderer->BeginFrame(OutDrawElements, Paint, LayerId, ContextSize);
 	Context->Render();
 	Renderer->EndFrame();
+
+	PaintAccessibility(Args, AllottedGeometry, CullingRect, OutDrawElements, LayerId, InWidgetStyle,
+		bParentEnabled);
 
 	return FMath::Max(LayerId, Renderer->GetMaxLayerId());
 }
@@ -572,7 +717,7 @@ void SFolioCanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
 		Context->ProcessMouseLeave();
 	}
 
-	SLeafWidget::OnMouseLeave(MouseEvent);
+	SPanel::OnMouseLeave(MouseEvent);
 }
 
 FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
@@ -724,7 +869,7 @@ FReply SFolioCanvas::OnFocusReceived(const FGeometry& MyGeometry, const FFocusEv
 	MarkDirty(TEXT("focus received"));
 	FocusFirstElement();
 
-	return SLeafWidget::OnFocusReceived(MyGeometry, FocusEvent);
+	return SPanel::OnFocusReceived(MyGeometry, FocusEvent);
 }
 
 void SFolioCanvas::OnDeviceChanged(const Folio::EInputDevice Device)
@@ -819,7 +964,7 @@ void SFolioCanvas::OnFocusLost(const FFocusEvent& FocusEvent)
 
 	// A stick held while focus moves elsewhere would otherwise keep repeating into this document.
 	Analog.Reset();
-	SLeafWidget::OnFocusLost(FocusEvent);
+	SPanel::OnFocusLost(FocusEvent);
 }
 
 bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int32 Modifiers)

@@ -47,6 +47,7 @@ save would be slow for no gain.
 |---|---|
 | `--strict` | Warnings fail the run. Always on in CI, and worth on locally. |
 | `--a11y` | Contrast, text size, hit targets, control names, focus visibility. See **[accessibility](accessibility.md)**. |
+| `--a11y-tree` | Prints what a screen reader is read out of, in reading order. The same walk the engine builds its accessibility tree from. |
 | `--culture pseudo` | Inflates and accents every string, which finds overflow before translation exists. Also enables the localisation lint - `--strict` alone does not run it. |
 | `--dp-ratio 2` | The document at a different UI scale. Text wraps in different places at different ratios, by design; a container sized to fit its content exactly at one ratio will break at another. |
 | `--input-device gamepad` | Pins what the document thinks the player is holding, so a gamepad screenshot needs no gamepad. |
@@ -73,6 +74,10 @@ like for like - same size, same dp ratio.
 line. This is what the VSCode extension uses to answer "which rule did this".
 
 **`--a11y-report`** — the accessibility findings with the numbers rather than the prose.
+
+**`--a11y-tree-report`** — the screen reader tree with bounds, ranges and element paths. What a test
+diffs: `verify.sh` compares `tests/a11y_tree.rml` against a committed transcript, so a change in what
+a document reads as fails a test rather than being noticed by ear.
 
 ## The harnesses
 

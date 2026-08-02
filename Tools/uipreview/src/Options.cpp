@@ -97,6 +97,8 @@ void PrintUsage(std::FILE* stream)
 		"                        whether focus is visible. Findings are warnings, so --strict\n"
 		"                        fails the run on them\n"
 		"  --a11y-report <FILE>  The same findings as JSON. Implies --a11y\n"
+		"  --a11y-tree           Print the tree a screen reader is read out of, in reading order\n"
+		"  --a11y-tree-report <FILE>  The same tree as JSON\n"
 		"  --metrics-report <FILE>  Write where every piece of text laid out, for diffing a\n"
 		"                        change to the text engine against a known good run\n"
 		"  --reload-textures     Release every texture between two renders before capturing,\n"
@@ -338,6 +340,15 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		else if (arg == "--a11y-report")
 		{
 			if (!TakeValue(argc, argv, i, "--a11y-report", o.a11y_report, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--a11y-tree")
+		{
+			o.a11y_tree = true;
+		}
+		else if (arg == "--a11y-tree-report")
+		{
+			if (!TakeValue(argc, argv, i, "--a11y-tree-report", o.a11y_tree_report, error))
 				return ParseResult::Error;
 		}
 		else if (arg == "--metrics-report")

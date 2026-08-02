@@ -13,7 +13,7 @@
 			display: block;
 			font-size: 13dp;
 			letter-spacing: 2dp;
-			color: #6a6a7a;
+			color: #8a8a99;
 			margin-bottom: 12dp;
 		}
 

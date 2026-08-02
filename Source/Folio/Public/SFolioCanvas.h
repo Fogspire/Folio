@@ -6,7 +6,8 @@
 #include "FolioUiSounds.h"
 
 #include "CoreMinimal.h"
-#include "Widgets/SLeafWidget.h"
+#include "Layout/Children.h"
+#include "Widgets/SPanel.h"
 
 namespace Rml
 {
@@ -18,14 +19,18 @@ namespace Rml
 /**
  * The entire Unreal-side surface: one widget acting as a dumb canvas.
  *
- * It reports a desired size, forwards input into the RmlUi context and emits geometry. It has
- * no children, takes no part in Slate layout and runs no Slate navigation. Treat it as an
- * HTML canvas: everything inside is RmlUi's, and Slate is only the drawing surface.
+ * It reports a desired size, forwards input into the RmlUi context and emits geometry. It takes no
+ * part in Slate layout and runs no Slate navigation. Treat it as an HTML canvas: everything inside is
+ * RmlUi's, and Slate is only the drawing surface.
  *
  * Slate's own focus and navigation must never run for this content, which is why the widget
- * neither creates focusable children nor participates in Slate's navigation queries.
+ * creates no focusable children and does not participate in Slate's navigation queries.
+ *
+ * The one exception is accessibility. A screen reader reads Unreal's widget tree, so while one is
+ * listening the canvas grows a hit-test invisible, unfocusable child per thing in the document worth
+ * announcing. They draw nothing and are gone the moment nothing is listening. See FolioAccessibility.h.
  */
-class FOLIO_API SFolioCanvas : public SLeafWidget
+class FOLIO_API SFolioCanvas : public SPanel
 {
 public:
 	SLATE_BEGIN_ARGS(SFolioCanvas)
@@ -61,6 +66,7 @@ public:
 		SLATE_ARGUMENT(int32, Supersample)
 	SLATE_END_ARGS()
 
+	SFolioCanvas();
 	void Construct(const FArguments& InArgs);
 	virtual ~SFolioCanvas() override;
 
@@ -123,6 +129,13 @@ public:
 	virtual void Tick(const FGeometry& AllottedGeometry, double InCurrentTime, float InDeltaTime) override;
 
 	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
+
+	/** Empty unless a screen reader is listening. See FolioAccessibility.h. */
+	virtual FChildren* GetChildren() override;
+	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
+
+	/** The document as a screen reader would read it, indented. What folio.Accessibility.Dump prints. */
+	void DescribeAccessibility(TArray<FString>& Out) const;
 
 	virtual bool SupportsKeyboardFocus() const override { return bInteractive; }
 
@@ -302,6 +315,30 @@ private:
 	Folio::FAnalogNavigator Analog;
 	Folio::FUiSoundListener Sounds;
 	bool bKeepFocus = false;
+
+	/**
+	 * Builds, updates or drops the screen reader tree.
+	 *
+	 * Only rebuilt on a frame the document itself changed, and only while something is listening: with
+	 * no screen reader running this is one branch and the canvas has no children at all.
+	 */
+	void UpdateAccessibility(bool bDocumentChanged, const FGeometry& AllottedGeometry);
+
+	/** A screen reader pressed something, so the document has moved without any input reaching Slate. */
+	void OnAccessibilityChanged();
+
+	/** Draws nothing. Painting a proxy is how it gets the geometry a screen reader reads as its bounds. */
+	int32 PaintAccessibility(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
+		const FSlateRect& CullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId,
+		const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const;
+
+	TUniquePtr<class FFolioAccessibilityTree> Accessibility;
+
+	/** The root proxy, or nothing. Everything below it is a child of that widget rather than of this one. */
+	TSlotlessChildren<SWidget> AccessibleChildren;
+
+	/** What the tree was last built against, so a resized document re-places its proxies. */
+	float AccessibilityScale = 0.0f;
 
 	/** Watches the module for the device changing, so focus can follow it. */
 	FDelegateHandle DeviceChanged;

@@ -146,15 +146,37 @@ invisibly, where an edge is high frequency and is the thing the field exists for
 
 ## Accessibility
 
-### Screen readers see one rectangle
+### A document in the world is not read out
 
-Folio draws through a single Slate widget, so NVDA, JAWS and console TTS get one opaque rectangle and
-nothing inside it. **No document structure, text or focus state reaches assistive technology.**
+`UFolioWorldDocument` and `UFolioMarkerDocument` draw into the scene rather than through a Slate
+widget, so there is no widget tree for a screen reader to walk - and no screen rectangle to report as
+a control's bounds if there were. **Screen documents are exposed; world and marker documents are not.**
 
-The static checks - contrast, text size, hit targets, control names, focus visibility - all work and
-gate the build. The annotations they establish (`folio-label`, `folio-role`, `folio-hidden`) are
-exactly what the screen-reader work will read, which is why annotating now costs nothing and
-retrofitting later is what kills projects.
+Not scheduled, because the answer for the case that matters is a different one: a terminal the player
+walks up to and uses should put its interface on a screen document while it is being used, which is
+also better for anyone reading small text on a surface at an angle.
+
+### Roles are limited to what the platform layer has
+
+Unreal's accessibility layer maps a fixed list of widget types, and there is no heading, region,
+landmark or progress bar in it. `folio-role="heading"` reads as text and `progressbar` reads as a
+read-only slider, which is the closest thing that carries a value. A document that leans on headings
+for structure will not read as structured.
+
+### Announcements are not guaranteed to arrive
+
+`folio-announce` and `FFolioAccessibilityTree::Announce` go through Unreal's
+`MakeAccessibleAnnouncement`, which is implemented on Windows, Mac and iOS and is documented as
+best-effort everywhere: two announcements close together can stomp one another. Do not use one to
+carry something the player cannot get any other way.
+
+### The walk is the whole document
+
+A document that changed is walked in full rather than patched, because RmlUi has no change
+notification covering everything a document can do to itself and a tree silently one edit behind is
+worse than no tree. It runs only on frames the document changed and only while a screen reader is
+running, so a settings screen costs nothing and a HUD that animates every frame costs a walk every
+frame. Measure that combination with `stat Folio` before shipping it.
 
 See **[accessibility](accessibility.md)**.
 

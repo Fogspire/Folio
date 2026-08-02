@@ -69,6 +69,16 @@ See **[documents in the world](world_documents.md)**.
 
 See **[performance and profiling](performance_profiling.md)**.
 
+## Accessibility
+
+| | |
+|---|---|
+| `folio.Accessibility.Dump [delay]` | What a screen reader is read out of every screen document, in reading order. From the live tree when one is running, and from the document itself when one is not. A delay defers it, which a menu that closes on losing focus needs. |
+| `folio.Accessibility.Force 1` | Builds the tree with nothing listening. For measuring what it costs, and for dumping the real widgets rather than what would be built. |
+| `folio.Accessibility.Say <text>` | Announces a string through whatever screen reader is running. The same path `folio-announce` and `UFolioAccessibilityLibrary::Announce` take. |
+
+See **[accessibility](accessibility.md)**.
+
 ## Producing files
 
 These are the engine's answer to `uipreview`'s flags, and exist so the two renderers can be asked the

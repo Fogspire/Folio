@@ -88,6 +88,20 @@ int main(int argc, char** argv)
 			}
 		}
 
+		if (options.a11y_tree)
+			PrintAccessibilityTree(app, stdout);
+
+		if (!options.a11y_tree_report.empty())
+		{
+			std::string report_error;
+			if (!WriteAccessibilityTree(options.a11y_tree_report, options, app, report_error))
+			{
+				std::fprintf(stderr, "uipreview:0:0: error: [E-A11Y] %s: %s\n",
+					options.a11y_tree_report.c_str(), report_error.c_str());
+				return 4;
+			}
+		}
+
 		if (!options.provenance_report.empty())
 		{
 			std::string report_error;

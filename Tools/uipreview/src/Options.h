@@ -90,6 +90,10 @@ struct Options {
 	/** Render `filmstrip_frames` and count how often the whole screen changes brightness. */
 	bool flash_check = false;
 
+	/** Hides the layers marked folio-screen-effect: the vignettes, tints and flashes a game paints
+	    over the whole view. */
+	bool no_screen_effects = false;
+
 	/** How fast <text> types, 1 being as authored, and whether it types at all. A player's setting,
 	    and deliberately not part of --reduced-motion. */
 	float text_speed = 1.0f;

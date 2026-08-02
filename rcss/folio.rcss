@@ -121,3 +121,23 @@ scrollbarhorizontal sliderarrowinc
 		animation: none;
 	}
 }
+
+/*
+ * Full-screen effect layers, off.
+ *
+ * The washes and flashes a game paints over the whole view: a damage vignette, a burning tint, a hit
+ * flash. Three separate problems in one - a coloured wash over the HUD is a legibility problem, a
+ * breathing overlay is a motion problem, and a hit flash is a photosensitivity problem - and a player
+ * who needs any of them gone usually needs all of them gone.
+ *
+ * Folio cannot tell a vignette from a panel, so the author marks the layers: `folio-screen-effect` on
+ * each one. Mark what covers the view and reads as an effect; leave anything a player needs to see.
+ * Turn it on with Set Screen Effects, or folio.Accessibility.ScreenEffects.
+ */
+@media (theme: no-screen-effects)
+{
+	[folio-screen-effect]
+	{
+		display: none;
+	}
+}

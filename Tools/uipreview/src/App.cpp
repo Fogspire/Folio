@@ -256,6 +256,11 @@ bool App::Initialise()
 		context->SetDefaultScrollBehavior(Rml::ScrollBehavior::Instant, 1.0f);
 	}
 
+	if (context && options.no_screen_effects)
+	{
+		context->ActivateTheme("no-screen-effects", true);
+	}
+
 	// Its own setting, not part of reduced motion. See docs/accessibility.md.
 	Folio::Text::RevealSettings().Speed = options.text_speed;
 	Folio::Text::RevealSettings().bInstant = options.instant_text;

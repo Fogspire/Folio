@@ -1297,6 +1297,16 @@ bool UFolioAccessibilityLibrary::IsHighContrastOn()
 	return Folio::Presentation::IsHighContrastOn();
 }
 
+void UFolioAccessibilityLibrary::SetScreenEffects(const bool bEnabled)
+{
+	Folio::Presentation::SetScreenEffects(bEnabled);
+}
+
+bool UFolioAccessibilityLibrary::AreScreenEffectsOn()
+{
+	return Folio::Presentation::AreScreenEffectsOn();
+}
+
 void UFolioAccessibilityLibrary::SetTextSpeed(const float Multiplier)
 {
 	Folio::Presentation::SetTextSpeed(Multiplier);

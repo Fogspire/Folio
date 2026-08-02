@@ -721,6 +721,33 @@ Check one at the ratio a high-contrast theme should meet rather than the ordinar
 ./bin/win64/uipreview.exe UI/screens/settings.rml --root . --theme high-contrast --a11y-contrast 7
 ```
 
+### Screen effects
+
+The washes and flashes a game paints over the whole view: a damage vignette, a burning tint, a hit
+flash. Three problems in one - a coloured wash over the HUD is a legibility problem, a breathing
+overlay is a motion problem, and a hit flash is a photosensitivity problem - and whoever needs one of
+them gone usually needs all of them gone.
+
+Folio cannot tell a vignette from a panel, so **mark the layers**:
+
+```html
+<div id="base"    class="edge" folio-screen-effect/>
+<div id="burning" class="edge" folio-screen-effect/>
+<div id="hit"     class="edge" folio-screen-effect/>
+```
+
+```cpp
+UFolioAccessibilityLibrary::SetScreenEffects(false);
+```
+
+On by default, and nothing disappears from a game that has marked nothing. Mark what covers the view
+and reads as an effect; leave anything a player needs to see. `examples/screen_edge.rml` is the
+worked example, `folio.Accessibility.ScreenEffects` is the console, and `uipreview
+--no-screen-effects` previews it.
+
+Worth pairing with `--flash-check`: the layer that trips the flash limit is usually the one that most
+needs marking.
+
 ### Text speed
 
 Its own setting, and deliberately not part of reduced motion:

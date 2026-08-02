@@ -139,6 +139,12 @@ namespace FolioDocSamples
 	// docs/accessibility.md#8
 	inline void Sample_docs_accessibility_md_8()
 	{
+		UFolioAccessibilityLibrary::SetScreenEffects(false);
+	}
+
+	// docs/accessibility.md#9
+	inline void Sample_docs_accessibility_md_9()
+	{
 		UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored. Clamped to 0.1 - 10
 		UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
 	}

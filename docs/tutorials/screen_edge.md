@@ -200,6 +200,18 @@ already covers this, but these layers turn up in pause menus and inventories too
 `opacity: 0` on the shared class means a layer that is never switched on costs a state change and
 nothing else.
 
+There is a fifth, and it goes on the elements rather than the class:
+
+```html
+<div id="hit" class="edge" folio-screen-effect/>
+```
+
+`folio-screen-effect` is what lets a player turn all of this off. It is three problems in one - a
+coloured wash over the HUD is a legibility problem, the breathing overlay is a motion problem, and the
+hit flash is a photosensitivity problem - and whoever needs one of them gone needs all of them gone.
+Folio cannot tell a vignette from a panel, so mark them. See
+**[accessibility](../accessibility.md#screen-effects)**.
+
 ## 7. Ordering
 
 Later siblings paint over earlier ones, and every layer here is absolutely positioned, so document

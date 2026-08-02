@@ -42,6 +42,21 @@ namespace Folio::Presentation
 	void SetReducedMotion(bool bReduce);
 	bool IsReducedMotionOn();
 
+	/**
+	 * Whether the full-screen effect layers are drawn at all.
+	 *
+	 * The washes and flashes a game paints over the whole view: a damage vignette, a burning tint, a
+	 * hit flash. Three problems in one - a coloured wash over the HUD is a legibility problem, a
+	 * breathing overlay is a motion problem, a hit flash is a photosensitivity problem - and whoever
+	 * needs one of them gone usually needs all of them gone.
+	 *
+	 * Folio cannot tell a vignette from a panel, so the author marks the layers with
+	 * `folio-screen-effect` and this hides what is marked. On by default: nothing disappears from a
+	 * game that has not asked.
+	 */
+	void SetScreenEffects(bool bEnabled);
+	bool AreScreenEffectsOn();
+
 	/** The `high-contrast` theme, named so a game does not have to hard-code the string. */
 	void SetHighContrast(bool bEnabled);
 	bool IsHighContrastOn();

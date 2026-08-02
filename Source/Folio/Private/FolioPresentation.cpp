@@ -25,6 +25,7 @@ namespace
 	}
 
 	const FName ReducedMotionTheme(TEXT("reduced-motion"));
+	const FName NoScreenEffectsTheme(TEXT("no-screen-effects"));
 	const FName HighContrastTheme(TEXT("high-contrast"));
 }
 
@@ -106,6 +107,19 @@ bool Folio::Presentation::IsInstantTextOn()
 bool Folio::Presentation::IsReducedMotionOn()
 {
 	return PresentationState().bReducedMotion;
+}
+
+void Folio::Presentation::SetScreenEffects(const bool bEnabled)
+{
+	// The theme is the negative, because a document that never heard of the setting has to keep
+	// drawing what it always drew.
+	FFolioDocumentHost::SetTheme(NoScreenEffectsTheme, !bEnabled);
+	++PresentationState().Revision;
+}
+
+bool Folio::Presentation::AreScreenEffectsOn()
+{
+	return !FFolioDocumentHost::IsThemeActive(NoScreenEffectsTheme);
 }
 
 void Folio::Presentation::SetHighContrast(const bool bEnabled)

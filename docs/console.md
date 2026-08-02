@@ -82,6 +82,7 @@ See **[performance and profiling](performance_profiling.md)**.
 | `folio.Accessibility.Verbosity [low\|normal\|high]` | How much the reader says beyond a control's name. Also reports how many lines are waiting to be spoken, which is what to watch if a screen sounds like it is talking about the past. |
 | `folio.Accessibility.TextScale [scale]` | Scales every type size written in `rem`. No argument reports the current one. |
 | `folio.Accessibility.ReducedMotion [0\|1]` | Turns every transition and animation off across every document. No argument flips it. |
+| `folio.Accessibility.ScreenEffects [0\|1]` | Whether the layers marked `folio-screen-effect` are drawn: the vignettes, tints and flashes a game paints over the whole view. No argument flips it. |
 | `folio.Accessibility.HighContrast [0\|1]` | The high-contrast theme, under the name a game's setting should call rather than a theme string. |
 
 See **[accessibility](accessibility.md)**.

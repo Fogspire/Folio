@@ -55,6 +55,7 @@ save would be slow for no gain.
 | `--theme high-contrast` | Renders with a theme on. Pair it with `--a11y-contrast 7`, which is what a high-contrast theme should meet. |
 | `--text-scale 1.5` | The accessibility text scale. With `--a11y`, also reports the text it could not move and anything that stopped fitting. |
 | `--reduced-motion` | Every transition, animation and smooth scroll off, as the setting does. |
+| `--no-screen-effects` | Hides the layers marked `folio-screen-effect`. |
 | `--text-speed 4`, `--instant-text` | How fast `<text>` types, and whether it types at all. Separate from reduced motion. |
 | `--simulate deuteranopia` | Redraws captures, and re-runs the contrast pass, as that colour vision sees them. Also `protanopia`, `tritanopia`, `achromatopsia`. |
 | `--flash-check` | Renders `--filmstrip-frames` frames and reports flashing over three a second, which is a seizure risk and a certification question. |

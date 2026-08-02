@@ -981,6 +981,7 @@ theme pass with no findings, so building on the component library inherits that.
 | `folio-checked="true\|false"` | The state of a check box built out of `div`s. A real `<input>` needs none of this. |
 | `folio-hidden` | Decoration. Skipped by the checks and by the screen-reader tree. |
 | `folio-announce[="assertive"]` | A line read out whenever it changes, wherever the reader happens to be. Also how a value nobody can focus - the number between a minus and a plus - gets heard. `assertive` cuts in over whatever is being said; bare waits its turn. |
+| `folio-screen-effect` | A full-screen wash or flash. Hidden when a player turns screen effects off. |
 | `folio-inert` | Out of reach, as the background behind a modal is. `focus: none` with `pointer-events: none` says the same thing, and is what `docs/modals.md` already tells you to write. |
 
 A control counts as named if it has `folio-label`, its own text, text inside it, a `<label for>`
@@ -1021,6 +1022,7 @@ screen being rebuilt.
 |---|---|
 | `SetTextScale(1.5)` | Writes the root font size, so it reaches type sized in `rem` and nothing sized in `dp`. **Size your type in `rem`.** |
 | `SetReducedMotion(true)` | The `reduced-motion` theme, and instant scrolling. Code that moves things per frame reads `IsReducedMotionOn` and snaps. |
+| `SetScreenEffects(false)` | Hides every element marked `folio-screen-effect` - the vignettes, tints and flashes painted over the whole view. Mark them; Folio cannot tell one from a panel. |
 | `SetTextSpeed(2)`, `SetInstantText(true)` | How fast `<text>` types. Its own setting on purpose: players look for text speed separately, and a typewriter is not what a vestibular setting is for. |
 | `SetHighContrast(true)` | The `high-contrast` theme. |
 

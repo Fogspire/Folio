@@ -66,10 +66,13 @@
 	</style>
 </head>
 <body class="burning hit-a">
-	<div id="base" class="edge"/>
-	<div id="burning" class="edge"/>
-	<div id="frozen" class="edge"/>
-	<div id="hit" class="edge"/>
+	<!-- Every layer is marked, so a player who has turned screen effects off loses the lot: a wash
+	     over the HUD, a breathing overlay and a hit flash are three different problems and whoever
+	     needs one gone needs all three gone. -->
+	<div id="base" class="edge" folio-screen-effect/>
+	<div id="burning" class="edge" folio-screen-effect/>
+	<div id="frozen" class="edge" folio-screen-effect/>
+	<div id="hit" class="edge" folio-screen-effect/>
 
 	<div class="note">standing in fire, taking a hit</div>
 </body>

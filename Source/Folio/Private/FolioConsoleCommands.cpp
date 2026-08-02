@@ -2060,6 +2060,18 @@ namespace
 			Folio::FSpeech::NumQueued());
 	}
 
+	void ScreenEffectsAccessibility(const TArray<FString>& Args)
+	{
+		const bool bWanted = Args.Num() == 0
+			? !UFolioAccessibilityLibrary::AreScreenEffectsOn()
+			: (Args[0].ToBool() || Args[0] == TEXT("1"));
+
+		UFolioAccessibilityLibrary::SetScreenEffects(bWanted);
+
+		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.ScreenEffects: %s"),
+			UFolioAccessibilityLibrary::AreScreenEffectsOn() ? TEXT("on") : TEXT("off"));
+	}
+
 	void TextSpeedAccessibility(const TArray<FString>& Args)
 	{
 		if (Args.Num() > 0)
@@ -2121,6 +2133,13 @@ namespace
 		TEXT("folio.Accessibility.Reader [0|1]. Turns the game's own screen reader on or off, which is "
 			"what an options menu toggle calls. No argument flips it."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ReaderAccessibility));
+
+	FAutoConsoleCommand AccessibilityScreenEffectsCommand(
+		TEXT("folio.Accessibility.ScreenEffects"),
+		TEXT("folio.Accessibility.ScreenEffects [0|1]. Whether the layers marked folio-screen-effect "
+			"are drawn: the damage vignettes, tints and hit flashes a game paints over the whole view. "
+			"No argument flips it."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ScreenEffectsAccessibility));
 
 	FAutoConsoleCommand TextSpeedCommand(
 		TEXT("folio.Text.Speed"),

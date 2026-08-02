@@ -107,6 +107,8 @@ void PrintUsage(std::FILE* stream)
 		"  --reduced-motion      Turn every transition and animation off, as the setting does\n"
 		"  --text-speed <N>      How fast <text> types, 1 being as authored, 0.1 to 10\n"
 		"  --instant-text        Every <text> arrives whole, as the setting does\n"
+		"  --no-screen-effects   Hide the layers marked folio-screen-effect: the vignettes, tints\n"
+		"                        and flashes a game paints over the whole view\n"
 		"  --flash-check         Render --filmstrip-frames frames and report flashing over the\n"
 		"                        WCAG limit of three a second, which is a seizure risk and a\n"
 		"                        certification question\n"
@@ -301,6 +303,10 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		else if (arg == "--flash-check")
 		{
 			o.flash_check = true;
+		}
+		else if (arg == "--no-screen-effects")
+		{
+			o.no_screen_effects = true;
 		}
 		else if (arg == "--instant-text")
 		{

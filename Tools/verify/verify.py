@@ -387,6 +387,24 @@ def main() -> int:
             else:
                 harness.ok("text speed and instant text differ from authored")
 
+        # The screen effect layers have to actually leave. This is the one setting whose whole job is
+        # that a marked element stops being drawn, so a theme that silently stopped matching would be
+        # invisible until a player with photosensitivity found it.
+        edges = repo / "examples" / "screen_edge.rml"
+        if edges.is_file():
+            drawn = out / "effects.on.png"
+            hidden = out / "effects.off.png"
+            for path, extra in ((drawn, []), (hidden, ["--no-screen-effects"])):
+                harness.run([str(edges), "--root", str(repo), "--size", "640x400", "--dp-ratio", "1",
+                             "--no-assets-wanted", "--screenshot", str(path), *extra])
+
+            if not drawn.is_file() or not hidden.is_file():
+                harness.fail("could not capture the screen effect pair")
+            elif drawn.read_bytes() == hidden.read_bytes():
+                harness.fail("--no-screen-effects left the marked layers on screen")
+            else:
+                harness.ok("screen effects leave when turned off")
+
         # And the simulation has to actually do something, or it is a flag that reads as a pass.
         plain = out / "simulate.normal.png"
         seen = out / "simulate.deuteranopia.png"

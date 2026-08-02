@@ -216,6 +216,24 @@ public:
 	static FOLIO_API bool IsHighContrastOn();
 
 	/**
+	 * Whether the full-screen effect layers are drawn at all.
+	 *
+	 * The washes and flashes a game paints over the whole view: a damage vignette, a burning tint, a
+	 * hit flash. Three problems in one - a coloured wash over the HUD is a legibility problem, a
+	 * breathing overlay is a motion problem, a hit flash is a photosensitivity problem - and whoever
+	 * needs one gone usually needs all of them gone.
+	 *
+	 * Folio cannot tell a vignette from a panel, so **mark the layers**: `folio-screen-effect` on each
+	 * one that covers the view and reads as an effect. On by default; nothing disappears from a game
+	 * that has not marked anything.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API void SetScreenEffects(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API bool AreScreenEffectsOn();
+
+	/**
 	 * How fast `<text>` types. 1 is as authored, 2 is twice as fast. Clamped to 0.1 - 10.
 	 *
 	 * Its own setting rather than part of reduced motion, because players look for it separately and

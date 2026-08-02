@@ -1,0 +1,47 @@
+<rml>
+<head>
+	<title>Saves</title>
+	<style>
+		body { font-family: Roboto; font-size: 16dp; color: #e8e8f0; background-color: #14141a;
+		       padding: 18dp; }
+		h2 { font-size: 20dp; color: #e8e8f0; margin-bottom: 8dp; }
+
+		button {
+			tab-index: auto; nav: auto;
+			min-width: 120dp; height: 36dp; padding: 6dp 14dp;
+			background-color: #2a2a36; color: #e8e8f0; border: 2dp #4a4a5c; border-radius: 4dp;
+		}
+		button:focus-visible { border-color: #f0c674; }
+
+		/*
+		 * The recipe from docs/modals.md. Both properties, and both load-bearing: `focus` is what the
+		 * gamepad obeys and `pointer-events` is what the mouse obeys. The pair is also what the screen
+		 * reader reads as "not part of the screen right now", so a player cannot walk into buttons
+		 * they are not allowed to press.
+		 */
+		.screen.is-behind-modal { focus: none; pointer-events: none; }
+
+		.dialog {
+			padding: 16dp;
+			background-color: #1c1c24;
+			border-radius: 4dp;
+			overflow: hidden;
+		}
+	</style>
+</head>
+<body>
+	<div class="screen is-behind-modal" folio-label="Saves">
+		<h2>Saves</h2>
+		<button id="load">Load</button>
+		<button id="rename">Rename</button>
+		<button id="delete">Delete</button>
+	</div>
+
+	<div class="dialog" folio-role="dialog" folio-label="Delete save">
+		<h2>Delete save?</h2>
+		<div folio-role="text">This cannot be undone.</div>
+		<button id="confirm">Delete</button>
+		<button id="cancel" autofocus>Keep</button>
+	</div>
+</body>
+</rml>

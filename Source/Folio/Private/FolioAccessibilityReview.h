@@ -32,6 +32,15 @@ public:
 		Previous,
 		First,
 		Last,
+		/**
+		 * The next thing that titles a part of the screen.
+		 *
+		 * How anyone reads a long screen without walking every line of it. It needs the document to
+		 * use `<h1>`-`<h6>` or `folio-role="heading"`, which is the same thing that makes it read as
+		 * structured to a browser.
+		 */
+		NextHeading,
+		PreviousHeading,
 		/** Says the last thing said again, whichever part of the reader said it. */
 		Repeat,
 	};

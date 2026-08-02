@@ -167,8 +167,47 @@ The cursor covers every live document, newest first, so a modal is read before t
 reader can see. It follows focus, so arrowing through a menu and then reading on works the way round
 anyone would expect, and it steps over the layout containers that have nothing to say.
 
-`folio.Accessibility.Review [list|next|previous|first|last|repeat|all|stop|activate|focus]` drives it
-from the console, which is how to try it before anything is bound.
+`ReviewNextHeading` and `ReviewPreviousHeading` jump between the things that title a part of the
+screen, which is how a long page is read without walking every line of it. They need the document to
+use `<h1>`-`<h6>` or `folio-role="heading"` - the same markup that makes it read as structured
+anywhere else.
+
+`folio.Accessibility.Review [list|next|previous|first|last|heading|prevheading|repeat|all|stop|activate|focus]`
+drives it from the console, which is how to try it before anything is bound.
+
+### How much it says
+
+```cpp
+UFolioAccessibilityLibrary::SetReaderVerbosity(EFolioReaderVerbosity::Low);
+```
+
+| | |
+|---|---|
+| `Low` | The name, the state and the value. Nothing else. |
+| `Normal` | Adds what kind of control it is, and the panel it is in on the way into one. The default. |
+| `High` | Adds the `folio-description`. |
+
+Someone who has learned a screen wants "Master volume, 60"; someone meeting it wants to be told it is
+a slider and what it does. Each finds the other setting close to unusable, which is why every real
+screen reader has this and why a game that speaks for itself needs it too.
+
+### What it does when it falls behind
+
+Everything the reader says goes through one queue that Folio owns, rather than into the voice as it
+happens. That is the whole point: a line handed to a voice cannot be taken back, and a player holding
+a key on a slider produces one line per frame.
+
+- **A focus change is assertive.** It drops the queue and cuts off what is speaking, because
+  everything waiting was about a control the player has already left.
+- **An announcement is polite, and carries a channel.** A later line on the same channel *replaces* an
+  earlier one still waiting, so a value that keeps changing leaves one pending line rather than forty,
+  and what gets read is the number it ended on.
+- **A polite line that has waited more than four seconds is dropped unsaid.** By then the screen has
+  moved on and reading it would describe a state that no longer exists.
+- **A read-all queues and never expires.** A player asked for that, so it waits as long as it takes.
+
+`folio.Accessibility.Verbosity` reports how many lines are waiting, which is the number to watch if a
+screen ever feels like it is talking about the past.
 
 ### Typing
 
@@ -239,10 +278,32 @@ Nothing exists while nothing is listening: no widgets, no walk, one branch a fra
 
 ### What it costs
 
-The walk is the whole document, so it is proportional to the document rather than to what changed.
-It runs on a frame the document changed and not otherwise, which for a settings screen is when
-someone touches it. A HUD that animates every frame walks every frame - measure it with `stat Folio`
-before putting a screen reader and a busy HUD together.
+Two costs, deliberately separated, because a document that changed has usually not changed what it
+*means*.
+
+**Following the elements** happens on every frame the document changed: one box read per node, no
+strings, no allocation. A HUD animating a bar pays this and nothing else.
+
+**Walking the document** happens at most ten times a second - `folio.Accessibility.WalkInterval` - and
+immediately when a screen reader starts or when focus lands somewhere the tree has never heard of, so
+a dialog that opens is announced the next frame rather than a tenth of a second later. That walk is
+proportional to the document; `stat Folio` reports it as *Accessibility walk*, and it reports nothing
+at all while nobody is listening.
+
+### Modals
+
+A dialog's background is out of the tree. The signal is the pair of properties
+[docs/modals.md](modals.md) already tells you to write:
+
+```css
+.screen.is-behind-modal { focus: none; pointer-events: none; }
+```
+
+`folio-inert` says the same thing outright, for a game that traps focus its own way. Either alone is
+ordinary - `pointer-events: none` is how a decoration stops eating clicks - so both are required.
+
+A screen reader that can still walk into a dialog's background is the same bug as a gamepad that can:
+the player is told about controls they cannot reach, with no way to know why nothing happens.
 
 ### Reading the tree without a screen reader
 
@@ -357,8 +418,10 @@ Inferred without it from the tag - `button`, `input` and its `type`, `select`, `
 
 | Value | Read as |
 |---|---|
-| `group`, `dialog`, `region` | a pane |
-| `text`, `label`, `heading` | text |
+| `group`, `dialog` | a pane |
+| `region`, `landmark` | a named part of the screen |
+| `heading` | a title, which the review cursor can jump between |
+| `text`, `label` | text |
 | `image` | an image |
 | `button` | a button |
 | `link` | a link |
@@ -370,10 +433,14 @@ Inferred without it from the tag - `button`, `input` and its `type`, `select`, `
 | `list`, `listbox` | a list |
 | `listitem`, `option` | an item in one |
 
-There is no heading, region or landmark role that survives to the platform: Unreal's accessibility
-layer has nowhere to put them, and a role nothing can announce is a promise the toolkit does not
-keep. A progress bar becomes a slider for the same reason - it is the only thing in that list that
-carries a value and a range, and "slider, 40" is better than silence.
+`<h1>` to `<h6>` are headings without being told, which is worth using: it is the same markup that
+makes a document read as structured anywhere else, and it is what the review cursor jumps between.
+
+Heading and region do not survive to a *platform* screen reader. Unreal's accessibility layer has no
+role for either, so they arrive as text and as a pane - the closest honest thing in a list that cannot
+be extended from a plugin. The game's own reader says the word, and heading navigation works either
+way. A progress bar becomes a slider for the same kind of reason: it is the only thing in that list
+carrying a value and a range, and "slider, 40" is better than silence.
 
 ### `folio-checked`
 
@@ -426,6 +493,14 @@ line.
 
 It announces on change, not on arrival: the tree built when a screen reader starts does not read out
 every announcing element on screen at once.
+
+Each announcing element has its own place in the queue, so a value that changes forty times leaves one
+line waiting and reads the number it ended on. `folio-announce="assertive"` cuts in over whatever is
+being said instead - for a warning, never for a score.
+
+```html
+<div class="alert" folio-announce="assertive" data-attr-value="model.alert">{{ model.alert }}</div>
+```
 
 It is also the answer for a value nobody can navigate to. A stepper row - a label, a minus, a number,
 a plus - has three focusable things and the number is not one of them, so a player pressing plus would
@@ -579,6 +654,10 @@ those is still to put its interface on a screen document while it is being used.
 
 Text scale reaches type sized in `rem` and nothing sized in `dp`. Reduced motion reaches anything a
 stylesheet moves and nothing a shader, a video or your own per-frame code moves.
+
+Braille is a display plugged into NVDA or JAWS, rendering the same tree it speaks - so on Windows it
+follows from roles and values being right, and Unreal's text pattern support is only partial. On a
+console there is no braille display support to reach.
 
 An accessibility declaration for a storefront is also more than a readable tree. Subtitles, remappable
 controls, difficulty options and anything CVAA touches are game features, not UI-toolkit features -

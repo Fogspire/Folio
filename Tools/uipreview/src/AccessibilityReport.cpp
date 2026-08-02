@@ -310,7 +310,7 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 	// A control at zero opacity over its own hit area is the styled-checkbox pattern rather than a
 	// hidden control, and it is still what a click hits and what focus lands on. So the control checks
 	// run on it, while contrast and text size - which are about what is on screen - do not.
-	const bool reachable = Folio::IsInAccessibilityTree(element);
+	const bool reachable = Folio::IsInAccessibilityTree(element) && !Folio::IsInert(element);
 
 	{
 		const std::string path = ComputeElementPath(element);
@@ -655,7 +655,7 @@ void PrintAccessibilityTree(App& app, std::FILE* stream)
 		else if (node.Interactive)
 			line += " <unnamed>";
 
-		if (!node.Value.empty() && node.Role != Folio::ESemanticRole::Text)
+		if (!node.Value.empty() && !Folio::RoleSaysItsOwnValue(node.Role))
 			line += " = " + node.Value;
 
 		if (node.Checkable)

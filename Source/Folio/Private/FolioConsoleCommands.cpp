@@ -19,6 +19,7 @@
 #include "FolioAccessibility.h"
 #include "FolioAccessibilityLibrary.h"
 #include "FolioAccessibilityReview.h"
+#include "FolioSpeech.h"
 #include "FolioCore/FolioElementPath.h"
 #include "FolioCore/FolioSemantics.h"
 
@@ -1885,7 +1886,7 @@ namespace
 							Line += TEXT(" <unnamed>");
 						}
 
-						if (!Node.Value.empty() && Node.Role != Folio::ESemanticRole::Text)
+						if (!Node.Value.empty() && !Folio::RoleSaysItsOwnValue(Node.Role))
 						{
 							Line += TEXT(" = ") + Folio::ToFString(Node.Value);
 						}
@@ -1980,6 +1981,8 @@ namespace
 		else if (What == TEXT("first") || What == TEXT("top")) Move = FFolioReview::EMove::First;
 		else if (What == TEXT("last") || What == TEXT("end")) Move = FFolioReview::EMove::Last;
 		else if (What == TEXT("repeat")) Move = FFolioReview::EMove::Repeat;
+		else if (What == TEXT("heading")) Move = FFolioReview::EMove::NextHeading;
+		else if (What == TEXT("prevheading")) Move = FFolioReview::EMove::PreviousHeading;
 		else if (What == TEXT("all"))
 		{
 			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Review all:\n%s"), *FFolioReview::ReadAll());
@@ -1988,7 +1991,7 @@ namespace
 		else
 		{
 			UE_LOG(LogFolio, Display,
-				TEXT("folio.Accessibility.Review [list|next|previous|first|last|repeat|all|stop|activate|focus]"));
+				TEXT("folio.Accessibility.Review [list|next|previous|first|last|heading|prevheading|repeat|all|stop|activate|focus]"));
 			return;
 		}
 
@@ -2029,6 +2032,24 @@ namespace
 
 		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.HighContrast: %s"),
 			UFolioAccessibilityLibrary::IsHighContrastOn() ? TEXT("on") : TEXT("off"));
+	}
+
+	void VerbosityAccessibility(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0)
+		{
+			const FString What = Args[0].ToLower();
+			UFolioAccessibilityLibrary::SetReaderVerbosity(
+				What == TEXT("low") ? EFolioReaderVerbosity::Low
+				: What == TEXT("high") ? EFolioReaderVerbosity::High
+				: EFolioReaderVerbosity::Normal);
+		}
+
+		const EFolioReaderVerbosity Now = UFolioAccessibilityLibrary::GetReaderVerbosity();
+		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Verbosity: %s, %d line(s) waiting"),
+			Now == EFolioReaderVerbosity::Low ? TEXT("low")
+				: Now == EFolioReaderVerbosity::High ? TEXT("high") : TEXT("normal"),
+			Folio::FSpeech::NumQueued());
 	}
 
 	void SayAccessibility(const TArray<FString>& Args)
@@ -2074,6 +2095,12 @@ namespace
 			"what an options menu toggle calls. No argument flips it."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ReaderAccessibility));
 
+	FAutoConsoleCommand AccessibilityVerbosityCommand(
+		TEXT("folio.Accessibility.Verbosity"),
+		TEXT("folio.Accessibility.Verbosity [low|normal|high]. How much the reader says beyond a "
+			"control's name. Also reports how many lines are waiting to be spoken."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&VerbosityAccessibility));
+
 	FAutoConsoleCommand AccessibilityTextScaleCommand(
 		TEXT("folio.Accessibility.TextScale"),
 		TEXT("folio.Accessibility.TextScale [scale]. Scales every type size written in rem, which is "
@@ -2094,7 +2121,7 @@ namespace
 
 	FAutoConsoleCommand AccessibilityReviewCommand(
 		TEXT("folio.Accessibility.Review"),
-		TEXT("folio.Accessibility.Review [list|next|previous|first|last|repeat|all|stop|activate|focus]. "
+		TEXT("folio.Accessibility.Review [list|next|previous|first|last|heading|prevheading|repeat|all|stop|activate|focus]. "
 			"Drives the review cursor, which reads the screen without moving focus. No argument lists "
 			"every line it can reach."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ReviewAccessibility));

@@ -1,0 +1,6 @@
+group "Saves"
+  group "Delete save"
+    heading "Delete save?"
+    text "This cannot be undone."
+    button "Delete"
+    button "Keep"

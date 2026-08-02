@@ -111,8 +111,11 @@ namespace
 	public:
 		virtual bool Start() override { return true; }
 		virtual void Stop() override {}
-		virtual void Say(const FString& Text, bool) override { Lines->Add(Text); }
+		virtual void Speak(const FString& Text) override { Lines->Add(Text); }
 		virtual void Silence() override {}
+
+		// Never busy, so the queue drains a line per pump and a test never waits on a voice.
+		virtual bool IsSpeaking() const override { return false; }
 		virtual void SetRate(int32) override {}
 		virtual void SetVolume(int32) override {}
 
@@ -331,8 +334,31 @@ bool FFolioReaderSpeechTest::RunTest(const FString&)
 	Said.Reset();
 	Field->SetValue("");
 	Tree.SyncEditing(Scope.Context);
+
+	// "blank" is the result rather than the keystroke, so it waits its turn behind the deletion.
+	Folio::FSpeech::Pump();
 	TestTrue(TEXT("and an emptied field says so, which nothing else could tell a player"),
 		Said.Contains(TEXT("blank")));
+
+	// What the backlog fix is: forty presses on one value leave one line waiting, not forty.
+	Said.Reset();
+	for (int32 Step = 0; Step < 40; ++Step)
+	{
+		Folio::FSpeech::Say(FString::Printf(TEXT("%d"), Step), Folio::ESpeechPriority::Polite,
+			TEXT("hud.scale"));
+	}
+
+	TestEqual(TEXT("a value that keeps changing queues once"), Folio::FSpeech::NumQueued(), 1);
+
+	Folio::FSpeech::Pump();
+	TestEqual(TEXT("and what is said is the last one, not the first"),
+		Said.Num() > 0 ? Said.Last() : FString(), TEXT("39"));
+
+	// A focus change is not a queue entry. It is the queue being wrong.
+	Folio::FSpeech::Say(TEXT("a"), Folio::ESpeechPriority::Polite);
+	Folio::FSpeech::Say(TEXT("b"), Folio::ESpeechPriority::Polite);
+	Folio::FSpeech::Say(TEXT("moved"), Folio::ESpeechPriority::Assertive);
+	TestEqual(TEXT("an assertive line drops what was waiting"), Folio::FSpeech::NumQueued(), 0);
 
 	return true;
 }

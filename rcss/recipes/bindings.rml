@@ -6,7 +6,7 @@
 	<style>
 		body { background-color: #16161e; padding: 26dp; nav: auto; }
 
-		h1 { display: block; font-size: 13dp; letter-spacing: 2dp; color: #8a8a99; margin-bottom: 14dp; }
+		h1 { display: block; font-size: 0.65rem; letter-spacing: 2dp; color: #8a8a99; margin-bottom: 14dp; }
 
 		/*
 		 * Columns anchored to the row rather than shared out by flex. A flex row here grew the action
@@ -32,7 +32,7 @@
 			right: 42%;
 			top: 14dp;
 			color: #e8e8f0;
-			font-size: 17dp;
+			font-size: 0.85rem;
 		}
 
 		.cat {
@@ -41,7 +41,7 @@
 			width: 16%;
 			top: 16dp;
 			color: #8a8a99;
-			font-size: 13dp;
+			font-size: 0.65rem;
 		}
 
 		/* Width as well as an edge: shrink-to-fit against a right edge alone did not hold the column,
@@ -77,7 +77,7 @@
 			padding: 3dp 8dp 3dp 8dp;
 			border: 1dp #6a6a7a;
 			color: #a8a8b8;
-			font-size: 12dp;
+			font-size: 0.6rem;
 		}
 
 		.reset:focus-visible { border-color: #f0c674; color: #f0c674; }
@@ -99,8 +99,8 @@
 
 		.over.on { display: flex; }
 
-		.over .big { font-size: 26dp; color: #e8e8f0; margin-bottom: 8dp; }
-		.over .small { font-size: 14dp; color: #a8a8b8; }
+		.over .big { font-size: 1.3rem; color: #e8e8f0; margin-bottom: 8dp; }
+		.over .small { font-size: 0.7rem; color: #a8a8b8; }
 		.over .warn { color: #f0c674; }
 
 		/*

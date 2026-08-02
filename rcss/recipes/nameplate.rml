@@ -29,7 +29,7 @@
 		}
 
 		.name {
-			font-size: 18dp;
+			font-size: 0.9rem;
 			color: #e8e8f0;
 		}
 

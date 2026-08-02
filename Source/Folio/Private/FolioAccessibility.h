@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FolioCore/FolioSemantics.h"
+#include "FolioSpeech.h"
 
 #include "CoreMinimal.h"
 #include "Layout/Children.h"
@@ -58,6 +59,15 @@ public:
 
 	/** Re-reads name, value and geometry from the element. The role never changes; a new one is a new widget. */
 	void Update(const Folio::FSemanticNode& InNode, float InContextToLocal);
+
+	/**
+	 * Re-reads only where the element is, which is all that changes on most frames.
+	 *
+	 * One box query per node and no strings, so a HUD animating under a screen reader costs a read
+	 * rather than a walk. False when the element has been freed, which is what tells the tree it is
+	 * out of date.
+	 */
+	bool SyncGeometry(float InContextToLocal);
 
 	/** Replaces the children, which is what a document changing shape does. */
 	void SetAccessibleChildren(TArray<TSharedRef<SFolioAccessibleElement>>&& InChildren);
@@ -185,11 +195,19 @@ public:
 	 * lines the review cursor produces. A player who missed a sentence should get that sentence back
 	 * whichever part of the reader produced it.
 	 */
-	static void SpeakLine(const FString& Line, bool bInterrupt);
+	static void SpeakLine(const FString& Line, Folio::ESpeechPriority Priority,
+		FName Channel = NAME_None);
 	static const FString& GetLastSpoken();
 
-	/** Rebuilds from the document. Returns true when the widget tree changed shape. */
-	bool Refresh(Rml::ElementDocument* Document, float ContextToLocal);
+	/**
+	 * Rebuilds from the document. Returns true when the widget tree changed shape.
+	 *
+	 * Rate limited: a HUD that animates every frame would otherwise pay a walk every frame for a
+	 * document whose *meaning* changes once a minute. Between rebuilds the proxies still follow their
+	 * elements, because that is a read per node rather than a walk. `bForce` is for the cases where a
+	 * frame of latency is wrong - a screen reader starting, and focus landing on something new.
+	 */
+	bool Refresh(Rml::ElementDocument* Document, float ContextToLocal, bool bForce = false);
 
 	/** Drops everything, which is what a document closing or a screen reader stopping does. */
 	void Clear();
@@ -234,6 +252,12 @@ private:
 
 	/** False until the first build has happened, which is what stops it announcing the whole screen. */
 	bool bBuiltOnce = false;
+
+	/** When the tree was last walked, against which the rate limit is measured. */
+	double LastRebuild = 0.0;
+
+	/** Set when something asked about an element the tree has never heard of. Forces the next rebuild. */
+	bool bStale = false;
 
 	/** Every live proxy by its element, for the focus lookup. */
 	TMap<Rml::Element*, TWeakPtr<SFolioAccessibleElement>> ByElement;

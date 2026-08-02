@@ -94,8 +94,14 @@ namespace FolioDocSamples
 		UFolioAccessibilityLibrary::ReviewMoveFocusHere();
 	}
 
-	// docs/accessibility.md#2
-	inline void Sample_docs_accessibility_md_2()
+	// docs/accessibility.md#1
+	inline void Sample_docs_accessibility_md_1()
+	{
+		UFolioAccessibilityLibrary::SetReaderVerbosity(EFolioReaderVerbosity::Low);
+	}
+
+	// docs/accessibility.md#3
+	inline void Sample_docs_accessibility_md_3()
 	{
 		UFolioAccessibilityLibrary::SetTextScale(1.5f);      // 0.5 to 3, 1 being as authored
 		UFolioAccessibilityLibrary::SetReducedMotion(true);

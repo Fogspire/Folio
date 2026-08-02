@@ -14,16 +14,37 @@
  * voice data of its own. Every other platform's speech API sits behind an SDK this plugin cannot see,
  * so those arrive through `SetBackend` from a module that can. With neither, this reports unavailable
  * and the setting that drives it stays off.
+ *
+ * **The queue lives here, not in the back end.** A voice that is handed everything as it happens
+ * cannot be un-handed it, and a setting a player is holding a key on produces one line per frame - so
+ * a rate slider left for two seconds becomes a minute of a voice reading numbers that stopped being
+ * true before it started. Holding the queue is what makes a line droppable.
  */
 namespace Folio
 {
+	/** How a line behaves against whatever is already being said. */
+	enum class ESpeechPriority : uint8
+	{
+		/**
+		 * Waits its turn, and is dropped if it waits too long.
+		 *
+		 * Everything that reports a state rather than a stream. A line about a value the player
+		 * changed four seconds and forty presses ago is not worth hearing.
+		 */
+		Polite,
+		/** Waits its turn and is never dropped. One line of something the player asked to have read. */
+		Sequence,
+		/** Drops the queue and cuts off what is speaking. Moving focus is this. */
+		Assertive,
+	};
+
 	/**
 	 * One platform's way of talking.
 	 *
-	 * Five functions, and the only one with a rule attached is `Say`: a queued line waits for whatever
-	 * is already being spoken, an interrupting one drops it. A back end with no queue of its own should
-	 * speak immediately rather than drop the line - a reader that loses sentences is worse than one
-	 * that talks over itself.
+	 * `Speak` says one line **now**, replacing anything in flight - it must never queue, because the
+	 * queue above it is the thing that can drop a line that has stopped being worth saying. `IsSpeaking`
+	 * is what paces that queue; a back end that cannot answer it should return false, which degrades to
+	 * each line cutting off the one before rather than to silence.
 	 *
 	 * Installed before the reader is turned on, which in practice means from a module's startup.
 	 */
@@ -38,10 +59,12 @@ namespace Folio
 		/** Releases it, and stops anything mid-sentence. */
 		virtual void Stop() = 0;
 
-		virtual void Say(const FString& Text, bool bInterrupt) = 0;
+		virtual void Speak(const FString& Text) = 0;
 
-		/** Drops whatever is queued and stops talking, without releasing the voice. */
+		/** Stops talking without releasing the voice. */
 		virtual void Silence() = 0;
+
+		virtual bool IsSpeaking() const = 0;
 
 		/** -10 to 10 and 0 to 100, already clamped. Both are pushed again on every Start. */
 		virtual void SetRate(int32 Rate) = 0;
@@ -71,16 +94,32 @@ namespace Folio
 		static FOLIO_API bool IsRunning();
 
 		/**
-		 * Says something.
+		 * Queues a line.
 		 *
-		 * Interrupting is the right default for a focus change - a player who has moved on does not
-		 * want to hear where they were - and the wrong one for an announcement or for one line of a
-		 * read-all, which is why it is a parameter rather than a policy.
+		 * `Channel` is what makes a value that keeps changing survivable: a later line on the same
+		 * channel **replaces** an earlier one that has not started yet, so holding a key on a slider
+		 * leaves one pending number rather than forty. Lines with no channel never replace anything.
 		 */
-		static FOLIO_API void Say(const FString& Text, bool bInterrupt);
+		static FOLIO_API void Say(const FString& Text, ESpeechPriority Priority,
+			FName Channel = NAME_None);
 
-		/** Drops whatever is queued. What a player pressing anything during a read-all expects. */
+		/** Drops the queue and stops talking. What pressing anything during a read-all expects. */
 		static FOLIO_API void Silence();
+
+		/** Moves the queue on. Called for you while the reader is running. */
+		static FOLIO_API void Pump();
+
+		/** How many lines are waiting, not counting the one being spoken. */
+		static FOLIO_API int32 NumQueued();
+
+		/**
+		 * How long a polite line may wait before it is dropped unsaid, in seconds. Zero never drops.
+		 *
+		 * A backlog is not just slow, it is wrong: by the time it is read the screen has moved on, and
+		 * the player is being told about a state that no longer exists.
+		 */
+		static FOLIO_API void SetStaleAfter(float Seconds);
+		static FOLIO_API float GetStaleAfter();
 
 		/** -10 to 10, zero being the voice's own speed. Screen reader users routinely run this high. */
 		static FOLIO_API void SetRate(int32 Rate);

@@ -29,7 +29,7 @@ import sys
 # the scaffolding leaks into the prose a reader sees.
 MEMBER_OF_READERS_CLASS = {
     # Installs a speech back end the reader writes. A stub for it would be six overrides of nothing.
-    "docs/accessibility.md#1",
+    "docs/accessibility.md#2",
     "docs/hosting.md#2",
     "docs/hosting.md#5",
     "docs/input_and_navigation.md#2",

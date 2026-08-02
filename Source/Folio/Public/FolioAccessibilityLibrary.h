@@ -6,6 +6,24 @@
 #include "FolioAccessibilityLibrary.generated.h"
 
 /**
+ * How much the reader says about a control beyond its name.
+ *
+ * Not a nicety. Someone who has learned a screen wants "Master volume, 60" and someone meeting it
+ * wants to be told it is a slider and what it does, and each finds the other setting close to
+ * unusable. Every real screen reader has this; a game that speaks for itself needs it too.
+ */
+UENUM(BlueprintType)
+enum class EFolioReaderVerbosity : uint8
+{
+	/** The name, the state and the value. Nothing else. */
+	Low,
+	/** Adds what kind of control it is and the panel it sits in. The default. */
+	Normal,
+	/** Adds the `folio-description`, which is the consequence a name cannot carry. */
+	High,
+};
+
+/**
  * What a game drives, on top of markup that is already annotated.
  *
  * A document annotated the way docs/accessibility.md describes is walked into a Slate accessibility
@@ -108,6 +126,18 @@ public:
 	static FOLIO_API FString ReviewRepeat();
 
 	/**
+	 * Jumps to the next or previous heading, skipping everything between.
+	 *
+	 * How a long screen is read without walking every line of it. Needs the document to use `<h1>` to
+	 * `<h6>` or `folio-role="heading"`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewNextHeading();
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewPreviousHeading();
+
+	/**
 	 * Reads from the cursor to the end of the screen.
 	 *
 	 * Queued rather than interrupting, so it is one reading. Stop it with `ReviewStop`, which is what
@@ -167,4 +197,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
 	static FOLIO_API bool IsHighContrastOn();
+
+	/** How much the reader says beyond a control's name. Worth a row beside the speech rate. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility")
+	static FOLIO_API void SetReaderVerbosity(EFolioReaderVerbosity Verbosity);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility")
+	static FOLIO_API EFolioReaderVerbosity GetReaderVerbosity();
 };

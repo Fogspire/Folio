@@ -980,7 +980,8 @@ theme pass with no findings, so building on the component library inherits that.
 | `folio-description="..."` | A sentence read after the name, for a consequence the name cannot carry. |
 | `folio-checked="true\|false"` | The state of a check box built out of `div`s. A real `<input>` needs none of this. |
 | `folio-hidden` | Decoration. Skipped by the checks and by the screen-reader tree. |
-| `folio-announce` | A line that is read out whenever it changes, wherever the reader happens to be. Also how a value nobody can focus - the number between a minus and a plus - gets heard. |
+| `folio-announce[="assertive"]` | A line read out whenever it changes, wherever the reader happens to be. Also how a value nobody can focus - the number between a minus and a plus - gets heard. `assertive` cuts in over whatever is being said; bare waits its turn. |
+| `folio-inert` | Out of reach, as the background behind a modal is. `focus: none` with `pointer-events: none` says the same thing, and is what `docs/modals.md` already tells you to write. |
 
 A control counts as named if it has `folio-label`, its own text, text inside it, a `<label for>`
 pointing at it, or - for a form control - a wrapping `<label>` or a non-interactive sibling with text
@@ -997,7 +998,11 @@ reader; `folio.Accessibility.Dump` prints it from a running game.
 
 The game's own reader also needs a **review cursor** bound to something - `ReviewNext`,
 `ReviewPrevious`, `ReviewRepeat`, `ReviewAll`. Focus only ever reaches the controls, so without one a
-player hears a menu with all of its words removed.
+player hears a menu with all of its words removed. `<h1>`-`<h6>` become headings the cursor can jump
+between, which is how a long screen is read without walking every line of it.
+
+`SetReaderVerbosity` decides how much it says beyond a name: `Low` is name and state, `Normal` adds
+the kind of control and the panel, `High` adds the description.
 
 **Three presentation settings**, all global and all off by default:
 

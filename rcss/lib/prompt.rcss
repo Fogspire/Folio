@@ -38,7 +38,7 @@
 .pg-label {
 	display: inline-block;
 	vertical-align: middle;
-	margin-left: 8dp;
+	margin-left: 0.470588em;
 }
 
 /* ------------------------------------------------------------------------ keycap */
@@ -55,14 +55,14 @@
  */
 .pg-key {
 	width: auto;
-	min-width: 52dp;
-	height: 32dp;
-	padding: 0dp 10dp 0dp 10dp;
-	border-width: 2dp;
-	border-bottom-width: 5dp;
-	border-radius: 7dp 7dp 8dp 8dp;
+	min-width: 3.466667em;
+	height: 2.133333em;
+	padding: 0em 0.666667em 0em 0.666667em;
+	border-width: 0.133333em;
+	border-bottom-width: 0.333333em;
+	border-radius: 0.466667em 0.466667em 0.533333em 0.533333em;
 	text-align: center;
-	line-height: 25dp;
+	line-height: 1.666667em;
 }
 
 /* ------------------------------------------------------------------------- mouse */
@@ -71,78 +71,78 @@
  * A mouse seen from above: rounded shoulders, a straighter tail, a seam between the two buttons and
  * a wheel across it. The button the prompt is about is filled rather than labelled.
  */
-.pg-mouse { width: 26dp; height: 36dp; }
+.pg-mouse { width: 1.733333em; height: 2.4em; }
 
 .pg-mouse .body {
 	position: absolute;
-	left: 0dp;
-	top: 0dp;
-	right: 0dp;
-	bottom: 0dp;
-	border-width: 2dp;
-	border-radius: 13dp 13dp 8dp 8dp;
+	left: 0em;
+	top: 0em;
+	right: 0em;
+	bottom: 0em;
+	border-width: 0.133333em;
+	border-radius: 0.866667em 0.866667em 0.533333em 0.533333em;
 	box-sizing: border-box;
 }
 
 .pg-mouse .lmb, .pg-mouse .rmb {
 	position: absolute;
-	top: 2dp;
-	width: 10dp;
-	height: 12dp;
+	top: 0.133333em;
+	width: 0.666667em;
+	height: 0.8em;
 }
 
-.pg-mouse .lmb { left: 2dp; border-radius: 11dp 0dp 0dp 0dp; }
-.pg-mouse .rmb { right: 2dp; border-radius: 0dp 11dp 0dp 0dp; }
+.pg-mouse .lmb { left: 0.133333em; border-radius: 0.733333em 0em 0em 0em; }
+.pg-mouse .rmb { right: 0.133333em; border-radius: 0em 0.733333em 0em 0em; }
 
 /* The line the two buttons meet on, and the one under them. */
 .pg-mouse .seam {
 	position: absolute;
-	left: 11dp;
-	top: 2dp;
-	width: 2dp;
-	height: 13dp;
+	left: 0.733333em;
+	top: 0.133333em;
+	width: 0.133333em;
+	height: 0.866667em;
 }
 
 .pg-mouse .rail {
 	position: absolute;
-	left: 2dp;
-	right: 2dp;
-	top: 15dp;
-	height: 2dp;
+	left: 0.133333em;
+	right: 0.133333em;
+	top: 1em;
+	height: 0.133333em;
 }
 
 .pg-mouse .wheel {
 	position: absolute;
-	left: 10dp;
-	top: 3dp;
-	width: 4dp;
-	height: 10dp;
-	border-radius: 3dp 3dp 3dp 3dp;
-	border-width: 1dp;
+	left: 0.666667em;
+	top: 0.2em;
+	width: 0.266667em;
+	height: 0.666667em;
+	border-radius: 0.2em 0.2em 0.2em 0.2em;
+	border-width: 0.066667em;
 	box-sizing: border-box;
 }
 
 /* Side buttons, for the two thumb keys a prompt otherwise has no way to point at. */
 .pg-mouse .side {
 	position: absolute;
-	left: -2dp;
-	top: 17dp;
-	width: 4dp;
-	height: 7dp;
-	border-radius: 2dp 0dp 0dp 2dp;
+	left: -0.133333em;
+	top: 1.133333em;
+	width: 0.266667em;
+	height: 0.466667em;
+	border-radius: 0.133333em 0em 0em 0.133333em;
 }
 
-.pg-mouse .side.two { top: 26dp; }
+.pg-mouse .side.two { top: 1.733333em; }
 
 /* --------------------------------------------------------------------- face pads */
 
 .pg-face {
-	width: 30dp;
-	height: 30dp;
-	border-width: 2dp;
-	border-radius: 20dp 20dp 20dp 20dp;
+	width: 2em;
+	height: 2em;
+	border-width: 0.133333em;
+	border-radius: 1.333333em 1.333333em 1.333333em 1.333333em;
 	text-align: center;
-	line-height: 26dp;
+	line-height: 1.733333em;
 }
 
 /*
@@ -151,10 +151,10 @@
  */
 .pg-face .mark {
 	position: absolute;
-	left: 0dp;
-	top: 0dp;
-	right: 0dp;
-	bottom: 0dp;
+	left: 0em;
+	top: 0em;
+	right: 0em;
+	bottom: 0em;
 }
 
 .pg-face .mark u {
@@ -163,19 +163,19 @@
 }
 
 /* Cross: two bars through the middle. */
-.pg-cross .mark u { left: 5dp; top: 11.5dp; width: 16dp; height: 3dp; }
+.pg-cross .mark u { left: 0.333333em; top: 0.766667em; width: 1.066667em; height: 0.2em; }
 .pg-cross .mark u:nth-child(1) { transform: rotate(45deg); }
 .pg-cross .mark u:nth-child(2) { transform: rotate(-45deg); }
 .pg-cross .mark u:nth-child(3) { display: none; }
 
 /* Circle: a ring inside the pad. */
 .pg-circle .mark u:nth-child(1) {
-	left: 7dp;
-	top: 7dp;
-	width: 12dp;
-	height: 12dp;
-	border-width: 2dp;
-	border-radius: 8dp 8dp 8dp 8dp;
+	left: 0.466667em;
+	top: 0.466667em;
+	width: 0.8em;
+	height: 0.8em;
+	border-width: 0.133333em;
+	border-radius: 0.533333em 0.533333em 0.533333em 0.533333em;
 	box-sizing: border-box;
 }
 
@@ -183,104 +183,104 @@
 
 /* Square. */
 .pg-square .mark u:nth-child(1) {
-	left: 8dp;
-	top: 8dp;
-	width: 10dp;
-	height: 10dp;
-	border-width: 2dp;
+	left: 0.533333em;
+	top: 0.533333em;
+	width: 0.666667em;
+	height: 0.666667em;
+	border-width: 0.133333em;
 	box-sizing: border-box;
 }
 
 .pg-square .mark u:nth-child(2) { display: none; }
 
 /* Triangle: three bars of the same length, each turned into one side. */
-.pg-triangle .mark u { width: 15dp; height: 3dp; }
-.pg-triangle .mark u:nth-child(1) { left: 5.5dp; top: 15.8dp; }
-.pg-triangle .mark u:nth-child(2) { left: 1.8dp; top: 9.3dp; transform: rotate(-60deg); }
-.pg-triangle .mark u:nth-child(3) { left: 9.3dp; top: 9.3dp; transform: rotate(60deg); }
+.pg-triangle .mark u { width: 1em; height: 0.2em; }
+.pg-triangle .mark u:nth-child(1) { left: 0.366667em; top: 1.053333em; }
+.pg-triangle .mark u:nth-child(2) { left: 0.12em; top: 0.62em; transform: rotate(-60deg); }
+.pg-triangle .mark u:nth-child(3) { left: 0.62em; top: 0.62em; transform: rotate(60deg); }
 
 /* --------------------------------------------------------- shoulders and triggers */
 
 .pg-bumper {
 	width: auto;
-	min-width: 36dp;
-	height: 24dp;
-	padding: 0dp 6dp 0dp 6dp;
-	border-width: 2dp;
-	border-radius: 12dp 12dp 5dp 5dp;
+	min-width: 2.4em;
+	height: 1.6em;
+	padding: 0em 0.4em 0em 0.4em;
+	border-width: 0.133333em;
+	border-radius: 0.8em 0.8em 0.333333em 0.333333em;
 	text-align: center;
-	line-height: 20dp;
+	line-height: 1.333333em;
 }
 
 .pg-trigger {
 	width: auto;
-	min-width: 36dp;
-	height: 28dp;
-	padding: 0dp 6dp 0dp 6dp;
-	border-width: 2dp;
-	border-radius: 14dp 14dp 4dp 4dp;
+	min-width: 2.4em;
+	height: 1.866667em;
+	padding: 0em 0.4em 0em 0.4em;
+	border-width: 0.133333em;
+	border-radius: 0.933333em 0.933333em 0.266667em 0.266667em;
 	text-align: center;
-	line-height: 24dp;
+	line-height: 1.6em;
 }
 
 /* ------------------------------------------------------------------------ sticks */
 
-.pg-stick { width: 30dp; height: 30dp; }
+.pg-stick { width: 2em; height: 2em; }
 
 .pg-stick .base {
 	position: absolute;
-	left: 0dp;
-	top: 0dp;
-	right: 0dp;
-	bottom: 0dp;
-	border-width: 2dp;
-	border-radius: 20dp 20dp 20dp 20dp;
+	left: 0em;
+	top: 0em;
+	right: 0em;
+	bottom: 0em;
+	border-width: 0.133333em;
+	border-radius: 1.333333em 1.333333em 1.333333em 1.333333em;
 	box-sizing: border-box;
 }
 
 .pg-stick .top {
 	position: absolute;
-	left: 8dp;
-	top: 8dp;
-	width: 14dp;
-	height: 14dp;
-	border-radius: 9dp 9dp 9dp 9dp;
+	left: 0.533333em;
+	top: 0.533333em;
+	width: 0.933333em;
+	height: 0.933333em;
+	border-radius: 0.6em 0.6em 0.6em 0.6em;
 }
 
 /* A pushed direction moves the cap, which reads faster than an arrow beside it. */
-.pg-stick.up .top    { top: 4dp; }
-.pg-stick.down .top  { top: 12dp; }
-.pg-stick.left .top  { left: 4dp; }
-.pg-stick.right .top { left: 12dp; }
+.pg-stick.up .top    { top: 0.266667em; }
+.pg-stick.down .top  { top: 0.8em; }
+.pg-stick.left .top  { left: 0.266667em; }
+.pg-stick.right .top { left: 0.8em; }
 
 /* ------------------------------------------------------------------------- d-pad */
 
-.pg-dpad { width: 30dp; height: 30dp; }
+.pg-dpad { width: 2em; height: 2em; }
 
 .pg-dpad u {
 	position: absolute;
 	display: block;
-	border-width: 2dp;
+	border-width: 0.133333em;
 	box-sizing: border-box;
 }
 
-.pg-dpad u:nth-child(1) { left: 10dp; top: 1dp; width: 10dp; height: 12dp; }
-.pg-dpad u:nth-child(2) { left: 10dp; bottom: 1dp; width: 10dp; height: 12dp; }
-.pg-dpad u:nth-child(3) { left: 1dp; top: 10dp; width: 12dp; height: 10dp; }
-.pg-dpad u:nth-child(4) { right: 1dp; top: 10dp; width: 12dp; height: 10dp; }
+.pg-dpad u:nth-child(1) { left: 0.666667em; top: 0.066667em; width: 0.666667em; height: 0.8em; }
+.pg-dpad u:nth-child(2) { left: 0.666667em; bottom: 0.066667em; width: 0.666667em; height: 0.8em; }
+.pg-dpad u:nth-child(3) { left: 0.066667em; top: 0.666667em; width: 0.8em; height: 0.666667em; }
+.pg-dpad u:nth-child(4) { right: 0.066667em; top: 0.666667em; width: 0.8em; height: 0.666667em; }
 
 /* ------------------------------------------------------------- the other sources */
 
-.pg-sprite, .pg-image { width: 32dp; height: 32dp; }
+.pg-sprite, .pg-image { width: 2.133333em; height: 2.133333em; }
 
-.pg-image img { width: 30dp; height: 30dp; }
+.pg-image img { width: 2em; height: 2em; }
 
 /* Nothing bound. Shown rather than hidden, so a missing binding is visible in the screen. */
 .pg-unbound {
-	width: 30dp;
-	height: 30dp;
-	border-width: 2dp;
-	border-radius: 6dp 6dp 6dp 6dp;
+	width: 2em;
+	height: 2em;
+	border-width: 0.133333em;
+	border-radius: 0.4em 0.4em 0.4em 0.4em;
 	text-align: center;
-	line-height: 26dp;
+	line-height: 1.733333em;
 }

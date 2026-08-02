@@ -1,6 +1,7 @@
 #include "FolioAccessibilityReview.h"
 
 #include "FolioAccessibility.h"
+#include "FolioAccessibilityLibrary.h"
 #include "FolioAccessibilityText.h"
 #include "FolioDocumentHost.h"
 #include "FolioRmlUi.h"
@@ -57,7 +58,8 @@ namespace
 		Item.Depth = Depth;
 		Item.Group = Group;
 
-		const bool bNamedGroup = Node.Role == Folio::ESemanticRole::Group && !Node.Name.empty();
+		const bool bNamedGroup = !Node.Name.empty()
+			&& (Node.Role == Folio::ESemanticRole::Group || Node.Role == Folio::ESemanticRole::Region);
 		const FString Inner = bNamedGroup ? Folio::ToFString(Node.Name) : Group;
 
 		Out.Add(MoveTemp(Item));
@@ -109,7 +111,8 @@ namespace
 	FString LineFor(const FReviewItem& Item, const bool bWithGroup)
 	{
 		const FString Line = Folio::Utterance(Item.Node);
-		if (Line.IsEmpty() || !bWithGroup || Item.Group.IsEmpty())
+		if (Line.IsEmpty() || !bWithGroup || Item.Group.IsEmpty()
+			|| UFolioAccessibilityLibrary::GetReaderVerbosity() == EFolioReaderVerbosity::Low)
 		{
 			return Line;
 		}
@@ -133,7 +136,9 @@ namespace
 		State.Group = Item.Group;
 
 		const FString Line = LineFor(Item, bWithGroup);
-		FFolioAccessibilityTree::SpeakLine(Line, bInterrupt);
+		FFolioAccessibilityTree::SpeakLine(Line, bInterrupt
+			? Folio::ESpeechPriority::Assertive
+			: Folio::ESpeechPriority::Sequence);
 		return Line;
 	}
 }
@@ -143,7 +148,7 @@ FString FFolioReview::Move(const EMove InMove)
 	if (InMove == EMove::Repeat)
 	{
 		const FString Line = FFolioAccessibilityTree::GetLastSpoken();
-		Folio::FSpeech::Say(Line, /*bInterrupt*/ true);
+		Folio::FSpeech::Say(Line, Folio::ESpeechPriority::Assertive);
 		return Line;
 	}
 
@@ -151,11 +156,14 @@ FString FFolioReview::Move(const EMove InMove)
 	if (Items.IsEmpty())
 	{
 		const FString Line = Folio::Spoken::NothingOnScreen().ToString();
-		FFolioAccessibilityTree::SpeakLine(Line, /*bInterrupt*/ true);
+		FFolioAccessibilityTree::SpeakLine(Line, Folio::ESpeechPriority::Assertive);
 		return Line;
 	}
 
 	const int32 Current = IndexOfCursor(Items);
+
+	const bool bBackwards = InMove == EMove::Previous || InMove == EMove::Last
+		|| InMove == EMove::PreviousHeading;
 
 	int32 Next = 0;
 	switch (InMove)
@@ -165,15 +173,27 @@ FString FFolioReview::Move(const EMove InMove)
 
 	// From nowhere, forwards starts at the top and backwards at the bottom, so a player who has not
 	// used the cursor yet gets a whole screen from either key rather than nothing from one of them.
-	case EMove::Next: Next = Current == INDEX_NONE ? 0 : Current + 1; break;
-	case EMove::Previous: Next = Current == INDEX_NONE ? Items.Num() - 1 : Current - 1; break;
+	case EMove::Next:
+	case EMove::NextHeading:
+		Next = Current == INDEX_NONE ? 0 : Current + 1;
+		break;
+
+	case EMove::Previous:
+	case EMove::PreviousHeading:
+		Next = Current == INDEX_NONE ? Items.Num() - 1 : Current - 1;
+		break;
+
 	default: return FString();
 	}
 
+	const bool bHeadingsOnly = InMove == EMove::NextHeading || InMove == EMove::PreviousHeading;
+
 	// Skipped rather than stopped on: a layout div with nothing to say is not somewhere a player
 	// should have to press past, and there are usually several between any two things worth hearing.
-	const int32 Step = InMove == EMove::Previous || InMove == EMove::Last ? -1 : 1;
-	while (Items.IsValidIndex(Next) && Folio::Utterance(Items[Next].Node).IsEmpty())
+	const int32 Step = bBackwards ? -1 : 1;
+	while (Items.IsValidIndex(Next)
+		&& (Folio::Utterance(Items[Next].Node).IsEmpty()
+			|| (bHeadingsOnly && Items[Next].Node.Role != Folio::ESemanticRole::Heading)))
 	{
 		Next += Step;
 	}
@@ -185,7 +205,7 @@ FString FFolioReview::Move(const EMove InMove)
 		const FString Edge = (Next < 0 ? Folio::Spoken::TopOfScreen() : Folio::Spoken::EndOfScreen())
 			.ToString();
 
-		FFolioAccessibilityTree::SpeakLine(Edge, /*bInterrupt*/ true);
+		FFolioAccessibilityTree::SpeakLine(Edge, Folio::ESpeechPriority::Assertive);
 		return Edge;
 	}
 
@@ -198,7 +218,7 @@ FString FFolioReview::ReadAll()
 	if (Items.IsEmpty())
 	{
 		const FString Line = Folio::Spoken::NothingOnScreen().ToString();
-		FFolioAccessibilityTree::SpeakLine(Line, /*bInterrupt*/ true);
+		FFolioAccessibilityTree::SpeakLine(Line, Folio::ESpeechPriority::Assertive);
 		return Line;
 	}
 
@@ -218,7 +238,9 @@ FString FFolioReview::ReadAll()
 		{
 			// The first interrupts and the rest queue behind it, which is what makes this one reading
 			// rather than a burst of lines each cancelling the one before.
-			FFolioAccessibilityTree::SpeakLine(Line, Spoken.IsEmpty());
+				FFolioAccessibilityTree::SpeakLine(Line, Spoken.IsEmpty()
+					? Folio::ESpeechPriority::Assertive
+					: Folio::ESpeechPriority::Sequence);
 			Spoken.Add(Line);
 		}
 

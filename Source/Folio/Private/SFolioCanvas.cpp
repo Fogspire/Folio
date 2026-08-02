@@ -333,8 +333,12 @@ void SFolioCanvas::UpdateAccessibility(const bool bDocumentChanged, const FGeome
 
 	if (bDocumentChanged || Accessibility->IsEmpty() || Scale != AccessibilityScale)
 	{
+		// Forced when there is nothing yet or the whole thing has moved, and rate limited otherwise -
+		// a document that changed has usually not changed what it means, and the tree decides that.
+		const bool bForce = Accessibility->IsEmpty() || Scale != AccessibilityScale;
+
 		AccessibilityScale = Scale;
-		Accessibility->Refresh(Host.GetDocument(), Scale);
+		Accessibility->Refresh(Host.GetDocument(), Scale, bForce);
 
 		// Only when the root widget itself is a different one. Detaching and reattaching the same
 		// widget would tell the platform its parent had changed on every frame the document moved.

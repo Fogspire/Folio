@@ -938,12 +938,18 @@ scrollbarhorizontal sliderbar:hover
 
 .prompt .pg-label { color: #c8c8d4; font-size: 0.85rem; }
 
+/*
+ * Every glyph is drawn in ems of this one size, so the whole set scales together and follows the
+ * accessibility text scale like any other type. A cap that stayed put while its label grew would be
+ * the one thing on the screen the setting could not reach.
+ */
+.pg { font-size: 0.75rem; }
+
 .pg-key, .pg-face, .pg-bumper, .pg-trigger, .pg-unbound {
 	background-color: #e8e8f0;
 	border-color: #0c0c12;
 	color: #14141c;
 	font-weight: 700;
-	font-size: 15dp;
 }
 
 /* The skirt, which is what makes a cap look pressable rather than printed. */

@@ -2,6 +2,8 @@
 
 #include "FolioModule.h"
 
+#include "Containers/Ticker.h"
+
 #if PLATFORM_WINDOWS
 
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -65,17 +67,16 @@ namespace
 			Release();
 		}
 
-		virtual void Say(const FString& Text, const bool bInterrupt) override
+		virtual void Speak(const FString& Text) override
 		{
 			if (!Voice)
 			{
 				return;
 			}
 
-			// Always asynchronous. This is called from the game thread and a sentence takes a second or
-			// two.
-			const DWORD Flags = SPF_ASYNC | (bInterrupt ? SPF_PURGEBEFORESPEAK : 0);
-			Voice->Speak(*Text, Flags, nullptr);
+			// Asynchronous, and purging first: the queue above this decides what waits, so nothing is
+			// ever handed to SAPI that could still need dropping.
+			Voice->Speak(*Text, SPF_ASYNC | SPF_PURGEBEFORESPEAK, nullptr);
 		}
 
 		virtual void Silence() override
@@ -85,6 +86,18 @@ namespace
 			{
 				Voice->Speak(nullptr, SPF_PURGEBEFORESPEAK, nullptr);
 			}
+		}
+
+		virtual bool IsSpeaking() const override
+		{
+			if (!Voice)
+			{
+				return false;
+			}
+
+			SPVOICESTATUS Status = {};
+			return SUCCEEDED(Voice->GetStatus(&Status, nullptr))
+				&& Status.dwRunningState == SPRS_IS_SPEAKING;
 		}
 
 		virtual void SetRate(const int32 Rate) override
@@ -143,8 +156,23 @@ namespace
 
 namespace
 {
+	/** A line waiting to be said. */
+	struct FUtterance
+	{
+		FString Text;
+
+		/** A later line on the same channel replaces this one while it is still waiting. */
+		FName Channel;
+
+		/** When it was queued, so a line nobody could still want is dropped rather than read. */
+		double At = 0.0;
+
+		/** False for one line of something the player asked to have read. Those wait as long as it takes. */
+		bool bPerishable = true;
+	};
+
 	/**
-	 * The installed back end and the settings that outlive it.
+	 * The installed back end, the queue, and the settings that outlive both.
 	 *
 	 * Rate and volume live here rather than in the back end so that a player's choice survives the
 	 * reader being turned off and on, and so that a platform module installing its own back end
@@ -157,6 +185,15 @@ namespace
 		bool bRunning = false;
 		int32 Rate = 0;
 		int32 Volume = 100;
+
+		TArray<FUtterance> Queue;
+
+		/** Set the moment a line is handed over, because a back end takes a moment to admit it started. */
+		bool bSpeaking = false;
+
+		float StaleAfter = 4.0f;
+
+		FTSTicker::FDelegateHandle Tick;
 	};
 
 	FSpeechState& SpeechState()
@@ -179,6 +216,14 @@ namespace
 
 		return Speech.Backend.Get();
 	}
+
+	/**
+	 * How many lines may wait at once.
+	 *
+	 * A ceiling rather than a policy: channels and staleness are what a working document relies on,
+	 * and this only stops a bug that announces every frame from growing without bound.
+	 */
+	constexpr int32 MaxQueued = 24;
 }
 
 void Folio::FSpeech::SetBackend(TUniquePtr<ISpeechBackend> InBackend)
@@ -222,6 +267,15 @@ bool Folio::FSpeech::Start()
 	Installed->SetRate(Speech.Rate);
 	Installed->SetVolume(Speech.Volume);
 	Speech.bRunning = true;
+
+	// The core ticker rather than a world timer: a document in its own editor window has no world, and
+	// that is exactly where this gets tested.
+	Speech.Tick = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)
+	{
+		Pump();
+		return true;
+	}));
+
 	return true;
 }
 
@@ -233,7 +287,16 @@ void Folio::FSpeech::Stop()
 		return;
 	}
 
+	if (Speech.Tick.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(Speech.Tick);
+		Speech.Tick.Reset();
+	}
+
+	Speech.Queue.Reset();
+	Speech.bSpeaking = false;
 	Speech.bRunning = false;
+
 	if (Speech.Backend)
 	{
 		Speech.Backend->Stop();
@@ -245,7 +308,7 @@ bool Folio::FSpeech::IsRunning()
 	return SpeechState().bRunning;
 }
 
-void Folio::FSpeech::Say(const FString& Text, const bool bInterrupt)
+void Folio::FSpeech::Say(const FString& Text, const ESpeechPriority Priority, const FName Channel)
 {
 	FSpeechState& Speech = SpeechState();
 	if (!Speech.bRunning || Text.IsEmpty())
@@ -253,16 +316,104 @@ void Folio::FSpeech::Say(const FString& Text, const bool bInterrupt)
 		return;
 	}
 
-	Speech.Backend->Say(Text, bInterrupt);
+	if (Priority == ESpeechPriority::Assertive)
+	{
+		// Everything waiting was about a state the player has already left.
+		Speech.Queue.Reset();
+		Speech.Backend->Speak(Text);
+		Speech.bSpeaking = true;
+		return;
+	}
+
+	FUtterance Line;
+	Line.Text = Text;
+	Line.Channel = Channel;
+	Line.At = FPlatformTime::Seconds();
+	Line.bPerishable = Priority == ESpeechPriority::Polite;
+
+	if (!Channel.IsNone())
+	{
+		if (FUtterance* Existing = Speech.Queue.FindByPredicate(
+			[Channel](const FUtterance& Queued) { return Queued.Channel == Channel; }))
+		{
+			// In place rather than moved to the back: a value that keeps changing should be read where
+			// it was going to be read, saying whatever it says by then.
+			*Existing = MoveTemp(Line);
+			return;
+		}
+	}
+
+	Speech.Queue.Add(MoveTemp(Line));
+
+	while (Speech.Queue.Num() > MaxQueued)
+	{
+		Speech.Queue.RemoveAt(0, EAllowShrinking::No);
+	}
 }
 
 void Folio::FSpeech::Silence()
 {
 	FSpeechState& Speech = SpeechState();
-	if (Speech.bRunning)
+	if (!Speech.bRunning)
 	{
-		Speech.Backend->Silence();
+		return;
 	}
+
+	Speech.Queue.Reset();
+	Speech.bSpeaking = false;
+	Speech.Backend->Silence();
+}
+
+void Folio::FSpeech::Pump()
+{
+	FSpeechState& Speech = SpeechState();
+	if (!Speech.bRunning)
+	{
+		return;
+	}
+
+	if (Speech.StaleAfter > 0.0f)
+	{
+		const double Now = FPlatformTime::Seconds();
+		const double Limit = double(Speech.StaleAfter);
+		Speech.Queue.RemoveAll([Now, Limit](const FUtterance& Line)
+		{
+			return Line.bPerishable && Now - Line.At > Limit;
+		});
+	}
+
+	if (Speech.bSpeaking && Speech.Backend->IsSpeaking())
+	{
+		return;
+	}
+
+	Speech.bSpeaking = false;
+
+	if (Speech.Queue.IsEmpty())
+	{
+		return;
+	}
+
+	const FUtterance Line = Speech.Queue[0];
+	Speech.Queue.RemoveAt(0, EAllowShrinking::No);
+
+	Speech.Backend->Speak(Line.Text);
+	Speech.bSpeaking = true;
+}
+
+int32 Folio::FSpeech::NumQueued()
+{
+	return SpeechState().Queue.Num();
+}
+
+void Folio::FSpeech::SetStaleAfter(const float Seconds)
+{
+	SpeechState().StaleAfter = FMath::Max(0.0f, Seconds);
+}
+
+float Folio::FSpeech::GetStaleAfter()
+{
+	return SpeechState().StaleAfter;
 }
 
 void Folio::FSpeech::SetRate(const int32 Rate)

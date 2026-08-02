@@ -3,6 +3,7 @@
 #include "FolioAccessibilityLibrary.h"
 #include "FolioAccessibilityReview.h"
 #include "FolioAccessibilityText.h"
+#include "FolioInsights.h"
 #include "FolioModule.h"
 #include "FolioPresentation.h"
 #include "FolioRmlUi.h"
@@ -31,11 +32,31 @@ namespace
 			"For folio.Accessibility.Dump, and for measuring what it costs."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<float> CVarWalkInterval(
+		TEXT("folio.Accessibility.WalkInterval"), 0.1f,
+		TEXT("Seconds between structural rebuilds of the screen reader tree. Between them the widgets "
+			"still follow their elements. Zero rebuilds on every frame the document changed."),
+		ECVF_Default);
+
 	/** Whether the game is reading itself out. A game setting owns this; nothing turns it on by itself. */
 	bool GScreenReader = false;
 
+	/** How much the reader says beyond the name. A player's setting; a menu is unbearable at the wrong one. */
+	EFolioReaderVerbosity GVerbosity = EFolioReaderVerbosity::Normal;
+
 	/** The last thing said, whichever part of the reader said it. What review's repeat repeats. */
 	FString GLastSpoken;
+
+	/**
+	 * A channel name for one element, so a line about it replaces the last line about it.
+	 *
+	 * The pointer rather than the id, because most elements that announce do not have one and two
+	 * documents may reuse the same id.
+	 */
+	FName ChannelFor(const Rml::Element* Element)
+	{
+		return FName(*FString::Printf(TEXT("folio.el.%llu"), (uint64)(UPTRINT)Element));
+	}
 
 	/** The nearest named group above a control, which is the context a player has just moved into. */
 	FString GroupOf(const SFolioAccessibleElement& Proxy)
@@ -43,7 +64,9 @@ namespace
 		for (TSharedPtr<SFolioAccessibleElement> At = Proxy.GetAccessibleParent(); At.IsValid();
 			At = At->GetAccessibleParent())
 		{
-			if (At->GetRole() == Folio::ESemanticRole::Group && !At->GetName().IsEmpty())
+			const Folio::ESemanticRole Role = At->GetRole();
+			if ((Role == Folio::ESemanticRole::Group || Role == Folio::ESemanticRole::Region)
+				&& !At->GetName().IsEmpty())
 			{
 				return At->GetName().ToString();
 			}
@@ -64,7 +87,12 @@ namespace
 		switch (Role)
 		{
 		case Folio::ESemanticRole::Group: return EAccessibleWidgetType::Layout;
+		case Folio::ESemanticRole::Region: return EAccessibleWidgetType::Layout;
 		case Folio::ESemanticRole::Text: return EAccessibleWidgetType::Text;
+
+		// There is no heading in Unreal's list. Text is the closest honest thing: a platform reader
+		// says the words and loses the structure, and the game's own reader says "heading" as well.
+		case Folio::ESemanticRole::Heading: return EAccessibleWidgetType::Text;
 		case Folio::ESemanticRole::Image: return EAccessibleWidgetType::Image;
 		case Folio::ESemanticRole::Button: return EAccessibleWidgetType::Button;
 		case Folio::ESemanticRole::Link: return EAccessibleWidgetType::Hyperlink;
@@ -258,9 +286,13 @@ FString Folio::Utterance(const Folio::FSemanticNode& Node)
 		Parts.Add(Folio::ToFString(Node.Name));
 	}
 
-	if (const FText Role = Folio::Spoken::Role(Node.Role); !Role.IsEmpty())
+	// What kind of thing it is, which someone who already knows the screen does not need on every row.
+	if (GVerbosity != EFolioReaderVerbosity::Low)
 	{
-		Parts.Add(Role.ToString());
+		if (const FText Role = Folio::Spoken::Role(Node.Role); !Role.IsEmpty())
+		{
+			Parts.Add(Role.ToString());
+		}
 	}
 
 	if (Node.Checkable)
@@ -268,7 +300,7 @@ FString Folio::Utterance(const Folio::FSemanticNode& Node)
 		Parts.Add(Folio::Spoken::Checked(Node.Checked).ToString());
 	}
 
-	if (!Node.Value.empty() && Node.Role != Folio::ESemanticRole::Text)
+	if (!Node.Value.empty() && !Folio::RoleSaysItsOwnValue(Node.Role))
 	{
 		// A range's value is digits the document produced, so it is read as this culture writes a
 		// number. Anything else is already words and is read as it stands.
@@ -282,6 +314,12 @@ FString Folio::Utterance(const Folio::FSemanticNode& Node)
 	if (Node.Disabled)
 	{
 		Parts.Add(Folio::Spoken::Unavailable().ToString());
+	}
+
+	// The consequence, which is worth hearing once and unbearable on every row of a settings page.
+	if (GVerbosity == EFolioReaderVerbosity::High && !Node.Description.empty())
+	{
+		Parts.Add(Folio::ToFString(Node.Description));
 	}
 
 	return Folio::Spoken::Join(Parts);
@@ -337,13 +375,33 @@ void SFolioAccessibleElement::Update(const Folio::FSemanticNode& InNode, const f
 		// A line that rewrites itself is read out where the player is, rather than where it is. Without
 		// this a warning arriving in the corner of a HUD reaches nobody: a screen reader only reads
 		// what it is standing on, and nobody stands on a status line.
+		//
+		// On its own channel, so a number that keeps changing leaves one line waiting rather than one
+		// per frame. That is what a player holding a key on a slider produces.
 		if (Node.Announces && bNews && !NewName.IsEmpty())
 		{
-			FFolioAccessibilityTree::Announce(NewName);
+			FFolioAccessibilityTree::SpeakLine(NewName,
+				Node.AnnouncesAssertively ? Folio::ESpeechPriority::Assertive
+					: Folio::ESpeechPriority::Polite,
+				ChannelFor(Element.get()));
 		}
 	}
 
 	bUpdatedOnce = true;
+}
+
+bool SFolioAccessibleElement::SyncGeometry(const float InContextToLocal)
+{
+	Rml::Element* Target = Element.get();
+	if (!Target)
+	{
+		return false;
+	}
+
+	ContextToLocal = InContextToLocal;
+	Node.Offset = Target->GetAbsoluteOffset(Rml::BoxArea::Border);
+	Node.Size = Target->GetBox().GetSize(Rml::BoxArea::Border);
+	return true;
 }
 
 void SFolioAccessibleElement::SetAccessibleChildren(TArray<TSharedRef<SFolioAccessibleElement>>&& InChildren)
@@ -387,7 +445,7 @@ FString SFolioAccessibleElement::Describe() const
 		Line += TEXT(" <unnamed>");
 	}
 
-	if (!ValueText.IsEmpty() && Role != Folio::ESemanticRole::Text)
+	if (!ValueText.IsEmpty() && !Folio::RoleSaysItsOwnValue(Role))
 	{
 		Line += TEXT(" = ") + ValueText;
 	}
@@ -494,7 +552,7 @@ void FFolioAccessibilityTree::SetScreenReader(const bool bEnabled)
 		{
 			// The player has just turned this on and needs to know it took, before anything they do
 			// next produces a sentence they might mistake for the confirmation.
-			SpeakLine(Folio::Spoken::ReaderOn().ToString(), /*bInterrupt*/ true);
+			SpeakLine(Folio::Spoken::ReaderOn().ToString(), Folio::ESpeechPriority::Assertive);
 		}
 	}
 	else
@@ -581,7 +639,8 @@ TSharedRef<SFolioAccessibleElement> FFolioAccessibilityTree::Sync(const Folio::F
 	return Proxy.ToSharedRef();
 }
 
-bool FFolioAccessibilityTree::Refresh(Rml::ElementDocument* Document, const float ContextToLocal)
+bool FFolioAccessibilityTree::Refresh(Rml::ElementDocument* Document, const float ContextToLocal,
+	const bool bForce)
 {
 	if (!Document)
 	{
@@ -589,6 +648,39 @@ bool FFolioAccessibilityTree::Refresh(Rml::ElementDocument* Document, const floa
 		Clear();
 		return bHad;
 	}
+
+	// A document that changed did not necessarily change what it means. A HUD animating a bar moves
+	// every frame and says the same thing all day, so between rebuilds the proxies are only moved to
+	// where their elements now are - which is a box read per node, with no walk and no strings.
+	const double Now = FPlatformTime::Seconds();
+	const double Interval = double(FMath::Max(0.0f, CVarWalkInterval.GetValueOnGameThread()));
+
+	if (!bForce && !bStale && Root.IsValid() && Now - LastRebuild < Interval)
+	{
+		bool bAllAlive = true;
+		for (const TPair<Rml::Element*, TWeakPtr<SFolioAccessibleElement>>& Pair : ByElement)
+		{
+			const TSharedPtr<SFolioAccessibleElement> Proxy = Pair.Value.Pin();
+			if (Proxy.IsValid() && !Proxy->SyncGeometry(ContextToLocal))
+			{
+				// An element the document has freed under us. Nothing here is safe to keep.
+				bAllAlive = false;
+				break;
+			}
+		}
+
+		if (bAllAlive)
+		{
+			return false;
+		}
+	}
+
+	LastRebuild = Now;
+	bStale = false;
+
+	// Only the walk, not the geometry pass above it. What `stat Folio` should show on a screen nobody
+	// is reading is nothing at all.
+	SCOPE_CYCLE_COUNTER(STAT_FolioAccessibility);
 
 	TMap<Rml::Element*, TSharedPtr<SFolioAccessibleElement>> Existing;
 	Collect(Root, Existing);
@@ -618,7 +710,7 @@ void FFolioAccessibilityTree::Announce(const FString& Text)
 
 	// After whatever is being said rather than over it: an announcement is news, and a player halfway
 	// through hearing which control they are on still needs the end of that sentence.
-	SpeakLine(Text, /*bInterrupt*/ false);
+	SpeakLine(Text, Folio::ESpeechPriority::Polite);
 
 #if WITH_ACCESSIBILITY
 	if (FSlateApplicationBase::IsInitialized())
@@ -628,7 +720,8 @@ void FFolioAccessibilityTree::Announce(const FString& Text)
 #endif
 }
 
-void FFolioAccessibilityTree::SpeakLine(const FString& Line, const bool bInterrupt)
+void FFolioAccessibilityTree::SpeakLine(const FString& Line, const Folio::ESpeechPriority Priority,
+	const FName Channel)
 {
 	if (Line.IsEmpty())
 	{
@@ -638,7 +731,7 @@ void FFolioAccessibilityTree::SpeakLine(const FString& Line, const bool bInterru
 	GLastSpoken = Line;
 
 	UE_LOG(LogFolio, Verbose, TEXT("speaking: %s"), *Line);
-	Folio::FSpeech::Say(Line, bInterrupt);
+	Folio::FSpeech::Say(Line, Priority, Channel);
 }
 
 const FString& FFolioAccessibilityTree::GetLastSpoken()
@@ -705,6 +798,17 @@ void FFolioAccessibilityTree::SyncFocus(Rml::Context* Context)
 
 		return;
 	}
+
+	// Focus is somewhere the tree has never heard of, which means it arrived between rebuilds - a
+	// dialog that opened this frame. The next update walks rather than waiting its turn, so the player
+	// hears where they are one frame later instead of a tenth of a second later.
+	if (Focused)
+	{
+		bStale = true;
+
+		// Forgotten as well as marked, or the next pass sees the same element and says nothing.
+		LastFocused = nullptr;
+	}
 }
 
 void FFolioAccessibilityTree::Speak(const TSharedRef<SFolioAccessibleElement>& Proxy)
@@ -722,7 +826,8 @@ void FFolioAccessibilityTree::Speak(const TSharedRef<SFolioAccessibleElement>& P
 
 	// The panel is named only on the way into it. Repeating it on every row turns a settings page
 	// into "Audio, master volume. Audio, output device. Audio, subtitles."
-	if (const FString Group = GroupOf(Proxy.Get()); Group != SpokenGroup)
+	if (const FString Group = GVerbosity == EFolioReaderVerbosity::Low ? FString() : GroupOf(Proxy.Get());
+		Group != SpokenGroup)
 	{
 		SpokenGroup = Group;
 		if (!Group.IsEmpty())
@@ -731,7 +836,7 @@ void FFolioAccessibilityTree::Speak(const TSharedRef<SFolioAccessibleElement>& P
 		}
 	}
 
-	SpeakLine(Line, /*bInterrupt*/ true);
+	SpeakLine(Line, Folio::ESpeechPriority::Assertive);
 }
 
 namespace
@@ -855,12 +960,12 @@ void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 
 		if (!Added.IsEmpty())
 		{
-			SpeakLine(Folio::Spoken::Typed(bPassword ? Masked(Added.Len()) : Added).ToString(), true);
+			SpeakLine(Folio::Spoken::Typed(bPassword ? Masked(Added.Len()) : Added).ToString(), Folio::ESpeechPriority::Assertive);
 		}
 		else if (!Removed.IsEmpty())
 		{
 			SpeakLine(Folio::Spoken::Deleted(
-				Folio::Spoken::Typed(bPassword ? Masked(Removed.Len()) : Removed)).ToString(), true);
+				Folio::Spoken::Typed(bPassword ? Masked(Removed.Len()) : Removed)).ToString(), Folio::ESpeechPriority::Assertive);
 		}
 
 		// Said after whatever moved, because an empty field is the result rather than the event. This
@@ -868,7 +973,7 @@ void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 		// never theirs sound identical otherwise.
 		if (Text.IsEmpty())
 		{
-			SpeakLine(Folio::Spoken::Blank().ToString(), false);
+			SpeakLine(Folio::Spoken::Blank().ToString(), Folio::ESpeechPriority::Polite);
 		}
 	}
 	else if (Caret != EditCaret || SelectionEnd != EditSelectionEnd)
@@ -877,7 +982,7 @@ void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 		{
 			const FString Selected = Text.Mid(Caret, SelectionEnd - Caret);
 			SpeakLine(Folio::Spoken::Selected(
-				Folio::Spoken::Typed(bPassword ? Masked(Selected.Len()) : Selected)).ToString(), true);
+				Folio::Spoken::Typed(bPassword ? Masked(Selected.Len()) : Selected)).ToString(), Folio::ESpeechPriority::Assertive);
 		}
 		else if (!bPassword)
 		{
@@ -887,7 +992,7 @@ void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 			const int32 Length = FMath::Abs(Caret - EditCaret);
 			if (const FString Passed = Text.Mid(From, Length); !Passed.IsEmpty())
 			{
-				SpeakLine(Folio::Spoken::Typed(Passed).ToString(), true);
+				SpeakLine(Folio::Spoken::Typed(Passed).ToString(), Folio::ESpeechPriority::Assertive);
 			}
 		}
 	}
@@ -1011,6 +1116,26 @@ FString UFolioAccessibilityLibrary::ReviewLast()
 FString UFolioAccessibilityLibrary::ReviewRepeat()
 {
 	return FFolioReview::Move(FFolioReview::EMove::Repeat);
+}
+
+FString UFolioAccessibilityLibrary::ReviewNextHeading()
+{
+	return FFolioReview::Move(FFolioReview::EMove::NextHeading);
+}
+
+FString UFolioAccessibilityLibrary::ReviewPreviousHeading()
+{
+	return FFolioReview::Move(FFolioReview::EMove::PreviousHeading);
+}
+
+void UFolioAccessibilityLibrary::SetReaderVerbosity(const EFolioReaderVerbosity Verbosity)
+{
+	GVerbosity = Verbosity;
+}
+
+EFolioReaderVerbosity UFolioAccessibilityLibrary::GetReaderVerbosity()
+{
+	return GVerbosity;
 }
 
 FString UFolioAccessibilityLibrary::ReviewAll()

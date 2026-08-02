@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 /**
@@ -32,9 +33,11 @@ namespace Folio
 	/**
 	 * What kind of thing a node is. Maps onto the platform's own role list where one exists.
 	 *
-	 * There is deliberately no Heading, no Region and no Landmark: neither Windows' nor the consoles'
-	 * mapping through Unreal has anywhere to put them, so a role nothing can announce would only be a
-	 * promise the toolkit does not keep.
+	 * Two of them have nowhere to go. Unreal's `EAccessibleWidgetType` has no heading and no region,
+	 * so those reach a platform screen reader as text and as a pane - the closest honest thing in a
+	 * list that cannot be extended from here. They are still worth having: the game's own reader says
+	 * the word, and the review cursor can jump between headings, which is how anyone reads a long
+	 * screen without walking every line of it.
 	 */
 	enum class ESemanticRole : unsigned char
 	{
@@ -43,6 +46,10 @@ namespace Folio
 		/** A container worth naming: the document itself, a labelled panel, a dialog. */
 		Group,
 		Text,
+		/** A title over the thing it titles. What structure a screen has is mostly these. */
+		Heading,
+		/** A named part of a screen a player might want to jump to rather than read past. */
+		Region,
 		Image,
 		Button,
 		Link,
@@ -62,6 +69,8 @@ namespace Folio
 		{
 		case ESemanticRole::Group: return "group";
 		case ESemanticRole::Text: return "text";
+		case ESemanticRole::Heading: return "heading";
+		case ESemanticRole::Region: return "region";
 		case ESemanticRole::Image: return "image";
 		case ESemanticRole::Button: return "button";
 		case ESemanticRole::Link: return "link";
@@ -102,6 +111,17 @@ namespace Folio
 		}
 	}
 
+	/**
+	 * Whether the node's value is the same words as its name.
+	 *
+	 * True of the two roles that are only text. Reading the value out after the name would say
+	 * everything on the screen twice.
+	 */
+	inline bool RoleSaysItsOwnValue(const ESemanticRole Role)
+	{
+		return Role == ESemanticRole::Text || Role == ESemanticRole::Heading;
+	}
+
 	/** One node of the tree. Geometry is the border box in context units, which is pixels. */
 	struct FSemanticNode
 	{
@@ -119,6 +139,8 @@ namespace Folio
 		bool Disabled = false;
 		/** `folio-announce`: read out again whenever it changes, wherever the reader happens to be. */
 		bool Announces = false;
+		/** `folio-announce="assertive"`: said now, over whatever is being said. For a warning, not a score. */
+		bool AnnouncesAssertively = false;
 		bool Checkable = false;
 		bool Checked = false;
 		bool ReadOnly = true;
@@ -190,6 +212,48 @@ namespace Folio
 			const Rml::String& Tag = Element->GetTagName();
 			return Tag.compare(0, 9, "scrollbar") == 0 || Tag.compare(0, 6, "slider") == 0;
 		}
+
+		/**
+		 * What one walk needs to know about the whole document, gathered once.
+		 *
+		 * Naming a control used to ask the document for every `<label>` in it, per element, which made
+		 * the walk quadratic on exactly the screens that have the most labels. This is that query,
+		 * done once.
+		 */
+		struct FWalkContext
+		{
+			/** `<label for="id">` by the id it points at. */
+			std::unordered_map<std::string, Rml::Element*> LabelsFor;
+
+			/** Elements already spent naming something else, taken back out of the tree afterwards. */
+			std::vector<Rml::Element*> NameSources;
+		};
+	}
+
+	/**
+	 * Whether the element has been put out of reach, as the background behind a modal is.
+	 *
+	 * Both properties, because either alone is ordinary: `pointer-events: none` is how a decoration
+	 * stops eating clicks, and the pair is what `docs/modals.md` tells everyone to write. `folio-inert`
+	 * says the same thing outright, for a game that traps focus its own way.
+	 *
+	 * A screen reader that can still walk into a dialog's background is the same bug as a gamepad that
+	 * can: the player is told about controls they cannot reach, with no way to know why nothing
+	 * happens.
+	 */
+	inline bool IsInert(Rml::Element* Element)
+	{
+		for (Rml::Element* At = Element; At; At = At->GetParentNode())
+		{
+			if (At->HasAttribute("folio-inert"))
+			{
+				return true;
+			}
+		}
+
+		const Rml::ComputedValues& Computed = Element->GetComputedValues();
+		return Computed.focus() == Rml::Style::Focus::None
+			&& Computed.pointer_events() == Rml::Style::PointerEvents::None;
 	}
 
 	/** Decoration the author has taken out of the tree, and everything inside it. */
@@ -293,7 +357,8 @@ namespace Folio
 	 * an X. Everything after it is a place the label is already written and does not want repeating:
 	 * text inside, a `<label for>`, or the caption sitting beside a checkbox.
 	 */
-	inline std::string AccessibleName(Rml::Element* Element, Rml::Element** OutSource = nullptr)
+	inline std::string AccessibleName(Rml::Element* Element, Rml::Element** OutSource = nullptr,
+		const Detail::FWalkContext* Context = nullptr)
 	{
 		const auto From = [OutSource](Rml::Element* Source, std::string Name) {
 			if (OutSource)
@@ -323,8 +388,20 @@ namespace Folio
 		// people to ignore the check, which is the one failure a linter cannot recover from.
 		if (const Rml::String& Id = Element->GetId(); !Id.empty())
 		{
-			if (Rml::ElementDocument* Document = Element->GetOwnerDocument())
+			if (Context)
 			{
+				if (const auto Found = Context->LabelsFor.find(Id); Found != Context->LabelsFor.end())
+				{
+					if (std::string Text = TextWithin(Found->second); !Text.empty())
+					{
+						return From(Found->second, Text);
+					}
+				}
+			}
+			else if (Rml::ElementDocument* Document = Element->GetOwnerDocument())
+			{
+				// The one-off path, for a caller asking about a single element rather than walking a
+				// document. A walk builds the map instead, because this is a document-wide query.
 				Rml::ElementList Labels;
 				Document->GetElementsByTagName(Labels, "label");
 				for (Rml::Element* Label : Labels)
@@ -391,8 +468,10 @@ namespace Folio
 		if (Element->HasAttribute("folio-role"))
 		{
 			const Rml::String Role = Element->GetAttribute<Rml::String>("folio-role", "");
-			if (Role == "group" || Role == "dialog" || Role == "region") return ESemanticRole::Group;
-			if (Role == "text" || Role == "label" || Role == "heading") return ESemanticRole::Text;
+			if (Role == "group" || Role == "dialog") return ESemanticRole::Group;
+			if (Role == "region" || Role == "landmark") return ESemanticRole::Region;
+			if (Role == "heading") return ESemanticRole::Heading;
+			if (Role == "text" || Role == "label") return ESemanticRole::Text;
 			if (Role == "image" || Role == "img") return ESemanticRole::Image;
 			if (Role == "button") return ESemanticRole::Button;
 			if (Role == "link") return ESemanticRole::Link;
@@ -427,6 +506,13 @@ namespace Folio
 		if (Tag == "button" || Tag == "handle") return ESemanticRole::Button;
 		if (Tag == "ul" || Tag == "ol") return ESemanticRole::List;
 		if (Tag == "li") return ESemanticRole::ListItem;
+
+		// The one place a document's structure is already written down. A screen that uses headings
+		// the way markup intends gets heading navigation for nothing.
+		if (Tag.size() == 2 && Tag[0] == 'h' && Tag[1] >= '1' && Tag[1] <= '6')
+		{
+			return ESemanticRole::Heading;
+		}
 
 		// Anything else that can be pressed is a button, whatever it was built out of. This is what
 		// covers the div with an onclick and the one RCSS gave a tab index to.
@@ -627,6 +713,7 @@ namespace Folio
 				break;
 
 			case ESemanticRole::Text:
+			case ESemanticRole::Heading:
 				Node.Value = Node.Name;
 				break;
 
@@ -642,77 +729,77 @@ namespace Folio
 		 * name a panel with the whole screen.
 		 */
 		inline std::string NodeName(Rml::Element* Element, const ESemanticRole Role,
-			Rml::Element** OutSource = nullptr)
+			Rml::Element** OutSource = nullptr, const FWalkContext* Context = nullptr)
 		{
-			if (Role == ESemanticRole::Group || Role == ESemanticRole::List)
+			if (Role == ESemanticRole::Group || Role == ESemanticRole::Region
+				|| Role == ESemanticRole::List)
 			{
 				return Trim(Element->GetAttribute<Rml::String>("folio-label", ""));
 			}
 
-			return AccessibleName(Element, OutSource);
+			return AccessibleName(Element, OutSource, Context);
 		}
 
-		inline FSemanticNode MakeNode(Rml::Element* Element, const ESemanticRole Role)
+		inline FSemanticNode MakeNode(Rml::Element* Element, const ESemanticRole Role,
+			FWalkContext* Context = nullptr)
 		{
 			FSemanticNode Node;
 			Node.Element = Element;
 			Node.Role = Role;
 			Node.Interactive = IsInteractive(Element);
 			Node.Announces = Element->HasAttribute("folio-announce");
+			Node.AnnouncesAssertively = Node.Announces
+				&& Element->GetAttribute<Rml::String>("folio-announce", "") == "assertive";
 			Node.Offset = Element->GetAbsoluteOffset(Rml::BoxArea::Border);
 			Node.Size = Element->GetBox().GetSize(Rml::BoxArea::Border);
 			Node.Description = Trim(Element->GetAttribute<Rml::String>("folio-description", ""));
 
-			Node.Name = NodeName(Element, Role);
+			Rml::Element* Source = nullptr;
+			Node.Name = NodeName(Element, Role, &Source, Context);
+
+			// The caption a control borrowed its name from is not read again as text of its own, or a
+			// checkbox and its label come out as "Subtitles, check box, checked. Subtitles."
+			if (Source && Context)
+			{
+				Context->NameSources.push_back(Source);
+			}
 
 			ReadState(Element, Node);
 			return Node;
 		}
 
-		/**
-		 * The elements something else has already borrowed its name from.
-		 *
-		 * The caption beside a checkbox is that checkbox's name, and leaving it in the tree as text of
-		 * its own has the screen reader say it twice: once as the control and once as the label after
-		 * it. Collected before the build, because the caption is as often before the control as after.
-		 */
-		inline void CollectNameSources(Rml::Element* Element, std::vector<Rml::Element*>& Out)
+		/** Every `<label for>` in the document, so naming a control is a lookup rather than a query. */
+		inline void CollectLabels(Rml::Element* Element, FWalkContext& Context)
 		{
-			if (!Element || IsHiddenFromAccessibility(Element))
+			if (Element->GetTagName() == "label")
 			{
-				return;
-			}
-
-			if (const ESemanticRole Role = InferRole(Element); Role != ESemanticRole::None)
-			{
-				Rml::Element* Source = nullptr;
-				NodeName(Element, Role, &Source);
-				if (Source)
+				if (const Rml::String For = Element->GetAttribute<Rml::String>("for", ""); !For.empty())
 				{
-					Out.push_back(Source);
+					Context.LabelsFor.emplace(For, Element);
 				}
 			}
 
 			for (int i = 0; i < Element->GetNumChildren(); ++i)
 			{
-				CollectNameSources(Element->GetChild(i), Out);
+				CollectLabels(Element->GetChild(i), Context);
 			}
 		}
 
-		inline void Walk(Rml::Element* Element, const std::vector<Rml::Element*>& NameSources,
-			std::vector<FSemanticNode>& Out)
+		/**
+		 * One pass over the document, producing nodes and noting what named what.
+		 *
+		 * A caption is as often before the control it names as after it, so the elements to remove are
+		 * only fully known once the walk is over - which is why they are pruned afterwards rather than
+		 * skipped on the way. It used to be two walks and a document-wide label query per element.
+		 */
+		inline void Walk(Rml::Element* Element, FWalkContext& Context, std::vector<FSemanticNode>& Out)
 		{
 			if (!Element || IsHiddenFromAccessibility(Element) || IsWidgetInternal(Element))
 			{
 				return;
 			}
 
-			if (!IsInAccessibilityTree(Element))
-			{
-				return;
-			}
-
-			if (std::find(NameSources.begin(), NameSources.end(), Element) != NameSources.end())
+			if (!IsInAccessibilityTree(Element) || IsInert(Element))
 			{
 				return;
 			}
@@ -722,22 +809,38 @@ namespace Folio
 			{
 				for (int i = 0; i < Element->GetNumChildren(); ++i)
 				{
-					Walk(Element->GetChild(i), NameSources, Out);
+					Walk(Element->GetChild(i), Context, Out);
 				}
 				return;
 			}
 
-			FSemanticNode Node = MakeNode(Element, Role);
+			FSemanticNode Node = MakeNode(Element, Role, &Context);
 
 			if (!RoleIsControl(Role))
 			{
 				for (int i = 0; i < Element->GetNumChildren(); ++i)
 				{
-					Walk(Element->GetChild(i), NameSources, Node.Children);
+					Walk(Element->GetChild(i), Context, Node.Children);
 				}
 			}
 
 			Out.push_back(std::move(Node));
+		}
+
+		/** Takes back out the nodes whose element was spent naming something else. */
+		inline void PruneNameSources(std::vector<FSemanticNode>& Nodes,
+			const std::vector<Rml::Element*>& Sources)
+		{
+			const auto Spent = [&Sources](const FSemanticNode& Node) {
+				return std::find(Sources.begin(), Sources.end(), Node.Element) != Sources.end();
+			};
+
+			Nodes.erase(std::remove_if(Nodes.begin(), Nodes.end(), Spent), Nodes.end());
+
+			for (FSemanticNode& Node : Nodes)
+			{
+				PruneNameSources(Node.Children, Sources);
+			}
 		}
 	}
 
@@ -761,12 +864,17 @@ namespace Folio
 		Root.Offset = Document->GetAbsoluteOffset(Rml::BoxArea::Border);
 		Root.Size = Document->GetBox().GetSize(Rml::BoxArea::Border);
 
-		std::vector<Rml::Element*> NameSources;
-		Detail::CollectNameSources(Document, NameSources);
+		Detail::FWalkContext Context;
+		Detail::CollectLabels(Document, Context);
 
 		for (int i = 0; i < Document->GetNumChildren(); ++i)
 		{
-			Detail::Walk(Document->GetChild(i), NameSources, Root.Children);
+			Detail::Walk(Document->GetChild(i), Context, Root.Children);
+		}
+
+		if (!Context.NameSources.empty())
+		{
+			Detail::PruneNameSources(Root.Children, Context.NameSources);
 		}
 
 		return Root;

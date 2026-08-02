@@ -12,6 +12,7 @@ DEFINE_STAT(STAT_FolioCompileGeometry);
 DEFINE_STAT(STAT_FolioDrawGeometry);
 DEFINE_STAT(STAT_FolioLoadTexture);
 DEFINE_STAT(STAT_FolioResolveLayers);
+DEFINE_STAT(STAT_FolioAccessibility);
 DEFINE_STAT(STAT_FolioDraws);
 DEFINE_STAT(STAT_FolioBatches);
 

@@ -21,6 +21,8 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Draw geometry"), STAT_FolioDrawGeometry, STATGRO
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Load texture"), STAT_FolioLoadTexture, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Resolve layers"), STAT_FolioResolveLayers, STATGROUP_Folio, );
 
+DECLARE_CYCLE_STAT_EXTERN(TEXT("Accessibility walk"), STAT_FolioAccessibility, STATGROUP_Folio, );
+
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Draws"), STAT_FolioDraws, STATGROUP_Folio, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Geometry batches"), STAT_FolioBatches, STATGROUP_Folio, );
 

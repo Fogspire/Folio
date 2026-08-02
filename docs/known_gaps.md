@@ -164,9 +164,13 @@ is being used, which is also better for anyone reading small text on a surface a
 ### Roles are limited to what the platform layer has
 
 Unreal's accessibility layer maps a fixed list of widget types, and there is no heading, region,
-landmark or progress bar in it. `folio-role="heading"` reads as text and `progressbar` reads as a
-read-only slider, which is the closest thing that carries a value. A document that leans on headings
-for structure will not read as structured.
+landmark or progress bar in it. So to **a platform screen reader** a heading reads as text, a region
+as a pane and a progress bar as a read-only slider, and a document that leans on headings does not
+read as structured.
+
+The game's own reader is not limited by that list: it says "heading", and the review cursor jumps
+between them. Fixing the platform half means engine-side work on `EAccessibleWidgetType`, which is not
+something a plugin can do.
 
 ### Only one speech back end ships
 
@@ -188,9 +192,6 @@ root; a game that does not do the same gets a setting that half works.
 `uipreview --text-scale 1.5 --a11y` names the text it could not move, per element, so this is
 visible rather than something a player discovers.
 
-Input prompt glyphs are a deliberate exception. A key cap is drawn from fixed boxes, and its letter
-stays with the drawing rather than with the type.
-
 ### Reduced motion cannot reach motion that is drawn
 
 It is a stylesheet rule, so it stops every transition and animation and nothing else. A shader that
@@ -206,13 +207,22 @@ moves, a video, a `<text>` typing itself out and anything a game writes from its
 best-effort everywhere: two announcements close together can stomp one another. Do not use one to
 carry something the player cannot get any other way.
 
-### The walk is the whole document
+The game's own reader queues them properly - one place per announcing element, dropped after four
+seconds if they have not been read - but that queue is Folio's and a platform reader does not see it.
+
+### The walk is the whole document, ten times a second
 
 A document that changed is walked in full rather than patched, because RmlUi has no change
 notification covering everything a document can do to itself and a tree silently one edit behind is
-worse than no tree. It runs only on frames the document changed and only while a screen reader is
-running, so a settings screen costs nothing and a HUD that animates every frame costs a walk every
-frame. Measure that combination with `stat Folio` before shipping it.
+worse than no tree.
+
+What bounds it is that a walk is not per frame. Between walks the widgets follow their elements - one
+box read per node, no strings - so a HUD animating at 120fps pays that and walks ten times a second.
+`folio.Accessibility.WalkInterval` is the number, `stat Folio` reports the walk as *Accessibility
+walk*, and both are zero while nobody is listening.
+
+The cost of one walk is still proportional to the whole document. A screen with two thousand elements
+under a reader is worth measuring.
 
 See **[accessibility](accessibility.md)**.
 

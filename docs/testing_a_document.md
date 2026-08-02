@@ -48,6 +48,7 @@ save would be slow for no gain.
 | `--strict` | Warnings fail the run. Always on in CI, and worth on locally. |
 | `--a11y` | Contrast, text size, hit targets, control names, focus visibility. See **[accessibility](accessibility.md)**. |
 | `--a11y-tree` | Prints what a screen reader is read out of, in reading order. The same walk the engine builds its accessibility tree from. |
+| `--a11y-contrast 7` | The ratio normal text is held to. 7 is what a high-contrast theme should meet. |
 | `--culture pseudo` | Inflates and accents every string, which finds overflow before translation exists. Also enables the localisation lint - `--strict` alone does not run it. |
 | `--dp-ratio 2` | The document at a different UI scale. Text wraps in different places at different ratios, by design; a container sized to fit its content exactly at one ratio will break at another. |
 | `--input-device gamepad` | Pins what the document thinks the player is holding, so a gamepad screenshot needs no gamepad. |

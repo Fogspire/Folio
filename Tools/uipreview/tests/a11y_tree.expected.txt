@@ -1,11 +1,11 @@
 group "Settings"
   group "Audio"
-    text "Audio"
+    heading "Audio"
     slider "Master volume" = 60
     combobox "Output device" = Speakers
     checkbox "Subtitles" [checked]
   group "Profile"
-    text "Profile"
+    heading "Profile"
     textbox "Callsign" = Vega
     textbox "Passphrase"
     progressbar "Sync" = 0.4

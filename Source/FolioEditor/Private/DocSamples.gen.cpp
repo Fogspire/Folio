@@ -14,6 +14,7 @@
 #include "FolioInputGlyphs.h"
 #include "FolioInputPrompts.h"
 #include "FolioModule.h"
+#include "FolioTerms.h"
 #include "FolioNavBindings.h"
 #include "FolioSpring.h"
 #include "FolioWidget.h"
@@ -49,6 +50,7 @@ namespace FolioDocSamples
 	inline UDataTable* MyGlyphTable = nullptr;
 
 	inline FText Line;
+	inline FText Name;
 	inline UTexture* CaptureTarget = nullptr;
 
 	inline Rml::Element* Element = nullptr;
@@ -246,6 +248,18 @@ namespace FolioDocSamples
 
 		// And hand it the keyboard so the fields can be typed into.
 		Terminal->FocusDocument();
+	}
+
+	// docs/tutorials/dialogue.md#0
+	inline void Sample_docs_tutorials_dialogue_md_0()
+	{
+		Folio::SetTermText(TEXT("Place.MountainTemple"), Name);
+	}
+
+	// docs/tutorials/dialogue.md#1
+	inline void Sample_docs_tutorials_dialogue_md_1()
+	{
+		Document->SetElementMarkup(TEXT("line"), Line.ToString());
 	}
 
 	// docs/tutorials/inventory.md#1

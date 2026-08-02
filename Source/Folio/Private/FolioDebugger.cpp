@@ -22,6 +22,47 @@ namespace Folio::Debug
 		 * debugger you can see and cannot use, with every click landing in the game.
 		 */
 		bool bRestoreInteractive = true;
+		bool bTookMouse = false;
+
+		/**
+		 * Takes the mouse for the debugger, or gives it back.
+		 *
+		 * Tied to the debugger being *visible* rather than attached, because taking it is not free: the
+		 * canvas is hit-test invisible so that the game behind a HUD can be played through, and holding
+		 * that open would leave firing dead until somebody thought to detach.
+		 */
+		void TakeMouse(SFolioCanvas* Canvas, const bool bTake)
+		{
+			if (!Canvas || bTake == bTookMouse)
+			{
+				return;
+			}
+
+			if (bTake)
+			{
+				bRestoreInteractive = Canvas->IsInteractive();
+				bTookMouse = true;
+				Canvas->SetInteractive(true);
+
+				if (!bRestoreInteractive)
+				{
+					UE_LOG(LogFolio, Display,
+						TEXT("the debugger has taken the mouse from this document, which was not taking "
+							"it. Anything behind it - firing, looking - stops until 'folio.Debugger off'."));
+				}
+
+				return;
+			}
+
+			bTookMouse = false;
+
+			// Put back what the document asked for. A game that changed its mind while the debugger was
+			// up loses that change, which is the lesser wrong against leaving a HUD eating every click.
+			if (!bRestoreInteractive)
+			{
+				Canvas->SetInteractive(false);
+			}
+		}
 
 		/** A canvas outlives nothing here: it is only a host while it is still in the live set. */
 		bool IsAlive(const SFolioCanvas* Canvas)
@@ -71,10 +112,6 @@ namespace Folio::Debug
 		}
 
 		HostCanvas = Canvas;
-
-		bRestoreInteractive = Canvas->IsInteractive();
-		Canvas->SetInteractive(true);
-
 		return true;
 	}
 
@@ -82,16 +119,11 @@ namespace Folio::Debug
 	{
 		if (SFolioCanvas* Canvas = Host())
 		{
+			TakeMouse(Canvas, false);
+
 			if (RmlIsUp())
 			{
 				Rml::Debugger::Shutdown();
-			}
-
-			// Put back what the document asked for. A game that changed its mind while the debugger was
-			// up loses that change, which is the lesser wrong against leaving a HUD eating every click.
-			if (!bRestoreInteractive)
-			{
-				Canvas->SetInteractive(false);
 			}
 		}
 
@@ -101,9 +133,10 @@ namespace Folio::Debug
 
 	void SetVisible(const bool bVisible)
 	{
-		if (Host())
+		if (SFolioCanvas* Canvas = Host())
 		{
 			Rml::Debugger::SetVisible(bVisible);
+			TakeMouse(Canvas, bVisible);
 		}
 	}
 

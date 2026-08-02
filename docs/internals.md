@@ -983,9 +983,10 @@ the debugger's chrome with no text in it at all - a symptom that points nowhere 
 
 **Its documents live in the host canvas's context, so the canvas has to take the mouse.** A HUD sets
 `bInteractive = false`, which makes the widget hit-test invisible so the game behind it can be played
-through - and that drops every click meant for the debugger as well. `Attach` forces the host
-interactive and `Detach` puts it back, because a debugger you can see and cannot click is worse than
-no debugger.
+through - and that drops every click meant for the debugger as well. It takes the host interactive while
+it is *visible* and gives it back when it hides, because a debugger you can see and cannot click is
+worse than no debugger - and because holding it open past that would leave firing dead in a game whose
+HUD somebody had inspected once.
 
 It also needs a cursor to exist, which a game that has captured the mouse will not have.
 `folio.MouseMode on` sets `FInputModeGameAndUI` with the cursor shown and no viewport lock.

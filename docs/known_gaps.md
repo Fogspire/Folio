@@ -282,12 +282,13 @@ Measure with `stat Folio` before designing around a number. See
 
 ### The debugger takes the mouse from the document it inspects
 
-`folio.Debugger` forces its host canvas interactive, because its own documents live in that canvas's
-context and a hit-test-invisible canvas drops every click meant for them. A HUD being inspected is
-therefore taking the mouse while the debugger is up, and the game behind it is not. `folio.Debugger
-off` puts it back.
+`folio.Debugger` forces its host canvas interactive while it is **visible**, because its own documents
+live in that canvas's context and a hit-test-invisible canvas drops every click meant for them. So a
+HUD with the debugger open is taking the mouse, and the game behind it is not: firing and looking stop
+until `folio.Debugger off`. It says so in the log when it takes it.
 
-A game that changes `bInteractive` itself while the debugger is attached loses that change on detach.
+Tied to visibility rather than attachment so that hiding it is enough; a game that changes
+`bInteractive` itself while the debugger is up loses that change when it hides.
 
 ### Baking is not automatic
 

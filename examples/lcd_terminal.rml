@@ -257,7 +257,8 @@
 		.close:hover,
 		.close:focus-visible { background-color: #ff5f57; color: #1a0505; }
 
-		.window-body { position: relative; height: 100%; }
+		/* Fills what the titlebar leaves rather than the whole window, which is a titlebar too tall. */
+		.window-body { position: absolute; left: 0; right: 0; top: 42dp; bottom: 0; }
 
 		.grip {
 			position: absolute;

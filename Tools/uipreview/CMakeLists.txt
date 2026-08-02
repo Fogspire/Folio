@@ -2,6 +2,7 @@ add_executable(uipreview
 	src/main.cpp
 	src/AccessibilityReport.cpp
 	src/App.cpp
+	src/ColourVision.cpp
 	src/CoreHost.cpp
 	src/DataModel.cpp
 	src/Diagnostics.cpp

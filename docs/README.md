@@ -54,7 +54,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 
 | | |
 |---|---|
-| **[Accessibility](accessibility.md)** | Contrast, hit targets, focus visibility and control names, checked in the build - and the screen reader that reads the result. |
+| **[Accessibility](accessibility.md)** | Contrast, hit targets, focus visibility and control names, checked in the build; the screen reader that reads the result; and the text-scale, reduced-motion and high-contrast settings. |
 | **[Localisation](localization.md)** | `data-loc`, the gather, and previewing pseudo-loc before translation exists. |
 | **[Performance and profiling](performance_profiling.md)** | `stat Folio`, the invalidation path, and what actually makes a screen slow. |
 | **[Console commands](console.md)** | Everything Folio adds to the console, and what each is for. |

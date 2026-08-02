@@ -4,6 +4,7 @@
 
 #include "FolioMarkerDocument.h"
 #include "FolioModule.h"
+#include "FolioPresentation.h"
 #include "FolioRmlUi.h"
 #include "FolioWidget.h"
 #include "FolioWorldDocument.h"
@@ -147,8 +148,13 @@ void UFolioHudMotion::TickComponent(const float DeltaTime, const ELevelTick Tick
 		return;
 	}
 
-	const FVector2f Turn = ReadCameraTurn(DeltaTime);
-	const FVector2f Move = ReadMovement();
+	// A stylesheet cannot reach this: none of it is a transition, the offsets are written every frame
+	// from a spring. Driving the signal to nothing rather than returning early, so the layers are
+	// written back to rest once and the document then goes idle where it would have settled.
+	const bool bReduced = Folio::Presentation::IsReducedMotionOn();
+
+	const FVector2f Turn = bReduced ? FVector2f::ZeroVector : ReadCameraTurn(DeltaTime);
+	const FVector2f Move = bReduced ? FVector2f::ZeroVector : ReadMovement();
 
 	// Normalised against the reference rates, so a layer's Weight is in dp and one pair of numbers
 	// retunes the whole HUD's sensitivity.
@@ -175,7 +181,14 @@ void UFolioHudMotion::TickComponent(const float DeltaTime, const ELevelTick Tick
 		FVector2f Target(Signal.X * float(Layer.Weight.X), Signal.Y * float(Layer.Weight.Y));
 		Target = Target.GetClampedToMaxSize(Layer.MaxOffset);
 
-		Layer.Spring.Advance(Target, DeltaTime);
+		if (bReduced)
+		{
+			Layer.Spring.Snap(Target);
+		}
+		else
+		{
+			Layer.Spring.Advance(Target, DeltaTime);
+		}
 
 		const FVector2f Value = Layer.Spring.Value.GetClampedToMaxSize(Layer.MaxOffset);
 		const bool bAtRest = Layer.Spring.IsAtRest(Target);

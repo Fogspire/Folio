@@ -146,15 +146,20 @@ invisibly, where an edge is high frequency and is the thing the field exists for
 
 ## Accessibility
 
-### A document in the world is not read out
+### A document in the world reaches only the game's own reader
 
 `UFolioWorldDocument` and `UFolioMarkerDocument` draw into the scene rather than through a Slate
-widget, so there is no widget tree for a screen reader to walk - and no screen rectangle to report as
-a control's bounds if there were. **Screen documents are exposed; world and marker documents are not.**
+widget, so there is no widget tree for NVDA or a console narrator to walk - and no screen rectangle to
+report as a control's bounds if there were. **Screen documents are exposed to a platform reader; world
+and marker documents are not.**
 
-Not scheduled, because the answer for the case that matters is a different one: a terminal the player
-walks up to and uses should put its interface on a screen document while it is being used, which is
-also better for anyone reading small text on a surface at an angle.
+They are not invisible, though: the review cursor reads every live document whatever draws it, and
+`folio.Accessibility.Dump` prints them, marked as reachable that way only. So a player using the
+game's own reader can read a terminal in the world and a player using NVDA cannot.
+
+Closing the gap properly is not scheduled, because the answer for the case that matters is a different
+one: a terminal the player walks up to and uses should put its interface on a screen document while it
+is being used, which is also better for anyone reading small text on a surface at an angle.
 
 ### Roles are limited to what the platform layer has
 
@@ -163,12 +168,36 @@ landmark or progress bar in it. `folio-role="heading"` reads as text and `progre
 read-only slider, which is the closest thing that carries a value. A document that leans on headings
 for structure will not read as structured.
 
-### The game's own reader speaks on Windows only
+### Only one speech back end ships
 
 `SetScreenReader` talks through SAPI, which is Windows. Everywhere else it reports unavailable and
 turns itself off, so a console needs either its platform narrator - which reads the tree and needs
-none of this - or a back end written against that platform's own speech API. The seam for one is
-`FolioSpeech.h`, which is four functions.
+none of this - or a back end written against that platform's own speech API, installed with
+`Folio::FSpeech::SetBackend`. `ISpeechBackend` is six functions and the seam is real rather than
+notional: the tests install one.
+
+Folio cannot ship those, because each platform's speech API is behind an SDK this repository is not
+allowed to see.
+
+### Text scale reaches `rem` and nothing else
+
+The setting writes the root font size, so every rule written in `rem` moves and every rule written in
+`dp` or `px` stays where it is. The shipped theme sizes all of its type in `rem` against one `dp`
+root; a game that does not do the same gets a setting that half works.
+
+`uipreview --text-scale 1.5 --a11y` names the text it could not move, per element, so this is
+visible rather than something a player discovers.
+
+Input prompt glyphs are a deliberate exception. A key cap is drawn from fixed boxes, and its letter
+stays with the drawing rather than with the type.
+
+### Reduced motion cannot reach motion that is drawn
+
+It is a stylesheet rule, so it stops every transition and animation and nothing else. A shader that
+moves, a video, a `<text>` typing itself out and anything a game writes from its own tick keep going.
+
+`UFolioHudMotion` is wired to it and snaps. Anything else you drive per frame has to read
+`IsReducedMotionOn` itself; nothing can find it for you.
 
 ### Announcements are not guaranteed to arrive
 

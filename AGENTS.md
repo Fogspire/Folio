@@ -118,6 +118,10 @@ to retrofit across a finished game.
 hears. `uipreview --a11y-tree` prints the whole document as it will be read out, which is the fastest
 way to see whether a screen makes sense to someone who cannot see it.
 
+Size type in `rem`, not `dp`. The accessibility text scale writes the document's root font size, so
+`rem` follows it and `dp` does not; `--text-scale 1.5 --a11y` names the text it could not move and
+anything that stopped fitting.
+
 ### 8. Verify before you say it is done
 
 ```bash

@@ -18,6 +18,7 @@
 
 #include "FolioAccessibility.h"
 #include "FolioAccessibilityLibrary.h"
+#include "FolioAccessibilityReview.h"
 #include "FolioCore/FolioElementPath.h"
 #include "FolioCore/FolioSemantics.h"
 
@@ -1837,24 +1838,39 @@ namespace
 			return;
 		}
 
-		const TArray<SFolioCanvas*>& Canvases = SFolioCanvas::GetLiveCanvases();
-		if (Canvases.IsEmpty())
+		// Every live document rather than every canvas: a document in the world has no widget, so no
+		// platform reader can see it, and this is then the only thing that can say what is in it.
+		const TArray<FFolioDocumentHost*>& Hosts = FFolioDocumentHost::GetLiveHosts();
+		if (Hosts.IsEmpty())
 		{
 			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Dump: nothing on screen."));
 			return;
 		}
 
-		for (const SFolioCanvas* Canvas : Canvases)
+		for (const FFolioDocumentHost* Host : Hosts)
 		{
+			const SFolioCanvas* Canvas = nullptr;
+			for (const SFolioCanvas* Candidate : SFolioCanvas::GetLiveCanvases())
+			{
+				if (Candidate->GetDocument() == Host->GetDocument())
+				{
+					Canvas = Candidate;
+					break;
+				}
+			}
+
 			TArray<FString> Lines;
-			Canvas->DescribeAccessibility(Lines);
+			if (Canvas)
+			{
+				Canvas->DescribeAccessibility(Lines);
+			}
 
 			const bool bLive = !Lines.IsEmpty();
 			if (!bLive)
 			{
 				// Nothing is listening, so no widgets exist. The same walk still answers what would be
 				// read, which is the question anyone typing this is asking.
-				Folio::VisitSemanticTree(Folio::BuildSemanticTree(Canvas->GetDocument()),
+				Folio::VisitSemanticTree(Folio::BuildSemanticTree(Host->GetDocument()),
 					[&Lines](const Folio::FSemanticNode& Node, const int32 Depth)
 					{
 						FString Line = FString::ChrN(Depth * 2, TEXT(' '));
@@ -1889,8 +1905,12 @@ namespace
 			}
 
 			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Dump: '%s', %d node(s), %s"),
-				*Canvas->GetDocumentPath(), Lines.Num(),
-				bLive ? TEXT("live tree") : TEXT("nothing listening - this is what would be built"));
+				*Host->GetDocumentPath(), Lines.Num(),
+				bLive ? TEXT("live tree")
+					: Canvas ? TEXT("nothing listening - this is what would be built")
+					// A document drawn into the scene has no Slate widget to hang a tree on, so the
+					// walk is all there is. The game's own reader reads it; a platform one cannot.
+					: TEXT("not on a widget - only the game's own reader reaches this"));
 
 			for (const FString& Line : Lines)
 			{
@@ -1911,6 +1931,104 @@ namespace
 		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Reader: %s%s"),
 			UFolioAccessibilityLibrary::IsScreenReaderEnabled() ? TEXT("on") : TEXT("off"),
 			UFolioAccessibilityLibrary::IsSpeechAvailable() ? TEXT("") : TEXT(" (no speech on this platform)"));
+	}
+
+	/** The review cursor from the console, so it can be tried before a game has bound anything to it. */
+	void ReviewAccessibility(const TArray<FString>& Args)
+	{
+		const FString What = Args.Num() > 0 ? Args[0].ToLower() : TEXT("list");
+
+		if (What == TEXT("list"))
+		{
+			TArray<FString> Lines;
+			FFolioReview::Describe(Lines);
+
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Review: %d line(s), '>' is the cursor"),
+				Lines.Num());
+
+			for (const FString& Line : Lines)
+			{
+				UE_LOG(LogFolio, Display, TEXT("%s"), *Line);
+			}
+
+			return;
+		}
+
+		if (What == TEXT("stop"))
+		{
+			FFolioReview::Stop();
+			return;
+		}
+
+		if (What == TEXT("activate"))
+		{
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Review activate: %s"),
+				FFolioReview::Activate() ? TEXT("pressed") : TEXT("nothing under the cursor"));
+			return;
+		}
+
+		if (What == TEXT("focus"))
+		{
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Review focus: %s"),
+				FFolioReview::MoveFocusHere() ? TEXT("moved") : TEXT("nothing under the cursor"));
+			return;
+		}
+
+		FFolioReview::EMove Move;
+		if (What == TEXT("next")) Move = FFolioReview::EMove::Next;
+		else if (What == TEXT("previous") || What == TEXT("prev")) Move = FFolioReview::EMove::Previous;
+		else if (What == TEXT("first") || What == TEXT("top")) Move = FFolioReview::EMove::First;
+		else if (What == TEXT("last") || What == TEXT("end")) Move = FFolioReview::EMove::Last;
+		else if (What == TEXT("repeat")) Move = FFolioReview::EMove::Repeat;
+		else if (What == TEXT("all"))
+		{
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Review all:\n%s"), *FFolioReview::ReadAll());
+			return;
+		}
+		else
+		{
+			UE_LOG(LogFolio, Display,
+				TEXT("folio.Accessibility.Review [list|next|previous|first|last|repeat|all|stop|activate|focus]"));
+			return;
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Review %s: %s"), *What,
+			*FFolioReview::Move(Move));
+	}
+
+	void TextScaleAccessibility(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0)
+		{
+			UFolioAccessibilityLibrary::SetTextScale(FCString::Atof(*Args[0]));
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.TextScale: %.2f"),
+			UFolioAccessibilityLibrary::GetTextScale());
+	}
+
+	void ReducedMotionAccessibility(const TArray<FString>& Args)
+	{
+		const bool bWanted = Args.Num() == 0
+			? !UFolioAccessibilityLibrary::IsReducedMotionOn()
+			: (Args[0].ToBool() || Args[0] == TEXT("1"));
+
+		UFolioAccessibilityLibrary::SetReducedMotion(bWanted);
+
+		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.ReducedMotion: %s"),
+			UFolioAccessibilityLibrary::IsReducedMotionOn() ? TEXT("on") : TEXT("off"));
+	}
+
+	void HighContrastAccessibility(const TArray<FString>& Args)
+	{
+		const bool bWanted = Args.Num() == 0
+			? !UFolioAccessibilityLibrary::IsHighContrastOn()
+			: (Args[0].ToBool() || Args[0] == TEXT("1"));
+
+		UFolioAccessibilityLibrary::SetHighContrast(bWanted);
+
+		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.HighContrast: %s"),
+			UFolioAccessibilityLibrary::IsHighContrastOn() ? TEXT("on") : TEXT("off"));
 	}
 
 	void SayAccessibility(const TArray<FString>& Args)
@@ -1955,6 +2073,31 @@ namespace
 		TEXT("folio.Accessibility.Reader [0|1]. Turns the game's own screen reader on or off, which is "
 			"what an options menu toggle calls. No argument flips it."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ReaderAccessibility));
+
+	FAutoConsoleCommand AccessibilityTextScaleCommand(
+		TEXT("folio.Accessibility.TextScale"),
+		TEXT("folio.Accessibility.TextScale [scale]. Scales every type size written in rem, which is "
+			"what the shipped theme uses. No argument reports the current one."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&TextScaleAccessibility));
+
+	FAutoConsoleCommand AccessibilityReducedMotionCommand(
+		TEXT("folio.Accessibility.ReducedMotion"),
+		TEXT("folio.Accessibility.ReducedMotion [0|1]. Turns every transition and animation off across "
+			"every document. No argument flips it."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ReducedMotionAccessibility));
+
+	FAutoConsoleCommand AccessibilityHighContrastCommand(
+		TEXT("folio.Accessibility.HighContrast"),
+		TEXT("folio.Accessibility.HighContrast [0|1]. The high-contrast theme, which is the same thing "
+			"folio.Theme high-contrast does and the name a game's setting should call."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&HighContrastAccessibility));
+
+	FAutoConsoleCommand AccessibilityReviewCommand(
+		TEXT("folio.Accessibility.Review"),
+		TEXT("folio.Accessibility.Review [list|next|previous|first|last|repeat|all|stop|activate|focus]. "
+			"Drives the review cursor, which reads the screen without moving focus. No argument lists "
+			"every line it can reach."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ReviewAccessibility));
 
 	FAutoConsoleCommand AccessibilitySayCommand(
 		TEXT("folio.Accessibility.Say"),

@@ -85,6 +85,15 @@ public:
 	static bool IsThemeActive(FName Theme);
 	static const TSet<FName>& GetActiveThemes();
 
+	/**
+	 * Every document alive right now, in the order they were created.
+	 *
+	 * What anything that has to reach all of them walks: a theme switch, and the screen reader's
+	 * review cursor, which is the one thing that has to see a document in the world as well as one on
+	 * a Slate widget.
+	 */
+	static const TArray<FFolioDocumentHost*>& GetLiveHosts();
+
 	/** True while a text field has focus, so letters are text rather than directions. */
 	bool IsTakingText() const;
 
@@ -136,6 +145,9 @@ private:
 	/** Mounts UI/mock/<model>.json if the document declares a model, so bindings resolve. */
 	void MountDataModel(const FString& RelativePath);
 
+	/** Writes the accessibility text scale onto the document root, where every `rem` resolves against it. */
+	void ApplyTextScale(float DpRatio);
+
 	Rml::Context* Context = nullptr;
 	Rml::ElementDocument* Document = nullptr;
 	FString DocumentPath;
@@ -163,6 +175,17 @@ private:
 	double NextUpdateIn = 0.0;
 
 	bool bDirty = true;
+
+	/**
+	 * The root font size the document's own stylesheet asked for, in dp, or zero before it is known.
+	 *
+	 * Captured rather than assumed, because the text scale multiplies what the author wrote and every
+	 * theme writes something different. Cleared with the document.
+	 */
+	float BaseFontSizeDp = 0.0f;
+
+	/** Which revision of the presentation settings this document is showing. */
+	uint32 PresentationRevision = 0;
 
 	/** Set once the document has been through a context update, so it has computed styles. */
 	bool bLaidOut = false;

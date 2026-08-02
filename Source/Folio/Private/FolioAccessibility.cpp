@@ -1,7 +1,10 @@
 #include "FolioAccessibility.h"
 
 #include "FolioAccessibilityLibrary.h"
+#include "FolioAccessibilityReview.h"
+#include "FolioAccessibilityText.h"
 #include "FolioModule.h"
+#include "FolioPresentation.h"
 #include "FolioRmlUi.h"
 #include "FolioSpeech.h"
 
@@ -12,6 +15,8 @@
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Elements/ElementFormControl.h>
+#include <RmlUi/Core/Elements/ElementFormControlInput.h>
+#include <RmlUi/Core/Elements/ElementFormControlTextArea.h>
 
 #if WITH_ACCESSIBILITY
 #include "Application/SlateApplicationBase.h"
@@ -29,69 +34,8 @@ namespace
 	/** Whether the game is reading itself out. A game setting owns this; nothing turns it on by itself. */
 	bool GScreenReader = false;
 
-	/**
-	 * What a control is called out loud.
-	 *
-	 * A role word rather than a role name: "check box" is what every screen reader says and what a
-	 * player expects to hear, where "checkbox" reads as a tag name to anyone who has used one.
-	 */
-	const TCHAR* SpokenRole(const Folio::ESemanticRole Role)
-	{
-		switch (Role)
-		{
-		case Folio::ESemanticRole::Image: return TEXT("image");
-		case Folio::ESemanticRole::Button: return TEXT("button");
-		case Folio::ESemanticRole::Link: return TEXT("link");
-		case Folio::ESemanticRole::CheckBox: return TEXT("check box");
-		case Folio::ESemanticRole::Radio: return TEXT("radio button");
-		case Folio::ESemanticRole::ComboBox: return TEXT("combo box");
-		case Folio::ESemanticRole::Slider: return TEXT("slider");
-		case Folio::ESemanticRole::ProgressBar: return TEXT("progress");
-		case Folio::ESemanticRole::TextEdit: return TEXT("edit");
-		case Folio::ESemanticRole::List: return TEXT("list");
-		case Folio::ESemanticRole::ListItem: return TEXT("item");
-
-		// Text says itself, and a group is a place rather than a thing to hear the kind of.
-		default: return nullptr;
-		}
-	}
-
-	/** Name, then what it is, then what state it is in - which is the order every reader uses. */
-	FString Utterance(const SFolioAccessibleElement& Proxy)
-	{
-		TArray<FString> Parts;
-
-		if (!Proxy.GetName().IsEmpty())
-		{
-			Parts.Add(Proxy.GetName().ToString());
-		}
-
-		if (const TCHAR* Role = SpokenRole(Proxy.GetRole()))
-		{
-			Parts.Add(Role);
-		}
-
-		const Folio::FSemanticNode& Node = Proxy.GetNode();
-
-		if (Node.Checkable)
-		{
-			Parts.Add(Node.Checked ? TEXT("checked") : TEXT("not checked"));
-		}
-
-		if (!Proxy.GetValueText().IsEmpty() && Proxy.GetRole() != Folio::ESemanticRole::Text)
-		{
-			Parts.Add(Proxy.GetValueText());
-		}
-
-		// The word a reader uses for a control that is present and cannot be used. Said last, because
-		// it qualifies everything before it.
-		if (Node.Disabled)
-		{
-			Parts.Add(TEXT("unavailable"));
-		}
-
-		return FString::Join(Parts, TEXT(", "));
-	}
+	/** The last thing said, whichever part of the reader said it. What review's repeat repeats. */
+	FString GLastSpoken;
 
 	/** The nearest named group above a control, which is the context a player has just moved into. */
 	FString GroupOf(const SFolioAccessibleElement& Proxy)
@@ -305,6 +249,44 @@ namespace
 #endif // WITH_ACCESSIBILITY
 }
 
+FString Folio::Utterance(const Folio::FSemanticNode& Node)
+{
+	TArray<FString> Parts;
+
+	if (!Node.Name.empty())
+	{
+		Parts.Add(Folio::ToFString(Node.Name));
+	}
+
+	if (const FText Role = Folio::Spoken::Role(Node.Role); !Role.IsEmpty())
+	{
+		Parts.Add(Role.ToString());
+	}
+
+	if (Node.Checkable)
+	{
+		Parts.Add(Folio::Spoken::Checked(Node.Checked).ToString());
+	}
+
+	if (!Node.Value.empty() && Node.Role != Folio::ESemanticRole::Text)
+	{
+		// A range's value is digits the document produced, so it is read as this culture writes a
+		// number. Anything else is already words and is read as it stands.
+		Parts.Add(Node.HasRange
+			? Folio::Spoken::Number(Folio::ToFString(Node.Value)).ToString()
+			: Folio::ToFString(Node.Value));
+	}
+
+	// A control that is present and cannot be used. Said last, because it qualifies everything before
+	// it, and before nothing, because there is nothing a player can do about it.
+	if (Node.Disabled)
+	{
+		Parts.Add(Folio::Spoken::Unavailable().ToString());
+	}
+
+	return Folio::Spoken::Join(Parts);
+}
+
 SFolioAccessibleElement::SFolioAccessibleElement()
 	: Children(this)
 {
@@ -512,7 +494,7 @@ void FFolioAccessibilityTree::SetScreenReader(const bool bEnabled)
 		{
 			// The player has just turned this on and needs to know it took, before anything they do
 			// next produces a sentence they might mistake for the confirmation.
-			Folio::FSpeech::Say(TEXT("Screen reader on"), true);
+			SpeakLine(Folio::Spoken::ReaderOn().ToString(), /*bInterrupt*/ true);
 		}
 	}
 	else
@@ -636,7 +618,7 @@ void FFolioAccessibilityTree::Announce(const FString& Text)
 
 	// After whatever is being said rather than over it: an announcement is news, and a player halfway
 	// through hearing which control they are on still needs the end of that sentence.
-	Folio::FSpeech::Say(Text, /*bInterrupt*/ false);
+	SpeakLine(Text, /*bInterrupt*/ false);
 
 #if WITH_ACCESSIBILITY
 	if (FSlateApplicationBase::IsInitialized())
@@ -646,12 +628,32 @@ void FFolioAccessibilityTree::Announce(const FString& Text)
 #endif
 }
 
+void FFolioAccessibilityTree::SpeakLine(const FString& Line, const bool bInterrupt)
+{
+	if (Line.IsEmpty())
+	{
+		return;
+	}
+
+	GLastSpoken = Line;
+
+	UE_LOG(LogFolio, Verbose, TEXT("speaking: %s"), *Line);
+	Folio::FSpeech::Say(Line, bInterrupt);
+}
+
+const FString& FFolioAccessibilityTree::GetLastSpoken()
+{
+	return GLastSpoken;
+}
+
 void FFolioAccessibilityTree::Clear()
 {
 	Root.Reset();
 	ByElement.Reset();
 	LastFocused = nullptr;
 	SpokenGroup.Reset();
+	EditElement = Rml::ObserverPtr<Rml::Element>();
+	EditText.Reset();
 	bBuiltOnce = false;
 }
 
@@ -669,6 +671,10 @@ void FFolioAccessibilityTree::SyncFocus(Rml::Context* Context)
 	}
 
 	LastFocused = Focused;
+
+	// So that reviewing and navigating agree about where the player is. Someone who arrows through a
+	// menu and then starts reading should read on from the control they are standing on.
+	FFolioReview::FollowFocus(Focused);
 
 	// Up the document from whatever holds focus: RmlUi focuses the element the author gave a tab
 	// index to, and the tree keeps the control rather than every div between it and the body.
@@ -708,7 +714,7 @@ void FFolioAccessibilityTree::Speak(const TSharedRef<SFolioAccessibleElement>& P
 		return;
 	}
 
-	FString Line = Utterance(Proxy.Get());
+	FString Line = Folio::Utterance(Proxy->GetNode());
 	if (Line.IsEmpty())
 	{
 		return;
@@ -721,12 +727,174 @@ void FFolioAccessibilityTree::Speak(const TSharedRef<SFolioAccessibleElement>& P
 		SpokenGroup = Group;
 		if (!Group.IsEmpty())
 		{
-			Line = Group + TEXT(", ") + Line;
+			Line = Folio::Spoken::Join({Group, Line});
 		}
 	}
 
-	UE_LOG(LogFolio, Verbose, TEXT("speaking: %s"), *Line);
-	Folio::FSpeech::Say(Line, /*bInterrupt*/ true);
+	SpeakLine(Line, /*bInterrupt*/ true);
+}
+
+namespace
+{
+	/**
+	 * The text, caret and selection of a field, if this is one.
+	 *
+	 * Both of RmlUi's text controls carry the same three, and neither exposes them through the base
+	 * class - so this is two casts rather than one, and there is no third case to add.
+	 */
+	bool ReadEditState(Rml::Element* Element, FString& OutText, int32& OutCaret, int32& OutSelectionEnd,
+		bool& bOutPassword)
+	{
+		if (!Element)
+		{
+			return false;
+		}
+
+		Rml::String Value;
+		int Start = 0;
+		int End = 0;
+
+		if (auto* Input = rmlui_dynamic_cast<Rml::ElementFormControlInput*>(Element))
+		{
+			// A checkbox and a range are inputs too, and neither has text to echo.
+			const Rml::String Type = Element->GetAttribute<Rml::String>("type", "text");
+			if (Type != "text" && Type != "password")
+			{
+				return false;
+			}
+
+			Value = Input->GetValue();
+			Input->GetSelection(&Start, &End, nullptr);
+			bOutPassword = Type == "password";
+		}
+		else if (auto* Area = rmlui_dynamic_cast<Rml::ElementFormControlTextArea*>(Element))
+		{
+			Value = Area->GetValue();
+			Area->GetSelection(&Start, &End, nullptr);
+			bOutPassword = false;
+		}
+		else
+		{
+			return false;
+		}
+
+		OutText = Folio::ToFString(Value);
+		OutCaret = Start;
+		OutSelectionEnd = End;
+		return true;
+	}
+
+	/** How much of two strings is the same from the front, and from the back of what is left. */
+	void Difference(const FString& Before, const FString& After, int32& OutPrefix, int32& OutSuffix)
+	{
+		const int32 Shortest = FMath::Min(Before.Len(), After.Len());
+
+		OutPrefix = 0;
+		while (OutPrefix < Shortest && Before[OutPrefix] == After[OutPrefix])
+		{
+			++OutPrefix;
+		}
+
+		OutSuffix = 0;
+		while (OutSuffix < Shortest - OutPrefix
+			&& Before[Before.Len() - 1 - OutSuffix] == After[After.Len() - 1 - OutSuffix])
+		{
+			++OutSuffix;
+		}
+	}
+
+	/** What a password field says instead of its contents, one star per character. */
+	FString Masked(const int32 Count)
+	{
+		return FString::ChrN(FMath::Max(0, Count), TEXT('*'));
+	}
+}
+
+void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
+{
+	// Only the game's own reader. A platform reader echoes typing through its own text pattern, and
+	// doing it here as well would say every letter twice.
+	if (!GScreenReader || !Context)
+	{
+		return;
+	}
+
+	Rml::Element* Focused = Context->GetFocusElement();
+
+	FString Text;
+	int32 Caret = 0;
+	int32 SelectionEnd = 0;
+	bool bPassword = false;
+
+	if (!ReadEditState(Focused, Text, Caret, SelectionEnd, bPassword))
+	{
+		EditElement = Rml::ObserverPtr<Rml::Element>();
+		EditText.Reset();
+		return;
+	}
+
+	// A field that has only just been focused is already being announced by the focus change, which
+	// carries its contents. Recorded silently, so the first real keystroke is the first thing said.
+	if (EditElement.get() != Focused)
+	{
+		EditElement = Focused->GetObserverPtr();
+		EditText = Text;
+		EditCaret = Caret;
+		EditSelectionEnd = SelectionEnd;
+		return;
+	}
+
+	if (Text != EditText)
+	{
+		int32 Prefix = 0;
+		int32 Suffix = 0;
+		Difference(EditText, Text, Prefix, Suffix);
+
+		const FString Added = Text.Mid(Prefix, Text.Len() - Suffix - Prefix);
+		const FString Removed = EditText.Mid(Prefix, EditText.Len() - Suffix - Prefix);
+
+		if (!Added.IsEmpty())
+		{
+			SpeakLine(Folio::Spoken::Typed(bPassword ? Masked(Added.Len()) : Added).ToString(), true);
+		}
+		else if (!Removed.IsEmpty())
+		{
+			SpeakLine(Folio::Spoken::Deleted(
+				Folio::Spoken::Typed(bPassword ? Masked(Removed.Len()) : Removed)).ToString(), true);
+		}
+
+		// Said after whatever moved, because an empty field is the result rather than the event. This
+		// is the one thing a player cannot infer: a box they have just cleared and a box that was
+		// never theirs sound identical otherwise.
+		if (Text.IsEmpty())
+		{
+			SpeakLine(Folio::Spoken::Blank().ToString(), false);
+		}
+	}
+	else if (Caret != EditCaret || SelectionEnd != EditSelectionEnd)
+	{
+		if (Caret != SelectionEnd)
+		{
+			const FString Selected = Text.Mid(Caret, SelectionEnd - Caret);
+			SpeakLine(Folio::Spoken::Selected(
+				Folio::Spoken::Typed(bPassword ? Masked(Selected.Len()) : Selected)).ToString(), true);
+		}
+		else if (!bPassword)
+		{
+			// What the caret went past, which is what a reader says when you arrow through a line. Going
+			// right, that is the text it left behind; going left, the text it has arrived on.
+			const int32 From = FMath::Min(Caret, EditCaret);
+			const int32 Length = FMath::Abs(Caret - EditCaret);
+			if (const FString Passed = Text.Mid(From, Length); !Passed.IsEmpty())
+			{
+				SpeakLine(Folio::Spoken::Typed(Passed).ToString(), true);
+			}
+		}
+	}
+
+	EditText = Text;
+	EditCaret = Caret;
+	EditSelectionEnd = SelectionEnd;
 }
 
 void FFolioAccessibilityTree::Describe(TArray<FString>& Out) const
@@ -788,6 +956,81 @@ int32 UFolioAccessibilityLibrary::GetSpeechVolume()
 bool UFolioAccessibilityLibrary::IsSpeechAvailable()
 {
 	return Folio::FSpeech::IsAvailable();
+}
+
+void UFolioAccessibilityLibrary::SetTextScale(const float Scale)
+{
+	Folio::Presentation::SetTextScale(Scale);
+}
+
+float UFolioAccessibilityLibrary::GetTextScale()
+{
+	return Folio::Presentation::GetTextScale();
+}
+
+void UFolioAccessibilityLibrary::SetReducedMotion(const bool bReduce)
+{
+	Folio::Presentation::SetReducedMotion(bReduce);
+}
+
+bool UFolioAccessibilityLibrary::IsReducedMotionOn()
+{
+	return Folio::Presentation::IsReducedMotionOn();
+}
+
+void UFolioAccessibilityLibrary::SetHighContrast(const bool bEnabled)
+{
+	Folio::Presentation::SetHighContrast(bEnabled);
+}
+
+bool UFolioAccessibilityLibrary::IsHighContrastOn()
+{
+	return Folio::Presentation::IsHighContrastOn();
+}
+
+FString UFolioAccessibilityLibrary::ReviewNext()
+{
+	return FFolioReview::Move(FFolioReview::EMove::Next);
+}
+
+FString UFolioAccessibilityLibrary::ReviewPrevious()
+{
+	return FFolioReview::Move(FFolioReview::EMove::Previous);
+}
+
+FString UFolioAccessibilityLibrary::ReviewFirst()
+{
+	return FFolioReview::Move(FFolioReview::EMove::First);
+}
+
+FString UFolioAccessibilityLibrary::ReviewLast()
+{
+	return FFolioReview::Move(FFolioReview::EMove::Last);
+}
+
+FString UFolioAccessibilityLibrary::ReviewRepeat()
+{
+	return FFolioReview::Move(FFolioReview::EMove::Repeat);
+}
+
+FString UFolioAccessibilityLibrary::ReviewAll()
+{
+	return FFolioReview::ReadAll();
+}
+
+void UFolioAccessibilityLibrary::ReviewStop()
+{
+	FFolioReview::Stop();
+}
+
+bool UFolioAccessibilityLibrary::ReviewActivate()
+{
+	return FFolioReview::Activate();
+}
+
+bool UFolioAccessibilityLibrary::ReviewMoveFocusHere()
+{
+	return FFolioReview::MoveFocusHere();
 }
 
 bool UFolioAccessibilityLibrary::IsScreenReaderActive()

@@ -79,4 +79,92 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility")
 	static FOLIO_API bool IsScreenReaderActive();
+
+	/**
+	 * Reads the next thing on screen without moving focus, and returns what was said.
+	 *
+	 * Focus reaches the controls. It does not reach a heading, a paragraph, a warning, a score or the
+	 * label above the field you are standing in, and a player who can only hear what focus lands on
+	 * hears a menu with all of its words removed. Every screen reader has a second cursor for this;
+	 * a game that speaks for itself has to be the one that provides it.
+	 *
+	 * Bind these to something reachable one-handed. The set that matters is next, previous, repeat
+	 * and read-all - the rest are conveniences.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewNext();
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewPrevious();
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewFirst();
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewLast();
+
+	/** Says the last thing said again, whichever part of the reader said it. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewRepeat();
+
+	/**
+	 * Reads from the cursor to the end of the screen.
+	 *
+	 * Queued rather than interrupting, so it is one reading. Stop it with `ReviewStop`, which is what
+	 * any other key a player presses should also do.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReviewAll();
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API void ReviewStop();
+
+	/** Presses what the cursor is on, without focus having to be there first. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API bool ReviewActivate();
+
+	/** Moves the document's own focus to the cursor, which is how a player rejoins the screen. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API bool ReviewMoveFocusHere();
+
+	/**
+	 * How much bigger than authored the type is, 1 being as authored. Clamped to 0.5 - 3.
+	 *
+	 * Reaches every rule written in `rem`, which is what the shipped theme uses, and no rule written
+	 * in `dp`. Size your own type in `rem` if you want this setting to reach it, and check the result
+	 * with `uipreview --text-scale 1.5`, which reports both the text it could not move and the text
+	 * that no longer fits.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API void SetTextScale(float Scale);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API float GetTextScale();
+
+	/**
+	 * Turns transitions and animations off across every document.
+	 *
+	 * Not a taste setting: vestibular disorders make large movement genuinely unpleasant, and menus
+	 * that slide, scale and parallax are the usual trigger. Anything moved by a stylesheet stops.
+	 * Anything moved by code - a HUD spring, a shader, a video - has to read `IsReducedMotionOn` and
+	 * snap, because nothing else can reach it.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API void SetReducedMotion(bool bReduce);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API bool IsReducedMotionOn();
+
+	/**
+	 * The high-contrast theme, which the shipped stylesheet carries.
+	 *
+	 * Named rather than left as a theme string so a game does not hard-code one, and so a project that
+	 * writes its own high-contrast rules has an obvious place to put them: `@media (theme:
+	 * high-contrast)` in its own stylesheet.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API void SetHighContrast(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API bool IsHighContrastOn();
 };

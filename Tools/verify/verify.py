@@ -306,6 +306,43 @@ def main() -> int:
             else:
                 harness.ok(f"{len(expected)} nodes, unchanged")
 
+    # --- Presentation settings --------------------------------------------------------------
+
+    # Larger text, less movement and a different colour vision change how a screen looks. None of
+    # them may change what it means: the same controls, in the same order, with the same names. A
+    # setting that quietly rewrote the accessibility tree would read differently to the one player
+    # most likely to have turned it on.
+    print("Presentation settings")
+    if tree_doc.is_file() and expected_path.is_file():
+        expected = expected_path.read_text(encoding="utf-8").splitlines()
+
+        for label, flags in (
+            ("text scale 1.5", ["--text-scale", "1.5"]),
+            ("reduced motion", ["--reduced-motion"]),
+            ("deuteranopia", ["--simulate", "deuteranopia"]),
+        ):
+            result = harness.run([str(tree_doc), "--no-assets-wanted", "--a11y-tree", *flags])
+            if result.stdout.splitlines() != expected:
+                harness.fail(f"{label} changed what the document means")
+            else:
+                harness.ok(label)
+
+        # And the simulation has to actually do something, or it is a flag that reads as a pass.
+        plain = out / "simulate.normal.png"
+        seen = out / "simulate.deuteranopia.png"
+        harness.run([str(tests_dir / "typography.rml"), "--size", "640x480", "--dp-ratio", "1",
+                     "--no-assets-wanted", "--screenshot", str(plain)])
+        harness.run([str(tests_dir / "typography.rml"), "--size", "640x480", "--dp-ratio", "1",
+                     "--no-assets-wanted", "--screenshot", str(seen),
+                     "--simulate", "deuteranopia"])
+
+        if not plain.is_file() or not seen.is_file():
+            harness.fail("could not capture the simulation pair")
+        elif plain.read_bytes() == seen.read_bytes():
+            harness.fail("--simulate deuteranopia produced the same image as no simulation")
+        else:
+            harness.ok("--simulate redraws the capture")
+
     # --- Texture reload ---------------------------------------------------------------------
 
     # What a hot reload does, done twice in one process: render, throw every texture away, render again.

@@ -1,5 +1,6 @@
 #include "App.h"
 
+#include "ColourVision.h"
 #include "DataModel.h"
 #include "Diagnostics.h"
 
@@ -242,6 +243,13 @@ bool App::Initialise()
 		{
 			context->ActivateTheme(theme, true);
 		}
+	}
+
+	// The same theme the engine's Set Reduced Motion turns on, and the reason it is a theme: a
+	// stylesheet is the only thing that reaches a transition an author wrote.
+	if (context && options.reduced_motion)
+	{
+		context->ActivateTheme("reduced-motion", true);
 	}
 	if (!context)
 	{
@@ -523,8 +531,25 @@ bool App::LoadDocumentFromDisk()
 	context->Update();
 	localizer.ApplyToDocument(document, options.strict);
 	context->Update();
+	ApplyTextScale();
 	CollectSpritesFromDiagnostics();
 	return true;
+}
+
+void App::ApplyTextScale()
+{
+	if (!document || !context || options.text_scale == 1.0f)
+		return;
+
+	// The authored size read back before anything is written over it, exactly as the engine does it,
+	// and in dp so the number means the same thing at any viewport size.
+	const float dp_ratio = std::max(0.01f, context->GetDensityIndependentPixelRatio());
+	const float base = document->GetComputedValues().font_size() / dp_ratio;
+	if (base <= 0.0f)
+		return;
+
+	document->SetProperty("font-size", std::to_string(base * options.text_scale) + "dp");
+	context->Update();
 }
 
 void App::CollectSpritesFromDiagnostics()
@@ -691,6 +716,11 @@ bool App::CaptureTo(const std::string& path)
 		diagnostics.Report(Severity::Error, "E-CAPTURE", error);
 		return false;
 	}
+
+	// After the read rather than in the renderer: the document is drawn exactly as it would be in
+	// game, and what changes is only the picture someone is about to look at.
+	SimulateImage(rgba, options.simulate);
+
 	if (!WritePng(path, rgba, width, height, error))
 	{
 		diagnostics.Report(Severity::Error, "E-PNG-WRITE", "could not write " + path + ": " + error);

@@ -1,6 +1,7 @@
 #include "AccessibilityReport.h"
 
 #include "App.h"
+#include "ColourVision.h"
 #include "Diagnostics.h"
 #include "ElementPath.h"
 #include "Options.h"
@@ -21,6 +22,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <vector>
 
 using ordered_json = nlohmann::ordered_json;
@@ -253,6 +255,8 @@ struct Finding {
 	std::string path;
 	std::string message;
 	ordered_json data;
+	/** Warning unless the finding is a judgement rather than a defect, which only one of them is. */
+	Severity severity = Severity::Warning;
 };
 
 /**
@@ -266,8 +270,31 @@ bool IsLargeText(const Rml::ComputedValues& computed, float dp_ratio)
 	return px >= 24.0f || (bold && px >= 18.66f);
 }
 
+/**
+ * Whether the element's own box is smaller than what is inside it, and cuts it off.
+ *
+ * Only where `overflow` is hidden, because that is the difference between text that has been lost and
+ * a panel that scrolls. The two-pixel allowance is for the rounding between a laid-out box and the
+ * text inside it, which can disagree by a fraction at any size.
+ */
+bool IsClipped(Rml::Element* element, float& out_over_x, float& out_over_y)
+{
+	const Rml::ComputedValues& computed = element->GetComputedValues();
+
+	const bool clips_x = computed.overflow_x() == Rml::Style::Overflow::Hidden;
+	const bool clips_y = computed.overflow_y() == Rml::Style::Overflow::Hidden;
+	if (!clips_x && !clips_y)
+		return false;
+
+	out_over_x = clips_x ? element->GetScrollWidth() - element->GetClientWidth() : 0.0f;
+	out_over_y = clips_y ? element->GetScrollHeight() - element->GetClientHeight() : 0.0f;
+
+	return out_over_x > 2.0f || out_over_y > 2.0f;
+}
+
 void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& options, float dp_ratio,
-	std::vector<Finding>& out, bool& out_backdrop_unknown)
+	const std::map<Rml::Element*, float>& unscaled_text, std::vector<Finding>& out,
+	bool& out_backdrop_unknown)
 {
 	if (!element)
 		return;
@@ -314,11 +341,59 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 							+ std::to_string(Round2(wanted)).substr(0, 4) + ":1",
 						{{"ratio", Round2(ratio)}, {"required", Round2(wanted)}, {"text", own}}});
 				}
+				else if (options.simulate != ColourVision::Normal)
+				{
+					// Only where it passes as drawn and fails as seen. Anything failing both is already
+					// reported above, and saying it twice would bury this one.
+					const double seen = ContrastRatio(SimulateColour(text, options.simulate),
+						SimulateColour(backdrop, options.simulate));
+
+					if (seen < wanted)
+					{
+						out.push_back({"W-A11Y-CVD", path,
+							std::string("text contrast is ") + std::to_string(Round2(seen)).substr(0, 4)
+								+ ":1 to " + ColourVisionName(options.simulate) + ", under "
+								+ std::to_string(Round2(wanted)).substr(0, 4)
+								+ ":1 - it passes only on a hue difference that vision does not have",
+							{{"ratio", Round2(seen)}, {"drawnRatio", Round2(ratio)},
+								{"required", Round2(wanted)},
+								{"vision", ColourVisionName(options.simulate)}, {"text", own}}});
+					}
+				}
 			}
 			else
 			{
 				out_backdrop_unknown = true;
 			}
+
+			// Text the scale could not move. Measured rather than read off the unit, because a size can
+			// arrive by inheritance from an ancestor several levels up and the only question that
+			// matters is whether this text actually moved.
+			if (const auto found = unscaled_text.find(element); found != unscaled_text.end())
+			{
+				if (std::abs(computed.font_size() - found->second) < 0.5f)
+				{
+					// Information rather than a warning, because some text is right not to move: a
+					// letter drawn inside a key cap, a logo, a version string. What this answers is
+					// "which text did the setting reach", which is a question only the author can
+					// finish.
+					out.push_back({"I-A11Y-FIXEDTEXT", path,
+						"this text does not move with the text scale - size it in rem rather than dp if "
+						"it should",
+						{{"size", Round2(computed.font_size() / std::max(0.01f, dp_ratio))},
+							{"text", own}},
+						Severity::Info});
+				}
+			}
+		}
+
+		if (float over_x = 0.0f, over_y = 0.0f; IsClipped(element, over_x, over_y))
+		{
+			out.push_back({"W-A11Y-CLIPPED", ComputeElementPath(element),
+				"content is cut off: " + std::to_string((int)std::lround(over_x)) + "x"
+					+ std::to_string((int)std::lround(over_y)) + "px of it overflows a box that hides "
+					"what does not fit",
+				{{"overflowX", Round2(over_x)}, {"overflowY", Round2(over_y)}}});
 		}
 
 		if (reachable && IsInteractive(element))
@@ -353,7 +428,7 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 	}
 
 	for (int i = 0; i < element->GetNumChildren(); ++i)
-		Walk(element->GetChild(i), document, options, dp_ratio, out, out_backdrop_unknown);
+		Walk(element->GetChild(i), document, options, dp_ratio, unscaled_text, out, out_backdrop_unknown);
 }
 
 /**
@@ -378,6 +453,45 @@ void SuppressTransitions(Rml::Element* element, bool suppress)
 		SuppressTransitions(element->GetChild(i), suppress);
 }
 
+/**
+ * Every text size as it would be with the scale taken back off.
+ *
+ * Asked by removing the root size and re-resolving, which is the same trick the focus check uses and
+ * for the same reason: the alternative is to reimplement the cascade and be wrong about inheritance.
+ * Empty when nothing was scaled, and then the check it feeds never fires.
+ */
+std::map<Rml::Element*, float> MeasureUnscaledText(Rml::ElementDocument* document, const Options& options)
+{
+	std::map<Rml::Element*, float> sizes;
+	if (options.text_scale == 1.0f)
+		return sizes;
+
+	const Rml::Property* scaled = document->GetLocalProperty(Rml::PropertyId::FontSize);
+	if (!scaled)
+		return sizes;
+
+	const Rml::Property saved = *scaled;
+	document->RemoveProperty(Rml::PropertyId::FontSize);
+	document->UpdateDocument();
+
+	std::vector<Rml::Element*> queue{document};
+	while (!queue.empty())
+	{
+		Rml::Element* at = queue.back();
+		queue.pop_back();
+
+		sizes[at] = at->GetComputedValues().font_size();
+
+		for (int i = 0; i < at->GetNumChildren(); ++i)
+			queue.push_back(at->GetChild(i));
+	}
+
+	document->SetProperty(Rml::PropertyId::FontSize, saved);
+	document->UpdateDocument();
+
+	return sizes;
+}
+
 std::vector<Finding> Collect(const Options& options, App& app, bool& out_backdrop_unknown)
 {
 	std::vector<Finding> findings;
@@ -390,7 +504,9 @@ std::vector<Finding> Collect(const Options& options, App& app, bool& out_backdro
 	SuppressTransitions(document, true);
 	document->UpdateDocument();
 
-	Walk(document, document, options, context->GetDensityIndependentPixelRatio(), findings,
+	const std::map<Rml::Element*, float> unscaled = MeasureUnscaledText(document, options);
+
+	Walk(document, document, options, context->GetDensityIndependentPixelRatio(), unscaled, findings,
 		out_backdrop_unknown);
 
 	SuppressTransitions(document, false);
@@ -410,7 +526,7 @@ void CheckAccessibility(const Options& options, App& app, Diagnostics& diagnosti
 	{
 		ordered_json data = finding.data;
 		data["path"] = finding.path;
-		diagnostics.Report(Severity::Warning, finding.code, finding.path + ": " + finding.message,
+		diagnostics.Report(finding.severity, finding.code, finding.path + ": " + finding.message,
 			options.document, 0, std::move(data));
 	}
 

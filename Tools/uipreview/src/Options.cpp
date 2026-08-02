@@ -99,6 +99,14 @@ void PrintUsage(std::FILE* stream)
 		"  --a11y-report <FILE>  The same findings as JSON. Implies --a11y\n"
 		"  --a11y-tree           Print the tree a screen reader is read out of, in reading order\n"
 		"  --a11y-tree-report <FILE>  The same tree as JSON\n"
+		"  --a11y-contrast <N>   The ratio normal text is held to, 4.5 by default. 7 is what a\n"
+		"                        high-contrast theme should meet. Implies --a11y\n"
+		"  --text-scale <N>      Scale the type the way the accessibility setting does, 0.5 to 3.\n"
+		"                        Above 1, --a11y also reports text the setting cannot move and\n"
+		"                        text that no longer fits\n"
+		"  --reduced-motion      Turn every transition and animation off, as the setting does\n"
+		"  --simulate <VISION>   Redraw captures, and re-check contrast, as protanopia,\n"
+		"                        deuteranopia, tritanopia or achromatopsia sees them\n"
 		"  --metrics-report <FILE>  Write where every piece of text laid out, for diffing a\n"
 		"                        change to the text engine against a known good run\n"
 		"  --reload-textures     Release every texture between two renders before capturing,\n"
@@ -257,6 +265,44 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			if (!TakeValue(argc, argv, i, "--theme", theme, error))
 				return ParseResult::Error;
 			o.themes.push_back(theme);
+		}
+		else if (arg == "--a11y-contrast")
+		{
+			if (!TakeValue(argc, argv, i, "--a11y-contrast", value, error))
+				return ParseResult::Error;
+			o.a11y_contrast = (float)std::atof(value.c_str());
+			if (o.a11y_contrast < 1.0f || o.a11y_contrast > 21.0f)
+			{
+				error = "--a11y-contrast expects a ratio between 1 and 21, got '" + value + "'";
+				return ParseResult::Error;
+			}
+			o.a11y = true;
+		}
+		else if (arg == "--text-scale")
+		{
+			if (!TakeValue(argc, argv, i, "--text-scale", value, error))
+				return ParseResult::Error;
+			o.text_scale = (float)std::atof(value.c_str());
+			if (o.text_scale < 0.5f || o.text_scale > 3.0f)
+			{
+				error = "--text-scale expects a number between 0.5 and 3, got '" + value + "'";
+				return ParseResult::Error;
+			}
+		}
+		else if (arg == "--reduced-motion")
+		{
+			o.reduced_motion = true;
+		}
+		else if (arg == "--simulate")
+		{
+			if (!TakeValue(argc, argv, i, "--simulate", value, error))
+				return ParseResult::Error;
+			if (!ParseColourVision(value, o.simulate))
+			{
+				error = "--simulate expects protanopia, deuteranopia, tritanopia, achromatopsia or "
+					"none, got '" + value + "'";
+				return ParseResult::Error;
+			}
 		}
 		else if (arg == "--culture")
 		{

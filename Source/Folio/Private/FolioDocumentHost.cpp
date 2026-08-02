@@ -7,12 +7,14 @@
 #include "FolioLocalization.h"
 #include "FolioModule.h"
 #include "FolioObjectModel.h"
+#include "FolioPresentation.h"
 #include "FolioReload.h"
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
 
 #include "Misc/FileHelper.h"
 
+#include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -107,6 +109,60 @@ const TSet<FName>& FFolioDocumentHost::GetActiveThemes()
 	return ActiveThemes;
 }
 
+const TArray<FFolioDocumentHost*>& FFolioDocumentHost::GetLiveHosts()
+{
+	return LiveHosts;
+}
+
+void FFolioDocumentHost::ApplyTextScale(const float DpRatio)
+{
+	if (!Document)
+	{
+		return;
+	}
+
+	const float Scale = Folio::Presentation::GetTextScale();
+	const uint32 Revision = Folio::Presentation::GetRevision();
+
+	// The authored size, captured once per document, before anything has been written over it. Held in
+	// dp rather than pixels so that a window resize - which moves the dp ratio and nothing else - does
+	// not need it captured again.
+	if (BaseFontSizeDp <= 0.0f)
+	{
+		if (!bLaidOut || DpRatio <= KINDA_SMALL_NUMBER)
+		{
+			return;
+		}
+
+		BaseFontSizeDp = Document->GetComputedValues().font_size() / DpRatio;
+		if (BaseFontSizeDp <= 0.0f)
+		{
+			return;
+		}
+	}
+
+	if (Revision == PresentationRevision)
+	{
+		return;
+	}
+
+	PresentationRevision = Revision;
+
+	if (FMath::IsNearlyEqual(Scale, 1.0f))
+	{
+		// Removed rather than set back, so the stylesheet is what decides the size again. A document
+		// reloaded at scale 1 should be indistinguishable from one that was never scaled.
+		Document->RemoveProperty("font-size");
+	}
+	else
+	{
+		Document->SetProperty("font-size",
+			Rml::String(TCHAR_TO_UTF8(*FString::Printf(TEXT("%fdp"), BaseFontSizeDp * Scale))));
+	}
+
+	MarkDirty(TEXT("text scale"));
+}
+
 void FFolioDocumentHost::Destroy()
 {
 	if (!Context)
@@ -142,7 +198,9 @@ void FFolioDocumentHost::Destroy()
 	InputModel.Release();
 	ObjectModels.Empty();
 	Document = nullptr;
-	LiveHosts.RemoveSingleSwap(this);
+	// Order preserved rather than swapped away: the review cursor reads the newest document first,
+	// which is what puts a modal ahead of the screen behind it.
+	LiveHosts.RemoveSingle(this);
 	Rml::RemoveContext(Context->GetName());
 	Context = nullptr;
 	DataModel.Reset();
@@ -174,6 +232,11 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 	// Until the new one has been through an update it has no computed styles, and drawing it would
 	// be a frame of RmlUi's defaults rather than the author's.
 	bLaidOut = false;
+
+	// A different document is a different stylesheet, so whatever the last one was authored at says
+	// nothing about this one.
+	BaseFontSizeDp = 0.0f;
+	PresentationRevision = 0;
 
 	if (!Context)
 	{
@@ -456,6 +519,8 @@ bool FFolioDocumentHost::Update(const float DeltaSeconds, const float DpRatio, c
 
 	// The host's scaling expressed the way RmlUi wants it: dp units resolve against this ratio.
 	Context->SetDensityIndependentPixelRatio(DpRatio);
+
+	ApplyTextScale(DpRatio);
 
 	// Backgrounds carry their own antialiasing because there is no multisampling to soften a rounded
 	// corner. The generator works in document units, so it needs one rendered pixel expressed in them.

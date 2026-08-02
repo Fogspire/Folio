@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ColourVision.h"
+
 #include "FolioCore/FolioInputState.h"
 
 #include <cstdio>
@@ -76,6 +78,14 @@ struct Options {
 	    has none - it exists because a size nobody can read is the failure people actually ship. */
 	float a11y_min_text = 12.0f;
 	float a11y_min_target = 24.0f;
+
+	/** The accessibility text scale, applied to the document root the way the engine applies it.
+	    Above 1 it also reports the text it could not move and the text that stopped fitting. */
+	float text_scale = 1.0f;
+	/** Turns every transition and animation off, which is what the reduced-motion setting does. */
+	bool reduced_motion = false;
+	/** Redraws captures, and re-runs the contrast check, as this colour vision sees them. */
+	ColourVision simulate = ColourVision::Normal;
 
 	/** Field resolution per em, and the field's width in texels. A field resolves best near 1:1,
 	    so this trades small-text clarity against magnification headroom. */

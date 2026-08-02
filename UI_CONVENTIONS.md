@@ -367,6 +367,11 @@ would. It also means line breaks do not survive a change of dp ratio: an advance
 number of pixels at each size, so doubling the ratio halves the relative rounding error and
 words move. Never size a container to fit its content exactly at one ratio.
 
+**Size type in `rem`, and put the one absolute size on `body`.** `rem` resolves against the
+document's own font size, which is what the accessibility text scale writes - so type in `rem` follows
+that setting and type in `dp` does not. The shipped theme is written that way, with a single
+`body { font-size: 20dp }` above it. See §15.
+
 ### Variable fonts
 
 `font-weight: 1..1000` drives the `wght` axis directly, quantised in steps of 50. `opsz`, where
@@ -899,9 +904,17 @@ Load them in that order. A game's rules land last and win by being later.
 one changes and remembers it for contexts created later - a screen opened after the switch comes up in
 the new look rather than the old one.
 
-`high-contrast` ships in the default theme. It is an accessibility setting rather than a taste one, so
-it widens the focus ring as well as brightening it, and stops disabled controls relying on opacity
-alone.
+**Two themes are accessibility settings rather than looks**, and a game turns them on by name rather
+than by theme string - `SetHighContrast`, `SetReducedMotion`.
+
+`high-contrast` ships in the default theme. It widens the focus ring as well as brightening it, and
+stops disabled controls relying on opacity alone. A screen that writes its own colours has to restate
+them under the same query: a theme cannot reach a rule inside a document's `<style>`.
+
+`reduced-motion` ships in `/folio/folio.rcss`, the user-agent stylesheet, so it reaches a game's own
+rules and elements the theme has never heard of. It is one rule - `* { transition: none; animation:
+none; }` - and it stops everything a stylesheet moves and nothing that a shader, a video or your own
+per-frame code moves.
 
 ---
 
@@ -948,8 +961,8 @@ Assume translated strings are up to 40% longer than English.
 
 ## 15. Accessibility
 
-Five attributes, one command that fails the build if you skip them, and a screen reader that reads
-the result.
+Six attributes, one command that fails the build if you skip them, a screen reader that reads the
+result, and three settings that change how a screen is presented.
 
 ```
 uipreview <file.rml> --a11y --strict     # contrast, text size, hit targets, names, focus
@@ -980,8 +993,29 @@ While a screen reader is running, the document is walked into a tree of Slate wi
 worth announcing, and NVDA, JAWS and console TTS read that. A game can also read its own menus
 aloud without one - `UFolioAccessibilityLibrary::SetScreenReader`, which is what an options toggle
 calls. Nothing is built while neither is on. `--a11y-tree` prints the same tree the engine builds, so it is checkable without a screen
-reader; `folio.Accessibility.Dump` prints it from a running game. See
-**[docs/accessibility.md](docs/accessibility.md)**.
+reader; `folio.Accessibility.Dump` prints it from a running game.
+
+The game's own reader also needs a **review cursor** bound to something - `ReviewNext`,
+`ReviewPrevious`, `ReviewRepeat`, `ReviewAll`. Focus only ever reaches the controls, so without one a
+player hears a menu with all of its words removed.
+
+**Three presentation settings**, all global and all off by default:
+
+| | |
+|---|---|
+| `SetTextScale(1.5)` | Writes the root font size, so it reaches type sized in `rem` and nothing sized in `dp`. **Size your type in `rem`.** |
+| `SetReducedMotion(true)` | The `reduced-motion` theme. Code that moves things per frame reads `IsReducedMotionOn` and snaps. |
+| `SetHighContrast(true)` | The `high-contrast` theme. |
+
+Check them the way a player would use them:
+
+```
+uipreview <file.rml> --a11y --text-scale 1.5             # what stopped fitting, what did not move
+uipreview <file.rml> --a11y --theme high-contrast --a11y-contrast 7
+uipreview <file.rml> --a11y --simulate deuteranopia      # and redraws every capture
+```
+
+See **[docs/accessibility.md](docs/accessibility.md)**.
 
 ---
 

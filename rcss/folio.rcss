@@ -100,3 +100,24 @@ scrollbarhorizontal sliderarrowinc
 	width: 0dp;
 	height: 0dp;
 }
+
+/*
+ * Reduced motion, which is a setting rather than a taste.
+ *
+ * Here rather than in a theme because it is not about how anything looks: a game with its own
+ * stylesheet still gets it, and gets it on elements the theme has never heard of. Turn it on with
+ * Set Reduced Motion, or folio.Accessibility.ReducedMotion.
+ *
+ * Movement a player cannot stop is what this exists for - vestibular disorders make large motion
+ * genuinely unpleasant, and a menu that slides, scales and parallaxes is the usual trigger. It cannot
+ * reach movement that is drawn rather than animated: a HUD spring, a shader, a video. Those read
+ * Folio::Presentation::IsReducedMotionOn and snap.
+ */
+@media (theme: reduced-motion)
+{
+	*
+	{
+		transition: none;
+		animation: none;
+	}
+}

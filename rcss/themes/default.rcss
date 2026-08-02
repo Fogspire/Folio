@@ -52,13 +52,13 @@
 
 /* --- Type scale ------------------------------------------------------------------- */
 
-.t-display  { font-size: 40dp; font-weight: bold; line-height: 1.15; }
-.t-title    { font-size: 28dp; font-weight: bold; line-height: 1.2; }
-.t-heading  { font-size: 22dp; font-weight: bold; line-height: 1.25; }
-.t-body     { font-size: 20dp; line-height: 1.4; }
-.t-label    { font-size: 18dp; line-height: 1.3; }
-.t-small    { font-size: 16dp; line-height: 1.4; }
-.t-caption  { font-size: 13dp; line-height: 1.3; text-transform: uppercase; letter-spacing: 1dp; }
+.t-display  { font-size: 2rem; font-weight: bold; line-height: 1.15; }
+.t-title    { font-size: 1.4rem; font-weight: bold; line-height: 1.2; }
+.t-heading  { font-size: 1.1rem; font-weight: bold; line-height: 1.25; }
+.t-body     { font-size: 1rem; line-height: 1.4; }
+.t-label    { font-size: 0.9rem; line-height: 1.3; }
+.t-small    { font-size: 0.8rem; line-height: 1.4; }
+.t-caption  { font-size: 0.65rem; line-height: 1.3; text-transform: uppercase; letter-spacing: 1dp; }
 
 .t-numeric  { font-weight: bold; letter-spacing: 0.5dp; }
 
@@ -172,6 +172,13 @@
 
 /* --- base -------------------------------------------------------------------------- */
 
+/*
+ * The root size, and the only type in this file written in dp.
+ *
+ * Everything else is `rem`, which resolves against this one - so the accessibility text scale can
+ * move all of it by writing one property here, and a rule written in dp is a rule that setting cannot
+ * reach. `uipreview --text-scale` reports those.
+ */
 body
 {
 	font-family: Inter;
@@ -239,7 +246,7 @@ scrollbarhorizontal sliderbar:hover
 {
 	background-color: #2b2b36;
 	color: #e8e8f0;
-	font-size: 20dp;
+	font-size: 1rem;
 	line-height: 1.2;
 	border-radius: 8dp;
 }
@@ -275,7 +282,7 @@ scrollbarhorizontal sliderbar:hover
 .btn-ghost:hover          { background-color: #2b2b36; color: #e8e8f0; }
 .btn-ghost:focus-visible  { color: #e8e8f0; }
 
-.btn-small                { font-size: 16dp; }
+.btn-small                { font-size: 0.8rem; }
 
 /* --- panel ----------------------------------------------------------------------- */
 
@@ -315,14 +322,14 @@ scrollbarhorizontal sliderbar:hover
 
 .panel-title
 {
-	font-size: 22dp;
+	font-size: 1.1rem;
 	font-weight: bold;
 	color: #e8e8f0;
 }
 
 .panel-subtitle
 {
-	font-size: 16dp;
+	font-size: 0.8rem;
 	color: #8a8a99;
 }
 
@@ -363,12 +370,12 @@ scrollbarhorizontal sliderbar:hover
 
 .menu-item-label
 {
-	font-size: 22dp;
+	font-size: 1.1rem;
 }
 
 .menu-item-hint
 {
-	font-size: 16dp;
+	font-size: 0.8rem;
 	color: #8a8a99;
 }
 
@@ -399,7 +406,7 @@ scrollbarhorizontal sliderbar:hover
 
 .menu-title
 {
-	font-size: 13dp;
+	font-size: 0.65rem;
 	text-transform: uppercase;
 	letter-spacing: 1dp;
 	color: #8a8a99;
@@ -446,7 +453,7 @@ scrollbarhorizontal sliderbar:hover
 
 .list-header
 {
-	font-size: 13dp;
+	font-size: 0.65rem;
 	text-transform: uppercase;
 	letter-spacing: 1dp;
 	color: #8a8a99;
@@ -458,7 +465,7 @@ scrollbarhorizontal sliderbar:hover
 .list-empty
 {
 	color: #8a8a99;
-	font-size: 18dp;
+	font-size: 0.9rem;
 }
 
 .list-scroll-fade
@@ -487,13 +494,13 @@ scrollbarhorizontal sliderbar:hover
  */
 .setting-label
 {
-	font-size: 20dp;
+	font-size: 1rem;
 	color: #e8e8f0;
 }
 
 .setting-hint
 {
-	font-size: 16dp;
+	font-size: 0.8rem;
 	color: #8a8a99;
 }
 
@@ -658,7 +665,7 @@ scrollbarhorizontal sliderbar:hover
 .radio-label
 {
 	color: #8a8a99;
-	font-size: 18dp;
+	font-size: 0.9rem;
 	transition: color 0.12s cubic-out;
 }
 
@@ -731,7 +738,7 @@ scrollbarhorizontal sliderbar:hover
 .segment-text
 {
 	color: #8a8a99;
-	font-size: 18dp;
+	font-size: 0.9rem;
 	transition: color 0.12s cubic-out;
 }
 
@@ -764,7 +771,7 @@ scrollbarhorizontal sliderbar:hover
 {
 	background-color: transparent;
 	color: #8a8a99;
-	font-size: 20dp;
+	font-size: 1rem;
 	border-top-left-radius: 8dp;
 	border-top-right-radius: 8dp;
 	border-bottom-color: #ffffff00;
@@ -808,7 +815,7 @@ scrollbarhorizontal sliderbar:hover
 .tab-shoulder
 {
 	color: #8a8a99;
-	font-size: 16dp;
+	font-size: 0.8rem;
 }
 
 /* --- modal ----------------------------------------------------------------------- */
@@ -837,7 +844,7 @@ scrollbarhorizontal sliderbar:hover
 
 .modal-title
 {
-	font-size: 24dp;
+	font-size: 1.2rem;
 	font-weight: bold;
 	color: #e8e8f0;
 }
@@ -845,7 +852,7 @@ scrollbarhorizontal sliderbar:hover
 .modal-body
 {
 	color: #8a8a99;
-	font-size: 18dp;
+	font-size: 0.9rem;
 	line-height: 1.5;
 }
 
@@ -871,7 +878,7 @@ scrollbarhorizontal sliderbar:hover
 {
 	background-color: #2b2b36;
 	color: #e8e8f0;
-	font-size: 18dp;
+	font-size: 0.9rem;
 	border-radius: 999dp;
 	box-shadow: #0000007f 0dp 6dp 18dp;
 }
@@ -927,9 +934,9 @@ scrollbarhorizontal sliderbar:hover
  * the dark surfaces the rest of this theme uses and stays legible over a scene.
  */
 
-.prompt { color: #e8e8f0; font-size: 17dp; }
+.prompt { color: #e8e8f0; font-size: 0.85rem; }
 
-.prompt .pg-label { color: #c8c8d4; font-size: 17dp; }
+.prompt .pg-label { color: #c8c8d4; font-size: 0.85rem; }
 
 .pg-key, .pg-face, .pg-bumper, .pg-trigger, .pg-unbound {
 	background-color: #e8e8f0;
@@ -974,3 +981,18 @@ scrollbarhorizontal sliderbar:hover
 
 .pg-dpad u { background-color: #e8e8f0; border-color: #0c0c12; }
 .pg-dpad u.on { background-color: #f0c674; }
+
+/*
+ * The prompt glyphs under high contrast.
+ *
+ * After the prompt rules rather than in the theme block above, because a theme in RCSS is a later
+ * rule rather than a swapped value: written up there it would lose to every rule below it.
+ */
+@media (theme: high-contrast)
+{
+	.prompt { color: #ffffff; }
+	.prompt .pg-label { color: #e0e0ea; }
+
+	.pg-key, .pg-face, .pg-bumper, .pg-trigger { background-color: #ffffff; color: #000000; }
+	.pg-unbound { border-color: #c6c6d2; color: #c6c6d2; }
+}

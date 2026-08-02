@@ -16,6 +16,18 @@ namespace Rml
 	class ElementDocument;
 }
 
+namespace Folio
+{
+	/**
+	 * One node as a sentence: its name, what kind of thing it is, then what state it is in.
+	 *
+	 * The order every screen reader uses, and the one place it is decided - the tree speaks focus
+	 * changes through this and the review cursor speaks everything else through it, so a control does
+	 * not read two different ways depending on how the player arrived at it.
+	 */
+	FString Utterance(const FSemanticNode& Node);
+}
+
 /**
  * A document, made reachable by a screen reader.
  *
@@ -166,6 +178,16 @@ public:
 	 */
 	static void Announce(const FString& Text);
 
+	/**
+	 * Says one line and remembers it, so the review cursor's repeat has something to repeat.
+	 *
+	 * Everything the reader says goes through here rather than straight to the voice, including the
+	 * lines the review cursor produces. A player who missed a sentence should get that sentence back
+	 * whichever part of the reader produced it.
+	 */
+	static void SpeakLine(const FString& Line, bool bInterrupt);
+	static const FString& GetLastSpoken();
+
 	/** Rebuilds from the document. Returns true when the widget tree changed shape. */
 	bool Refresh(Rml::ElementDocument* Document, float ContextToLocal);
 
@@ -174,6 +196,20 @@ public:
 
 	/** Tells the platform what has focus, so navigating a document reads the control moved onto. */
 	void SyncFocus(Rml::Context* Context);
+
+	/**
+	 * Reads back what is being typed into the focused field.
+	 *
+	 * Nothing else covers this. A text field's contents are one accessible value, and a value changing
+	 * is not an event a screen reader announces - a player typing their name into an empty box would
+	 * otherwise hear nothing at all from the first keystroke to the last. Only the game's own reader
+	 * does this: a platform reader has its own character echo, and doing it here too would double
+	 * every letter.
+	 *
+	 * Run every frame rather than on document change, because a caret moving is not a change to the
+	 * document and still has to be read out.
+	 */
+	void SyncEditing(Rml::Context* Context);
 
 	bool IsEmpty() const { return !Root.IsValid(); }
 	TSharedPtr<SFolioAccessibleElement> GetRoot() const { return Root; }
@@ -207,4 +243,16 @@ private:
 
 	/** The group whose name was last spoken, so moving within a panel does not re-announce it. */
 	FString SpokenGroup;
+
+	/**
+	 * The focused text field as it was last read out.
+	 *
+	 * Observed rather than held, because the field can be freed by a reload while this still points at
+	 * it, and a caret index into a string that no longer exists is the sort of bug that only shows up
+	 * on a machine with the reader turned on.
+	 */
+	Rml::ObserverPtr<Rml::Element> EditElement;
+	FString EditText;
+	int32 EditCaret = 0;
+	int32 EditSelectionEnd = 0;
 };

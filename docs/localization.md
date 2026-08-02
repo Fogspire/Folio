@@ -210,6 +210,23 @@ accented label is the binding working rather than a string that was missed.
 `--strict` turns every warning into a failure, including text with no key at all. That is the check
 worth running before committing a document.
 
+## The screen reader's own words
+
+A screen reader is about a third its own vocabulary - "check box", "not checked", "unavailable", the
+name of the comma key - and none of it comes out of a document. Those are `NSLOCTEXT` under the
+`FolioAccessibility` namespace in `Source/Folio/Private/FolioAccessibilityText.cpp`, so **Unreal's
+ordinary source gather finds them with no extra step** and they land in your project's own target
+rather than in the `Folio` one the markup goes to. Nothing here needs the script from step 3.
+
+Two things to keep if you translate them. They are format strings with ordered arguments rather than
+concatenations, because "deleted a" is the same sentence in a different order in other languages. And
+a number a control produced goes through `FText::AsNumber`, so a slider reads its value the way the
+culture writes one rather than the way C++ printed it.
+
+Leave them untranslated and the menus are localised while the voice reading them is not, which is
+worse than it sounds: the one player who cannot see the correctly translated screen is the one hearing
+the English.
+
 ## If something looks wrong
 
 - **Every string reports `[source]` and the archive clearly has translations.** The target is not

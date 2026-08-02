@@ -51,7 +51,10 @@ save would be slow for no gain.
 | `--culture pseudo` | Inflates and accents every string, which finds overflow before translation exists. Also enables the localisation lint - `--strict` alone does not run it. |
 | `--dp-ratio 2` | The document at a different UI scale. Text wraps in different places at different ratios, by design; a container sized to fit its content exactly at one ratio will break at another. |
 | `--input-device gamepad` | Pins what the document thinks the player is holding, so a gamepad screenshot needs no gamepad. |
-| `--theme high-contrast` | Renders with a theme on. |
+| `--theme high-contrast` | Renders with a theme on. Pair it with `--a11y-contrast 7`, which is what a high-contrast theme should meet. |
+| `--text-scale 1.5` | The accessibility text scale. With `--a11y`, also reports the text it could not move and anything that stopped fitting. |
+| `--reduced-motion` | Every transition and animation off, as the setting does. |
+| `--simulate deuteranopia` | Redraws captures, and re-runs the contrast pass, as that colour vision sees them. Also `protanopia`, `tritanopia`, `achromatopsia`. |
 
 Run the two that matter together before committing a screen:
 
@@ -124,8 +127,10 @@ two shots from the *same* renderer, where any difference is a regression.
 in every pixel, so `--gate alpha` compares nothing and passes whatever it is given. Compare on a
 transparent ground, or gate on `rgb`.
 
-`./scripts/check_recipes.sh` runs the four shipped recipes under `--strict --a11y`. They are what
-people copy to start a screen, so a finding in one is inherited by everyone who uses it.
+`./scripts/check_recipes.sh` runs every shipped recipe under `--strict --a11y` four times: as
+authored, under the high-contrast theme at 7:1, at 150% text scale, and simulating deuteranopia. They
+are what people copy to start a screen, so a finding in one is inherited by everyone who uses it, and
+a starting point that only works at the defaults teaches the defaults.
 
 `./scripts/check_headers.sh` catches a public header that includes a private one. The build cannot:
 a module's own sources have `Private` on their include path, so it compiles here and fails only for

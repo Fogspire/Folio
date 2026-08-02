@@ -30,6 +30,17 @@
 			left: 56px;
 			top: 257px;
 		}
+
+		/*
+		 * A screen that writes its own colours has to answer the high-contrast setting itself: the
+		 * theme cannot reach a rule in here, and one that stays at 5.3:1 is the whole reason the
+		 * setting was turned on.
+		 */
+		@media (theme: high-contrast)
+		{
+			body { background-color: #000000; }
+			h1 { color: #c6c6d2; }
+		}
 	</style>
 </head>
 <body>

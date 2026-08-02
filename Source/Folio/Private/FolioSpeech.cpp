@@ -5,7 +5,6 @@
 #if PLATFORM_WINDOWS
 
 #include "Windows/AllowWindowsPlatformTypes.h"
-#include "Windows/COMPointer.h"
 THIRD_PARTY_INCLUDES_START
 #include <sapi.h>
 THIRD_PARTY_INCLUDES_END
@@ -19,191 +18,281 @@ namespace
 	 * Held for as long as the reader is on rather than made per sentence: creating one takes long
 	 * enough to be heard as a stutter between menu items, which is exactly where it would be used.
 	 */
-	struct FSapiVoice
+	class FSapiBackend final : public Folio::ISpeechBackend
 	{
-		ISpVoice* Voice = nullptr;
-		bool bOwnsCom = false;
-		int32 Rate = 0;
-		int32 Volume = 100;
-	};
+	public:
+		virtual ~FSapiBackend() override { FSapiBackend::Stop(); }
 
-	FSapiVoice& Sapi()
-	{
-		static FSapiVoice Instance;
-		return Instance;
-	}
-}
-
-bool Folio::FSpeech::IsAvailable()
-{
-	return true;
-}
-
-bool Folio::FSpeech::Start()
-{
-	FSapiVoice& State = Sapi();
-	if (State.Voice)
-	{
-		return true;
-	}
-
-	// Unreal has usually initialised COM on this thread already. RPC_E_CHANGED_MODE means it did so
-	// with the other threading model, which is not a failure for an in-process object like this one.
-	const HRESULT ComResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-	State.bOwnsCom = SUCCEEDED(ComResult);
-
-	ISpVoice* Voice = nullptr;
-	const HRESULT Created = CoCreateInstance(__uuidof(SpVoice), nullptr, CLSCTX_ALL,
-		__uuidof(ISpVoice), (void**)&Voice);
-
-	if (FAILED(Created) || !Voice)
-	{
-		UE_LOG(LogFolio, Warning,
-			TEXT("no speech voice is available on this machine (0x%08x), so the screen reader cannot "
-				"speak. A player running NVDA or Narrator is unaffected: that path reads the "
-				"accessibility tree instead."),
-			(uint32)Created);
-
-		if (State.bOwnsCom)
+		virtual bool Start() override
 		{
-			CoUninitialize();
-			State.bOwnsCom = false;
+			if (Voice)
+			{
+				return true;
+			}
+
+			// Unreal has usually initialised COM on this thread already. RPC_E_CHANGED_MODE means it did
+			// so with the other threading model, which is not a failure for an in-process object.
+			const HRESULT ComResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+			bOwnsCom = SUCCEEDED(ComResult);
+
+			ISpVoice* Created = nullptr;
+			const HRESULT Result = CoCreateInstance(__uuidof(SpVoice), nullptr, CLSCTX_ALL,
+				__uuidof(ISpVoice), (void**)&Created);
+
+			if (FAILED(Result) || !Created)
+			{
+				UE_LOG(LogFolio, Warning,
+					TEXT("no speech voice is available on this machine (0x%08x), so the screen reader "
+						"cannot speak. A player running NVDA or Narrator is unaffected: that path reads "
+						"the accessibility tree instead."),
+					(uint32)Result);
+
+				Release();
+				return false;
+			}
+
+			Voice = Created;
+			return true;
 		}
 
-		return false;
-	}
+		virtual void Stop() override
+		{
+			if (Voice)
+			{
+				Silence();
+			}
 
-	State.Voice = Voice;
-	State.Voice->SetRate(State.Rate);
-	State.Voice->SetVolume((USHORT)FMath::Clamp(State.Volume, 0, 100));
+			Release();
+		}
 
-	return true;
-}
+		virtual void Say(const FString& Text, const bool bInterrupt) override
+		{
+			if (!Voice)
+			{
+				return;
+			}
 
-void Folio::FSpeech::Stop()
-{
-	FSapiVoice& State = Sapi();
-	if (!State.Voice)
+			// Always asynchronous. This is called from the game thread and a sentence takes a second or
+			// two.
+			const DWORD Flags = SPF_ASYNC | (bInterrupt ? SPF_PURGEBEFORESPEAK : 0);
+			Voice->Speak(*Text, Flags, nullptr);
+		}
+
+		virtual void Silence() override
+		{
+			// An empty string with PURGEBEFORESPEAK is SAPI's way of saying stop talking now.
+			if (Voice)
+			{
+				Voice->Speak(nullptr, SPF_PURGEBEFORESPEAK, nullptr);
+			}
+		}
+
+		virtual void SetRate(const int32 Rate) override
+		{
+			if (Voice)
+			{
+				Voice->SetRate(Rate);
+			}
+		}
+
+		virtual void SetVolume(const int32 Volume) override
+		{
+			if (Voice)
+			{
+				Voice->SetVolume((USHORT)Volume);
+			}
+		}
+
+	private:
+		void Release()
+		{
+			if (Voice)
+			{
+				Voice->Release();
+				Voice = nullptr;
+			}
+
+			if (bOwnsCom)
+			{
+				CoUninitialize();
+				bOwnsCom = false;
+			}
+		}
+
+		ISpVoice* Voice = nullptr;
+		bool bOwnsCom = false;
+	};
+
+	TUniquePtr<Folio::ISpeechBackend> MakeDefaultBackend()
 	{
-		return;
+		return MakeUnique<FSapiBackend>();
 	}
-
-	// An empty string with PURGEBEFORESPEAK is SAPI's way of saying stop talking now, which turning
-	// the reader off has to do or the last sentence outlives the setting.
-	State.Voice->Speak(nullptr, SPF_PURGEBEFORESPEAK, nullptr);
-	State.Voice->Release();
-	State.Voice = nullptr;
-
-	if (State.bOwnsCom)
-	{
-		CoUninitialize();
-		State.bOwnsCom = false;
-	}
-}
-
-bool Folio::FSpeech::IsRunning()
-{
-	return Sapi().Voice != nullptr;
-}
-
-void Folio::FSpeech::Say(const FString& Text, const bool bInterrupt)
-{
-	FSapiVoice& State = Sapi();
-	if (!State.Voice || Text.IsEmpty())
-	{
-		return;
-	}
-
-	// Always asynchronous. This is called from the game thread, and a sentence takes a second or two.
-	const DWORD Flags = SPF_ASYNC | (bInterrupt ? SPF_PURGEBEFORESPEAK : 0);
-	State.Voice->Speak(*Text, Flags, nullptr);
-}
-
-void Folio::FSpeech::SetRate(const int32 Rate)
-{
-	FSapiVoice& State = Sapi();
-	State.Rate = FMath::Clamp(Rate, -10, 10);
-
-	if (State.Voice)
-	{
-		State.Voice->SetRate(State.Rate);
-	}
-}
-
-int32 Folio::FSpeech::GetRate()
-{
-	return Sapi().Rate;
-}
-
-void Folio::FSpeech::SetVolume(const int32 Volume)
-{
-	FSapiVoice& State = Sapi();
-	State.Volume = FMath::Clamp(Volume, 0, 100);
-
-	if (State.Voice)
-	{
-		State.Voice->SetVolume((USHORT)State.Volume);
-	}
-}
-
-int32 Folio::FSpeech::GetVolume()
-{
-	return Sapi().Volume;
 }
 
 #else
 
 namespace
 {
-	int32 GRate = 0;
-	int32 GVolume = 100;
+	TUniquePtr<Folio::ISpeechBackend> MakeDefaultBackend()
+	{
+		return nullptr;
+	}
+}
+
+#endif
+
+namespace
+{
+	/**
+	 * The installed back end and the settings that outlive it.
+	 *
+	 * Rate and volume live here rather than in the back end so that a player's choice survives the
+	 * reader being turned off and on, and so that a platform module installing its own back end
+	 * inherits them rather than resetting to whatever its voice defaults to.
+	 */
+	struct FSpeechState
+	{
+		TUniquePtr<Folio::ISpeechBackend> Backend;
+		bool bBackendChosen = false;
+		bool bRunning = false;
+		int32 Rate = 0;
+		int32 Volume = 100;
+	};
+
+	FSpeechState& SpeechState()
+	{
+		static FSpeechState Instance;
+		return Instance;
+	}
+
+	Folio::ISpeechBackend* Backend()
+	{
+		FSpeechState& Speech = SpeechState();
+
+		// The built-in one is made on first use rather than at startup, so a platform module that
+		// installs its own never pays for a voice nothing asked for.
+		if (!Speech.bBackendChosen)
+		{
+			Speech.bBackendChosen = true;
+			Speech.Backend = MakeDefaultBackend();
+		}
+
+		return Speech.Backend.Get();
+	}
+}
+
+void Folio::FSpeech::SetBackend(TUniquePtr<ISpeechBackend> InBackend)
+{
+	Stop();
+
+	FSpeechState& Speech = SpeechState();
+	Speech.Backend = MoveTemp(InBackend);
+	Speech.bBackendChosen = true;
 }
 
 bool Folio::FSpeech::IsAvailable()
 {
-	return false;
+	return Backend() != nullptr;
 }
 
 bool Folio::FSpeech::Start()
 {
-	UE_LOG(LogFolio, Warning,
-		TEXT("this platform has no speech back end, so the screen reader has nothing to speak with. "
-			"The accessibility tree is still built for a platform narrator to read."));
+	FSpeechState& Speech = SpeechState();
+	if (Speech.bRunning)
+	{
+		return true;
+	}
 
-	return false;
+	ISpeechBackend* Installed = Backend();
+	if (!Installed)
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("this platform has no speech back end, so the screen reader has nothing to speak with. "
+				"The accessibility tree is still built for a platform narrator to read. Install one with "
+				"Folio::FSpeech::SetBackend."));
+
+		return false;
+	}
+
+	if (!Installed->Start())
+	{
+		return false;
+	}
+
+	Installed->SetRate(Speech.Rate);
+	Installed->SetVolume(Speech.Volume);
+	Speech.bRunning = true;
+	return true;
 }
 
 void Folio::FSpeech::Stop()
 {
+	FSpeechState& Speech = SpeechState();
+	if (!Speech.bRunning)
+	{
+		return;
+	}
+
+	Speech.bRunning = false;
+	if (Speech.Backend)
+	{
+		Speech.Backend->Stop();
+	}
 }
 
 bool Folio::FSpeech::IsRunning()
 {
-	return false;
+	return SpeechState().bRunning;
 }
 
-void Folio::FSpeech::Say(const FString&, bool)
+void Folio::FSpeech::Say(const FString& Text, const bool bInterrupt)
 {
+	FSpeechState& Speech = SpeechState();
+	if (!Speech.bRunning || Text.IsEmpty())
+	{
+		return;
+	}
+
+	Speech.Backend->Say(Text, bInterrupt);
+}
+
+void Folio::FSpeech::Silence()
+{
+	FSpeechState& Speech = SpeechState();
+	if (Speech.bRunning)
+	{
+		Speech.Backend->Silence();
+	}
 }
 
 void Folio::FSpeech::SetRate(const int32 Rate)
 {
-	GRate = FMath::Clamp(Rate, -10, 10);
+	FSpeechState& Speech = SpeechState();
+	Speech.Rate = FMath::Clamp(Rate, -10, 10);
+
+	if (Speech.bRunning)
+	{
+		Speech.Backend->SetRate(Speech.Rate);
+	}
 }
 
 int32 Folio::FSpeech::GetRate()
 {
-	return GRate;
+	return SpeechState().Rate;
 }
 
 void Folio::FSpeech::SetVolume(const int32 Volume)
 {
-	GVolume = FMath::Clamp(Volume, 0, 100);
+	FSpeechState& Speech = SpeechState();
+	Speech.Volume = FMath::Clamp(Volume, 0, 100);
+
+	if (Speech.bRunning)
+	{
+		Speech.Backend->SetVolume(Speech.Volume);
+	}
 }
 
 int32 Folio::FSpeech::GetVolume()
 {
-	return GVolume;
+	return SpeechState().Volume;
 }
-
-#endif

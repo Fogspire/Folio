@@ -68,6 +68,8 @@ private:
 	/** Reads every UI/terms/*.terms, so `{tag:}` resolves in the preview as it does in game. */
 	void LoadTerms();
 	bool LoadDocumentFromDisk();
+	/** Writes --text-scale onto the document root, where every `rem` resolves against it. */
+	void ApplyTextScale();
 	/** Picks up sprite failures that never reach the render interface. */
 	void CollectSpritesFromDiagnostics();
 	void RecordImageElementSizes();

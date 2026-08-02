@@ -102,6 +102,19 @@
 		.over .big { font-size: 26dp; color: #e8e8f0; margin-bottom: 8dp; }
 		.over .small { font-size: 14dp; color: #a8a8b8; }
 		.over .warn { color: #f0c674; }
+
+		/*
+		 * A screen that writes its own colours has to answer the high-contrast setting itself: the
+		 * theme cannot reach a rule in here, and one that stays at 5.3:1 is the whole reason the
+		 * setting was turned on. Held to 7:1, which is what a high-contrast theme is for.
+		 */
+		@media (theme: high-contrast)
+		{
+			body { background-color: #000000; }
+			h1, .cat { color: #c6c6d2; }
+			.action, .over .big { color: #ffffff; }
+			.reset, .over .small { color: #d0d0dc; }
+		}
 	</style>
 </head>
 <body data-model="bindings">

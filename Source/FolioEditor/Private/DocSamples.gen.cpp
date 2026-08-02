@@ -8,6 +8,7 @@
 #include "FolioCore/FolioFontEngine.h"
 #include "FolioCore/FolioTextElement.h"
 
+#include "FolioAccessibilityLibrary.h"
 #include "FolioDocumentPath.h"
 #include "FolioHudMotion.h"
 #include "FolioMarkerDocument.h"
@@ -81,6 +82,25 @@ namespace FolioDocSamples
 	inline UWorld* World = nullptr;
 	inline UWorld* GetWorld() { return World; }
 
+
+	// docs/accessibility.md#0
+	inline void Sample_docs_accessibility_md_0()
+	{
+		UFolioAccessibilityLibrary::ReviewNext();       // and Previous, First, Last
+		UFolioAccessibilityLibrary::ReviewRepeat();     // that again
+		UFolioAccessibilityLibrary::ReviewAll();        // from here to the end of the screen
+		UFolioAccessibilityLibrary::ReviewStop();       // what any other key should also do
+		UFolioAccessibilityLibrary::ReviewActivate();   // press what the cursor is on
+		UFolioAccessibilityLibrary::ReviewMoveFocusHere();
+	}
+
+	// docs/accessibility.md#2
+	inline void Sample_docs_accessibility_md_2()
+	{
+		UFolioAccessibilityLibrary::SetTextScale(1.5f);      // 0.5 to 3, 1 being as authored
+		UFolioAccessibilityLibrary::SetReducedMotion(true);
+		UFolioAccessibilityLibrary::SetHighContrast(true);
+	}
 
 	// docs/assigning_documents.md#0
 	inline void Sample_docs_assigning_documents_md_0()

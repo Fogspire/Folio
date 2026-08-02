@@ -357,6 +357,7 @@ void SFolioCanvas::UpdateAccessibility(const bool bDocumentChanged, const FGeome
 	// Every frame rather than only on a change: focus moves without the document changing shape, and
 	// this is what makes navigating a menu say what was navigated onto.
 	Accessibility->SyncFocus(Host.GetContext());
+	Accessibility->SyncEditing(Host.GetContext());
 }
 
 void SFolioCanvas::OnAccessibilityChanged()

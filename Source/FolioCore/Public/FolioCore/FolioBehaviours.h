@@ -506,7 +506,7 @@ private:
 	Rml::ObserverPtr<Rml::Element> Pressed;
 
 	Rml::ObserverPtr<Rml::Element> Active;
-	int32 ActiveFrames = 0;
+	int ActiveFrames = 0;
 
 	/**
 	 * An element taken out of the tree, held until the next event so it is not freed mid-dispatch.

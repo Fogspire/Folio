@@ -135,3 +135,32 @@ Offer a switch that puts text back through the target, so the two can be compare
 useful comparison is not "does supersampling look good" but "is the text identical to the same
 document unsupersampled, and are the edges softer" - both of which can be measured from two
 screenshots rather than argued about.
+
+## Measuring it
+
+The cost is not where the code that queues it lives. A layer is replayed, blurred, masked and resolved
+on the **render thread**, and a profiling scope on the game-thread function that queued the work ends
+at the enqueue - so a layer costing milliseconds reports as microseconds and the UI looks free while
+the frame is anything but. Put a scope and a cycle counter *inside* every render-thread lambda, and a
+GPU stat scope on the graph builder, or none of it is attributable.
+
+Report the memory too. Layers are allocated at the sample count squared and pooled between frames,
+so the number that decides whether a sample count is affordable is the total the pool holds; nothing
+else on screen shows it. Print the target size and its megabytes beside the sample count.
+
+Worth knowing before optimising: on one screen at four samples each way, the whole of the UI came to
+about a millisecond of GPU time against a twenty millisecond scene, and the layer pool held 316 MB at
+a 1915x1270 context. Supersampling is fill and memory, and both scale with the square of the sample
+count *and* with the resolution - four samples at 4K is sixteen times a 33 megapixel document. Measure
+before assuming the cost is where it feels like it should be.
+
+## Skip the frame that changed nothing
+
+A supersampled document renders into a target that survives the frame, which the direct path does not
+have. So a frame in which the document did not change does not need rendering again: composite the
+target that is already there, and draw only the text, which was never in it.
+
+That needs the layout to report whether it actually updated, and the held-back runs to be kept from
+the last render rather than dropped. It is the difference between a still screen costing the sample
+count squared every frame and costing it once - but it only helps documents that go idle. One that
+polls a data model every frame, or animates, is dirty every frame by definition and pays in full.

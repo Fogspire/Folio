@@ -2,6 +2,7 @@
 
 #include "FolioColourShader.h"
 #include "FolioMaskShader.h"
+#include "FolioResolveShader.h"
 
 #include "FolioInsights.h"
 
@@ -31,6 +32,11 @@ FFolioLayerStack::~FFolioLayerStack()
 
 void FFolioLayerStack::Reset()
 {
+	for (const TPair<FIntPoint, TStrongObjectPtr<UTextureRenderTarget2D>>& Pooled : Pool)
+	{
+		DEC_MEMORY_STAT_BY(STAT_FolioLayerMemory, int64(Pooled.Key.X) * int64(Pooled.Key.Y) * 4);
+	}
+
 	Stack.Empty();
 	Pool.Empty();
 	Scale = 1;
@@ -88,6 +94,17 @@ FSlateRect FFolioLayerStack::CurrentContentRect() const
 
 UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size)
 {
+	UTextureRenderTarget2D* Target = Obtain(Size);
+	if (Target)
+	{
+		Stack.Add({ TStrongObjectPtr<UTextureRenderTarget2D>(Target), Size });
+	}
+
+	return Target;
+}
+
+UTextureRenderTarget2D* FFolioLayerStack::Obtain(const FIntPoint Size)
+{
 	TArray<TStrongObjectPtr<UTextureRenderTarget2D>> Available;
 	Pool.MultiFind(Size, Available);
 
@@ -97,9 +114,15 @@ UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size)
 		Pool.RemoveSingle(Size, Found);
 		Found->UpdateResourceImmediate(true);
 
-		Stack.Add({ Found, Size });
 		return Found.Get();
 	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_AllocateLayer);
+	SCOPE_CYCLE_COUNTER(STAT_FolioAllocateTarget);
+
+	// Four bytes a texel, and a sample count multiplies the texels by itself. Reported because that
+	// is the number that decides whether a sample count is affordable, and nothing else shows it.
+	INC_MEMORY_STAT_BY(STAT_FolioLayerMemory, int64(Size.X) * int64(Size.Y) * 4);
 
 	UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>();
 	Target->RenderTargetFormat = RTF_RGBA8;
@@ -112,7 +135,6 @@ UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size)
 	Target->InitAutoFormat(Size.X, Size.Y);
 	Target->UpdateResourceImmediate(true);
 
-	Stack.Add({ TStrongObjectPtr<UTextureRenderTarget2D>(Target), Size });
 	return Target;
 }
 
@@ -356,15 +378,33 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	// desaturated layer and desaturating a blurred one differ wherever the blur crosses an edge.
 	Folio::ApplyColourFilters(Source.Target.Get(), Colour);
 
-	// In the document's pixels, so a supersampled layer scales it up to its own, stepping the kernel
-	// by the same amount to keep its reach.
+	// A blur is a low pass, so the samples a supersampled layer holds are exactly what it is about to
+	// throw away. Averaging down first makes the kernel cost what it costs at one sample per pixel -
+	// at four samples each way that is sixteen times less work - and the composite magnifies the
+	// result, which is a blurred image being blurred slightly differently.
+	UTextureRenderTarget2D* Composited = Source.Target.Get();
+
 	if (BlurSigma > 0.0f)
 	{
-		const float SourceScale = ScaleOf(Source);
-		Folio::BlurRenderTarget(Source.Target.Get(), BlurSigma * SourceScale, SourceScale);
+		const int32 SourceScale = FMath::RoundToInt(ScaleOf(Source));
+		const FIntPoint Document = DocumentSizeOf(Source);
+
+		if (SourceScale > 1 && Document.X > 0 && Document.Y > 0)
+		{
+			if (UTextureRenderTarget2D* Small = Obtain(Document))
+			{
+				Folio::ResolveSupersample(Source.Target.Get(), Small, SourceScale);
+				Composited = Small;
+			}
+		}
+
+		// One sample per pixel once it is averaged down, and the layer's own density if there was
+		// nothing to average into.
+		const float BlurScale = Composited == Source.Target.Get() ? ScaleOf(Source) : 1.0f;
+		Folio::BlurRenderTarget(Composited, BlurSigma * BlurScale, BlurScale);
 	}
 
-	Folio::ApplyMask(Source.Target.Get(), Mask, {});
+	Folio::ApplyMask(Composited, Mask, {});
 
 	// Compositing is a full-target quad drawn into the layer below, recorded like any other
 	// draw so it stays ordered with the geometry around it.
@@ -372,7 +412,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 
 	FFolioDraw Draw;
 	Draw.Kind = FFolioDraw::EKind::Geometry;
-	Draw.Texture.Reset(Source.Target.Get());
+	Draw.Texture.Reset(Composited);
 	Draw.bMasked = false;
 
 	// The document's pixels, not the target's: this quad is recorded into the layer below, and a
@@ -397,8 +437,18 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 
 	// The quad above samples this target, so it has to stay out of the pool until the destination has
 	// resolved. Pop runs immediately after this and would otherwise recycle it.
-	Destination.Sampled.Add(Source.Target);
-	Source.bHandedOff = true;
+	//
+	// Which target that is depends on whether the blur averaged the layer down first: the small one is
+	// what the quad reads, and the layer's own target is then free to go back on Pop as usual.
+	if (Composited == Source.Target.Get())
+	{
+		Destination.Sampled.Add(Source.Target);
+		Source.bHandedOff = true;
+	}
+	else
+	{
+		Destination.Sampled.Add(TStrongObjectPtr<UTextureRenderTarget2D>(Composited));
+	}
 }
 
 void FFolioLayerStack::ResolveAndRecycle(FLayer& Layer)
@@ -464,183 +514,192 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 		[Resource, Size, Clip, bClear, bNeedsStencil, Draws = MoveTemp(Draws)]
 		(FRHICommandListImmediate& RHICmdList) mutable
 		{
+			// The game thread's scope ended at the enqueue. Everything a layer actually costs to
+			// replay is here, and without these it reports as nothing at all.
+			TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ReplayLayer);
+			SCOPE_CYCLE_COUNTER(STAT_FolioLayerReplay);
+
 			FRDGBuilder GraphBuilder(RHICmdList);
-
-			FRDGTextureRef Colour = RegisterExternalTexture(GraphBuilder,
-				Resource->GetRenderTargetTexture(), TEXT("FolioLayerColour"));
-
-			// The stencil only has to live as long as this layer's replay, which is exactly
-			// why the draws are recorded and resolved together rather than one at a time.
-			FRDGTextureRef Stencil = nullptr;
-			if (bNeedsStencil)
+			// Braced: the scope has to close before Execute, which asserts on an open breadcrumb.
 			{
-				const FRDGTextureDesc StencilDesc = FRDGTextureDesc::Create2D(Size, PF_DepthStencil,
-					FClearValueBinding::DepthZero, TexCreate_DepthStencilTargetable);
-				Stencil = GraphBuilder.CreateTexture(StencilDesc, TEXT("FolioLayerStencil"));
-			}
+				RDG_EVENT_SCOPE_STAT(GraphBuilder, FolioLayers, "FolioLayers");
 
-			FFolioUIParameters* Parameters = GraphBuilder.AllocParameters<FFolioUIParameters>();
-			Parameters->UISampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-			Parameters->UITexture = GWhiteTexture->TextureRHI;
+				FRDGTextureRef Colour = RegisterExternalTexture(GraphBuilder,
+					Resource->GetRenderTargetTexture(), TEXT("FolioLayerColour"));
 
-			// Document pixels to clip space. Y is flipped: RmlUi's origin is top left. Against the recorded
-			// space rather than the target, so a larger target scales the same geometry up instead of
-			// leaving it in a corner.
-			Parameters->ClipTransform = FVector4f(2.0f / Clip.X, -2.0f / Clip.Y, -1.0f, 1.0f);
-			Parameters->RenderTargets[0] = FRenderTargetBinding(Colour,
-				bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
-			if (Stencil)
-			{
-				Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(Stencil,
-					ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,
-					FExclusiveDepthStencil::DepthNop_StencilWrite);
-			}
-
-			// Never culled: with every glyph run held back for the screen there is nothing to draw, and
-			// the pass is then here only to clear the target - which is exactly when it must still run.
-			GraphBuilder.AddPass(RDG_EVENT_NAME("FolioLayer"), Parameters,
-				ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
-				[Parameters, Size, Clip, Draws = MoveTemp(Draws)](FRHICommandList& RHICmdList)
+				// The stencil only has to live as long as this layer's replay, which is exactly
+				// why the draws are recorded and resolved together rather than one at a time.
+				FRDGTextureRef Stencil = nullptr;
+				if (bNeedsStencil)
 				{
-					const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
-					TShaderMapRef<FFolioUIVS> VertexShader(ShaderMap);
-					TShaderMapRef<FFolioUIPS> PixelShader(ShaderMap);
-					TShaderMapRef<FFolioUIMsdfPS> FieldShader(ShaderMap);
-					TShaderMapRef<FFolioUIMaskPS> MaskShader(ShaderMap);
+					const FRDGTextureDesc StencilDesc = FRDGTextureDesc::Create2D(Size, PF_DepthStencil,
+						FClearValueBinding::DepthZero, TexCreate_DepthStencilTargetable);
+					Stencil = GraphBuilder.CreateTexture(StencilDesc, TEXT("FolioLayerStencil"));
+				}
 
-					RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
-					RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+				FFolioUIParameters* Parameters = GraphBuilder.AllocParameters<FFolioUIParameters>();
+				Parameters->UISampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+				Parameters->UITexture = GWhiteTexture->TextureRHI;
 
-					const FIntRect Whole(0, 0, Size.X, Size.Y);
-					const FVector2f Ratio(Clip.X > 0 ? float(Size.X) / float(Clip.X) : 1.0f,
-						Clip.Y > 0 ? float(Size.Y) / float(Clip.Y) : 1.0f);
-					bool bScissored = false;
+				// Document pixels to clip space. Y is flipped: RmlUi's origin is top left. Against the recorded
+				// space rather than the target, so a larger target scales the same geometry up instead of
+				// leaving it in a corner.
+				Parameters->ClipTransform = FVector4f(2.0f / Clip.X, -2.0f / Clip.Y, -1.0f, 1.0f);
+				Parameters->RenderTargets[0] = FRenderTargetBinding(Colour,
+					bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
+				if (Stencil)
+				{
+					Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(Stencil,
+						ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,
+						FExclusiveDepthStencil::DepthNop_StencilWrite);
+				}
 
-					for (const FFolioDraw& Draw : Draws)
+				// Never culled: with every glyph run held back for the screen there is nothing to draw, and
+				// the pass is then here only to clear the target - which is exactly when it must still run.
+				GraphBuilder.AddPass(RDG_EVENT_NAME("FolioLayer"), Parameters,
+					ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
+					[Parameters, Size, Clip, Draws = MoveTemp(Draws)](FRHICommandList& RHICmdList)
 					{
-						const bool bField = Draw.Kind == FFolioDraw::EKind::Field;
-						const bool bMaskPass = Draw.Kind != FFolioDraw::EKind::Geometry && !bField;
+						const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+						TShaderMapRef<FFolioUIVS> VertexShader(ShaderMap);
+						TShaderMapRef<FFolioUIPS> PixelShader(ShaderMap);
+						TShaderMapRef<FFolioUIMsdfPS> FieldShader(ShaderMap);
+						TShaderMapRef<FFolioUIMaskPS> MaskShader(ShaderMap);
 
-						FGraphicsPipelineStateInitializer State;
-						RHICmdList.ApplyCachedRenderTargets(State);
-						State.PrimitiveType = PT_TriangleList;
-						State.BoundShaderState.VertexDeclarationRHI = GFolioUIVertexDeclaration.VertexDeclarationRHI;
-						State.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-						State.BoundShaderState.PixelShaderRHI = bMaskPass
-							? static_cast<FRHIPixelShader*>(MaskShader.GetPixelShader())
-							: bField
-								? static_cast<FRHIPixelShader*>(FieldShader.GetPixelShader())
-								: static_cast<FRHIPixelShader*>(PixelShader.GetPixelShader());
-						State.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+						RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
+						RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
-						if (bMaskPass)
+						const FIntRect Whole(0, 0, Size.X, Size.Y);
+						const FVector2f Ratio(Clip.X > 0 ? float(Size.X) / float(Clip.X) : 1.0f,
+							Clip.Y > 0 ? float(Size.Y) / float(Clip.Y) : 1.0f);
+						bool bScissored = false;
+
+						for (const FFolioDraw& Draw : Draws)
 						{
-							// Colour writes off: a mask contributes stencil and nothing else.
-							State.BlendState = TStaticBlendState<CW_NONE>::GetRHI();
-							State.DepthStencilState = TStaticDepthStencilState<false, CF_Always,
-								true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI();
-						}
-						else
-						{
-							// Premultiplied source over destination.
-							State.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One,
-								BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
+							const bool bField = Draw.Kind == FFolioDraw::EKind::Field;
+							const bool bMaskPass = Draw.Kind != FFolioDraw::EKind::Geometry && !bField;
 
-							if (Draw.bMasked)
+							FGraphicsPipelineStateInitializer State;
+							RHICmdList.ApplyCachedRenderTargets(State);
+							State.PrimitiveType = PT_TriangleList;
+							State.BoundShaderState.VertexDeclarationRHI = GFolioUIVertexDeclaration.VertexDeclarationRHI;
+							State.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+							State.BoundShaderState.PixelShaderRHI = bMaskPass
+								? static_cast<FRHIPixelShader*>(MaskShader.GetPixelShader())
+								: bField
+									? static_cast<FRHIPixelShader*>(FieldShader.GetPixelShader())
+									: static_cast<FRHIPixelShader*>(PixelShader.GetPixelShader());
+							State.RasterizerState = TStaticRasterizerState<FM_Solid, CM_None>::GetRHI();
+
+							if (bMaskPass)
 							{
-								// Equal keeps the shape; NotEqual keeps its complement, which
-								// is what an outer box-shadow needs.
-								State.DepthStencilState = Draw.bMaskInverted
-									? TStaticDepthStencilState<false, CF_Always, true, CF_NotEqual,
-										SO_Keep, SO_Keep, SO_Keep>::GetRHI()
-									: TStaticDepthStencilState<false, CF_Always, true, CF_Equal,
-										SO_Keep, SO_Keep, SO_Keep>::GetRHI();
+								// Colour writes off: a mask contributes stencil and nothing else.
+								State.BlendState = TStaticBlendState<CW_NONE>::GetRHI();
+								State.DepthStencilState = TStaticDepthStencilState<false, CF_Always,
+									true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI();
 							}
 							else
 							{
-								State.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+								// Premultiplied source over destination.
+								State.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One,
+									BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
+
+								if (Draw.bMasked)
+								{
+									// Equal keeps the shape; NotEqual keeps its complement, which
+									// is what an outer box-shadow needs.
+									State.DepthStencilState = Draw.bMaskInverted
+										? TStaticDepthStencilState<false, CF_Always, true, CF_NotEqual,
+											SO_Keep, SO_Keep, SO_Keep>::GetRHI()
+										: TStaticDepthStencilState<false, CF_Always, true, CF_Equal,
+											SO_Keep, SO_Keep, SO_Keep>::GetRHI();
+								}
+								else
+								{
+									State.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+								}
 							}
-						}
 
-						SetGraphicsPipelineState(RHICmdList, State, MaskStencilRef);
-						RHICmdList.SetStencilRef(MaskStencilRef);
+							SetGraphicsPipelineState(RHICmdList, State, MaskStencilRef);
+							RHICmdList.SetStencilRef(MaskStencilRef);
 
-						FFolioUIParameters PassParameters = *Parameters;
-						PassParameters.MsdfField = Draw.Field;
-						PassParameters.MsdfEffect = Draw.Effect;
-						if (Draw.Texture.IsValid() && Draw.Texture->GetResource())
-						{
-							if (FRHITexture* Bound = Draw.Texture->GetResource()->GetTexture2DRHI())
+							FFolioUIParameters PassParameters = *Parameters;
+							PassParameters.MsdfField = Draw.Field;
+							PassParameters.MsdfEffect = Draw.Effect;
+							if (Draw.Texture.IsValid() && Draw.Texture->GetResource())
 							{
-								PassParameters.UITexture = Bound;
+								if (FRHITexture* Bound = Draw.Texture->GetResource()->GetTexture2DRHI())
+								{
+									PassParameters.UITexture = Bound;
+								}
 							}
+
+							SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters);
+							if (bField)
+							{
+								SetShaderParameters(RHICmdList, FieldShader, FieldShader.GetPixelShader(), PassParameters);
+							}
+							else if (!bMaskPass)
+							{
+								SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters);
+							}
+
+							// Volatile buffers: a layer's geometry is rebuilt whenever it is drawn,
+							// so there is nothing worth keeping between frames.
+							const uint32 VertexBytes = Draw.Vertices.Num() * sizeof(FFolioUIVertex);
+							FBufferRHIRef VertexBuffer = RHICmdList.CreateBuffer(
+								FRHIBufferCreateDesc::CreateVertex(TEXT("FolioLayerVertices"), VertexBytes)
+									.AddUsage(EBufferUsageFlags::Volatile)
+									.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+							void* VertexData = RHICmdList.LockBuffer(VertexBuffer, 0, VertexBytes, RLM_WriteOnly);
+							FMemory::Memcpy(VertexData, Draw.Vertices.GetData(), VertexBytes);
+							RHICmdList.UnlockBuffer(VertexBuffer);
+
+							const uint32 IndexBytes = Draw.Indices.Num() * sizeof(uint32);
+							FBufferRHIRef IndexBuffer = RHICmdList.CreateBuffer(
+								FRHIBufferCreateDesc::CreateIndex(TEXT("FolioLayerIndices"), IndexBytes, sizeof(uint32))
+									.AddUsage(EBufferUsageFlags::Volatile)
+									.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+							void* IndexData = RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes, RLM_WriteOnly);
+							FMemory::Memcpy(IndexData, Draw.Indices.GetData(), IndexBytes);
+							RHICmdList.UnlockBuffer(IndexBuffer);
+
+							// `overflow: hidden`, which the screen path gives to Slate as a clip zone and a
+							// recording has to carry itself. Clamped to the layer, because RmlUi's scissor is
+							// against the whole context and a layer is only as big as the element that wanted
+							// it - and the RHI rejects a rectangle reaching past its viewport.
+							// Into the target's pixels. The scissor arrives in the space the geometry was
+							// recorded in, and the vertex shader scales that space onto the target, so a
+							// target that is not the same size scales the rectangle by the same ratio.
+							FIntRect Scissor(
+								FMath::FloorToInt(Draw.Scissor.Min.X * Ratio.X),
+								FMath::FloorToInt(Draw.Scissor.Min.Y * Ratio.Y),
+								FMath::CeilToInt(Draw.Scissor.Max.X * Ratio.X),
+								FMath::CeilToInt(Draw.Scissor.Max.Y * Ratio.Y));
+
+							Scissor.Clip(Whole);
+							Scissor.Max.X = FMath::Max(Scissor.Min.X, Scissor.Max.X);
+							Scissor.Max.Y = FMath::Max(Scissor.Min.Y, Scissor.Max.Y);
+
+							// A rectangle covering the whole layer is left to the viewport. It is the common
+							// case, since RmlUi sets the scissor to the context whenever nothing is clipping,
+							// and an empty intersection still has to be set: that draw is wholly outside its
+							// clip and turning the scissor off would draw the one thing meant to be hidden.
+							const bool bWanted = Draw.Scissor.Area() > 0 && Scissor != Whole;
+
+							if (bWanted || bScissored)
+							{
+								RHICmdList.SetScissorRect(bWanted, Scissor.Min.X, Scissor.Min.Y,
+									Scissor.Max.X, Scissor.Max.Y);
+								bScissored = bWanted;
+							}
+
+							RHICmdList.SetStreamSource(0, VertexBuffer, 0);
+							RHICmdList.DrawIndexedPrimitive(IndexBuffer, 0, 0, Draw.Vertices.Num(), 0,
+								Draw.Indices.Num() / 3, 1);
 						}
-
-						SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters);
-						if (bField)
-						{
-							SetShaderParameters(RHICmdList, FieldShader, FieldShader.GetPixelShader(), PassParameters);
-						}
-						else if (!bMaskPass)
-						{
-							SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters);
-						}
-
-						// Volatile buffers: a layer's geometry is rebuilt whenever it is drawn,
-						// so there is nothing worth keeping between frames.
-						const uint32 VertexBytes = Draw.Vertices.Num() * sizeof(FFolioUIVertex);
-						FBufferRHIRef VertexBuffer = RHICmdList.CreateBuffer(
-							FRHIBufferCreateDesc::CreateVertex(TEXT("FolioLayerVertices"), VertexBytes)
-								.AddUsage(EBufferUsageFlags::Volatile)
-								.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
-						void* VertexData = RHICmdList.LockBuffer(VertexBuffer, 0, VertexBytes, RLM_WriteOnly);
-						FMemory::Memcpy(VertexData, Draw.Vertices.GetData(), VertexBytes);
-						RHICmdList.UnlockBuffer(VertexBuffer);
-
-						const uint32 IndexBytes = Draw.Indices.Num() * sizeof(uint32);
-						FBufferRHIRef IndexBuffer = RHICmdList.CreateBuffer(
-							FRHIBufferCreateDesc::CreateIndex(TEXT("FolioLayerIndices"), IndexBytes, sizeof(uint32))
-								.AddUsage(EBufferUsageFlags::Volatile)
-								.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
-						void* IndexData = RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes, RLM_WriteOnly);
-						FMemory::Memcpy(IndexData, Draw.Indices.GetData(), IndexBytes);
-						RHICmdList.UnlockBuffer(IndexBuffer);
-
-						// `overflow: hidden`, which the screen path gives to Slate as a clip zone and a
-						// recording has to carry itself. Clamped to the layer, because RmlUi's scissor is
-						// against the whole context and a layer is only as big as the element that wanted
-						// it - and the RHI rejects a rectangle reaching past its viewport.
-						// Into the target's pixels. The scissor arrives in the space the geometry was
-						// recorded in, and the vertex shader scales that space onto the target, so a
-						// target that is not the same size scales the rectangle by the same ratio.
-						FIntRect Scissor(
-							FMath::FloorToInt(Draw.Scissor.Min.X * Ratio.X),
-							FMath::FloorToInt(Draw.Scissor.Min.Y * Ratio.Y),
-							FMath::CeilToInt(Draw.Scissor.Max.X * Ratio.X),
-							FMath::CeilToInt(Draw.Scissor.Max.Y * Ratio.Y));
-
-						Scissor.Clip(Whole);
-						Scissor.Max.X = FMath::Max(Scissor.Min.X, Scissor.Max.X);
-						Scissor.Max.Y = FMath::Max(Scissor.Min.Y, Scissor.Max.Y);
-
-						// A rectangle covering the whole layer is left to the viewport. It is the common
-						// case, since RmlUi sets the scissor to the context whenever nothing is clipping,
-						// and an empty intersection still has to be set: that draw is wholly outside its
-						// clip and turning the scissor off would draw the one thing meant to be hidden.
-						const bool bWanted = Draw.Scissor.Area() > 0 && Scissor != Whole;
-
-						if (bWanted || bScissored)
-						{
-							RHICmdList.SetScissorRect(bWanted, Scissor.Min.X, Scissor.Min.Y,
-								Scissor.Max.X, Scissor.Max.Y);
-							bScissored = bWanted;
-						}
-
-						RHICmdList.SetStreamSource(0, VertexBuffer, 0);
-						RHICmdList.DrawIndexedPrimitive(IndexBuffer, 0, 0, Draw.Vertices.Num(), 0,
-							Draw.Indices.Num() / 3, 1);
-					}
-				});
+					});
+			}
 
 			GraphBuilder.Execute();
 		});

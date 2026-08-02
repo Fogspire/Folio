@@ -4,6 +4,7 @@
 
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
+#include "FolioInvalidation.h"
 #include "FolioResolveShader.h"
 #include "FolioInput.h"
 #include "FolioUiSounds.h"
@@ -17,6 +18,12 @@
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
+
+/** What a canvas keeps of the text its last surface held back. */
+struct FFolioRetainedText
+{
+	TArray<FFolioRenderInterface::FDeferredField> Runs;
+};
 
 namespace
 {
@@ -188,10 +195,19 @@ void SFolioCanvas::SetSupersample(const int32 InSamples)
 	Target.Reset();
 	Resolved.Reset();
 	TargetBrush = FSlateBrush();
+	bSurfaceValid = false;
 }
 
 UTextureRenderTarget2D* SFolioCanvas::MakeTarget(const FIntPoint Size)
 {
+	// Scoped because this is not supposed to happen every frame. A sample count change or a resize
+	// makes one; a canvas making one every paint is a bug, and this is where it shows.
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_AllocateSurface);
+	SCOPE_CYCLE_COUNTER(STAT_FolioAllocateTarget);
+
+	UE_LOG(LogFolio, Verbose, TEXT("allocating a %dx%d surface target (%.1f MB)"),
+		Size.X, Size.Y, float(Size.X) * float(Size.Y) * 4.0f / (1024.0f * 1024.0f));
+
 	UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
 	Fresh->RenderTargetFormat = RTF_RGBA8;
 	Fresh->ClearColor = FLinearColor::Transparent;
@@ -268,7 +284,12 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	// geometry, so keeping it a screen pixel wide is what makes the geometry identical however densely
 	// it is rasterised - and it is what stops supersampling ever looking harder than not supersampling,
 	// since the samples then add to the skirt rather than replacing it.
-	Host.Update(InDeltaTime, ScaleFor(AllottedGeometry), RenderScale * ContextToLocal(AllottedGeometry));
+	// True when it actually updated. A supersampled surface reads this to decide whether the target it
+	// already has is still this document.
+	if (Host.Update(InDeltaTime, ScaleFor(AllottedGeometry), RenderScale * ContextToLocal(AllottedGeometry)))
+	{
+		bSurfaceDirty = true;
+	}
 }
 
 
@@ -342,6 +363,7 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 
 		if (!Target.IsValid() || Target->SizeX != TargetSize.X || Target->SizeY != TargetSize.Y)
 		{
+			bSurfaceValid = false;
 			Target.Reset(MakeTarget(TargetSize));
 
 			// One sample per pixel, which is what the screen takes. The document is drawn into the big
@@ -376,17 +398,34 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 
 		const bool bNativeText = CVarNativeText.GetValueOnGameThread() != 0;
 
+		/*
+		 * A document that has not changed is already in the target, and rasterising it again would
+		 * cost the sample count squared for the same picture. So a clean frame composites what is
+		 * there and redraws only the text, which was never in the target to begin with.
+		 *
+		 * This is what makes a supersampled screen affordable while it sits still: the cost is the
+		 * frame it changes on, not every frame it is up.
+		 */
+		const bool bReuse = bSurfaceValid && !bSurfaceDirty && Resolved.IsValid()
+			&& Folio::InvalidationEnabled();
+
 		if (TargetHandle.IsValid()
-			&& Renderer->BeginSurface(ContextSize, Target.Get(), Supersample, bNativeText))
+			&& (bReuse || Renderer->BeginSurface(ContextSize, Target.Get(), Supersample, bNativeText)))
 		{
-			Context->Render();
+			if (!bReuse)
+			{
+				Context->Render();
 
-			NativeTextRuns = Renderer->NumDeferredFields();
-			Renderer->EndSurface();
+				NativeTextRuns = Renderer->NumDeferredFields();
+				Renderer->EndSurface();
 
-			// The box filter, done here rather than left to the composite's sampler, which only averages
-			// the whole block when the quad happens to land exactly on the texel grid.
-			Folio::ResolveSupersample(Target.Get(), Resolved.Get(), Supersample);
+				// The box filter, done here rather than left to the composite's sampler, which only
+				// averages the whole block when the quad happens to land exactly on the texel grid.
+				Folio::ResolveSupersample(Target.Get(), Resolved.Get(), Supersample);
+
+				bSurfaceValid = true;
+				bSurfaceDirty = false;
+			}
 
 			const FVector2f Size = AllottedGeometry.GetLocalSize();
 			const FSlateRenderTransform& ToWindow = AllottedGeometry.GetAccumulatedRenderTransform();
@@ -434,12 +473,23 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 				nullptr, 0, 0, ESlateDrawEffect::PreMultipliedAlpha);
 
 			// Over the composite, through the same geometry the direct path draws with, so the text is
-			// the text an unsupersampled document would have drawn.
-			return Renderer->DrawDeferredFields(OutDrawElements, Paint, LayerId + 1) + 1;
+			// the text an unsupersampled document would have drawn. Kept, because a frame that reuses
+			// the target has no render to hold text back for it.
+			if (!RetainedText.IsValid())
+			{
+				RetainedText = MakeShared<FFolioRetainedText>();
+			}
+
+			const int32 Highest = bReuse
+				? Renderer->DrawFieldRuns(RetainedText->Runs, OutDrawElements, Paint, LayerId + 1)
+				: Renderer->DrawDeferredFields(OutDrawElements, Paint, LayerId + 1, &RetainedText->Runs);
+
+			return Highest + 1;
 		}
 	}
 
 	NativeTextRuns = 0;
+	bSurfaceValid = false;
 
 	Renderer->BeginFrame(OutDrawElements, Paint, LayerId, ContextSize);
 	Context->Render();

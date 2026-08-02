@@ -1,5 +1,7 @@
 #include "FolioResolveShader.h"
 
+#include "FolioInsights.h"
+
 #include "Engine/TextureRenderTarget2D.h"
 #include "GlobalRenderResources.h"
 #include "PixelShaderUtils.h"
@@ -35,27 +37,35 @@ namespace Folio
 			[SourceResource, DestinationResource, SourceSize, Size, Samples]
 			(FRHICommandListImmediate& RHICmdList)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ResolveSupersample);
+				SCOPE_CYCLE_COUNTER(STAT_FolioSupersample);
+
 				FRDGBuilder GraphBuilder(RHICmdList);
 
-				FRDGTextureRef SourceTexture = RegisterExternalTexture(GraphBuilder,
-					SourceResource->GetRenderTargetTexture(), TEXT("FolioSupersampled"));
-				FRDGTextureRef DestinationTexture = RegisterExternalTexture(GraphBuilder,
-					DestinationResource->GetRenderTargetTexture(), TEXT("FolioResolved"));
+				// Braced: the scope has to close before Execute, which asserts on an open breadcrumb.
+				{
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, FolioSupersample, "FolioSupersample");
 
-				FFolioResolvePS::FParameters* Pass = GraphBuilder.AllocParameters<FFolioResolvePS::FParameters>();
-				Pass->SourceTexture = SourceTexture;
-				Pass->SourceSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-				Pass->ResolveParameters = FVector4f(float(Samples),
-					1.0f / float(SourceSize.X), 1.0f / float(SourceSize.Y), 0.0f);
-				Pass->InvSize = FVector2f(1.0f / Size.X, 1.0f / Size.Y);
-				Pass->RenderTargets[0] = FRenderTargetBinding(DestinationTexture,
-					ERenderTargetLoadAction::ENoAction);
+					FRDGTextureRef SourceTexture = RegisterExternalTexture(GraphBuilder,
+						SourceResource->GetRenderTargetTexture(), TEXT("FolioSupersampled"));
+					FRDGTextureRef DestinationTexture = RegisterExternalTexture(GraphBuilder,
+						DestinationResource->GetRenderTargetTexture(), TEXT("FolioResolved"));
 
-				const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
-				TShaderMapRef<FFolioResolvePS> PixelShader(ShaderMap);
+					FFolioResolvePS::FParameters* Pass = GraphBuilder.AllocParameters<FFolioResolvePS::FParameters>();
+					Pass->SourceTexture = SourceTexture;
+					Pass->SourceSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+					Pass->ResolveParameters = FVector4f(float(Samples),
+						1.0f / float(SourceSize.X), 1.0f / float(SourceSize.Y), 0.0f);
+					Pass->InvSize = FVector2f(1.0f / Size.X, 1.0f / Size.Y);
+					Pass->RenderTargets[0] = FRenderTargetBinding(DestinationTexture,
+						ERenderTargetLoadAction::ENoAction);
 
-				FPixelShaderUtils::AddFullscreenPass(GraphBuilder, ShaderMap, RDG_EVENT_NAME("FolioResolve"),
-					PixelShader, Pass, FIntRect(0, 0, Size.X, Size.Y));
+					const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+					TShaderMapRef<FFolioResolvePS> PixelShader(ShaderMap);
+
+					FPixelShaderUtils::AddFullscreenPass(GraphBuilder, ShaderMap, RDG_EVENT_NAME("FolioResolve"),
+						PixelShader, Pass, FIntRect(0, 0, Size.X, Size.Y));
+				}
 
 				GraphBuilder.Execute();
 			});

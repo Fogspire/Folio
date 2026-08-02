@@ -81,6 +81,30 @@ public:
 	/** Resolves the surface into the target it was given. */
 	void EndSurface();
 
+	struct FCompiledGeometry
+	{
+		/** Positions are RmlUi-local; the render transform is applied per draw. */
+		TArray<FSlateVertex> Vertices;
+		TArray<SlateIndex> Indices;
+	};
+
+	/** One glyph run, kept in the document's own space until there is a screen to put it on. */
+	struct FDeferredField
+	{
+		/** Positions with the run's translation and any RCSS transform already folded in. */
+		FCompiledGeometry Run;
+
+		/** The field page, resolved to a material only if this run reaches Slate. */
+		Rml::TextureHandle Page = 0;
+
+		/** What the run covers, for deciding whether a later draw lands on top of it. */
+		FSlateRect Bounds;
+
+		/** The clip in force when the run arrived, which is not the one in force when it is put back. */
+		FIntRect Scissor;
+		bool bScissored = false;
+	};
+
 	/**
 	 * Draws the text a supersampled surface held back, straight to Slate at the screen's resolution.
 	 *
@@ -93,9 +117,21 @@ public:
 	 * Geometry is in document pixels, so the geometry handed over is the one the direct path uses.
 	 *
 	 * @return The highest Slate layer used, which is the caller's own when there was nothing to draw.
+	 *
+	 * @param OutRetain Takes the runs rather than dropping them, for a caller that will repaint the
+	 *                  same document without re-rendering it. Pass them back to DrawFieldRuns.
 	 */
 	int32 DrawDeferredFields(FSlateWindowElementList& InElementList, const FGeometry& InGeometry,
-		int32 InLayerId);
+		int32 InLayerId, TArray<FDeferredField>* OutRetain = nullptr);
+
+	/**
+	 * Draws runs a caller kept from an earlier surface, for a frame that reuses the target it made.
+	 *
+	 * A supersampled document that has not changed does not need rendering again - the target still
+	 * holds it - but the text was never in the target, so it has to be drawn every frame.
+	 */
+	int32 DrawFieldRuns(const TArray<FDeferredField>& Runs, FSlateWindowElementList& InElementList,
+		const FGeometry& InGeometry, int32 InLayerId);
 
 	/** How many glyph runs are waiting for DrawDeferredFields. */
 	int32 NumDeferredFields() const { return DeferredFields.Num(); }
@@ -214,13 +250,6 @@ public:
 	virtual void ReleaseShader(Rml::CompiledShaderHandle Shader) override;
 
 private:
-	struct FCompiledGeometry
-	{
-		/** Positions are RmlUi-local; the render transform is applied per draw. */
-		TArray<FSlateVertex> Vertices;
-		TArray<SlateIndex> Indices;
-	};
-
 	struct FTexture
 	{
 		/** Only set for a saved layer, which has to stay a render target. */
@@ -418,23 +447,6 @@ private:
 	//
 	// Text held back from a supersampled surface.
 	//
-
-	/** One glyph run, kept in the document's own space until there is a screen to put it on. */
-	struct FDeferredField
-	{
-		/** Positions with the run's translation and any RCSS transform already folded in. */
-		FCompiledGeometry Run;
-
-		/** The field page, resolved to a material only if this run reaches Slate. */
-		Rml::TextureHandle Page = 0;
-
-		/** What the run covers, for deciding whether a later draw lands on top of it. */
-		FSlateRect Bounds;
-
-		/** The clip in force when the run arrived, which is not the one in force when it is put back. */
-		FIntRect Scissor;
-		bool bScissored = false;
-	};
 
 	TArray<FDeferredField> DeferredFields;
 

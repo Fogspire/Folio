@@ -197,7 +197,12 @@ private:
 		TArray<TStrongObjectPtr<UTextureRenderTarget2D>> Sampled;
 	};
 
+	/** Takes a target from the pool, or makes one, and pushes a layer over it. */
 	UTextureRenderTarget2D* Acquire(FIntPoint Size);
+
+	/** The same without the layer, for a target that is a step in a composite rather than a layer. */
+	UTextureRenderTarget2D* Obtain(FIntPoint Size);
+
 	void Release(UTextureRenderTarget2D* Target);
 
 	/** The document pixels a layer covers, which is its target's size unless it is supersampled. */

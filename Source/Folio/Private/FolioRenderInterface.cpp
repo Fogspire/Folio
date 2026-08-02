@@ -638,10 +638,15 @@ bool FFolioRenderInterface::SplitCoveredGlyphs(FDeferredField& Field, const FSla
 }
 
 int32 FFolioRenderInterface::DrawDeferredFields(FSlateWindowElementList& InElementList,
-	const FGeometry& InGeometry, const int32 InLayerId)
+	const FGeometry& InGeometry, const int32 InLayerId, TArray<FDeferredField>* OutRetain)
 {
 	if (DeferredFields.IsEmpty())
 	{
+		if (OutRetain)
+		{
+			OutRetain->Reset();
+		}
+
 		return InLayerId;
 	}
 
@@ -649,6 +654,27 @@ int32 FFolioRenderInterface::DrawDeferredFields(FSlateWindowElementList& InEleme
 	// ordinary Slate paths, which read the state it installs.
 	TArray<FDeferredField> Pending = MoveTemp(DeferredFields);
 	DeferredFields.Reset();
+
+	const int32 Highest = DrawFieldRuns(Pending, InElementList, InGeometry, InLayerId);
+
+	if (OutRetain)
+	{
+		*OutRetain = MoveTemp(Pending);
+	}
+
+	return Highest;
+}
+
+int32 FFolioRenderInterface::DrawFieldRuns(const TArray<FDeferredField>& Pending,
+	FSlateWindowElementList& InElementList, const FGeometry& InGeometry, const int32 InLayerId)
+{
+	if (Pending.IsEmpty())
+	{
+		return InLayerId;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_DeferredText);
+	SCOPE_CYCLE_COUNTER(STAT_FolioDeferredText);
 
 	const FIntPoint Size(FMath::RoundToInt(InGeometry.GetLocalSize().X),
 		FMath::RoundToInt(InGeometry.GetLocalSize().Y));
@@ -1784,6 +1810,9 @@ const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetGradientTexture
 		return FindTexture(*Cached);
 	}
 
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_BakeGradient);
+	SCOPE_CYCLE_COUNTER(STAT_FolioBakeDecorator);
+
 	TArray<uint8> Bgra;
 	Folio::RasterizeGradient(Shader.Gradient, BoxSize, TextureSize, Bgra);
 
@@ -1816,6 +1845,9 @@ const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetEffectTexture(
 	{
 		return FindTexture(*Cached);
 	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_BakeShaderEffect);
+	SCOPE_CYCLE_COUNTER(STAT_FolioBakeDecorator);
 
 	std::vector<unsigned char> Rgba;
 	Folio::RasterizeShaderEffect(Shader.Effect, Width, Height, Rgba);

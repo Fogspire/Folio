@@ -1,5 +1,7 @@
 #include "FolioBlurShader.h"
 
+#include "FolioInsights.h"
+
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioModule.h"
 #include "GlobalRenderResources.h"
@@ -66,18 +68,25 @@ namespace Folio
 		ENQUEUE_RENDER_COMMAND(FolioBlur)(
 			[Resource, Size, Sigma, Step](FRHICommandListImmediate& RHICmdList)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Blur);
+				SCOPE_CYCLE_COUNTER(STAT_FolioBlur);
+
 				FRDGBuilder GraphBuilder(RHICmdList);
+				// Braced: the scope has to close before Execute, which asserts on an open breadcrumb.
+				{
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, FolioEffects, "FolioEffects");
 
-				FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder,
-					Resource->GetRenderTargetTexture(), TEXT("FolioLayer"));
+					FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder,
+						Resource->GetRenderTargetTexture(), TEXT("FolioLayer"));
 
-				// Separable: horizontal into a scratch target, vertical back into the layer.
-				const FRDGTextureDesc ScratchDesc = FRDGTextureDesc::Create2D(Size, PF_B8G8R8A8,
-					FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
-				FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioBlurScratch"));
+					// Separable: horizontal into a scratch target, vertical back into the layer.
+					const FRDGTextureDesc ScratchDesc = FRDGTextureDesc::Create2D(Size, PF_B8G8R8A8,
+						FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
+					FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioBlurScratch"));
 
-				AddBlurPass(GraphBuilder, TargetTexture, Scratch, FVector2f(1.0f, 0.0f), Sigma, Size, Step);
-				AddBlurPass(GraphBuilder, Scratch, TargetTexture, FVector2f(0.0f, 1.0f), Sigma, Size, Step);
+					AddBlurPass(GraphBuilder, TargetTexture, Scratch, FVector2f(1.0f, 0.0f), Sigma, Size, Step);
+					AddBlurPass(GraphBuilder, Scratch, TargetTexture, FVector2f(0.0f, 1.0f), Sigma, Size, Step);
+				}
 
 				GraphBuilder.Execute();
 			});

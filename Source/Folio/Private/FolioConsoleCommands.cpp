@@ -1736,9 +1736,14 @@ namespace
 
 			// A supersampled document says so, and says how much of its text skipped the target. A
 			// count of zero on a screen with words on it means every run was drawn over and resampled.
-			const FString Sampling = Canvas->GetSupersample() > 1
-				? FString::Printf(TEXT(", supersample %dx, %d native glyph runs"),
-					Canvas->GetSupersample(), Canvas->GetNativeTextRuns())
+			// The target and what it costs, because the sample count squares both and the number that
+			// decides whether it is affordable is the one nothing else prints.
+			const int32 Samples = Canvas->GetSupersample();
+			const FString Sampling = Samples > 1
+				? FString::Printf(TEXT(", supersample %dx into %dx%d (%.0f MB), %d native glyph runs"),
+					Samples, Size.X * Samples, Size.Y * Samples,
+					float(Size.X * Samples) * float(Size.Y * Samples) * 4.0f / (1024.0f * 1024.0f),
+					Canvas->GetNativeTextRuns())
 				: FString();
 
 			UE_LOG(LogFolio, Display,

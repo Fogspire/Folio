@@ -48,6 +48,14 @@ namespace
 	FString GLastSpoken;
 
 	/**
+	 * Who is holding the tree open besides a screen reader, and how many times.
+	 *
+	 * A UI Automation harness driving the menus, or anything else that needs the platform to see the
+	 * document. Named rather than counted alone, so a leaked request is a name in a dump.
+	 */
+	TMap<FName, int32> GTreeRequests;
+
+	/**
 	 * A channel name for one element, so a line about it replaces the last line about it.
 	 *
 	 * The pointer rather than the id, because most elements that announce do not have one and two
@@ -568,9 +576,41 @@ bool FFolioAccessibilityTree::IsScreenReaderEnabled()
 	return GScreenReader;
 }
 
+void FFolioAccessibilityTree::AddRequest(const FName Reason)
+{
+	++GTreeRequests.FindOrAdd(Reason);
+}
+
+void FFolioAccessibilityTree::RemoveRequest(const FName Reason)
+{
+	int32* Count = GTreeRequests.Find(Reason);
+	if (!Count)
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("released an accessibility tree request for '%s' that was never taken"),
+			*Reason.ToString());
+
+		return;
+	}
+
+	if (--(*Count) <= 0)
+	{
+		GTreeRequests.Remove(Reason);
+	}
+}
+
+void FFolioAccessibilityTree::DescribeRequests(TArray<FString>& Out)
+{
+	for (const TPair<FName, int32>& Request : GTreeRequests)
+	{
+		Out.Add(FString::Printf(TEXT("%s x%d"), *Request.Key.ToString(), Request.Value));
+	}
+}
+
 bool FFolioAccessibilityTree::IsWanted()
 {
-	if (GScreenReader || CVarForceAccessibility.GetValueOnGameThread() != 0)
+	if (GScreenReader || !GTreeRequests.IsEmpty()
+		|| CVarForceAccessibility.GetValueOnGameThread() != 0)
 	{
 		return true;
 	}
@@ -1126,6 +1166,44 @@ FString UFolioAccessibilityLibrary::ReviewNextHeading()
 FString UFolioAccessibilityLibrary::ReviewPreviousHeading()
 {
 	return FFolioReview::Move(FFolioReview::EMove::PreviousHeading);
+}
+
+FFolioDocumentTreeRequest::FFolioDocumentTreeRequest(const FName InReason)
+	: Reason(InReason)
+{
+	FFolioAccessibilityTree::AddRequest(Reason);
+}
+
+FFolioDocumentTreeRequest::~FFolioDocumentTreeRequest()
+{
+	FFolioAccessibilityTree::RemoveRequest(Reason);
+}
+
+TArray<FString> UFolioAccessibilityLibrary::DescribeScreen()
+{
+	TArray<FString> Lines;
+	FFolioReview::Lines(Lines);
+	return Lines;
+}
+
+FString UFolioAccessibilityLibrary::GetFocusedControl()
+{
+	return FFolioReview::Focused();
+}
+
+void UFolioAccessibilityLibrary::AddDocumentTreeRequest(const FName Reason)
+{
+	FFolioAccessibilityTree::AddRequest(Reason);
+}
+
+void UFolioAccessibilityLibrary::RemoveDocumentTreeRequest(const FName Reason)
+{
+	FFolioAccessibilityTree::RemoveRequest(Reason);
+}
+
+bool UFolioAccessibilityLibrary::IsDocumentTreeBuilt()
+{
+	return FFolioAccessibilityTree::IsWanted();
 }
 
 void UFolioAccessibilityLibrary::SetReaderVerbosity(const EFolioReaderVerbosity Verbosity)

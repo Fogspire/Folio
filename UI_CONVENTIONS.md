@@ -1004,6 +1004,11 @@ between, which is how a long screen is read without walking every line of it.
 `SetReaderVerbosity` decides how much it says beyond a name: `Low` is name and state, `Normal` adds
 the kind of control and the panel, `High` adds the description.
 
+**The same walk is readable from game code**, with nothing turned on: `DescribeScreen` gives every
+line in reading order and `GetFocusedControl` gives the one the player is standing on. Keyed by name
+rather than by selector, so a UI test, a telemetry hook or an NPC reacting to a menu survives the
+screen being rebuilt.
+
 **Three presentation settings**, all global and all off by default:
 
 | | |

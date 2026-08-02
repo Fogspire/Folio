@@ -204,4 +204,65 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility")
 	static FOLIO_API EFolioReaderVerbosity GetReaderVerbosity();
+
+	/**
+	 * Every line on screen, in reading order, as a screen reader would say it.
+	 *
+	 * Needs nothing turned on and costs one walk per open document, so call it when something asks
+	 * rather than every frame. What it is good for beyond accessibility: driving a UI test by name
+	 * instead of by selector, telling a tutorial which control the player has never found, checking a
+	 * translated screen against the original, and handing a screen to something that has to reason
+	 * about it.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Reading")
+	static FOLIO_API TArray<FString> DescribeScreen();
+
+	/**
+	 * The control the player is standing on, as a screen reader would say it. Empty when nothing is.
+	 *
+	 * Cheap, and needs nothing turned on. This is what an NPC reacting to someone hovering *Quit* for
+	 * eight seconds reads, and what telemetry counts.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Reading")
+	static FOLIO_API FString GetFocusedControl();
+
+	/**
+	 * Keeps the Slate accessibility tree built while something other than a screen reader needs it.
+	 *
+	 * Only for the *platform* tree - the widgets NVDA, a console narrator or a UI Automation harness
+	 * walk. Reading a document from game code needs none of this: `DescribeScreen` and
+	 * `GetFocusedControl` work off the document itself and are always available.
+	 *
+	 * Counted by reason, so two systems asking do not cancel one another and a request nobody released
+	 * can be named. Balance every add with a remove; `folio.Accessibility.Dump` reports what is
+	 * holding it.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Reading")
+	static FOLIO_API void AddDocumentTreeRequest(FName Reason);
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Reading")
+	static FOLIO_API void RemoveDocumentTreeRequest(FName Reason);
+
+	/** Whether the Slate tree is being built at all, by any route. */
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Reading")
+	static FOLIO_API bool IsDocumentTreeBuilt();
+};
+
+/**
+ * A tree request that releases itself.
+ *
+ * What native code should use rather than the two calls: the failure mode of the pair is an early
+ * return that leaves the tree built for the rest of the session, which nothing visibly goes wrong
+ * about.
+ */
+struct FFolioDocumentTreeRequest
+{
+	FOLIO_API explicit FFolioDocumentTreeRequest(FName InReason);
+	FOLIO_API ~FFolioDocumentTreeRequest();
+
+	FFolioDocumentTreeRequest(const FFolioDocumentTreeRequest&) = delete;
+	FFolioDocumentTreeRequest& operator=(const FFolioDocumentTreeRequest&) = delete;
+
+private:
+	FName Reason;
 };

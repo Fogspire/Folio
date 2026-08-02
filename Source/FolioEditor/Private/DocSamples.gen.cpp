@@ -103,6 +103,20 @@ namespace FolioDocSamples
 	// docs/accessibility.md#3
 	inline void Sample_docs_accessibility_md_3()
 	{
+		TArray<FString> Screen = UFolioAccessibilityLibrary::DescribeScreen();
+		FString On = UFolioAccessibilityLibrary::GetFocusedControl();   // "Master volume, slider, 60"
+	}
+
+	// docs/accessibility.md#4
+	inline void Sample_docs_accessibility_md_4()
+	{
+		// Native code, so it cannot be left held by an early return.
+		FFolioDocumentTreeRequest Request(TEXT("automation"));
+	}
+
+	// docs/accessibility.md#5
+	inline void Sample_docs_accessibility_md_5()
+	{
 		UFolioAccessibilityLibrary::SetTextScale(1.5f);      // 0.5 to 3, 1 being as authored
 		UFolioAccessibilityLibrary::SetReducedMotion(true);
 		UFolioAccessibilityLibrary::SetHighContrast(true);

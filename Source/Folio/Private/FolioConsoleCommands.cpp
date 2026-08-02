@@ -1848,6 +1848,14 @@ namespace
 			return;
 		}
 
+		if (TArray<FString> Requests; (FFolioAccessibilityTree::DescribeRequests(Requests), !Requests.IsEmpty()))
+		{
+			// Named rather than counted, because a request nobody released is a cost with no symptom:
+			// the tree is built for a screen nobody is reading.
+			UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Dump: held open by %s"),
+				*FString::Join(Requests, TEXT(", ")));
+		}
+
 		for (const FFolioDocumentHost* Host : Hosts)
 		{
 			const SFolioCanvas* Canvas = nullptr;

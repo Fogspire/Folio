@@ -509,6 +509,48 @@ never hear what it became. `folio-announce` on the value says it each time it ch
 Game code with no element to hang it on calls `UFolioAccessibilityLibrary::Announce`, which is the
 same path. `folio.Accessibility.Say <text>` is that from the console.
 
+## Reading a screen from game code
+
+The semantic walk is not only for players who cannot see. It is the only machine-readable description
+of what is on a screen and what the player is standing on, keyed by name rather than by element path -
+so it survives the screen being rebuilt, which a selector never does.
+
+```cpp
+TArray<FString> Screen = UFolioAccessibilityLibrary::DescribeScreen();
+FString On = UFolioAccessibilityLibrary::GetFocusedControl();   // "Master volume, slider, 60"
+```
+
+**Neither needs anything turned on.** They walk the document rather than the widgets a platform reader
+uses, so there is no setting, no cost while nobody calls them, and no accessibility feature to have
+enabled. `DescribeScreen` costs one walk per open document, so call it when something asks rather than
+every frame; `GetFocusedControl` is cheap enough to poll.
+
+What they are useful for:
+
+- **UI tests driven by name.** "Focus Master volume, press right four times, assert it reads 80"
+  survives a redesign that renames every class in the document.
+- **Telemetry.** Which controls players reach, which settings nobody finds, where they stop.
+- **Reacting to what the player is doing.** An NPC that notices someone hovering *Quit* for eight
+  seconds, or turning the difficulty down mid-run, needs no wiring per menu.
+- **Localisation QA.** It is every user-visible string in reading order; dump it per culture and diff.
+- **Handing a screen to something that has to reason about it** - an agent operating the menus, or a
+  support tool walking a player through a settings change.
+
+### Holding the platform tree open
+
+The Slate widgets - the ones NVDA, a console narrator or a UI Automation harness walk - only exist
+while something is listening. A harness that drives the game through the platform's own accessibility
+API needs them built, and should say so rather than reach for the debug cvar:
+
+```cpp
+// Native code, so it cannot be left held by an early return.
+FFolioDocumentTreeRequest Request(TEXT("automation"));
+```
+
+`AddDocumentTreeRequest` / `RemoveDocumentTreeRequest` are the Blueprint pair. Requests are counted by
+reason, so two systems asking do not cancel one another, and `folio.Accessibility.Dump` names whatever
+is holding the tree open - a request nobody released is otherwise a cost with no symptom.
+
 ## Presentation settings
 
 Three settings that change how a screen looks and nothing about what it means. All three are global,

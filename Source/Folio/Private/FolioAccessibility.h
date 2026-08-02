@@ -166,6 +166,16 @@ public:
 	static bool IsWanted();
 
 	/**
+	 * Holds the tree open for something that is not a screen reader.
+	 *
+	 * Counted by reason rather than by a bool, so two systems asking do not cancel one another and a
+	 * request nobody released can be named in a dump instead of being a mystery cost.
+	 */
+	static void AddRequest(FName Reason);
+	static void RemoveRequest(FName Reason);
+	static void DescribeRequests(TArray<FString>& Out);
+
+	/**
 	 * Turns the game's own screen reader on or off.
 	 *
 	 * Two different players are covered by one tree. One runs NVDA or a console narrator, and needs

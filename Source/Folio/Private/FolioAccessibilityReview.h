@@ -70,4 +70,10 @@ public:
 
 	/** Every line the cursor can reach, in order, with the one it is on marked. For the console. */
 	static void Describe(TArray<FString>& Out);
+
+	/** The same lines, unmarked and unindented, for anything that is going to read them rather than print them. */
+	static void Lines(TArray<FString>& Out);
+
+	/** Whatever holds focus, said the way the reader would say it. Empty when nothing does. */
+	static FString Focused();
 };

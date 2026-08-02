@@ -285,6 +285,59 @@ void FFolioReview::FollowFocus(Rml::Element* Element)
 	// group prefix, and clearing it here would have the next review step say the panel name again.
 }
 
+void FFolioReview::Lines(TArray<FString>& Out)
+{
+	for (const FReviewItem& Item : Collect())
+	{
+		if (FString Line = Folio::Utterance(Item.Node); !Line.IsEmpty())
+		{
+			Out.Add(MoveTemp(Line));
+		}
+	}
+}
+
+FString FFolioReview::Focused()
+{
+	// Newest document first, as the cursor reads them: if two contexts both think something of theirs
+	// is focused, the one in front is the one the player is looking at.
+	const TArray<FFolioDocumentHost*>& Hosts = FFolioDocumentHost::GetLiveHosts();
+	for (int32 Index = Hosts.Num() - 1; Index >= 0; --Index)
+	{
+		Rml::Context* Context = Hosts[Index]->GetContext();
+		Rml::ElementDocument* Document = Hosts[Index]->GetDocument();
+		if (!Context || !Document || !Hosts[Index]->IsLaidOut())
+		{
+			continue;
+		}
+
+		Rml::Element* Focused = Context->GetFocusElement();
+
+		// The document itself holds focus before anything in it does, and that is not a control.
+		if (!Focused || Focused == Document)
+		{
+			continue;
+		}
+
+		TArray<FReviewItem> Items;
+		Flatten(Folio::BuildSemanticTree(Document), 0, FString(), Items);
+
+		// Up from whatever holds focus, because RmlUi focuses the element the author gave a tab index
+		// to and the tree keeps the control rather than every div between it and the body.
+		for (Rml::Element* At = Focused; At; At = At->GetParentNode())
+		{
+			const FReviewItem* Item = Items.FindByPredicate(
+				[At](const FReviewItem& Candidate) { return Candidate.Element == At; });
+
+			if (Item)
+			{
+				return Folio::Utterance(Item->Node);
+			}
+		}
+	}
+
+	return FString();
+}
+
 void FFolioReview::Describe(TArray<FString>& Out)
 {
 	const TArray<FReviewItem> Items = Collect();

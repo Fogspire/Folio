@@ -434,7 +434,47 @@ bool FFolioReviewCursorTest::RunTest(const FString&)
 	TestEqual(TEXT("the top edge is announced"), FFolioReview::Move(FFolioReview::EMove::Previous),
 		TEXT("top"));
 
+	// The half of this that is not about accessibility: reading a screen from game code needs nothing
+	// turned on, because it walks the document rather than the widgets built for a platform.
+	const TArray<FString> Screen = UFolioAccessibilityLibrary::DescribeScreen();
+	TestTrue(TEXT("a screen can be read without a screen reader"), Screen.Contains(TEXT("Save, button")));
+
+	Host.GetDocument()->GetElementById("save")->Focus();
+	Host.Update(0.0f, 1.0f, 1.0f);
+	TestEqual(TEXT("and what has focus can be asked for the same way"),
+		UFolioAccessibilityLibrary::GetFocusedControl(), TEXT("Save, button"));
+
 	Host.Destroy();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioTreeRequestTest, "Folio.Accessibility.TreeRequest",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFolioTreeRequestTest::RunTest(const FString&)
+{
+	// Whatever the machine running this happens to have listening. The assertions are about what a
+	// request changes, not about what it starts from.
+	const bool bAlready = UFolioAccessibilityLibrary::IsDocumentTreeBuilt();
+
+	{
+		const FFolioDocumentTreeRequest Request(TEXT("test"));
+		TestTrue(TEXT("a request builds the tree"), UFolioAccessibilityLibrary::IsDocumentTreeBuilt());
+
+		{
+			// Counted, so the inner release does not drop the outer system's tree from under it.
+			const FFolioDocumentTreeRequest Nested(TEXT("test"));
+			TestTrue(TEXT("and so does a second one"),
+				UFolioAccessibilityLibrary::IsDocumentTreeBuilt());
+		}
+
+		TestTrue(TEXT("which the first one still holds open"),
+			UFolioAccessibilityLibrary::IsDocumentTreeBuilt());
+	}
+
+	TestEqual(TEXT("and releasing the last puts it back"),
+		UFolioAccessibilityLibrary::IsDocumentTreeBuilt(), bAlready);
+
 	return true;
 }
 

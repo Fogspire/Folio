@@ -74,7 +74,7 @@ See **[performance and profiling](performance_profiling.md)**.
 | | |
 |---|---|
 | `folio.Accessibility.Dump [delay]` | What a screen reader is read out of every screen document, in reading order. From the live tree when one is running, and from the document itself when one is not. A delay defers it, which a menu that closes on losing focus needs. |
-| `folio.Accessibility.Force 1` | Builds the tree with nothing listening. For measuring what it costs, and for dumping the real widgets rather than what would be built. |
+| `folio.Accessibility.Force 1` | Builds the tree with nothing listening. For measuring what it costs, and for dumping the real widgets rather than what would be built. Game code that needs the same thing takes a `FFolioDocumentTreeRequest` instead, which `Dump` names. |
 | `folio.Accessibility.Reader [0\|1]` | Turns the game's own screen reader on or off, which is what an options menu toggle calls. No argument flips it. With `LogFolio` at Verbose, every sentence it speaks is logged. |
 | `folio.Accessibility.Say <text>` | Announces a string through whatever screen reader is running. The same path `folio-announce` and `UFolioAccessibilityLibrary::Announce` take. |
 | `folio.Accessibility.Review [what]` | Drives the review cursor, which reads the screen without moving focus: `list`, `next`, `previous`, `first`, `last`, `heading`, `prevheading`, `repeat`, `all`, `stop`, `activate`, `focus`. No argument lists every line it can reach, with `>` on the one it is standing on. |

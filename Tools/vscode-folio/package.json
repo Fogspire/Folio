@@ -28,6 +28,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "folio.toggleTimeline",
+        "title": "Folio: Toggle Timeline",
+        "icon": "$(play)"
+      },
+      {
         "command": "folio.openInUipreview",
         "title": "Folio: Open in uipreview",
         "icon": "$(link-external)"
@@ -62,6 +67,16 @@
           "type": "string",
           "default": "1",
           "markdownDescription": "Pinned dp ratio, passed as `--dp-ratio`. Empty lets it follow the viewport. Pin it to whatever the game uses, or every length here differs from the game's."
+        },
+        "folio.timelineDuration": {
+          "type": "number",
+          "default": 2,
+          "markdownDescription": "Seconds of simulated time the timeline covers. Longer costs proportionally more to render."
+        },
+        "folio.timelineFps": {
+          "type": "number",
+          "default": 30,
+          "markdownDescription": "Frames per second the timeline samples at, passed as `--dt`. Sampling is what the preview animates against, not the rate the game runs at."
         },
         "folio.lockPreviewGroup": {
           "type": "boolean",
@@ -128,6 +143,11 @@
       "editor/title": [
         {
           "command": "folio.openPreview",
+          "when": "resourceExtname == .rml",
+          "group": "navigation"
+        },
+        {
+          "command": "folio.toggleTimeline",
           "when": "resourceExtname == .rml",
           "group": "navigation"
         },

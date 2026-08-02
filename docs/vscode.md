@@ -50,7 +50,8 @@ rather than in a webview.
 
 The preview is the same binary rendering to a PNG, which is right for looking at a document and wrong
 for anything that has to *run*: real keyboard and gamepad input, the RmlUi debugger on F8, an
-animation playing over time. It takes the same `folio.root`, `folio.size`, `folio.strict`,
+animation at its own frame rate rather than the sampled strip the [timeline](#the-timeline) plays. It
+takes the same `folio.root`, `folio.size`, `folio.strict`,
 `folio.culture` and `folio.themes` settings, watches the file itself, and outlives the editor
 closing.
 
@@ -86,6 +87,33 @@ A zoom is a render, so it takes as long as a save does.
 `folio.size` is separate, and sets the viewport. It is not limited by your display: the preview
 renders to an offscreen target, so `3840x2160` on a 1080p monitor produces a real 4K render rather
 than a clamped one.
+
+## The timeline
+
+A render shows what a document settles into, which is the wrong question about motion: an entry
+animation has already finished by the time the picture is taken. The **timeline** button above the
+preview — or **Folio: Toggle Timeline** in the title bar — renders a frame per step from the
+document's first update and puts a transport under the render.
+
+**Play** runs it from the start, looping. **Drag the scrubber** to any instant. **Left and right
+arrows step one frame**, which is how you find the frame where a curve is wrong. Space is already the
+pan gesture, so play is the button rather than a key.
+
+Two seconds at 30fps by default — `folio.timelineDuration` and `folio.timelineFps` change that. Both
+are simulated: the strip is rendered at a fixed step, so it is reproducible and identical every time,
+and `folio.timelineFps` is the interval it samples at rather than a claim about the rate the game will
+run at.
+
+**It costs a render per frame.** A still is a fraction of a second and a strip is a few, on every save
+while it is open, which is why it is off by default and worth closing when you go back to layout.
+
+**Elements can only be picked at the end of the strip.** The rules that reach an element are reported
+for one instant, and boxes drawn over a different frame would be in the wrong place — mid-animation
+the elements are where the animation has them. Scrub back to the end and hovering, selecting and
+dragging come back.
+
+The standalone renderer is still the better tool for anything with to *run*: real input, the debugger,
+an animation you want to watch at the real frame rate rather than a sampled one.
 
 ## Editing from the preview
 
@@ -168,6 +196,8 @@ All under `folio.` in settings:
 | `root` | Passed as `--root`. Empty uses the workspace folder. |
 | `size` | Render size, default `1280x720`. |
 | `dpRatio` | Pinned dp ratio, default `1`. **Set this to whatever your game uses**, or every length in the preview differs from the game's — which reads as a layout bug rather than a setting. |
+| `timelineDuration` | Seconds of simulated time the timeline covers, default `2`. |
+| `timelineFps` | Frames per second it samples at, default `30`. Longer or finer costs proportionally more to render. |
 | `strict` | Report warnings rather than rendering past them. On by default. |
 | `culture` | `pseudo` inflates strings and accents them, which finds overflow before translation exists. |
 | `themes` | Themes to activate, matching `folio.Theme` in the engine. |

@@ -63,6 +63,24 @@ let lastImage = null;
 let lastMessages = "";
 let lastUncompared = [];
 
+/*
+ * The timeline.
+ *
+ * A render answers what a document settles into, which is the wrong question about motion: an entry
+ * animation has finished before the first capture. So with the timeline open the same run also writes
+ * a frame per step from the document's first, and the panel plays them.
+ *
+ * Off by default because it costs a frame's render each: a strip is seconds where a still is
+ * fractions of one, and most of the time nobody is looking at an animation.
+ */
+let timeline = false;
+/** Absolute paths, in order. Empty until a strip has been rendered. */
+let frames = [];
+let frameStep = 0;
+let stripIndex = 0;
+/** Kept until the panel is showing the new strip, so the frames on screen stay loadable. */
+let previousStrip = null;
+
 function config() {
 	return vscode.workspace.getConfiguration("folio");
 }
@@ -103,9 +121,9 @@ function rootArgument() {
 	return config().get("root") || workspaceRoot();
 }
 
-function buildArguments(document, output) {
+function buildArguments(document, capture) {
 	const settings = config();
-	const args = [document, "--root", rootArgument(), "--screenshot", output];
+	const args = [document, "--root", rootArgument()].concat(capture);
 
 	const size = settings.get("size");
 	if (size) {
@@ -139,8 +157,8 @@ function buildArguments(document, output) {
  * Opens the document in the standalone renderer, in its own window.
  *
  * The preview here is the same binary rendering to a PNG, which is right for looking and wrong for
- * anything that needs to run: real keyboard and gamepad input, the RmlUi debugger on F8, an
- * animation over time. That is what this is for.
+ * anything that needs to run: real keyboard and gamepad input, the RmlUi debugger on F8, an animation
+ * at its own frame rate rather than the sampled strip the timeline plays. That is what this is for.
  */
 function openInUipreview() {
 	const editor = vscode.window.activeTextEditor;
@@ -219,15 +237,35 @@ function render() {
 
 	const output = path.join(os.tmpdir(), `folio-preview-${process.pid}-${++renderIndex}.png`);
 	const provenance = `${output}.json`;
-	const args = buildArguments(currentDocument, output).concat(["--provenance-report", provenance]);
+	const capture = ["--screenshot", output, "--provenance-report", provenance];
+
+	// One run gives both. With a strip the screenshot is its last frame and the provenance describes
+	// that frame, so the panel opens on a picture a click still means something on - two runs would
+	// be two renders of two different instants, and the boxes would belong to neither.
+	const shape = timelineShape();
+	const strip = timeline
+		? path.join(os.tmpdir(), `folio-filmstrip-${process.pid}-${++stripIndex}`)
+		: null;
+
+	if (strip) {
+		capture.push("--filmstrip", strip,
+			"--filmstrip-frames", String(shape.count), "--dt", String(shape.step));
+	}
+
+	const args = buildArguments(currentDocument, capture);
 
 	rendering = true;
-	cp.execFile(uipreview, args, { timeout: 30000 }, (error, stdout, stderr) => {
+	// A strip is a render per frame, so it needs the time a still does not.
+	const limit = strip ? 30000 + shape.count * 2000 : 30000;
+	cp.execFile(uipreview, args, { timeout: limit }, (error, stdout, stderr) => {
 		rendering = false;
 
 		const messages = [stdout, stderr].filter(Boolean).join("").trim();
 
 		if (!fs.existsSync(output)) {
+			// Whatever the failed run managed to write is not a strip anyone can play, and a document
+			// that fails to parse on every save would otherwise leave one behind each time.
+			discardStrip(strip);
 			show({
 				error: messages || (error ? String(error) : "uipreview wrote no image"),
 			});
@@ -240,6 +278,9 @@ function render() {
 				elements = [];
 			}
 
+			frames = readStrip(strip);
+			frameStep = shape.step;
+
 			show({
 				image: output,
 				messages,
@@ -248,6 +289,11 @@ function render() {
 				warned: Boolean(error),
 				uncompared: uncomparedFeatures(currentDocument),
 			});
+
+			// Now that the panel is showing the new strip, and not before: the old frames are what was
+			// on screen until this render landed.
+			discardStrip(previousStrip);
+			previousStrip = strip;
 		}
 
 		if (pending) {
@@ -255,6 +301,58 @@ function render() {
 			render();
 		}
 	});
+}
+
+/** How long a strip runs for and how finely it samples, as a frame count and a step in milliseconds. */
+function timelineShape() {
+	const settings = config();
+	const fps = Math.min(120, Math.max(1, Number(settings.get("timelineFps")) || 30));
+	const seconds = Math.min(30, Math.max(0.1, Number(settings.get("timelineDuration")) || 2));
+
+	return { count: Math.min(3600, Math.max(2, Math.round(seconds * fps))), step: 1000 / fps };
+}
+
+/** The frames a run wrote, read from the manifest rather than guessed, so a partial run shows none. */
+function readStrip(directory) {
+	if (!directory) {
+		return [];
+	}
+
+	try {
+		const manifest = JSON.parse(fs.readFileSync(path.join(directory, "filmstrip.json"), "utf8"));
+		return (manifest.frames || []).map((name) => path.join(directory, name));
+	} catch {
+		return [];
+	}
+}
+
+function discardStrip(directory) {
+	if (directory) {
+		fs.rmSync(directory, { recursive: true, force: true });
+	}
+}
+
+/**
+ * Opens and closes the timeline.
+ *
+ * Closing re-renders as well as opening: the panel would otherwise keep showing whichever frame the
+ * scrubber was left on, which is not the still the rest of the tool talks about.
+ */
+function toggleTimeline() {
+	timeline = !timeline;
+
+	if (!timeline) {
+		frames = [];
+		discardStrip(previousStrip);
+		previousStrip = null;
+	}
+
+	// Asking for the timeline with nothing open is asking for the preview as well.
+	if (panel) {
+		render();
+	} else {
+		openPreview();
+	}
 }
 
 function escape(text) {
@@ -276,6 +374,9 @@ function show(state) {
 	const source = state.image
 		? panel.webview.asWebviewUri(vscode.Uri.file(state.image)).toString() + `?v=${renderIndex}`
 		: null;
+
+	const strip = frames.map((frame) => panel.webview.asWebviewUri(vscode.Uri.file(frame)).toString());
+	const duration = ((strip.length * frameStep) / 1000).toFixed(2);
 
 	// Collapsed when there is enough of it to bury what is under it, which is the common case on a
 	// document that is mid-edit.
@@ -356,6 +457,13 @@ function show(state) {
 	button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 	.spacer { flex: 1; }
 	.frame { background: repeating-conic-gradient(#00000022 0% 25%, transparent 0% 50%) 50% / 16px 16px; }
+	.transport {
+		display: flex; gap: 10px; align-items: center; margin-top: 8px;
+		font-family: var(--vscode-editor-font-family); font-size: 90%;
+	}
+	.transport #scrub { flex: 1; min-width: 120px; }
+	.transport #clock { min-width: 96px; text-align: right; }
+	#play { min-width: 32px; }
 	.bar { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; opacity: 0.8; }
 	.note, .error, .warn {
 		margin: 8px 0; padding: 8px 10px; border-left: 3px solid;
@@ -391,6 +499,7 @@ function show(state) {
 		<button id="in" title="Zoom in: re-renders at a higher resolution (Ctrl++)">+</button>
 		<button id="reset" title="Back to 100% (Ctrl+0)">1:1</button>
 		<button id="boxes" title="Outline every element, so a click on a busy document is aimed rather than hunted">boxes</button>
+		<button id="timeline" class="${timeline ? "on" : ""}" title="Render a frame per step from the document's first, and play them. Costs a render per frame">timeline</button>
 	</div>
 	${state.error ? `<div class="error">${escape(state.error)}</div>` : ""}
 	${notes.join("")}
@@ -402,9 +511,24 @@ function show(state) {
 	</details>` : ""}
 	<div class="selection"><span id="readout"></span><span id="rules"></span></div>
 	${source ? `<div id="viewport" class="frame"><div class="stage"><img id="render" src="${source}" draggable="false"/><div id="overlay"></div></div></div>` : ""}
+	${source && strip.length > 0 ? `
+	<div class="transport">
+		<button id="play" title="Play the animation from the start, looping">&#9654;</button>
+		<input id="scrub" type="range" min="0" max="${strip.length - 1}" value="${strip.length - 1}"
+			title="Simulated time. Elements can only be picked at the end of the strip, since that is the frame the rules were reported for"/>
+		<span id="clock">${duration}s / ${duration}s</span>
+	</div>` : ""}
 	<script>
 		const api = acquireVsCodeApi();
 		const elements = ${JSON.stringify(elements)};
+		const strip = ${JSON.stringify(strip)};
+		const frameStep = ${frameStep};
+
+		// The last frame is what the still is, so opening the timeline changes nothing until it is
+		// played - and it is the frame the element boxes belong to.
+		let frame = strip.length - 1;
+		/** Whether the picture on screen is the one the provenance report describes. */
+		function picking() { return strip.length === 0 || frame === strip.length - 1; }
 
 		const image = document.getElementById("render");
 		const viewport = document.getElementById("viewport");
@@ -442,6 +566,8 @@ function show(state) {
 			api.setState({ showAll: showAll });
 			if (overlay) { redraw(); }
 		};
+
+		document.getElementById("timeline").onclick = () => api.postMessage({ kind: "timeline" });
 
 		document.getElementById("in").onclick = () => ask("in");
 		document.getElementById("out").onclick = () => ask("out");
@@ -607,6 +733,12 @@ function show(state) {
 
 		function redraw() {
 			overlay.innerHTML = "";
+
+			// A box drawn over a frame the report was not taken from is in the wrong place, and a
+			// wrong box is worse than none: mid-animation the elements are where the animation has
+			// them, not where they end up.
+			if (!picking()) { return; }
+
 			// Everything first, so hover and selection read over the top of it rather than under.
 			if (showAll) {
 				for (const element of elements) { overlay.appendChild(box(element, "all")); }
@@ -674,6 +806,7 @@ function show(state) {
 			let lastPoint = [0, 0];
 
 			stage.addEventListener("mousemove", (event) => {
+				if (!picking()) { return; }
 				const [x, y] = documentPoint(event);
 
 				// Moving away resets the cycle, so alt-clicking deep into one element does not leave
@@ -699,6 +832,7 @@ function show(state) {
 			});
 
 			stage.addEventListener("mousedown", (event) => {
+				if (!picking()) { return; }
 				const [x, y] = documentPoint(event);
 
 				// Alt steps one further out each time, so a stack of overlapping elements is reachable
@@ -757,6 +891,78 @@ function show(state) {
 
 				document.addEventListener("mousemove", move);
 				document.addEventListener("mouseup", up);
+			});
+		}
+
+		/*
+		 * The transport.
+		 *
+		 * Every frame is already a PNG, so scrubbing and playing are an image swap rather than a
+		 * render - which is the whole reason the strip is rendered up front. Decoding one on the frame
+		 * it is first shown would stutter exactly where the motion is, so they are all decoded now.
+		 */
+		if (strip.length > 0 && image) {
+			for (const source of strip) { new Image().src = source; }
+
+			const playButton = document.getElementById("play");
+			const scrub = document.getElementById("scrub");
+			const clock = document.getElementById("clock");
+
+			const total = ((strip.length * frameStep) / 1000).toFixed(2);
+			let playing = false;
+			let startedAt = 0;
+			let startedFrame = 0;
+
+			function showFrame(next) {
+				const wasPicking = picking();
+				frame = Math.max(0, Math.min(strip.length - 1, next));
+
+				image.src = strip[frame];
+				scrub.value = String(frame);
+				clock.textContent = (((frame + 1) * frameStep) / 1000).toFixed(2) + "s / " + total + "s";
+
+				// Only when it changes: a redraw per frame during playback would rebuild the overlay
+				// sixty times a second to draw nothing.
+				if (picking() !== wasPicking || picking()) { redraw(); }
+			}
+
+			function pause() {
+				playing = false;
+				playButton.innerHTML = "&#9654;";
+			}
+
+			function tick(now) {
+				if (!playing) { return; }
+
+				const elapsed = now - startedAt;
+				showFrame((startedFrame + Math.floor(elapsed / frameStep)) % strip.length);
+				requestAnimationFrame(tick);
+			}
+
+			playButton.onclick = () => {
+				if (playing) { pause(); return; }
+
+				// From the start when it is sitting at the end, which is where it opens: the alternative
+				// is a play button that appears to do nothing.
+				if (frame >= strip.length - 1) { showFrame(0); }
+
+				playing = true;
+				playButton.innerHTML = "&#10074;&#10074;";
+				startedAt = performance.now();
+				startedFrame = frame;
+				requestAnimationFrame(tick);
+			};
+
+			scrub.addEventListener("input", () => {
+				pause();
+				showFrame(Number(scrub.value));
+			});
+
+			// Arrows step a frame. Space is already the pan gesture, so play is the button.
+			document.addEventListener("keydown", (event) => {
+				if (event.target === scrub) { return; }
+				if (event.key === "ArrowLeft") { pause(); showFrame(frame - 1); }
+				else if (event.key === "ArrowRight") { pause(); showFrame(frame + 1); }
 			});
 		}
 	</script>
@@ -863,6 +1069,11 @@ async function handleMessage(message) {
 		}
 
 		render();
+		return;
+	}
+
+	if (message.kind === "timeline") {
+		toggleTimeline();
 		return;
 	}
 
@@ -1063,7 +1274,13 @@ function openPreview() {
 /** Everything a panel needs whether it was just created or restored after a window reload. */
 function adoptPanel() {
 	panel.webview.onDidReceiveMessage(handleMessage);
-	panel.onDidDispose(() => { panel = null; });
+	panel.onDidDispose(() => {
+		panel = null;
+		// A strip is a few megabytes of PNG, which is worth clearing up where a single screenshot is not.
+		discardStrip(previousStrip);
+		previousStrip = null;
+		frames = [];
+	});
 }
 
 /**
@@ -1112,6 +1329,7 @@ function activate(context) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("folio.openPreview", openPreview),
 		vscode.commands.registerCommand("folio.refreshPreview", render),
+		vscode.commands.registerCommand("folio.toggleTimeline", toggleTimeline),
 		vscode.commands.registerCommand("folio.openInUipreview", openInUipreview));
 
 	/*

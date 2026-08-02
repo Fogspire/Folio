@@ -27,6 +27,9 @@ watches the files it loaded and re-renders on save, so it is a live preview by d
 
 # Walk it with the keyboard, shooting each step.
 ./bin/win64/uipreview.exe UI/screens/settings.rml --root . --keys "down,down,right,enter" --shot-each out/
+
+# One picture per frame from the first, for an animation a single capture cannot show.
+./bin/win64/uipreview.exe UI/screens/settings.rml --root . --filmstrip out/ --filmstrip-frames 30
 ```
 
 `--root` is the project directory, and it is what makes `/UI/...` and `/folio/...` resolve. Getting it

@@ -29,7 +29,10 @@
 #include <RmlUi/Core.h>
 #include <RmlUi/Debugger.h>
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -702,6 +705,55 @@ void App::DumpTree() const
 	walk(document, 0);
 }
 
+/**
+ * One PNG per frame, from the first.
+ *
+ * The rest of the tool settles a document and then looks at it, which is the right question about a
+ * layout and the wrong one about motion: everything an entry animation does has already happened by
+ * the time --frames has run. So this captures from the document's first update instead, and the
+ * manifest carries the step so a viewer can put the frames back on a clock.
+ */
+bool App::CaptureFilmstrip()
+{
+	const fs::path directory = options.filmstrip;
+
+	std::error_code ec;
+	fs::create_directories(directory, ec);
+
+	nlohmann::ordered_json manifest;
+	manifest["dt_ms"] = options.dt_ms;
+	manifest["count"] = options.filmstrip_frames;
+	manifest["frames"] = nlohmann::ordered_json::array();
+
+	for (int i = 0; i < options.filmstrip_frames; ++i)
+	{
+		char name[32];
+		std::snprintf(name, sizeof(name), "frame-%04d.png", i);
+
+		RenderFrame();
+		if (!CaptureTo((directory / name).string()))
+			return false;
+
+		manifest["frames"].push_back(name);
+
+		// The last frame stays unswapped, so whatever RunOneShot captures next is that frame.
+		if (i + 1 < options.filmstrip_frames)
+			Backend::SwapBuffers();
+	}
+
+	// Written last, so a reader that finds it knows every frame it names is on disk.
+	std::ofstream out(directory / "filmstrip.json");
+	if (!out)
+	{
+		diagnostics.Report(Severity::Error, "E-FILMSTRIP",
+			"could not write " + (directory / "filmstrip.json").string());
+		return false;
+	}
+
+	out << manifest.dump(2) << "\n";
+	return true;
+}
+
 int App::RunOneShot()
 {
 	if (options.debug && !options.screenshot.empty())
@@ -710,7 +762,15 @@ int App::RunOneShot()
 			"--debug puts the debugger's own chrome in the captured image");
 	}
 
-	PumpFrames(options.frames);
+	if (!options.filmstrip.empty())
+	{
+		if (!CaptureFilmstrip())
+			return 4;
+	}
+	else
+	{
+		PumpFrames(options.frames);
+	}
 
 	// Renders, throws every cached texture away, and renders again. What is captured must be
 	// identical to what a run without this produced: a texture that does not come back, or comes

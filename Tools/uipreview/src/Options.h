@@ -51,6 +51,10 @@ struct Options {
 	std::string keys;
 	std::string shot_each;
 	std::string screenshot;
+	/** Directory to fill with one PNG per frame from the document's first, plus a manifest naming
+	    them and the step between them. A capture over time rather than after it. */
+	std::string filmstrip;
+	int filmstrip_frames = 60;
 	std::string json_report;
 	/** Where every text element laid out. Written after the frames settle, so it describes the
 	    same state a screenshot taken with the same arguments would. */
@@ -103,7 +107,7 @@ struct Options {
 
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty()
-		|| !provenance_report.empty() || !a11y_report.empty() || a11y; }
+		|| !provenance_report.empty() || !a11y_report.empty() || a11y || !filmstrip.empty(); }
 };
 
 enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };

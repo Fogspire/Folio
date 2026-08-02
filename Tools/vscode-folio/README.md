@@ -49,6 +49,18 @@ you see less of the document at more detail. Text and vector art get *sharper* a
 they are distance fields - which is the only way a preview can tell you whether the real thing is
 crisp. Scaling a screenshot would show you the scaler's work instead.
 
+## The timeline
+
+The `timeline` button renders a frame per step from the document's first and gives you a scrubber, a
+play button and arrow keys to step by one, which is the only way to see an entry animation here - a
+render otherwise shows what the document settles into, and the animation is over by then.
+
+The strip comes out of the same `uipreview` run as the still, so the still *is* its last frame. That
+is also why elements can only be picked there: provenance describes one instant, and a box over any
+other frame is in the wrong place.
+
+It costs a render per frame, on every save while it is open. Off by default.
+
 ## Editing
 
 Hover to see what a click would take: the element is outlined and labelled with its tag, id, classes
@@ -84,6 +96,8 @@ one file where both languages meet.
 | `folio.root` | Passed as `--root`. Empty uses the workspace folder. |
 | `folio.size` | Render size, default `1280x720`. |
 | `folio.dpRatio` | Pinned dp ratio, default `1`. Set it to whatever the game uses, or every length here differs from the game's. |
+| `folio.timelineDuration` | Seconds of simulated time the timeline covers, default `2`. |
+| `folio.timelineFps` | Frames per second it samples at, default `30`. |
 | `folio.strict` | Report warnings rather than rendering past them. On by default. |
 | `folio.culture` | `pseudo` inflates strings and accents them, which finds overflow before translation exists. |
 | `folio.themes` | Themes to activate, matching `folio.Theme` in the engine. |

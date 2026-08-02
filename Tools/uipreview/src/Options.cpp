@@ -66,6 +66,10 @@ void PrintUsage(std::FILE* stream)
 		"Capture\n"
 		"  --screenshot <FILE>   Render to a PNG and exit\n"
 		"  --shot-each <DIR>     With --keys, write a PNG after each input\n"
+		"  --filmstrip <DIR>     Write one PNG per frame from the document's first, with a\n"
+		"                        filmstrip.json naming them. Captures an animation over time\n"
+		"                        rather than the state it settles into\n"
+		"  --filmstrip-frames <N>  How many frames the filmstrip is (default 60)\n"
 		"  --frames <N>          Frames pumped before a capture (default 30)\n"
 		"  --dt <MS>             Simulated milliseconds per frame (default 16.67, 0 freezes)\n"
 		"\n"
@@ -296,6 +300,22 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			if (!TakeValue(argc, argv, i, "--shot-each", o.shot_each, error))
 				return ParseResult::Error;
 		}
+		else if (arg == "--filmstrip")
+		{
+			if (!TakeValue(argc, argv, i, "--filmstrip", o.filmstrip, error))
+				return ParseResult::Error;
+		}
+		else if (arg == "--filmstrip-frames")
+		{
+			if (!TakeValue(argc, argv, i, "--filmstrip-frames", value, error))
+				return ParseResult::Error;
+			o.filmstrip_frames = std::atoi(value.c_str());
+			if (o.filmstrip_frames < 1 || o.filmstrip_frames > 3600)
+			{
+				error = "--filmstrip-frames expects 1 to 3600, got '" + value + "'";
+				return ParseResult::Error;
+			}
+		}
 		else if (arg == "--screenshot")
 		{
 			if (!TakeValue(argc, argv, i, "--screenshot", o.screenshot, error))
@@ -355,6 +375,12 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 	if (!o.shot_each.empty() && o.keys.empty())
 	{
 		error = "--shot-each requires --keys";
+		return ParseResult::Error;
+	}
+
+	if (!o.filmstrip.empty() && o.dt_ms <= 0.0)
+	{
+		error = "--filmstrip needs --dt above zero, or every frame is the same instant";
 		return ParseResult::Error;
 	}
 

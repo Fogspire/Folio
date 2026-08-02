@@ -153,6 +153,21 @@ Animation is the one thing a screenshot cannot show. `uipreview` renders live an
 so save and it re-runs. `--frames` controls how many frames settle before a capture, which is how you
 screenshot the middle of an entry animation reproducibly.
 
+**In VSCode, open the timeline** — the `timeline` button above the preview, or **Folio: Toggle
+Timeline**. It renders a frame per step from the document's first and gives you a scrubber and a play
+button over them, so an entry animation can be watched, stepped through a frame at a time with the
+arrow keys, and stopped on the frame that is wrong. See **[the extension](vscode.md)**.
+
+The same thing on the command line, for a diff or a bug report:
+
+```bash
+./bin/win64/uipreview.exe UI/screens/menu.rml --root . --filmstrip out/ --filmstrip-frames 30 --dt 33.3
+```
+
+One PNG per frame, plus a `filmstrip.json` naming them and the step between them. Time is simulated
+and fixed-step, so the same command always produces the same frames: `--dt` is the sampling interval,
+not a claim about the rate the game will run at.
+
 The invalidation trace is how you find an animation you forgot about: a document that never idles is
 usually one element still transitioning something invisible. `folio.Invalidation.Trace`, and
 **[performance](performance_profiling.md)**.

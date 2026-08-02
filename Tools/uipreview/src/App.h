@@ -82,6 +82,9 @@ private:
 
 	int RunInteractive();
 	int RunOneShot();
+	/** Captures every frame from the document's first, leaving the last one unswapped so a
+	    --screenshot after it is the frame the filmstrip ends on. */
+	bool CaptureFilmstrip();
 
 	const Options& options;
 	Diagnostics& diagnostics;

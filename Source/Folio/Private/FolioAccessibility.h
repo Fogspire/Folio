@@ -176,6 +176,20 @@ public:
 	static void DescribeRequests(TArray<FString>& Out);
 
 	/**
+	 * The word or the line the caret is in, and the word spelled out.
+	 *
+	 * Typing is echoed as it happens; this is the other half, which every real reader has and which a
+	 * player needs the moment they stop typing and start correcting. Nothing moves - the caret is where
+	 * it was afterwards.
+	 *
+	 * Empty when nothing is being edited. A password field spells stars, for the same reason it echoes
+	 * them.
+	 */
+	static FString ReadEditWord();
+	static FString ReadEditLine();
+	static FString SpellEditWord();
+
+	/**
 	 * Turns the game's own screen reader on or off.
 	 *
 	 * Two different players are covered by one tree. One runs NVDA or a console narrator, and needs

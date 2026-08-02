@@ -83,6 +83,8 @@ anyone tracking them over time.
 | `W-A11Y-TARGET` | An interactive element smaller than 24dp in either direction. |
 | `W-A11Y-NONAME` | A control with nothing to read out. |
 | `W-A11Y-NOFOCUS` | Focusing the control changes nothing you can see. |
+| `W-A11Y-UNREACHABLE` | A control only a pointer can reach, on a screen that otherwise navigates. |
+| `W-A11Y-FLASH` | Under `--flash-check`, flashing over three times a second. |
 | `W-A11Y-CLIPPED` | Something is bigger than the box it is in, and the box hides what does not fit. |
 | `W-A11Y-CVD` | Under `--simulate`, text that only passes contrast because of a hue difference that vision does not have. |
 | `I-A11Y-NOBACKDROP` | Some text has no opaque background above it, so its contrast is unknowable. Informational. |
@@ -98,6 +100,31 @@ segmented control - an absolutely positioned hit area, then the label on top of 
 
 When nothing in the chain is opaque, contrast is not reported. A document drawn over the world has no
 knowable backdrop, and a confident wrong number is worse than no number.
+
+### Reachability
+
+A control with an `onclick` and no `tab-index: auto` can be pressed with a mouse and reached by
+nothing else. That is `W-A11Y-UNREACHABLE`, and it is only asked on a document where *something* takes
+focus - a HUD with nothing focusable is not a screen anyone walks, and reporting every clickable thing
+in one would train people to ignore the check.
+
+The fix is usually `tab-index: auto` plus a focus style, even for something only a pointer can
+meaningfully operate: a keyboard player still has to be able to reach a window and be told it is
+there.
+
+### Flashing
+
+```bash
+./bin/win64/uipreview.exe UI/screens/alarm.rml --root . --flash-check --filmstrip-frames 90
+```
+
+Renders the frames and measures how often the whole screen changes brightness. More than three flashes
+a second is a seizure risk - WCAG 2.3.1 - and it is a question on a platform submission form.
+
+It measures the **whole frame's** average luminance rather than the ten-degree field the standard
+defines. That errs the safe way for false positives, since a blinking caret cannot trip it, and the
+risky way for false negatives, since a strobe over a quarter of the screen is diluted by the three
+quarters that are still. Judge anything near the threshold by eye as well.
 
 ### Focus
 
@@ -227,6 +254,29 @@ doing the accessible thing is the wrong thing.
 
 Only the game's own reader does this. A platform reader has its own character echo, and doing it here
 as well would say every letter twice.
+
+### Inside a field
+
+Typing is echoed as it happens. The other half is reading it back, which is what a player needs the
+moment they stop typing and start correcting:
+
+```cpp
+UFolioAccessibilityLibrary::ReadEditWord();    // the word the caret is in
+UFolioAccessibilityLibrary::ReadEditLine();    // the line it is on
+UFolioAccessibilityLibrary::SpellEditWord();   // "V, e, g, a"
+```
+
+Nothing moves - the caret is where it was afterwards. Worth binding beside the review keys.
+
+How much punctuation any of it names is its own setting, because it has to be:
+
+```cpp
+UFolioAccessibilityLibrary::SetPunctuation(EFolioPunctuation::All);
+```
+
+`None` names none of it, `Some` names a single keystroke and reads a run as words, `All` names every
+symbol wherever it appears. Someone entering a file path wants `All`; someone entering their own name
+wants `None`. `Some` is the default and the only one that is a compromise.
 
 ### The reader's own words
 
@@ -431,7 +481,10 @@ Inferred without it from the tag - `button`, `input` and its `type`, `select`, `
 | `progressbar` | a slider, read-only, with its value |
 | `textbox` | an edit field, with its contents |
 | `list`, `listbox` | a list |
-| `listitem`, `option` | an item in one |
+| `listitem`, `option` | an item in one, with its position |
+| `table`, `grid` | a table |
+| `row` | a row, with its position |
+| `cell`, `gridcell` | a cell, under its column's name |
 
 `<h1>` to `<h6>` are headings without being told, which is worth using: it is the same markup that
 makes a document read as structured anywhere else, and it is what the review cursor jumps between.
@@ -441,6 +494,29 @@ role for either, so they arrive as text and as a pane - the closest honest thing
 be extended from a plugin. The game's own reader says the word, and heading navigation works either
 way. A progress bar becomes a slider for the same kind of reason: it is the only thing in that list
 carrying a value and a range, and "slider, 40" is better than silence.
+
+### Lists and tables
+
+An item in a list says how far through it is - "Sector 2, item, 2 of 7" - which is the one thing
+somebody who cannot see the list has no other way to learn, including that there is more of it below.
+It is counted after the walk rather than from the markup, so an item that is hidden, faded out or
+inert is not one of seven.
+
+A table is read with its column names, taken from the first row made of `<th>`:
+
+```html
+<table>
+    <tr><th>Weapon</th><th>Damage</th></tr>
+    <tr><td>Rifle</td><td>32</td></tr>
+</table>
+```
+
+reads as "row, 2 of 2. Weapon, Rifle, 1 of 2. Damage, 32, 2 of 2." Without the header row it is a run
+of numbers in order, which is exactly as useful as it sounds. `<h1>`-`<h6>`, `<table>`, `<tr>`, `<td>`
+and `<th>` all infer their roles, so markup that is already right needs nothing added.
+
+Neither survives to a *platform* reader as a table - Unreal has no type for one - but the column names
+are part of what each cell says, so they reach it anyway.
 
 ### `folio-checked`
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FolioAccessibilityLibrary.h"
 #include "FolioCore/FolioSemantics.h"
 
 #include "CoreMinimal.h"
@@ -56,8 +57,24 @@ namespace Folio::Spoken
 	 */
 	FText Character(TCHAR Character);
 
-	/** The whole of a typed run, with its punctuation named where a bare character would be silent. */
-	FText Typed(const FString& Text);
+	/**
+	 * The whole of a typed run, at the punctuation level the player asked for.
+	 *
+	 * The middle setting is the one worth defaulting to: a single keystroke is named, because that is
+	 * the case where silence reads as a dead key, and a run is read as words, because an address said
+	 * one symbol at a time is unusable. Someone entering a password or a command line wants every
+	 * symbol; someone entering their name wants none.
+	 */
+	FText Typed(const FString& Text, EFolioPunctuation Level);
+
+	/** How far through a set something is: "2 of 7". Said after the name, before the state. */
+	FText Position(int32 At, int32 Of);
+
+	/** One word, spelled out, with its punctuation named. What a player asks for when a name is odd. */
+	FText Spelled(const FString& Word);
+
+	/** A field with nothing in it, at the caret, or a line that is blank. */
+	FText NoWord();
 
 	/**
 	 * Joins the parts of one utterance.

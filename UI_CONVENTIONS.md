@@ -1002,7 +1002,13 @@ player hears a menu with all of its words removed. `<h1>`-`<h6>` become headings
 between, which is how a long screen is read without walking every line of it.
 
 `SetReaderVerbosity` decides how much it says beyond a name: `Low` is name and state, `Normal` adds
-the kind of control and the panel, `High` adds the description.
+the kind of control and the panel, `High` adds the description. `SetPunctuation` is its own axis, for
+how much of a field's punctuation is named as it is typed; `ReadEditWord`, `ReadEditLine` and
+`SpellEditWord` read a field back without moving the caret.
+
+**Use the markup that already carries structure.** `<h1>`-`<h6>`, `<ul>`/`<li>` and
+`<table>`/`<tr>`/`<th>`/`<td>` all infer their roles, and they buy heading navigation, "2 of 7" on a
+list item, and a cell read under its column's name.
 
 **The same walk is readable from game code**, with nothing turned on: `DescribeScreen` gives every
 line in reading order and `GetFocusedControl` gives the one the player is standing on. Keyed by name

@@ -164,13 +164,14 @@ is being used, which is also better for anyone reading small text on a surface a
 ### Roles are limited to what the platform layer has
 
 Unreal's accessibility layer maps a fixed list of widget types, and there is no heading, region,
-landmark or progress bar in it. So to **a platform screen reader** a heading reads as text, a region
+landmark, table or progress bar in it. So to **a platform screen reader** a heading reads as text, a region
 as a pane and a progress bar as a read-only slider, and a document that leans on headings does not
 read as structured.
 
-The game's own reader is not limited by that list: it says "heading", and the review cursor jumps
-between them. Fixing the platform half means engine-side work on `EAccessibleWidgetType`, which is not
-something a plugin can do.
+The game's own reader is not limited by that list: it says "heading", the review cursor jumps between
+them, and a table's cells carry their column names so those reach a platform reader anyway - as part
+of what each cell says rather than as a table. Fixing the platform half means engine-side work on
+`EAccessibleWidgetType`, which is not something a plugin can do.
 
 ### Only one speech back end ships
 
@@ -223,6 +224,17 @@ walk*, and both are zero while nobody is listening.
 
 The cost of one walk is still proportional to the whole document. A screen with two thousand elements
 under a reader is worth measuring.
+
+### The flash check measures the whole frame
+
+`--flash-check` averages luminance across the entire capture, where WCAG 2.3.1 defines the threshold
+over a ten-degree field. That is the safe direction for false positives - a blinking caret cannot trip
+it - and the risky one for false negatives: a strobe over a quarter of the screen is diluted by the
+three quarters that are still.
+
+It also only sees what the preview renders. A flash coming from the scene behind a HUD, from a video,
+or from a shader whose time source the preview does not drive is outside it. Judge anything near the
+threshold by eye as well.
 
 See **[accessibility](accessibility.md)**.
 

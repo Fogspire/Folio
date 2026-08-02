@@ -43,6 +43,12 @@
 
 		.rule { height: 2dp; background-color: #2a2a36; margin: 12dp 0; }
 		.entry { height: 32dp; color: #cfcfe0; }
+
+		/* RCSS has no user-agent stylesheet, so a table is inline until it is told otherwise. */
+		table { display: table; width: 420dp; }
+		tr { display: table-row; }
+		th, td { display: table-cell; height: 28dp; padding: 4dp 8dp; color: #cfcfe0; }
+		th { color: #e8e8f0; font-weight: bold; }
 	</style>
 </head>
 <body>
@@ -96,6 +102,14 @@
 			<div class="entry" folio-role="listitem" tab-index="auto" nav="auto">Sector 1</div>
 			<div class="entry" folio-role="listitem" tab-index="auto" nav="auto">Sector 2</div>
 		</div>
+	</div>
+
+	<div class="panel" folio-label="Loadout">
+		<table>
+			<tr><th>Weapon</th><th>Damage</th></tr>
+			<tr><td>Rifle</td><td>32</td></tr>
+			<tr><td>Pistol</td><td>18</td></tr>
+		</table>
 	</div>
 
 	<button id="apply">Apply</button>

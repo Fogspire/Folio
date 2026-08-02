@@ -87,6 +87,9 @@ struct Options {
 	/** Redraws captures, and re-runs the contrast check, as this colour vision sees them. */
 	ColourVision simulate = ColourVision::Normal;
 
+	/** Render `filmstrip_frames` and count how often the whole screen changes brightness. */
+	bool flash_check = false;
+
 	/** Field resolution per em, and the field's width in texels. A field resolves best near 1:1,
 	    so this trades small-text clarity against magnification headroom. */
 	int msdf_px_em = 48;
@@ -122,7 +125,7 @@ struct Options {
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty()
 		|| !provenance_report.empty() || !a11y_report.empty() || a11y || a11y_tree
-		|| !a11y_tree_report.empty() || !filmstrip.empty(); }
+		|| !a11y_tree_report.empty() || !filmstrip.empty() || flash_check; }
 };
 
 enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };

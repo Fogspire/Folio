@@ -61,6 +61,16 @@ namespace Folio
 		TextEdit,
 		List,
 		ListItem,
+		/**
+		 * A grid of related values, and the two things inside one.
+		 *
+		 * Unreal has no table type either, so to a platform reader these are panes and text. What they
+		 * buy is that the game's own reader can say which column a cell is in, which is the whole
+		 * difference between a table and a run of numbers read out in order.
+		 */
+		Table,
+		Row,
+		Cell,
 	};
 
 	inline const char* RoleName(const ESemanticRole Role)
@@ -82,6 +92,9 @@ namespace Folio
 		case ESemanticRole::TextEdit: return "textbox";
 		case ESemanticRole::List: return "list";
 		case ESemanticRole::ListItem: return "listitem";
+		case ESemanticRole::Table: return "table";
+		case ESemanticRole::Row: return "row";
+		case ESemanticRole::Cell: return "cell";
 		default: return "none";
 		}
 	}
@@ -145,6 +158,19 @@ namespace Folio
 		bool Checked = false;
 		bool ReadOnly = true;
 		bool Password = false;
+
+		/**
+		 * Where this sits among its siblings, one-based, and how many there are. Zero when it is not
+		 * one of a set.
+		 *
+		 * "Sector 2, 2 of 7" rather than "Sector 2". Someone who cannot see the list has no other way
+		 * to know how far through it they are, or that there is any more of it.
+		 */
+		int Position = 0;
+		int SetSize = 0;
+
+		/** The column header a cell sits under, said before its value. Empty outside a table. */
+		std::string Column;
 
 		/** Set for a slider or a progress bar, which are the two things read as a proportion. */
 		bool HasRange = false;
@@ -483,6 +509,9 @@ namespace Folio
 			if (Role == "textbox" || Role == "textedit") return ESemanticRole::TextEdit;
 			if (Role == "list" || Role == "listbox") return ESemanticRole::List;
 			if (Role == "listitem" || Role == "option") return ESemanticRole::ListItem;
+			if (Role == "table" || Role == "grid") return ESemanticRole::Table;
+			if (Role == "row") return ESemanticRole::Row;
+			if (Role == "cell" || Role == "gridcell") return ESemanticRole::Cell;
 		}
 
 		const Rml::String& Tag = Element->GetTagName();
@@ -506,6 +535,9 @@ namespace Folio
 		if (Tag == "button" || Tag == "handle") return ESemanticRole::Button;
 		if (Tag == "ul" || Tag == "ol") return ESemanticRole::List;
 		if (Tag == "li") return ESemanticRole::ListItem;
+		if (Tag == "table") return ESemanticRole::Table;
+		if (Tag == "tr") return ESemanticRole::Row;
+		if (Tag == "td" || Tag == "th") return ESemanticRole::Cell;
 
 		// The one place a document's structure is already written down. A screen that uses headings
 		// the way markup intends gets heading navigation for nothing.
@@ -731,8 +763,11 @@ namespace Folio
 		inline std::string NodeName(Rml::Element* Element, const ESemanticRole Role,
 			Rml::Element** OutSource = nullptr, const FWalkContext* Context = nullptr)
 		{
+			// Containers are named by their label or not at all. Falling back to the text inside one
+			// would name a row with every cell in it, and a panel with the whole screen.
 			if (Role == ESemanticRole::Group || Role == ESemanticRole::Region
-				|| Role == ESemanticRole::List)
+				|| Role == ESemanticRole::List || Role == ESemanticRole::Table
+				|| Role == ESemanticRole::Row)
 			{
 				return Trim(Element->GetAttribute<Rml::String>("folio-label", ""));
 			}
@@ -786,6 +821,95 @@ namespace Folio
 		}
 
 		/**
+		 * Numbers the children of a set, so an item can say how far through it is.
+		 *
+		 * Counted after the walk rather than from the markup, because what a player is moving through
+		 * is what survived the walk: an item that is hidden, faded out or inert is not one of seven.
+		 */
+		inline void NumberChildren(FSemanticNode& Node, const ESemanticRole Of)
+		{
+			int Count = 0;
+			for (const FSemanticNode& Child : Node.Children)
+			{
+				Count += Child.Role == Of ? 1 : 0;
+			}
+
+			if (Count < 2)
+			{
+				// One of one is not a position, it is a sentence nobody needed.
+				return;
+			}
+
+			int At = 0;
+			for (FSemanticNode& Child : Node.Children)
+			{
+				if (Child.Role == Of)
+				{
+					Child.Position = ++At;
+					Child.SetSize = Count;
+				}
+			}
+		}
+
+		/**
+		 * Gives every cell the name of the column it is under.
+		 *
+		 * A table read without them is a run of numbers in order, which is exactly as useful as it
+		 * sounds. The headers come from the first row that is made of `<th>`, which is where markup
+		 * already puts them.
+		 */
+		inline void LabelTableColumns(FSemanticNode& Table)
+		{
+			const FSemanticNode* Header = nullptr;
+			for (const FSemanticNode& Row : Table.Children)
+			{
+				if (Row.Role != ESemanticRole::Row)
+				{
+					continue;
+				}
+
+				const bool bAllHeaders = !Row.Children.empty()
+					&& std::all_of(Row.Children.begin(), Row.Children.end(),
+						[](const FSemanticNode& Cell)
+						{
+							return Cell.Element && Cell.Element->GetTagName() == "th";
+						});
+
+				if (bAllHeaders)
+				{
+					Header = &Row;
+				}
+
+				break;
+			}
+
+			if (!Header)
+			{
+				return;
+			}
+
+			std::vector<std::string> Columns;
+			Columns.reserve(Header->Children.size());
+			for (const FSemanticNode& Cell : Header->Children)
+			{
+				Columns.push_back(Cell.Name);
+			}
+
+			for (FSemanticNode& Row : Table.Children)
+			{
+				if (Row.Role != ESemanticRole::Row || &Row == Header)
+				{
+					continue;
+				}
+
+				for (std::size_t Index = 0; Index < Row.Children.size() && Index < Columns.size(); ++Index)
+				{
+					Row.Children[Index].Column = Columns[Index];
+				}
+			}
+		}
+
+		/**
 		 * One pass over the document, producing nodes and noting what named what.
 		 *
 		 * A caption is as often before the control it names as after it, so the elements to remove are
@@ -821,6 +945,17 @@ namespace Folio
 				for (int i = 0; i < Element->GetNumChildren(); ++i)
 				{
 					Walk(Element->GetChild(i), Context, Node.Children);
+				}
+
+				switch (Role)
+				{
+				case ESemanticRole::List: NumberChildren(Node, ESemanticRole::ListItem); break;
+				case ESemanticRole::Row: NumberChildren(Node, ESemanticRole::Cell); break;
+				case ESemanticRole::Table:
+					NumberChildren(Node, ESemanticRole::Row);
+					LabelTableColumns(Node);
+					break;
+				default: break;
 				}
 			}
 

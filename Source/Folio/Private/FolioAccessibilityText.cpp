@@ -21,6 +21,11 @@ namespace Folio::Spoken
 		case ESemanticRole::TextEdit: return LOCTEXT("RoleTextEdit", "edit");
 		case ESemanticRole::List: return LOCTEXT("RoleList", "list");
 		case ESemanticRole::ListItem: return LOCTEXT("RoleListItem", "item");
+		case ESemanticRole::Table: return LOCTEXT("RoleTable", "table");
+		case ESemanticRole::Row: return LOCTEXT("RoleRow", "row");
+
+		// A cell says its column instead, which is the same length and carries the meaning.
+		case ESemanticRole::Cell: return FText::GetEmpty();
 
 		// Text says itself, and a group is a place rather than a thing to hear the kind of.
 		default: return FText::GetEmpty();
@@ -120,8 +125,45 @@ namespace Folio::Spoken
 		}
 	}
 
-	FText Typed(const FString& Text)
+	FText Typed(const FString& Text, const EFolioPunctuation Level)
 	{
+		if (Level == EFolioPunctuation::None)
+		{
+			return FText::FromString(Text);
+		}
+
+		if (Level == EFolioPunctuation::All)
+		{
+			// Every symbol named, letters and digits left alone, so a path or a password comes out as
+			// something a person can write down.
+			TArray<FString> Parts;
+			FString Run;
+
+			for (const TCHAR Each : Text)
+			{
+				if (FChar::IsAlnum(Each) || Each == TEXT(' '))
+				{
+					Run.AppendChar(Each);
+					continue;
+				}
+
+				if (!Run.IsEmpty())
+				{
+					Parts.Add(Run);
+					Run.Reset();
+				}
+
+				Parts.Add(Character(Each).ToString());
+			}
+
+			if (!Run.IsEmpty())
+			{
+				Parts.Add(Run);
+			}
+
+			return FText::FromString(Join(Parts));
+		}
+
 		// One character is named, because that is a keystroke and a bare comma is silence. A run of
 		// them is read as words: a pasted address said one symbol at a time is unusable.
 		if (Text.Len() == 1)
@@ -130,6 +172,29 @@ namespace Folio::Spoken
 		}
 
 		return FText::FromString(Text);
+	}
+
+	FText Position(const int32 At, const int32 Of)
+	{
+		return FText::Format(LOCTEXT("Position", "{0} of {1}"), FText::AsNumber(At), FText::AsNumber(Of));
+	}
+
+	FText Spelled(const FString& Word)
+	{
+		TArray<FString> Letters;
+		Letters.Reserve(Word.Len());
+
+		for (const TCHAR Each : Word)
+		{
+			Letters.Add(Character(Each).ToString());
+		}
+
+		return FText::FromString(Join(Letters));
+	}
+
+	FText NoWord()
+	{
+		return LOCTEXT("NoWord", "nothing");
 	}
 
 	FString Join(const TArray<FString>& Parts)

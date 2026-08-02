@@ -100,22 +100,36 @@ namespace FolioDocSamples
 		UFolioAccessibilityLibrary::SetReaderVerbosity(EFolioReaderVerbosity::Low);
 	}
 
+	// docs/accessibility.md#2
+	inline void Sample_docs_accessibility_md_2()
+	{
+		UFolioAccessibilityLibrary::ReadEditWord();    // the word the caret is in
+		UFolioAccessibilityLibrary::ReadEditLine();    // the line it is on
+		UFolioAccessibilityLibrary::SpellEditWord();   // "V, e, g, a"
+	}
+
 	// docs/accessibility.md#3
 	inline void Sample_docs_accessibility_md_3()
+	{
+		UFolioAccessibilityLibrary::SetPunctuation(EFolioPunctuation::All);
+	}
+
+	// docs/accessibility.md#5
+	inline void Sample_docs_accessibility_md_5()
 	{
 		TArray<FString> Screen = UFolioAccessibilityLibrary::DescribeScreen();
 		FString On = UFolioAccessibilityLibrary::GetFocusedControl();   // "Master volume, slider, 60"
 	}
 
-	// docs/accessibility.md#4
-	inline void Sample_docs_accessibility_md_4()
+	// docs/accessibility.md#6
+	inline void Sample_docs_accessibility_md_6()
 	{
 		// Native code, so it cannot be left held by an early return.
 		FFolioDocumentTreeRequest Request(TEXT("automation"));
 	}
 
-	// docs/accessibility.md#5
-	inline void Sample_docs_accessibility_md_5()
+	// docs/accessibility.md#7
+	inline void Sample_docs_accessibility_md_7()
 	{
 		UFolioAccessibilityLibrary::SetTextScale(1.5f);      // 0.5 to 3, 1 being as authored
 		UFolioAccessibilityLibrary::SetReducedMotion(true);

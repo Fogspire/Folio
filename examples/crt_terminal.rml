@@ -149,6 +149,7 @@
 		}
 		.titlebar {
 			display: block;
+			tab-index: auto;
 			padding: 8dp 12dp;
 			background-color: #7dff9b26;
 			border-bottom: 2dp #7dff9b59;
@@ -158,14 +159,22 @@
 		.window-body { flex: 1; padding: 14dp; display: flex; }
 		/* Big enough to hit from across a room. A 26dp corner is fine on a monitor and useless on a
 		   screen you are aiming a camera at. */
+		/* Focusable even though only a pointer can drag them: a keyboard player still has to be able
+		   to reach a window and be told it is there. --a11y reports a control the pointer alone can
+		   get to, which is what caught these. */
 		.grip {
 			position: absolute;
+			tab-index: auto;
 			right: 0; bottom: 0;
 			width: 60dp; height: 60dp;
 			decorator: linear-gradient(135deg, #7dff9b00, #7dff9b00 54%, #7dff9b8c 54%, #7dff9b8c);
 			cursor: se-resize;
 		}
-		.grip:hover { decorator: linear-gradient(135deg, #7dff9b00, #7dff9b00 54%, #eaffef 54%, #eaffef); }
+		.grip:hover,
+		.grip:focus-visible { decorator: linear-gradient(135deg, #7dff9b00, #7dff9b00 54%, #eaffef 54%, #eaffef); }
+
+		.titlebar:focus-visible { background-color: #7dff9b59; }
+		.desk-icon:focus-visible .glyph { border-color: #eaffef; }
 
 		.close {
 			position: absolute;
@@ -205,6 +214,7 @@
 		   repositions the icon - RmlUi fires the events and moves nothing by itself. */
 		.desk-icon {
 			position: absolute;
+			tab-index: auto;
 			width: 112dp;
 			drag: drag-drop;
 			text-align: center;

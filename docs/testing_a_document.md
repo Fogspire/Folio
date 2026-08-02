@@ -56,6 +56,7 @@ save would be slow for no gain.
 | `--text-scale 1.5` | The accessibility text scale. With `--a11y`, also reports the text it could not move and anything that stopped fitting. |
 | `--reduced-motion` | Every transition and animation off, as the setting does. |
 | `--simulate deuteranopia` | Redraws captures, and re-runs the contrast pass, as that colour vision sees them. Also `protanopia`, `tritanopia`, `achromatopsia`. |
+| `--flash-check` | Renders `--filmstrip-frames` frames and reports flashing over three a second, which is a seizure risk and a certification question. |
 
 Run the two that matter together before committing a screen:
 

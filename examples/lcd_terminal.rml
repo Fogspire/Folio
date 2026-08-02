@@ -231,6 +231,7 @@
 
 		.titlebar {
 			display: block;
+			tab-index: auto;
 			padding: 11dp 16dp;
 			font-size: 15dp;
 			font-weight: 600;
@@ -260,17 +261,27 @@
 		/* Fills what the titlebar leaves rather than the whole window, which is a titlebar too tall. */
 		.window-body { position: absolute; left: 0; right: 0; top: 42dp; bottom: 0; }
 
+		/* Focusable even though only a pointer can drag them: a keyboard player still has to be able
+		   to reach a window and be told it is there. --a11y reports a control the pointer alone can
+		   get to, which is what caught these. */
 		.grip {
 			position: absolute;
 			right: 0; bottom: 0;
 			width: 24dp; height: 24dp;
 			cursor: nwse-resize;
+			tab-index: auto;
+		}
+
+		.titlebar:focus-visible, .grip:focus-visible, .file:focus-visible {
+			border-color: #58c4ff;
+			background-color: #ffffff14;
 		}
 
 		/* --- files ------------------------------------------------------------------------ */
 
 		.file {
 			position: absolute;
+			tab-index: auto;
 			width: 108dp;
 			padding: 12dp 6dp;
 			text-align: center;

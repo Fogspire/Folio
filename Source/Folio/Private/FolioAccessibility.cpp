@@ -3,6 +3,7 @@
 #include "FolioAccessibilityLibrary.h"
 #include "FolioAccessibilityReview.h"
 #include "FolioAccessibilityText.h"
+#include "FolioDocumentHost.h"
 #include "FolioInsights.h"
 #include "FolioModule.h"
 #include "FolioPresentation.h"
@@ -43,6 +44,9 @@ namespace
 
 	/** How much the reader says beyond the name. A player's setting; a menu is unbearable at the wrong one. */
 	EFolioReaderVerbosity GVerbosity = EFolioReaderVerbosity::Normal;
+
+	/** How much of a field's punctuation is named as it is typed. A separate axis from verbosity. */
+	EFolioPunctuation GPunctuation = EFolioPunctuation::Some;
 
 	/** The last thing said, whichever part of the reader said it. What review's repeat repeats. */
 	FString GLastSpoken;
@@ -112,6 +116,12 @@ namespace
 		case Folio::ESemanticRole::TextEdit: return EAccessibleWidgetType::TextEdit;
 		case Folio::ESemanticRole::List: return EAccessibleWidgetType::List;
 		case Folio::ESemanticRole::ListItem: return EAccessibleWidgetType::ListItem;
+
+		// No table type either, so the shape is lost and the words are not. A cell that carries its
+		// column name still reads as "armour, 40" rather than "40".
+		case Folio::ESemanticRole::Table: return EAccessibleWidgetType::Layout;
+		case Folio::ESemanticRole::Row: return EAccessibleWidgetType::Layout;
+		case Folio::ESemanticRole::Cell: return EAccessibleWidgetType::Text;
 		default: return EAccessibleWidgetType::Unknown;
 		}
 	}
@@ -289,6 +299,13 @@ FString Folio::Utterance(const Folio::FSemanticNode& Node)
 {
 	TArray<FString> Parts;
 
+	// The column comes first, because it is what the value means rather than something about it: "armour,
+	// 40" is a fact and "40, armour" is a guess followed by a correction.
+	if (!Node.Column.empty())
+	{
+		Parts.Add(Folio::ToFString(Node.Column));
+	}
+
 	if (!Node.Name.empty())
 	{
 		Parts.Add(Folio::ToFString(Node.Name));
@@ -301,6 +318,13 @@ FString Folio::Utterance(const Folio::FSemanticNode& Node)
 		{
 			Parts.Add(Role.ToString());
 		}
+	}
+
+	// How far through the set, which is the one thing someone who cannot see a list has no other way of
+	// learning - including that there is more of it below.
+	if (Node.SetSize > 1 && GVerbosity != EFolioReaderVerbosity::Low)
+	{
+		Parts.Add(Folio::Spoken::Position(Node.Position, Node.SetSize).ToString());
 	}
 
 	if (Node.Checkable)
@@ -955,6 +979,146 @@ namespace
 	}
 }
 
+namespace
+{
+	/** The focused text field of whichever document is in front, with its contents and caret. */
+	bool FocusedEdit(FString& OutText, int32& OutCaret, bool& bOutPassword)
+	{
+		const TArray<FFolioDocumentHost*>& Hosts = FFolioDocumentHost::GetLiveHosts();
+		for (int32 Index = Hosts.Num() - 1; Index >= 0; --Index)
+		{
+			Rml::Context* Context = Hosts[Index]->GetContext();
+			if (!Context)
+			{
+				continue;
+			}
+
+			int32 End = 0;
+			if (ReadEditState(Context->GetFocusElement(), OutText, OutCaret, End, bOutPassword))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** The run of non-space characters the caret is standing in, or the one it has just passed. */
+	void WordAround(const FString& Text, const int32 Caret, int32& OutStart, int32& OutEnd)
+	{
+		const auto IsWord = [&Text](const int32 At)
+		{
+			return Text.IsValidIndex(At) && !FChar::IsWhitespace(Text[At]);
+		};
+
+		// A caret sitting just past the end of a word is in that word as far as a person is concerned,
+		// which is where it lands after typing one.
+		int32 At = IsWord(Caret) ? Caret : Caret - 1;
+
+		OutStart = At;
+		OutEnd = At;
+
+		while (IsWord(OutStart - 1))
+		{
+			--OutStart;
+		}
+
+		while (IsWord(OutEnd))
+		{
+			++OutEnd;
+		}
+
+		OutStart = FMath::Max(0, OutStart);
+	}
+
+	void LineAround(const FString& Text, const int32 Caret, int32& OutStart, int32& OutEnd)
+	{
+		OutStart = FMath::Clamp(Caret, 0, Text.Len());
+		while (OutStart > 0 && Text[OutStart - 1] != TEXT('\n'))
+		{
+			--OutStart;
+		}
+
+		OutEnd = FMath::Clamp(Caret, 0, Text.Len());
+		while (OutEnd < Text.Len() && Text[OutEnd] != TEXT('\n'))
+		{
+			++OutEnd;
+		}
+	}
+}
+
+FString FFolioAccessibilityTree::ReadEditWord()
+{
+	FString Text;
+	int32 Caret = 0;
+	bool bPassword = false;
+
+	if (!FocusedEdit(Text, Caret, bPassword))
+	{
+		return FString();
+	}
+
+	int32 Start = 0;
+	int32 End = 0;
+	WordAround(Text, Caret, Start, End);
+
+	const FString Word = End > Start ? Text.Mid(Start, End - Start) : FString();
+	const FString Line = Word.IsEmpty()
+		? Folio::Spoken::NoWord().ToString()
+		: Folio::Spoken::Typed(bPassword ? Masked(Word.Len()) : Word, GPunctuation).ToString();
+
+	SpeakLine(Line, Folio::ESpeechPriority::Assertive);
+	return Line;
+}
+
+FString FFolioAccessibilityTree::ReadEditLine()
+{
+	FString Text;
+	int32 Caret = 0;
+	bool bPassword = false;
+
+	if (!FocusedEdit(Text, Caret, bPassword))
+	{
+		return FString();
+	}
+
+	int32 Start = 0;
+	int32 End = 0;
+	LineAround(Text, Caret, Start, End);
+
+	const FString Content = End > Start ? Text.Mid(Start, End - Start) : FString();
+	const FString Line = Content.IsEmpty()
+		? Folio::Spoken::Blank().ToString()
+		: Folio::Spoken::Typed(bPassword ? Masked(Content.Len()) : Content, GPunctuation).ToString();
+
+	SpeakLine(Line, Folio::ESpeechPriority::Assertive);
+	return Line;
+}
+
+FString FFolioAccessibilityTree::SpellEditWord()
+{
+	FString Text;
+	int32 Caret = 0;
+	bool bPassword = false;
+
+	if (!FocusedEdit(Text, Caret, bPassword))
+	{
+		return FString();
+	}
+
+	int32 Start = 0;
+	int32 End = 0;
+	WordAround(Text, Caret, Start, End);
+
+	const FString Word = End > Start ? Text.Mid(Start, End - Start) : FString();
+	const FString Line = Word.IsEmpty()
+		? Folio::Spoken::NoWord().ToString()
+		: Folio::Spoken::Spelled(bPassword ? Masked(Word.Len()) : Word).ToString();
+
+	SpeakLine(Line, Folio::ESpeechPriority::Assertive);
+	return Line;
+}
+
 void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 {
 	// Only the game's own reader. A platform reader echoes typing through its own text pattern, and
@@ -1000,12 +1164,12 @@ void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 
 		if (!Added.IsEmpty())
 		{
-			SpeakLine(Folio::Spoken::Typed(bPassword ? Masked(Added.Len()) : Added).ToString(), Folio::ESpeechPriority::Assertive);
+			SpeakLine(Folio::Spoken::Typed(bPassword ? Masked(Added.Len()) : Added, GPunctuation).ToString(), Folio::ESpeechPriority::Assertive);
 		}
 		else if (!Removed.IsEmpty())
 		{
 			SpeakLine(Folio::Spoken::Deleted(
-				Folio::Spoken::Typed(bPassword ? Masked(Removed.Len()) : Removed)).ToString(), Folio::ESpeechPriority::Assertive);
+				Folio::Spoken::Typed(bPassword ? Masked(Removed.Len()) : Removed, GPunctuation)).ToString(), Folio::ESpeechPriority::Assertive);
 		}
 
 		// Said after whatever moved, because an empty field is the result rather than the event. This
@@ -1022,7 +1186,7 @@ void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 		{
 			const FString Selected = Text.Mid(Caret, SelectionEnd - Caret);
 			SpeakLine(Folio::Spoken::Selected(
-				Folio::Spoken::Typed(bPassword ? Masked(Selected.Len()) : Selected)).ToString(), Folio::ESpeechPriority::Assertive);
+				Folio::Spoken::Typed(bPassword ? Masked(Selected.Len()) : Selected, GPunctuation)).ToString(), Folio::ESpeechPriority::Assertive);
 		}
 		else if (!bPassword)
 		{
@@ -1032,7 +1196,7 @@ void FFolioAccessibilityTree::SyncEditing(Rml::Context* Context)
 			const int32 Length = FMath::Abs(Caret - EditCaret);
 			if (const FString Passed = Text.Mid(From, Length); !Passed.IsEmpty())
 			{
-				SpeakLine(Folio::Spoken::Typed(Passed).ToString(), Folio::ESpeechPriority::Assertive);
+				SpeakLine(Folio::Spoken::Typed(Passed, GPunctuation).ToString(), Folio::ESpeechPriority::Assertive);
 			}
 		}
 	}
@@ -1214,6 +1378,31 @@ void UFolioAccessibilityLibrary::SetReaderVerbosity(const EFolioReaderVerbosity 
 EFolioReaderVerbosity UFolioAccessibilityLibrary::GetReaderVerbosity()
 {
 	return GVerbosity;
+}
+
+void UFolioAccessibilityLibrary::SetPunctuation(const EFolioPunctuation Level)
+{
+	GPunctuation = Level;
+}
+
+EFolioPunctuation UFolioAccessibilityLibrary::GetPunctuation()
+{
+	return GPunctuation;
+}
+
+FString UFolioAccessibilityLibrary::ReadEditWord()
+{
+	return FFolioAccessibilityTree::ReadEditWord();
+}
+
+FString UFolioAccessibilityLibrary::ReadEditLine()
+{
+	return FFolioAccessibilityTree::ReadEditLine();
+}
+
+FString UFolioAccessibilityLibrary::SpellEditWord()
+{
+	return FFolioAccessibilityTree::SpellEditWord();
 }
 
 FString UFolioAccessibilityLibrary::ReviewAll()

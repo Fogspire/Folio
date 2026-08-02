@@ -824,6 +824,95 @@ bool App::CaptureFilmstrip()
 	return true;
 }
 
+bool App::CheckFlashing()
+{
+	// WCAG 2.3.1, as a game can honestly apply it: more than three flashes in any one second is a
+	// seizure risk, and a flash is a pair of opposing changes in relative luminance of at least 10%
+	// where the darker of the two is below 0.8.
+	//
+	// Whole-frame average rather than a 10-degree field, which is what the standard actually measures.
+	// That is deliberately the conservative direction for false positives and the risky one for false
+	// negatives: a blinking caret cannot trip it, and a strobe over a quarter of the screen is diluted
+	// by the three quarters that are still. Judge anything near the threshold by eye as well.
+	int width = 0;
+	int height = 0;
+	Backend::GetFramebufferSize(width, height);
+
+	std::vector<double> luminance;
+	luminance.reserve((size_t)options.filmstrip_frames);
+
+	for (int i = 0; i < options.filmstrip_frames; ++i)
+	{
+		RenderFrame();
+
+		std::vector<unsigned char> rgba;
+		std::string error;
+		if (!CaptureBackBuffer(width, height, rgba, error))
+		{
+			diagnostics.Report(Severity::Error, "E-CAPTURE", error);
+			return false;
+		}
+
+		double total = 0.0;
+		size_t counted = 0;
+
+		// Every sixteenth pixel. A flash is a property of the whole frame, and reading four million of
+		// them per frame would make this the slowest check by an order of magnitude.
+		for (size_t p = 0; p + 3 < rgba.size(); p += 4 * 16)
+		{
+			const auto channel = [](unsigned char value) {
+				const double v = value / 255.0;
+				return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+			};
+
+			total += 0.2126 * channel(rgba[p]) + 0.7152 * channel(rgba[p + 1])
+				+ 0.0722 * channel(rgba[p + 2]);
+			++counted;
+		}
+
+		luminance.push_back(counted > 0 ? total / double(counted) : 0.0);
+
+		if (i + 1 < options.filmstrip_frames)
+			Backend::SwapBuffers();
+	}
+
+	// A flash is a pair of opposing changes, so transitions are counted and halved rather than counted
+	// as flashes each.
+	const double frame_seconds = options.dt_ms / 1000.0;
+	const int window = std::max(1, (int)std::lround(1.0 / std::max(0.0001, frame_seconds)));
+
+	int worst = 0;
+	for (size_t start = 0; start + 1 < luminance.size(); ++start)
+	{
+		int transitions = 0;
+		for (size_t i = start; i + 1 < luminance.size() && i < start + (size_t)window; ++i)
+		{
+			const double low = std::min(luminance[i], luminance[i + 1]);
+			const double change = std::abs(luminance[i + 1] - luminance[i]);
+			if (change >= 0.1 && low < 0.8)
+				++transitions;
+		}
+
+		worst = std::max(worst, transitions / 2);
+	}
+
+	if (worst > 3)
+	{
+		diagnostics.Report(Severity::Warning, "W-A11Y-FLASH",
+			"this document flashes " + std::to_string(worst) + " times a second, over the limit of 3 - "
+			"a seizure risk, and something platform certification asks about",
+			options.document, 0, {{"flashesPerSecond", worst}, {"limit", 3}});
+	}
+	else
+	{
+		diagnostics.Report(Severity::Info, "I-A11Y-FLASH",
+			"no flashing over the limit in " + std::to_string(options.filmstrip_frames) + " frames",
+			options.document, 0, {{"flashesPerSecond", worst}, {"limit", 3}});
+	}
+
+	return true;
+}
+
 int App::RunOneShot()
 {
 	if (options.debug && !options.screenshot.empty())
@@ -835,6 +924,11 @@ int App::RunOneShot()
 	if (!options.filmstrip.empty())
 	{
 		if (!CaptureFilmstrip())
+			return 4;
+	}
+	else if (options.flash_check)
+	{
+		if (!CheckFlashing())
 			return 4;
 	}
 	else

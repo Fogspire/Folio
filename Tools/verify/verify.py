@@ -314,6 +314,38 @@ def main() -> int:
         else:
             harness.ok(f"{document.name}, {len(expected)} nodes, unchanged")
 
+    # --- Flashing ---------------------------------------------------------------------------
+
+    # A check that never fires is a check nobody knows is broken, so this is measured against a
+    # document built to be over the limit. Three flashes a second is where WCAG puts a seizure risk,
+    # and it is a question on a platform submission form.
+    print("Flashing")
+    strobe = tests_dir / "a11y_flash.rml"
+    if not strobe.is_file():
+        harness.fail("missing a11y_flash.rml")
+    else:
+        result = harness.run([str(strobe), "--no-assets-wanted", "--flash-check",
+                              "--filmstrip-frames", "90", "--size", "320x240"])
+
+        if "W-A11Y-FLASH" not in result.stdout + result.stderr:
+            harness.fail("the flash check did not catch a document flashing ten times a second")
+        else:
+            harness.ok("a strobe is caught")
+
+        # And the other half: the documents that do animate must not read as flashing.
+        for name in ("menu", "effects"):
+            document = tests_dir / f"{name}.rml"
+            if not document.is_file():
+                continue
+
+            quiet = harness.run([str(document), "--no-assets-wanted", "--flash-check",
+                                 "--filmstrip-frames", "90", "--size", "320x240"])
+
+            if "W-A11Y-FLASH" in quiet.stdout + quiet.stderr:
+                harness.fail(f"{name}.rml reads as flashing, which it is not")
+            else:
+                harness.ok(f"{name} does not")
+
     # --- Presentation settings --------------------------------------------------------------
 
     # Larger text, less movement and a different colour vision change how a screen looks. None of

@@ -1,0 +1,31 @@
+<rml>
+<head>
+	<title>Strobe</title>
+	<style>
+		/*
+		 * Deliberately over the limit, so the check has something it must catch. Ten cycles a second
+		 * across the whole viewport: twenty opposing luminance changes, which is ten flashes, against
+		 * a limit of three.
+		 *
+		 * Nothing else in the tests does this, and nothing should. If a real document ever reads like
+		 * this one, it is a seizure risk rather than a style.
+		 */
+		@keyframes strobe
+		{
+			from { background-color: #000000; }
+			49%  { background-color: #000000; }
+			50%  { background-color: #ffffff; }
+			to   { background-color: #ffffff; }
+		}
+
+		body
+		{
+			width: 100%;
+			height: 100%;
+			background-color: #000000;
+			animation: strobe 0.1s infinite;
+		}
+	</style>
+</head>
+<body></body>
+</rml>

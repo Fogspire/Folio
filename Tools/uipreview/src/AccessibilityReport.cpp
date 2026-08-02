@@ -292,8 +292,23 @@ bool IsClipped(Rml::Element* element, float& out_over_x, float& out_over_y)
 	return out_over_x > 2.0f || out_over_y > 2.0f;
 }
 
+/** Whether anything in the document takes focus at all, which is what makes it a screen rather than a HUD. */
+bool IsNavigable(Rml::Element* element)
+{
+	if (element->GetComputedValues().tab_index() == Rml::Style::TabIndex::Auto)
+		return true;
+
+	for (int i = 0; i < element->GetNumChildren(); ++i)
+	{
+		if (IsNavigable(element->GetChild(i)))
+			return true;
+	}
+
+	return false;
+}
+
 void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& options, float dp_ratio,
-	const std::map<Rml::Element*, float>& unscaled_text, std::vector<Finding>& out,
+	const std::map<Rml::Element*, float>& unscaled_text, bool out_navigable, std::vector<Finding>& out,
 	bool& out_backdrop_unknown)
 {
 	if (!element)
@@ -398,6 +413,17 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 
 		if (reachable && IsInteractive(element))
 		{
+			// A control the pointer can press and navigation cannot reach. Only asked on a document
+			// that navigates at all: a HUD with nothing focusable is not a screen anyone walks, and
+			// reporting every clickable thing in one would train people to ignore this.
+			if (out_navigable && computed.tab_index() != Rml::Style::TabIndex::Auto)
+			{
+				out.push_back({"W-A11Y-UNREACHABLE", ComputeElementPath(element),
+					"only a pointer can reach this control - give it tab-index: auto, or hide it from "
+					"the tree if it is decoration",
+					{{"tag", element->GetTagName()}}});
+			}
+
 			if (AccessibleName(element).empty())
 			{
 				out.push_back({"W-A11Y-NONAME", path,
@@ -428,7 +454,8 @@ void Walk(Rml::Element* element, Rml::ElementDocument* document, const Options& 
 	}
 
 	for (int i = 0; i < element->GetNumChildren(); ++i)
-		Walk(element->GetChild(i), document, options, dp_ratio, unscaled_text, out, out_backdrop_unknown);
+		Walk(element->GetChild(i), document, options, dp_ratio, unscaled_text, out_navigable, out,
+			out_backdrop_unknown);
 }
 
 /**
@@ -506,8 +533,8 @@ std::vector<Finding> Collect(const Options& options, App& app, bool& out_backdro
 
 	const std::map<Rml::Element*, float> unscaled = MeasureUnscaledText(document, options);
 
-	Walk(document, document, options, context->GetDensityIndependentPixelRatio(), unscaled, findings,
-		out_backdrop_unknown);
+	Walk(document, document, options, context->GetDensityIndependentPixelRatio(), unscaled,
+		IsNavigable(document), findings, out_backdrop_unknown);
 
 	SuppressTransitions(document, false);
 	document->UpdateDocument();
@@ -557,6 +584,15 @@ ordered_json TreeToJson(const Folio::FSemanticNode& node, float dp_ratio)
 
 	if (!node.Value.empty())
 		entry["value"] = node.Value;
+
+	if (node.SetSize > 1)
+	{
+		entry["position"] = node.Position;
+		entry["setSize"] = node.SetSize;
+	}
+
+	if (!node.Column.empty())
+		entry["column"] = node.Column;
 
 	if (node.Interactive)
 		entry["interactive"] = true;
@@ -650,10 +686,16 @@ void PrintAccessibilityTree(App& app, std::FILE* stream)
 		std::string line(size_t(depth) * 2, ' ');
 		line += Folio::RoleName(node.Role);
 
+		if (!node.Column.empty())
+			line += " [" + node.Column + "]";
+
 		if (!node.Name.empty())
 			line += " \"" + node.Name + "\"";
 		else if (node.Interactive)
 			line += " <unnamed>";
+
+		if (node.SetSize > 1)
+			line += " " + std::to_string(node.Position) + "/" + std::to_string(node.SetSize);
 
 		if (!node.Value.empty() && !Folio::RoleSaysItsOwnValue(node.Role))
 			line += " = " + node.Value;

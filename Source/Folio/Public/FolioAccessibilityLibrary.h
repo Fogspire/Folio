@@ -24,6 +24,23 @@ enum class EFolioReaderVerbosity : uint8
 };
 
 /**
+ * How much of the punctuation in a field is named as it is typed.
+ *
+ * A separate axis from verbosity, and it has to be: someone entering a password or a file path wants
+ * every symbol named, and someone entering their own name wants none of them.
+ */
+UENUM(BlueprintType)
+enum class EFolioPunctuation : uint8
+{
+	/** None of it. A voice handed a bare comma says nothing, and that is what was asked for. */
+	None,
+	/** A single keystroke is named; a run is read as words. The default. */
+	Some,
+	/** Every symbol, wherever it appears. What a password or a command line needs. */
+	All,
+};
+
+/**
  * What a game drives, on top of markup that is already annotated.
  *
  * A document annotated the way docs/accessibility.md describes is walked into a Slate accessibility
@@ -204,6 +221,29 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility")
 	static FOLIO_API EFolioReaderVerbosity GetReaderVerbosity();
+
+	/** How much of a field's punctuation is named as it is typed. Its own row, beside verbosity. */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility")
+	static FOLIO_API void SetPunctuation(EFolioPunctuation Level);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility")
+	static FOLIO_API EFolioPunctuation GetPunctuation();
+
+	/**
+	 * Reads the word or the line the caret is in, or spells the word out.
+	 *
+	 * Typing is echoed as it happens; this is the other half, and it is what a player needs the moment
+	 * they stop typing and start correcting. Nothing moves - the caret is where it was afterwards.
+	 * Worth binding beside the review keys.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReadEditWord();
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString ReadEditLine();
+
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Review")
+	static FOLIO_API FString SpellEditWord();
 
 	/**
 	 * Every line on screen, in reading order, as a screen reader would say it.

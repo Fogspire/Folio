@@ -11,8 +11,19 @@ group "Settings"
     progressbar "Sync" = 0.4
   group "Saves"
     list "Saves"
-      listitem "Sector 1"
-      listitem "Sector 2"
+      listitem "Sector 1" 1/2
+      listitem "Sector 2" 2/2
+  group "Loadout"
+    table
+      row 1/3
+        cell "Weapon" 1/2
+        cell "Damage" 2/2
+      row 2/3
+        cell [Weapon] "Rifle" 1/2
+        cell [Damage] "32" 2/2
+      row 3/3
+        cell [Weapon] "Pistol" 1/2
+        cell [Damage] "18" 2/2
   button "Apply"
   button "Revert" [disabled]
   button "Close"

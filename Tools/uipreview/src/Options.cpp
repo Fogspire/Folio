@@ -105,6 +105,9 @@ void PrintUsage(std::FILE* stream)
 		"                        Above 1, --a11y also reports text the setting cannot move and\n"
 		"                        text that no longer fits\n"
 		"  --reduced-motion      Turn every transition and animation off, as the setting does\n"
+		"  --flash-check         Render --filmstrip-frames frames and report flashing over the\n"
+		"                        WCAG limit of three a second, which is a seizure risk and a\n"
+		"                        certification question\n"
 		"  --simulate <VISION>   Redraw captures, and re-check contrast, as protanopia,\n"
 		"                        deuteranopia, tritanopia or achromatopsia sees them\n"
 		"  --metrics-report <FILE>  Write where every piece of text laid out, for diffing a\n"
@@ -292,6 +295,10 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		else if (arg == "--reduced-motion")
 		{
 			o.reduced_motion = true;
+		}
+		else if (arg == "--flash-check")
+		{
+			o.flash_check = true;
 		}
 		else if (arg == "--simulate")
 		{

@@ -17,6 +17,7 @@
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/Elements/ElementFormControl.h>
+#include <RmlUi/Core/Elements/ElementFormControlInput.h>
 
 namespace
 {
@@ -443,6 +444,41 @@ bool FFolioReviewCursorTest::RunTest(const FString&)
 	Host.Update(0.0f, 1.0f, 1.0f);
 	TestEqual(TEXT("and what has focus can be asked for the same way"),
 		UFolioAccessibilityLibrary::GetFocusedControl(), TEXT("Save, button"));
+
+	// Reading the field without moving through it, which is what someone correcting a mistake needs.
+	Rml::ElementFormControl* Field =
+		rmlui_dynamic_cast<Rml::ElementFormControl*>(Host.GetDocument()->GetElementById("name"));
+	if (!TestNotNull(TEXT("the field is a form control"), Field))
+	{
+		Host.Destroy();
+		return false;
+	}
+
+	Field->SetValue("Vega Seven");
+	Host.GetDocument()->GetElementById("name")->Focus();
+	Host.Update(0.0f, 1.0f, 1.0f);
+
+	if (auto* Input = rmlui_dynamic_cast<Rml::ElementFormControlInput*>(Host.GetDocument()->GetElementById("name")))
+	{
+		Input->SetSelectionRange(2, 2);
+	}
+
+	TestEqual(TEXT("the word the caret is in is read back"), FFolioAccessibilityTree::ReadEditWord(), TEXT("Vega"));
+	TestEqual(TEXT("and spelled out on request"), FFolioAccessibilityTree::SpellEditWord(), TEXT("V, e, g, a"));
+	TestEqual(TEXT("and the whole line"), FFolioAccessibilityTree::ReadEditLine(), TEXT("Vega Seven"));
+
+	// Punctuation is its own axis: a path wants every symbol, a name wants none.
+	UFolioAccessibilityLibrary::SetPunctuation(EFolioPunctuation::All);
+	Field->SetValue("a/b");
+	if (auto* Input = rmlui_dynamic_cast<Rml::ElementFormControlInput*>(Host.GetDocument()->GetElementById("name")))
+	{
+		Input->SetSelectionRange(1, 1);
+	}
+
+	TestEqual(TEXT("every symbol is named at the highest level"), FFolioAccessibilityTree::ReadEditWord(),
+		TEXT("a, slash, b"));
+
+	UFolioAccessibilityLibrary::SetPunctuation(EFolioPunctuation::Some);
 
 	Host.Destroy();
 	return true;

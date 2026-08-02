@@ -205,8 +205,24 @@ UTextureRenderTarget2D* SFolioCanvas::MakeTarget(const FIntPoint Size)
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_AllocateSurface);
 	SCOPE_CYCLE_COUNTER(STAT_FolioAllocateTarget);
 
+	const float Megabytes = float(Size.X) * float(Size.Y) * 4.0f / (1024.0f * 1024.0f);
+
 	UE_LOG(LogFolio, Verbose, TEXT("allocating a %dx%d surface target (%.1f MB)"),
-		Size.X, Size.Y, float(Size.X) * float(Size.Y) * 4.0f / (1024.0f * 1024.0f));
+		Size.X, Size.Y, Megabytes);
+
+	// Said once, loudly, because the cost is quadratic in the sample count and in the resolution, and
+	// every layer the document pushes is another one of these. What it looks like from outside is the
+	// operating system warning about memory while the frame rate collapses.
+	static bool bWarned = false;
+	if (Megabytes > 96.0f && !bWarned)
+	{
+		bWarned = true;
+		UE_LOG(LogFolio, Warning,
+			TEXT("a supersampled document wants a %dx%d target, which is %.0f MB - and every layer it "
+				"pushes for a shadow or a filter is another. Two samples each way is the one worth "
+				"paying for; four is sixteen times the pixels for an edge nobody sees."),
+			Size.X, Size.Y, Megabytes);
+	}
 
 	UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
 	Fresh->RenderTargetFormat = RTF_RGBA8;

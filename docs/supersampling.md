@@ -122,8 +122,37 @@ like a screen reload.
   a full-size depth-stencil per layer per frame.
 - One resolve pass and one composite per frame.
 
-So it is a per-document choice: on for a screen of slanted panels, off for one that is mostly text,
-and worth measuring at 4× before assuming it is simply "more".
+So it is a per-document choice: on for a screen of slanted panels, off for one that is mostly text.
+
+## Two is the sample count. Four is not.
+
+The cost is quadratic in the sample count *and* in the resolution, and it is paid per **layer**, not
+per document. One target of RGBA8:
+
+| | 1× | 2× | 4× |
+|---|---|---|---|
+| 1080p | 8 MB | 33 MB | **133 MB** |
+| 1440p | 15 MB | 59 MB | **236 MB** |
+| 4K | 33 MB | 133 MB | **531 MB** |
+
+Multiply by the number of layers alive at once - the surface, one per element casting a shadow or
+carrying a filter, plus the scratch a blur or a mask needs - and every one of them is pooled between
+frames so the peak is what is held, not what is in use. A screen with two shadows at 4K is over 2 GB
+of render targets, and that is what a memory-pressure warning from the operating system is: the driver
+spilling render targets it cannot fit into system memory, which then also destroys the frame rate.
+
+**None of that is solvable.** Sixteen times the pixels is what four samples each way *means*: the fill,
+the bandwidth and the allocations all follow, and every optimisation here only stops the count being
+paid more often than once a frame. What is measured on a real screen is that 2× is worth it and 4× is
+not:
+
+- 2× cuts hard edges on a shallow diagonal from 72 columns to 26, for four times the pixels and, at
+  1080p, 33 MB. It is the good value.
+- 4× takes 26 columns to 21 - a difference nobody looks at a menu and sees - for sixteen times the
+  pixels and four times the memory of 2×.
+
+So offer 1 and 2, treat 4 as a debugging curiosity, and default to off. If 4 is offered at all, warn
+when the allocation gets large rather than letting a player discover it as a frozen machine.
 
 ## Checking it
 

@@ -156,14 +156,16 @@ covering all of them.
 
 What it costs:
 
-- A render target of the viewport times the sample count, squared. At 4K and 2x that is about 32MB,
-  per supersampled document.
-- One composite a frame.
+- A render target of the viewport times the sample count, squared - and another for every layer the
+  document pushes for a shadow or a filter, held between frames. At 1080p and 2x that is 33MB each;
+  at 4K and 4x it is 531MB each, which is where the operating system starts warning about memory.
+- One resolve pass and one composite a frame.
 
 So it is per document rather than a project setting: on for a menu or a HUD with slanted panels, off
-for one with nothing but text on it or a tight memory budget. **[Supersampling](supersampling.md)**
-is the whole of it: what it must not change, and the three ways of getting it wrong that all look
-like it making the picture worse.
+for one with nothing but text on it or a tight memory budget. **Two is the sample count worth paying
+for; four is sixteen times the pixels for an edge nobody sees.**
+**[Supersampling](supersampling.md)** is the whole of it: what it must not change, the three ways of
+getting it wrong that all look like it making the picture worse, and the measurements behind that.
 
 `folio.Screens` reports what every screen document is laid out against: pixels, the ratio, what UMG
 would use, and what the document actually covers. **`drawn` has to match `px`**; when it does not,

@@ -17,6 +17,7 @@
 #include "FolioTheme.h"
 
 #include "FolioAccessibility.h"
+#include "FolioAccessibilityLibrary.h"
 #include "FolioCore/FolioElementPath.h"
 #include "FolioCore/FolioSemantics.h"
 
@@ -1898,6 +1899,20 @@ namespace
 		}
 	}
 
+	/** The setting a game's options menu owns, from the console, for testing it without one. */
+	void ReaderAccessibility(const TArray<FString>& Args)
+	{
+		const bool bWanted = Args.Num() == 0
+			? !UFolioAccessibilityLibrary::IsScreenReaderEnabled()
+			: (Args[0].ToBool() || Args[0] == TEXT("1"));
+
+		UFolioAccessibilityLibrary::SetScreenReader(bWanted);
+
+		UE_LOG(LogFolio, Display, TEXT("folio.Accessibility.Reader: %s%s"),
+			UFolioAccessibilityLibrary::IsScreenReaderEnabled() ? TEXT("on") : TEXT("off"),
+			UFolioAccessibilityLibrary::IsSpeechAvailable() ? TEXT("") : TEXT(" (no speech on this platform)"));
+	}
+
 	void SayAccessibility(const TArray<FString>& Args)
 	{
 		const FString Text = FString::Join(Args, TEXT(" "));
@@ -1934,6 +1949,12 @@ namespace
 			"screen document, in reading order. A delay defers it, which a menu that closes on losing "
 			"focus needs."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&DumpAccessibility));
+
+	FAutoConsoleCommand AccessibilityReaderCommand(
+		TEXT("folio.Accessibility.Reader"),
+		TEXT("folio.Accessibility.Reader [0|1]. Turns the game's own screen reader on or off, which is "
+			"what an options menu toggle calls. No argument flips it."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&ReaderAccessibility));
 
 	FAutoConsoleCommand AccessibilitySayCommand(
 		TEXT("folio.Accessibility.Say"),

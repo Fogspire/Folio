@@ -1,7 +1,9 @@
 #include "FolioAccessibility.h"
 
 #include "FolioAccessibilityLibrary.h"
+#include "FolioModule.h"
 #include "FolioRmlUi.h"
+#include "FolioSpeech.h"
 
 #include "HAL/IConsoleManager.h"
 #include "Layout/ArrangedChildren.h"
@@ -23,6 +25,88 @@ namespace
 		TEXT("Builds the screen reader tree for every document even with no screen reader running. "
 			"For folio.Accessibility.Dump, and for measuring what it costs."),
 		ECVF_Default);
+
+	/** Whether the game is reading itself out. A game setting owns this; nothing turns it on by itself. */
+	bool GScreenReader = false;
+
+	/**
+	 * What a control is called out loud.
+	 *
+	 * A role word rather than a role name: "check box" is what every screen reader says and what a
+	 * player expects to hear, where "checkbox" reads as a tag name to anyone who has used one.
+	 */
+	const TCHAR* SpokenRole(const Folio::ESemanticRole Role)
+	{
+		switch (Role)
+		{
+		case Folio::ESemanticRole::Image: return TEXT("image");
+		case Folio::ESemanticRole::Button: return TEXT("button");
+		case Folio::ESemanticRole::Link: return TEXT("link");
+		case Folio::ESemanticRole::CheckBox: return TEXT("check box");
+		case Folio::ESemanticRole::Radio: return TEXT("radio button");
+		case Folio::ESemanticRole::ComboBox: return TEXT("combo box");
+		case Folio::ESemanticRole::Slider: return TEXT("slider");
+		case Folio::ESemanticRole::ProgressBar: return TEXT("progress");
+		case Folio::ESemanticRole::TextEdit: return TEXT("edit");
+		case Folio::ESemanticRole::List: return TEXT("list");
+		case Folio::ESemanticRole::ListItem: return TEXT("item");
+
+		// Text says itself, and a group is a place rather than a thing to hear the kind of.
+		default: return nullptr;
+		}
+	}
+
+	/** Name, then what it is, then what state it is in - which is the order every reader uses. */
+	FString Utterance(const SFolioAccessibleElement& Proxy)
+	{
+		TArray<FString> Parts;
+
+		if (!Proxy.GetName().IsEmpty())
+		{
+			Parts.Add(Proxy.GetName().ToString());
+		}
+
+		if (const TCHAR* Role = SpokenRole(Proxy.GetRole()))
+		{
+			Parts.Add(Role);
+		}
+
+		const Folio::FSemanticNode& Node = Proxy.GetNode();
+
+		if (Node.Checkable)
+		{
+			Parts.Add(Node.Checked ? TEXT("checked") : TEXT("not checked"));
+		}
+
+		if (!Proxy.GetValueText().IsEmpty() && Proxy.GetRole() != Folio::ESemanticRole::Text)
+		{
+			Parts.Add(Proxy.GetValueText());
+		}
+
+		// The word a reader uses for a control that is present and cannot be used. Said last, because
+		// it qualifies everything before it.
+		if (Node.Disabled)
+		{
+			Parts.Add(TEXT("unavailable"));
+		}
+
+		return FString::Join(Parts, TEXT(", "));
+	}
+
+	/** The nearest named group above a control, which is the context a player has just moved into. */
+	FString GroupOf(const SFolioAccessibleElement& Proxy)
+	{
+		for (TSharedPtr<SFolioAccessibleElement> At = Proxy.GetAccessibleParent(); At.IsValid();
+			At = At->GetAccessibleParent())
+		{
+			if (At->GetRole() == Folio::ESemanticRole::Group && !At->GetName().IsEmpty())
+			{
+				return At->GetName().ToString();
+			}
+		}
+
+		return FString();
+	}
 
 #if WITH_ACCESSIBILITY
 	/**
@@ -285,6 +369,7 @@ void SFolioAccessibleElement::SetAccessibleChildren(TArray<TSharedRef<SFolioAcce
 	Children.Empty(InChildren.Num());
 	for (const TSharedRef<SFolioAccessibleElement>& Child : InChildren)
 	{
+		Child->AccessibleParent = SharedThis(this);
 		Children.Add(Child);
 	}
 }
@@ -411,9 +496,41 @@ void SFolioAccessibleElement::SetValueFromPlatform(const FString& Value)
 // The tree
 //
 
+void FFolioAccessibilityTree::SetScreenReader(const bool bEnabled)
+{
+	if (GScreenReader == bEnabled)
+	{
+		return;
+	}
+
+	GScreenReader = bEnabled;
+
+	if (bEnabled)
+	{
+		GScreenReader = Folio::FSpeech::Start();
+		if (GScreenReader)
+		{
+			// The player has just turned this on and needs to know it took, before anything they do
+			// next produces a sentence they might mistake for the confirmation.
+			Folio::FSpeech::Say(TEXT("Screen reader on"), true);
+		}
+	}
+	else
+	{
+		// Silence is the confirmation. Saying "off" would mean holding the voice open to finish a
+		// sentence about having stopped talking.
+		Folio::FSpeech::Stop();
+	}
+}
+
+bool FFolioAccessibilityTree::IsScreenReaderEnabled()
+{
+	return GScreenReader;
+}
+
 bool FFolioAccessibilityTree::IsWanted()
 {
-	if (CVarForceAccessibility.GetValueOnGameThread() != 0)
+	if (GScreenReader || CVarForceAccessibility.GetValueOnGameThread() != 0)
 	{
 		return true;
 	}
@@ -512,13 +629,20 @@ bool FFolioAccessibilityTree::Refresh(Rml::ElementDocument* Document, const floa
 
 void FFolioAccessibilityTree::Announce(const FString& Text)
 {
-#if WITH_ACCESSIBILITY
-	if (Text.IsEmpty() || !FSlateApplicationBase::IsInitialized())
+	if (Text.IsEmpty())
 	{
 		return;
 	}
 
-	FSlateApplicationBase::Get().GetAccessibleMessageHandler()->MakeAccessibleAnnouncement(Text);
+	// After whatever is being said rather than over it: an announcement is news, and a player halfway
+	// through hearing which control they are on still needs the end of that sentence.
+	Folio::FSpeech::Say(Text, /*bInterrupt*/ false);
+
+#if WITH_ACCESSIBILITY
+	if (FSlateApplicationBase::IsInitialized())
+	{
+		FSlateApplicationBase::Get().GetAccessibleMessageHandler()->MakeAccessibleAnnouncement(Text);
+	}
 #endif
 }
 
@@ -527,6 +651,7 @@ void FFolioAccessibilityTree::Clear()
 	Root.Reset();
 	ByElement.Reset();
 	LastFocused = nullptr;
+	SpokenGroup.Reset();
 	bBuiltOnce = false;
 }
 
@@ -545,7 +670,6 @@ void FFolioAccessibilityTree::SyncFocus(Rml::Context* Context)
 
 	LastFocused = Focused;
 
-#if WITH_ACCESSIBILITY
 	// Up the document from whatever holds focus: RmlUi focuses the element the author gave a tab
 	// index to, and the tree keeps the control rather than every div between it and the body.
 	for (Rml::Element* At = Focused; At; At = At->GetParentNode())
@@ -556,21 +680,53 @@ void FFolioAccessibilityTree::SyncFocus(Rml::Context* Context)
 			continue;
 		}
 
-		if (const TSharedPtr<SFolioAccessibleElement> Proxy = Found->Pin())
+		const TSharedPtr<SFolioAccessibleElement> Proxy = Found->Pin();
+		if (!Proxy.IsValid())
 		{
-			if (!FSlateApplicationBase::IsInitialized())
-			{
-				return;
-			}
+			return;
+		}
 
+		Speak(Proxy.ToSharedRef());
+
+#if WITH_ACCESSIBILITY
+		if (FSlateApplicationBase::IsInitialized())
+		{
 			FSlateApplicationBase::Get().GetAccessibleMessageHandler()->OnWidgetEventRaised(
 				FSlateAccessibleMessageHandler::FSlateWidgetAccessibleEventArgs(Proxy.ToSharedRef(),
 					EAccessibleEvent::FocusChange, false, true));
 		}
+#endif
 
 		return;
 	}
-#endif
+}
+
+void FFolioAccessibilityTree::Speak(const TSharedRef<SFolioAccessibleElement>& Proxy)
+{
+	if (!GScreenReader)
+	{
+		return;
+	}
+
+	FString Line = Utterance(Proxy.Get());
+	if (Line.IsEmpty())
+	{
+		return;
+	}
+
+	// The panel is named only on the way into it. Repeating it on every row turns a settings page
+	// into "Audio, master volume. Audio, output device. Audio, subtitles."
+	if (const FString Group = GroupOf(Proxy.Get()); Group != SpokenGroup)
+	{
+		SpokenGroup = Group;
+		if (!Group.IsEmpty())
+		{
+			Line = Group + TEXT(", ") + Line;
+		}
+	}
+
+	UE_LOG(LogFolio, Verbose, TEXT("speaking: %s"), *Line);
+	Folio::FSpeech::Say(Line, /*bInterrupt*/ true);
 }
 
 void FFolioAccessibilityTree::Describe(TArray<FString>& Out) const
@@ -599,8 +755,48 @@ void UFolioAccessibilityLibrary::Announce(const FString& Text)
 	FFolioAccessibilityTree::Announce(Text);
 }
 
+void UFolioAccessibilityLibrary::SetScreenReader(const bool bEnabled)
+{
+	FFolioAccessibilityTree::SetScreenReader(bEnabled);
+}
+
+bool UFolioAccessibilityLibrary::IsScreenReaderEnabled()
+{
+	return FFolioAccessibilityTree::IsScreenReaderEnabled();
+}
+
+void UFolioAccessibilityLibrary::SetSpeechRate(const int32 Rate)
+{
+	Folio::FSpeech::SetRate(Rate);
+}
+
+int32 UFolioAccessibilityLibrary::GetSpeechRate()
+{
+	return Folio::FSpeech::GetRate();
+}
+
+void UFolioAccessibilityLibrary::SetSpeechVolume(const int32 Volume)
+{
+	Folio::FSpeech::SetVolume(Volume);
+}
+
+int32 UFolioAccessibilityLibrary::GetSpeechVolume()
+{
+	return Folio::FSpeech::GetVolume();
+}
+
+bool UFolioAccessibilityLibrary::IsSpeechAvailable()
+{
+	return Folio::FSpeech::IsAvailable();
+}
+
 bool UFolioAccessibilityLibrary::IsScreenReaderActive()
 {
+	if (FFolioAccessibilityTree::IsScreenReaderEnabled())
+	{
+		return true;
+	}
+
 #if WITH_ACCESSIBILITY
 	return FSlateApplicationBase::IsInitialized()
 		&& FSlateApplicationBase::Get().GetAccessibleMessageHandler()->IsActive();

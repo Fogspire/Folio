@@ -965,8 +965,9 @@ theme pass with no findings, so building on the component library inherits that.
 | `folio-label="..."` | Names a control that has no text of its own, and overrides text that reads wrong out loud. |
 | `folio-role="..."` | What kind of control this is, when the tag does not say. Inferred from the tag otherwise. |
 | `folio-description="..."` | A sentence read after the name, for a consequence the name cannot carry. |
+| `folio-checked="true\|false"` | The state of a check box built out of `div`s. A real `<input>` needs none of this. |
 | `folio-hidden` | Decoration. Skipped by the checks and by the screen-reader tree. |
-| `folio-announce` | A line that is read out whenever it changes, wherever the reader happens to be. |
+| `folio-announce` | A line that is read out whenever it changes, wherever the reader happens to be. Also how a value nobody can focus - the number between a minus and a plus - gets heard. |
 
 A control counts as named if it has `folio-label`, its own text, text inside it, a `<label for>`
 pointing at it, or - for a form control - a wrapping `<label>` or a non-interactive sibling with text
@@ -976,8 +977,9 @@ an `X` that means Close.
 Do not use `folio-hidden` to silence a finding on something a person is meant to read.
 
 While a screen reader is running, the document is walked into a tree of Slate widgets, one per thing
-worth announcing, and NVDA, JAWS and console TTS read that. Nothing is built while nothing is
-listening. `--a11y-tree` prints the same tree the engine builds, so it is checkable without a screen
+worth announcing, and NVDA, JAWS and console TTS read that. A game can also read its own menus
+aloud without one - `UFolioAccessibilityLibrary::SetScreenReader`, which is what an options toggle
+calls. Nothing is built while neither is on. `--a11y-tree` prints the same tree the engine builds, so it is checkable without a screen
 reader; `folio.Accessibility.Dump` prints it from a running game. See
 **[docs/accessibility.md](docs/accessibility.md)**.
 

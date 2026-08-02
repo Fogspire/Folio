@@ -55,6 +55,14 @@ public:
 	int32 NumAccessibleChildren() const { return Children.Num(); }
 	const TSharedRef<SFolioAccessibleElement>& GetAccessibleChild(int32 Index) const { return Children[Index]; }
 
+	/**
+	 * The proxy above this one, or nothing at the root.
+	 *
+	 * Kept rather than read back from `GetParentWidget`, because the widget above the root belongs to
+	 * whatever put the canvas on screen and is not one of these.
+	 */
+	TSharedPtr<SFolioAccessibleElement> GetAccessibleParent() const { return AccessibleParent.Pin(); }
+
 	Folio::ESemanticRole GetRole() const { return Role; }
 	Rml::Element* GetElement() const { return Element.get(); }
 	const Folio::FSemanticNode& GetNode() const { return Node; }
@@ -116,6 +124,8 @@ private:
 	bool bAnnouncesOnArrival = false;
 	bool bUpdatedOnce = false;
 
+	TWeakPtr<SFolioAccessibleElement> AccessibleParent;
+
 	TSlotlessChildren<SFolioAccessibleElement> Children;
 };
 
@@ -132,6 +142,20 @@ class FFolioAccessibilityTree
 public:
 	/** Whether anything is listening. False is the normal case and costs one branch a frame. */
 	static bool IsWanted();
+
+	/**
+	 * Turns the game's own screen reader on or off.
+	 *
+	 * Two different players are covered by one tree. One runs NVDA or a console narrator, and needs
+	 * only the tree - the platform reads it and this stays off. The other has no screen reader,
+	 * because they are on a console where there is nothing to run, or because they expect the game to
+	 * read itself; for them the tree is walked all the same and Folio speaks the focused control.
+	 *
+	 * A game setting drives this. It is never on by default: a menu that starts talking is a bug for
+	 * everyone who did not ask for it.
+	 */
+	static void SetScreenReader(bool bEnabled);
+	static bool IsScreenReaderEnabled();
 
 	/**
 	 * Says something out loud, outside the tree.
@@ -161,6 +185,9 @@ public:
 	FSimpleDelegate OnChanged;
 
 private:
+	/** Reads a control out, with the panel it sits in when that has just changed. */
+	void Speak(const TSharedRef<SFolioAccessibleElement>& Proxy);
+
 	TSharedRef<SFolioAccessibleElement> Sync(const Folio::FSemanticNode& Node, float ContextToLocal,
 		const TMap<Rml::Element*, TSharedPtr<SFolioAccessibleElement>>& Existing, bool& bOutChanged);
 
@@ -177,4 +204,7 @@ private:
 
 	/** What was last reported as focused, so the same element is not announced twice. */
 	Rml::Element* LastFocused = nullptr;
+
+	/** The group whose name was last spoken, so moving within a panel does not re-announce it. */
+	FString SpokenGroup;
 };

@@ -13,6 +13,46 @@ while nothing is listening.
 Both halves read the same walk. A control the checker calls named is a control a screen reader reads
 a name for, and `--a11y-tree` prints exactly what the engine will build.
 
+## Why a UI toolkit ships this
+
+Four separate pressures, with very different force. They are worth separating, because most of what
+gets said about game accessibility conflates a legal requirement with a marketing tag.
+
+**Store metadata, self-declared.** Xbox, PlayStation and Steam all take an accessibility feature
+declaration on the product page - screen reader support, subtitle options, remappable controls,
+colour-blind modes, no-flashing, and so on. You tick what you support. Nobody audits it up front and
+nothing blocks a release, but the declaration is public and wrong entries are found by the people who
+depend on them. Nintendo has historically been the least developed of the four here.
+
+**Certification, mandatory but narrow.** Platform cert asks a handful of specific accessibility
+questions rather than judging whether a UI is usable. The one with real teeth is the US **CVAA**,
+which covers in-game communications - text and voice chat have to be usable by players with
+disabilities - and that has been enforceable for years and does appear in cert. Microsoft
+additionally publishes the Xbox Accessibility Guidelines and a validation service, which are guidance
+rather than pass or fail for most titles.
+
+**Regulation, the direction of travel.** The **European Accessibility Act** came into force in June
+2025. Whether game *content* falls in scope is contested; the storefront, the purchase flow and the
+account and support services around a game are much clearer targets. There is no settled answer for
+games yet, which makes this pressure rather than a checklist - and pressure that only moves one way.
+
+**Reputation.** Specialist outlets and player communities review this directly, and menus that cannot
+be read out are the most commonly cited failure of the lot.
+
+Where a UI toolkit sits in that: it can provide the plumbing - a readable tree, contrast and target
+gates, a name on every control - and it can make the checks a build gate so the annotations exist
+before there are four hundred of them. It cannot provide the game half. Subtitles, remapping,
+difficulty options, motion reduction, colour-blind modes and anything CVAA touches are game features
+that Folio can render and cannot supply.
+
+Two practical consequences for anyone using this:
+
+- The declaration you can honestly make from Folio alone is "screen reader support in menus" plus the
+  visual ones the checker gates. Everything else on a store form is yours to build.
+- Specifics per platform move constantly. Read the current requirements on each platform's own
+  developer portal before filling in a submission form rather than trusting a summary - including
+  this one.
+
 ## Running the checks
 
 ```bash
@@ -73,11 +113,32 @@ the player is most likely to be standing on.
 
 ## The screen reader
 
+### Two players, one tree
+
+**Someone running a screen reader** - NVDA or JAWS on Windows, a narrator on a console - needs nothing
+switched on. The platform asks the application for its accessibility tree, Folio builds one, and that
+software reads it in its own voice with its own settings. This is the route that matters most, because
+it is the one those players have already configured to their liking.
+
+**Someone with no screen reader** gets nothing from that. On a console there is often nothing to run;
+on Windows plenty of players who need menus read do not run one. For them a game has to read itself,
+and Folio will: `SetScreenReader(true)` builds the same tree and speaks the focused control through
+the platform's own voice. Windows only for now, through SAPI, which ships with the OS - no library
+and no voice data to ship.
+
+That setting belongs in your options menu, off by default, saved with everything else and applied
+before the first menu opens. `UFolioAccessibilityLibrary` has it, along with speech rate and volume,
+and `IsSpeechAvailable` so a platform with no voice hides the row rather than offering a dead one.
+
+What it says is name, then role, then state, then value - "Master volume down, button", "Subtitles,
+check box, checked" - with the enclosing group named on the way in and not repeated after that:
+"Audio, master volume down, button".
+
 ### What happens
 
-While the platform reports that something is listening, every screen document walks itself once per
-frame *in which it changed* and produces a tree of hit-test-invisible, unfocusable Slate widgets: one
-per group, control, list, item and run of text. Each carries a name, a role, a value, a checked or
+While either of those is true, every screen document walks itself once per frame *in which it
+changed* and produces a tree of hit-test-invisible, unfocusable Slate widgets: one per group,
+control, list, item and run of text. Each carries a name, a role, a value, a checked or
 disabled state and the bounds of the element it stands for. Unreal builds its own accessibility tree
 from those the way it does for any UI, and the platform reads it.
 
@@ -119,7 +180,37 @@ noticed by ear.
 
 In a running game, `folio.Accessibility.Dump` prints the same thing for every screen document - from
 the live tree when a screen reader is running, and from the document itself when one is not.
-`folio.Accessibility.Force 1` builds the tree with nothing listening, which is how you measure it.
+`folio.Accessibility.Force 1` builds the tree with nothing listening, which is how you measure it, and
+`folio.Accessibility.Reader 1` turns the game's own reader on without an options menu to do it from.
+With `LogFolio` at Verbose, every sentence it speaks is also logged, so what a player hears can be
+read back off a log.
+
+### Changing what a screen says
+
+A tree that is correct is not the same as a tree that reads well, and the difference is only visible
+once you read the transcript. Every line you disagree with is one attribute on one element:
+
+| What is wrong with the line | What fixes it |
+|---|---|
+| The words are wrong, or it is a symbol | `folio-label="..."` |
+| It needs a consequence said after the name | `folio-description="..."` |
+| It is read as the wrong kind of thing | `folio-role="..."` |
+| It should not be read at all | `folio-hidden` |
+| It changes and nobody would ever land on it | `folio-announce` |
+| It is a switch that reads as its own state | `folio-role="checkbox"` and `folio-checked` |
+
+The practical way to do a whole game rather than one screen: dump the tree for every document into one
+file, edit the lines you want changed in place, and work back from that to the markup.
+
+```bash
+for doc in UI/screens/*.rml; do
+    echo "== $doc"
+    ./Plugins/Folio/bin/win64/uipreview.exe "$doc" --root . --a11y-tree
+done > accessibility-transcript.txt
+```
+
+Reading it out loud is the point of it. A line that is accurate and clumsy - "ON, button", "minus,
+button", the same panel name before every row - is a line a player hears a hundred times.
 
 ### What ends up in the tree
 
@@ -195,6 +286,23 @@ layer has nowhere to put them, and a role nothing can announce is a promise the 
 keep. A progress bar becomes a slider for the same reason - it is the only thing in that list that
 carries a value and a range, and "slider, 40" is better than silence.
 
+### `folio-checked`
+
+The state of a check box or a radio built out of `div`s, where there is no input to carry it and a
+class name is the only thing that has it.
+
+```html
+<span class="switch focusable" folio-role="checkbox" folio-label="Invert look"
+      data-attr-folio-checked="bInvertY" data-class-yes="bInvertY">{{ bInvertY ? 'ON' : 'OFF' }}</span>
+```
+
+Anything but `false` or `0` is on. A real `<input type="checkbox">` needs none of this - it carries
+its own state and Folio reads it.
+
+Worth knowing why the example is written that way at all: `ON` and `OFF` are a *state*, not a name, so
+a switch whose visible text is its state needs a `folio-label` and a role. Without them a screen
+reader says "ON, button", which tells a player what it currently is and nothing about what it does.
+
 ### `folio-description`
 
 A sentence read after the name, for the consequence a name cannot carry.
@@ -230,8 +338,12 @@ line.
 It announces on change, not on arrival: the tree built when a screen reader starts does not read out
 every announcing element on screen at once.
 
-Game code with no element to hang it on calls `FFolioAccessibilityTree::Announce`, which is the same
-path. `folio.Accessibility.Say <text>` is that from the console.
+It is also the answer for a value nobody can navigate to. A stepper row - a label, a minus, a number,
+a plus - has three focusable things and the number is not one of them, so a player pressing plus would
+never hear what it became. `folio-announce` on the value says it each time it changes.
+
+Game code with no element to hang it on calls `UFolioAccessibilityLibrary::Announce`, which is the
+same path. `folio.Accessibility.Say <text>` is that from the console.
 
 ## Thresholds
 

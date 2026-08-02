@@ -163,6 +163,13 @@ landmark or progress bar in it. `folio-role="heading"` reads as text and `progre
 read-only slider, which is the closest thing that carries a value. A document that leans on headings
 for structure will not read as structured.
 
+### The game's own reader speaks on Windows only
+
+`SetScreenReader` talks through SAPI, which is Windows. Everywhere else it reports unavailable and
+turns itself off, so a console needs either its platform narrator - which reads the tree and needs
+none of this - or a back end written against that platform's own speech API. The seam for one is
+`FolioSpeech.h`, which is four functions.
+
 ### Announcements are not guaranteed to arrive
 
 `folio-announce` and `FFolioAccessibilityTree::Announce` go through Unreal's

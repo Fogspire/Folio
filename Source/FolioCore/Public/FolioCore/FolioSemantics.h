@@ -546,7 +546,20 @@ namespace Folio
 			case ESemanticRole::CheckBox:
 			case ESemanticRole::Radio:
 				Node.Checkable = true;
-				Node.Checked = Element->HasAttribute("checked") || Element->IsPseudoClassSet("checked");
+
+				// `folio-checked` is for a control built out of divs, where there is no input to carry
+				// the state and a class name is the only thing that has it. Bind it with
+				// data-attr-folio-checked; anything but "false" or "0" is on.
+				if (Element->HasAttribute("folio-checked"))
+				{
+					const Rml::String Value = Element->GetAttribute<Rml::String>("folio-checked", "");
+					Node.Checked = Value != "false" && Value != "0";
+				}
+				else
+				{
+					Node.Checked = Element->HasAttribute("checked") || Element->IsPseudoClassSet("checked");
+				}
+
 				Node.ReadOnly = false;
 				break;
 

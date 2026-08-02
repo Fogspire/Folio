@@ -845,9 +845,11 @@ game's own reader does cover them: the review cursor reads every live document, 
 character is not a control; a terminal the player walks up to and uses is, and the answer for one of
 those is still to put its interface on a screen document while it is being used.
 
-The Widget Reflector shows the proxies while the tree is built, named by what they say - `button
-"Apply"` rather than a column of identical class names. Its picker still lands on the canvas, because
-the proxies are hit-test invisible by design, so this is the tree view only.
+The Widget Reflector shows the proxies **while the tree is built** - `folio.Accessibility.Force 1`
+first, then take the snapshot - named by what they say rather than as a column of identical class
+names. Its picker still lands on the canvas, because the proxies are hit-test invisible by design, so
+this is the tree view only. For actually inspecting a document, `folio.Debugger` and the VSCode
+extension are both better.
 
 Text scale reaches type sized in `rem` and nothing sized in `dp`. Reduced motion reaches anything a
 stylesheet moves and nothing a shader, a video or your own per-frame code moves.

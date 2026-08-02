@@ -280,6 +280,15 @@ Measure with `stat Folio` before designing around a number. See
 
 ## Authoring
 
+### The debugger takes the mouse from the document it inspects
+
+`folio.Debugger` forces its host canvas interactive, because its own documents live in that canvas's
+context and a hit-test-invisible canvas drops every click meant for them. A HUD being inspected is
+therefore taking the mouse while the debugger is up, and the game behind it is not. `folio.Debugger
+off` puts it back.
+
+A game that changes `bInteractive` itself while the debugger is attached loses that change on detach.
+
 ### Baking is not automatic
 
 `msdfbake` does not watch its source art. Re-run it after changing an SVG or a font, and remember

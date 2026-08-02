@@ -981,8 +981,23 @@ through a file. A custom font engine that only implements the path overload comp
 the debugger's chrome with no text in it at all - a symptom that points nowhere near the cause.
 `FFolioFontEngine` implements both; verified by screenshotting `uipreview --debug`.
 
-It also needs a cursor to be usable, which a game that has captured the mouse will not have.
+**Its documents live in the host canvas's context, so the canvas has to take the mouse.** A HUD sets
+`bInteractive = false`, which makes the widget hit-test invisible so the game behind it can be played
+through - and that drops every click meant for the debugger as well. `Attach` forces the host
+interactive and `Detach` puts it back, because a debugger you can see and cannot click is worse than
+no debugger.
+
+It also needs a cursor to exist, which a game that has captured the mouse will not have.
 `folio.MouseMode on` sets `FInputModeGameAndUI` with the cursor shown and no viewport lock.
+
+**Slate's Widget Reflector is not an alternative.** A document is one `SFolioCanvas`, so the reflector
+shows one widget and stops - which is the whole reason the accessibility work had to build proxy
+widgets in the first place. Those proxies do appear under the canvas once the tree is built
+(`folio.Accessibility.Force 1`, then take the snapshot) and carry `FReflectionMetaData` naming them by
+what they say, so the structure is legible there. It is still worse than the debugger for every purpose
+except confirming the accessibility tree is what you think it is: the proxies are hit-test invisible so
+the picker cannot select them, they only exist while something is listening, and they carry a node's
+meaning rather than its styling.
 
 ## Hot reload: what decides the granularity, and why the code is duplicated
 

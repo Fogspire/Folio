@@ -14,7 +14,7 @@ Type `folio.` in the console and Unreal will complete the rest.
 | `folio.ShowWindow <document>` | The same in a movable window, which is easier to compare against a reference. `folio.CloseWindow`. |
 | `folio.HotReload` | Rebuilds the open documents from disk. An `.rcss` edit reloads stylesheets only, keeping the DOM, focus and scroll; an `.rml` edit rebuilds. |
 | `folio.ReloadTextures` | Picks up a re-baked atlas. **RmlUi caches a texture by path forever**, so this is what makes `msdfbake` output appear without reopening. `folio.ReloadTextures all` releases every texture whether or not it looks changed. |
-| `folio.Debugger [on\|off]` | RmlUi's element inspector on the focused document: the live DOM, computed properties, and which rule set what. |
+| `folio.Debugger [on\|off]` | RmlUi's element inspector on the focused document: the live DOM, computed properties, and which rule set what. **This is the tool for looking inside a document** - Slate's Widget Reflector sees one canvas, because that is genuinely all Folio draws through. |
 | `folio.MockData` | Mounts the `UI/mock/<model>.json` a document names, so a screen shows data in PIE without the gameplay behind it. |
 | `folio.MouseMode [on\|off]` | Shows the cursor and stops the game consuming the mouse. What you want before clicking anything in a HUD. |
 
@@ -75,7 +75,7 @@ See **[performance and profiling](performance_profiling.md)**.
 | | |
 |---|---|
 | `folio.Accessibility.Dump [delay]` | What a screen reader is read out of every screen document, in reading order. From the live tree when one is running, and from the document itself when one is not. A delay defers it, which a menu that closes on losing focus needs. |
-| `folio.Accessibility.Force 1` | Builds the tree with nothing listening. For measuring what it costs, and for dumping the real widgets rather than what would be built. Game code that needs the same thing takes a `FFolioDocumentTreeRequest` instead, which `Dump` names. |
+| `folio.Accessibility.Force 1` | Builds the tree with nothing listening. For measuring what it costs, and for dumping the real widgets rather than what would be built. Game code that needs the same thing takes a `FFolioDocumentTreeRequest` instead, which `Dump` names. It also makes the document's structure appear under the canvas in Slate's Widget Reflector, named by what each node says - take the snapshot *after* running this, and expect the picker to keep landing on the canvas, since the proxies are hit-test invisible. `folio.Debugger` is the better tool for this. |
 | `folio.Accessibility.Reader [0\|1]` | Turns the game's own screen reader on or off, which is what an options menu toggle calls. No argument flips it. With `LogFolio` at Verbose, every sentence it speaks is logged. |
 | `folio.Accessibility.Say <text>` | Announces a string through whatever screen reader is running. The same path `folio-announce` and `UFolioAccessibilityLibrary::Announce` take. |
 | `folio.Accessibility.Review [what]` | Drives the review cursor, which reads the screen without moving focus: `list`, `next`, `previous`, `first`, `last`, `heading`, `prevheading`, `repeat`, `all`, `stop`, `activate`, `focus`. No argument lists every line it can reach, with `>` on the one it is standing on. |

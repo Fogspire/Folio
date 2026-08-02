@@ -149,6 +149,11 @@ that is how a scene capture, a paper doll or a rendered item reaches a document.
 **Text** is distance-field and scales freely - pick sizes for the design. Font effects reach about
 0.104em, so an outline on small text gets clamped.
 
+**Prose with emphasis in it goes in a `<text>`**, whose contents are Folio's markup rather than RML:
+`You <angry>must</> go to the {tag:Place.Mountain.Temple}`. That is one translatable string with one
+`data-loc`, which splitting it into spans is not. `reveal: typewriter` types it out. See
+[docs/rich_text.md](docs/rich_text.md).
+
 **Fonts are not limited to the bundled Inter and Roboto Mono.** Pick the face the design wants,
 fetch the `.ttf` from [fonts.google.com](https://fonts.google.com) and drop it in `UI/fonts/` with
 its licence. Do not settle for a bundled face and call it a constraint.
@@ -225,6 +230,7 @@ UI/
   art/         packed atlases and the stylesheets that declare them
   fonts/       faces the game registers
   mock/        <model>.json, so a document previews with data
+  terms/       *.terms, the names the whole game shares - places, characters, items
   theme.rcss   the game's palette
 ```
 
@@ -241,6 +247,7 @@ UI/
 | [docs/data_binding.md](docs/data_binding.md) | driving a document from gameplay |
 | [docs/testing_a_document.md](docs/testing_a_document.md) | every check and what it catches |
 | [docs/accessibility.md](docs/accessibility.md) | the four annotations and the build gate |
+| [docs/rich_text.md](docs/rich_text.md) | `<text>`, terms and the typewriter |
 | [docs/known_gaps.md](docs/known_gaps.md) | every known limit, when something does not work and you need to know whether it can |
 | [docs/form_controls.md](docs/form_controls.md) | the real element types, and why `<button>` is not a button |
 | [docs/modals.md](docs/modals.md) | trapping focus in a dialog, which is wrong by default |

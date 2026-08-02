@@ -101,6 +101,35 @@ public:
 	FOnUiSound& OnUiSound() { return UiSoundDelegate; }
 
 	/**
+	 * Fires as a `<text>` reveals a character, naming whatever its `reveal-sound` names.
+	 *
+	 * Separate from the four moments above because it is not one of them: the sound is chosen by
+	 * the document rather than by what the player did, and a line of dialogue picks its own voice.
+	 * At most once a frame however fast the text is typing, because a click per character at sixty
+	 * characters a second is a buzz rather than a sound.
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTextRevealSound, const FString& /* SoundName */);
+	FOnTextRevealSound& OnTextRevealSound() { return TextRevealSoundDelegate; }
+
+	/**
+	 * Fires as a `<text>` finishes revealing, whether it ran to the end or was skipped.
+	 *
+	 * Process-wide, because the element that finished does not know what is hosting it. UFolioWidget
+	 * subscribes and filters by owning document, which is the form a screen actually wants.
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTextRevealed, Rml::Element* /* Element */);
+	FOnTextRevealed& OnTextRevealed() { return TextRevealedDelegate; }
+
+	/**
+	 * Reads every `UI/terms/*.terms`, replacing whatever was loaded before.
+	 *
+	 * Called at startup and again when one of those files changes. A term's text is resolved
+	 * through the `Folio.Terms` namespace, so a translated name arrives here rather than at each
+	 * use, which is the point of the table.
+	 */
+	void LoadTerms();
+
+	/**
 	 * What the player last used, across every document in the process.
 	 *
 	 * Global rather than per-canvas because it answers a question about the player, not about a
@@ -148,6 +177,8 @@ private:
 
 	FSimpleMulticastDelegate PreShutdownDelegate;
 	FOnUiSound UiSoundDelegate;
+	FOnTextRevealSound TextRevealSoundDelegate;
+	FOnTextRevealed TextRevealedDelegate;
 	FOnInputDevice InputDeviceDelegate;
 	// Keyboard rather than Unknown: the body classes already say kbm before any input arrives, so
 	// reporting "unknown" through the data model only ever contradicts them.

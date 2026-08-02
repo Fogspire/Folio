@@ -143,6 +143,23 @@ bool FFolioPolledModelTest::RunTest(const FString&)
 	Notifying->SetScore(11);
 	TestTrue(TEXT("and still reports what it announces"), Second.Tick());
 
+	/*
+	 * An FText binds as what it says rather than as how it was declared.
+	 *
+	 * Read through ExportTextItem - which is how everything that is not a number is read - a text
+	 * carrying a namespace and a key exports as the whole NSLOCTEXT("ns", "key", "source")
+	 * expression, and a document rendered that instead of the words. Two texts with the same
+	 * contents under different keys are the same string to a reader, so nothing changed.
+	 */
+	Plain->Title = NSLOCTEXT("FolioTest", "Ready_A", "Ready");
+	TestTrue(TEXT("a localised string is a change"), Bridge.Tick());
+
+	Plain->Title = NSLOCTEXT("FolioTest", "Ready_B", "Ready");
+	TestFalse(TEXT("an FText binds as its text, not as its declaration"), Bridge.Tick());
+
+	Plain->Title = NSLOCTEXT("FolioTest", "Ready_B", "Steady");
+	TestTrue(TEXT("and changing what it says is a change"), Bridge.Tick());
+
 	return true;
 }
 

@@ -204,9 +204,20 @@ namespace Folio
 		}
 	}
 
+	namespace
+	{
+		FFolioFontEngine* GFontEngine = nullptr;
+	}
+
+	FFolioFontEngine* FFolioFontEngine::Get()
+	{
+		return GFontEngine;
+	}
+
 	FFolioFontEngine::FFolioFontEngine(IMsdfTextureSink& InSink, const FMsdfAtlasParams& InParams, int InPageSize)
 		: Impl(std::make_unique<FImpl>(InSink))
 	{
+		GFontEngine = this;
 		Impl->Params = InParams;
 		Impl->PageSize = InPageSize;
 		Impl->Atlas = std::make_unique<FMsdfAtlasSet>(InSink, InParams, InPageSize);
@@ -261,6 +272,11 @@ namespace Folio
 
 	FFolioFontEngine::~FFolioFontEngine()
 	{
+		if (GFontEngine == this)
+		{
+			GFontEngine = nullptr;
+		}
+
 		// Faces hold FT_Face objects, so they must go before the library that owns them.
 		Impl->Shaper.reset();
 		Impl->Handles.clear();
@@ -727,6 +743,26 @@ namespace Folio
 	{
 		FOLIO_TRACE_SCOPE("Folio/GenerateString");
 
+		return GenerateInternal(RenderManager, FaceHandle, EffectsHandle, String, Position, Colour,
+			TextShapingContext, nullptr, MeshList);
+	}
+
+	int FFolioFontEngine::GenerateStringPainted(Rml::RenderManager& RenderManager, Rml::FontFaceHandle FaceHandle,
+		Rml::FontEffectsHandle EffectsHandle, Rml::StringView String, Rml::Vector2f Position,
+		Rml::ColourbPremultiplied Colour, const Rml::TextShapingContext& TextShapingContext,
+		const IGlyphPainter& Painter, Rml::TexturedMeshList& MeshList)
+	{
+		FOLIO_TRACE_SCOPE("Folio/GenerateStringPainted");
+
+		return GenerateInternal(RenderManager, FaceHandle, EffectsHandle, String, Position, Colour,
+			TextShapingContext, &Painter, MeshList);
+	}
+
+	int FFolioFontEngine::GenerateInternal(Rml::RenderManager& RenderManager, Rml::FontFaceHandle FaceHandle,
+		Rml::FontEffectsHandle EffectsHandle, Rml::StringView String, Rml::Vector2f Position,
+		Rml::ColourbPremultiplied Colour, const Rml::TextShapingContext& TextShapingContext,
+		const IGlyphPainter* Painter, Rml::TexturedMeshList& MeshList)
+	{
 		FHandle* Resolved = ResolveHandle(FaceHandle);
 		if (Resolved == nullptr)
 		{
@@ -747,13 +783,13 @@ namespace Folio
 				if (!Layer.bFront)
 				{
 					AppendPass(RenderManager, *Resolved, String, Position + Rml::Vector2f(Layer.OffsetX, Layer.OffsetY),
-						Layer.Colour, TextShapingContext, &Layer.Params, MeshList);
+						Layer.Colour, TextShapingContext, &Layer.Params, Painter, MeshList);
 				}
 			}
 		}
 
 		const int Width = AppendPass(RenderManager, *Resolved, String, Position, Colour, TextShapingContext,
-			nullptr, MeshList);
+			nullptr, Painter, MeshList);
 
 		// After the glyph, not before. RmlUi lets an effect choose a side and every one it ships
 		// picks the back, which is why drawing them all behind went unnoticed - until a fill
@@ -765,7 +801,7 @@ namespace Folio
 				if (Layer.bFront)
 				{
 					AppendPass(RenderManager, *Resolved, String, Position + Rml::Vector2f(Layer.OffsetX, Layer.OffsetY),
-						Layer.Colour, TextShapingContext, &Layer.Params, MeshList);
+						Layer.Colour, TextShapingContext, &Layer.Params, Painter, MeshList);
 				}
 			}
 		}
@@ -776,7 +812,7 @@ namespace Folio
 	int FFolioFontEngine::AppendPass(Rml::RenderManager& RenderManager, FHandle& Resolved,
 		Rml::StringView String, Rml::Vector2f Position, Rml::ColourbPremultiplied Colour,
 		const Rml::TextShapingContext& TextShapingContext, const FMsdfEffectParams* Effect,
-		Rml::TexturedMeshList& MeshList)
+		const IGlyphPainter* Painter, Rml::TexturedMeshList& MeshList)
 	{
 		FFolioFontFace& Face = *Resolved.Face;
 		const float Scale = float(Resolved.Size);
@@ -796,7 +832,31 @@ namespace Folio
 				continue;
 			}
 
-			if (!Box->bEmpty)
+			Rml::ColourbPremultiplied GlyphColour = Colour;
+			Rml::Vector2f GlyphOffset(0.0f, 0.0f);
+			bool bDraw = true;
+
+			if (Painter != nullptr)
+			{
+				float Alpha = 1.0f;
+				bDraw = Painter->PaintGlyph(Glyph.CharIndex, Alpha, GlyphOffset);
+
+				// Every channel, because the colour is premultiplied: scaling alpha alone would
+				// leave the colour brighter than its coverage and the glyph would glow as it
+				// faded rather than dissolving.
+				if (bDraw && Alpha < 1.0f)
+				{
+					const float Clamped = Alpha > 0.0f ? Alpha : 0.0f;
+					GlyphColour = Rml::ColourbPremultiplied(
+						Rml::byte(float(Colour.red) * Clamped),
+						Rml::byte(float(Colour.green) * Clamped),
+						Rml::byte(float(Colour.blue) * Clamped),
+						Rml::byte(float(Colour.alpha) * Clamped));
+					bDraw = GlyphColour.alpha > 0;
+				}
+			}
+
+			if (!Box->bEmpty && bDraw)
 			{
 				if (std::size_t(Box->Page) >= MeshForPage.size())
 				{
@@ -844,9 +904,11 @@ namespace Folio
 				const float PenX = std::round(Position.x + float(Width) + Glyph.OffsetXEm * Scale);
 				const float BaselineY = std::round(Position.y - Glyph.OffsetYEm * Scale);
 
+				// Added after the snap rather than before it: a glyph the painter is moving is
+				// moving smoothly, and quantising that to whole pixels would make it judder.
 				const Rml::Vector2f Origin(
-					PenX + Box->PlaneLeft * Scale,
-					BaselineY - Box->PlaneTop * Scale);
+					PenX + Box->PlaneLeft * Scale + GlyphOffset.x,
+					BaselineY - Box->PlaneTop * Scale + GlyphOffset.y);
 				const Rml::Vector2f Dimensions(
 					(Box->PlaneRight - Box->PlaneLeft) * Scale,
 					(Box->PlaneTop - Box->PlaneBottom) * Scale);
@@ -855,7 +917,7 @@ namespace Folio
 				const Rml::Vector2f TopLeftUv(Box->AtlasLeft / Texels, Box->AtlasTop / Texels);
 				const Rml::Vector2f BottomRightUv(Box->AtlasRight / Texels, Box->AtlasBottom / Texels);
 
-Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, Colour, TopLeftUv, BottomRightUv);
+				Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, GlyphColour, TopLeftUv, BottomRightUv);
 			}
 
 			Width += RoundToPixels(Glyph.AdvanceEm * Scale);

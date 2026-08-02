@@ -27,6 +27,18 @@ void UMyAudioSubsystem::PlayUiSound(const Folio::EUiSound Sound)
 | `Back` | Back was pressed, whether from Escape or the pad. |
 | `Invalid` | An activation that went nowhere, because the element carries `.is-disabled`. |
 
+A revealing `<text>` reports through a delegate of its own, because the sound is named by the
+document rather than decided by what the player did:
+
+```cpp
+void UMyAudioSubsystem::Initialize(FSubsystemCollectionBase&)
+{
+	FFolioModule::Get().OnTextRevealSound().AddUObject(this, &UMyAudioSubsystem::PlayNamedSound);
+}
+```
+
+At most once a frame however fast the text types. See [rich text](rich_text.md).
+
 ## Why it is a delegate rather than an asset
 
 Folio owns no sound assets, and it should not: what a menu sounds like is a game decision, and a UI

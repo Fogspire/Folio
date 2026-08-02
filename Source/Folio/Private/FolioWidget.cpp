@@ -2,6 +2,8 @@
 
 #include "FolioModule.h"
 #include "FolioRmlUi.h"
+
+#include "FolioCore/FolioTextElement.h"
 #include "FolioTextures.h"
 #include "SFolioCanvas.h"
 
@@ -33,6 +35,13 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 		.MinScale(MinScale)
 		.MaxScale(MaxScale)
 		.Supersample(Supersample);
+
+	// Once a canvas exists there is something to filter against. Dropped in ReleaseSlateResources,
+	// which is also where the canvas goes.
+	if (!RevealHandle.IsValid() && FFolioModule::IsAvailable())
+	{
+		RevealHandle = FFolioModule::Get().OnTextRevealed().AddUObject(this, &UFolioWidget::HandleTextRevealed);
+	}
 
 	Canvas->OnBack.BindWeakLambda(this, [this] { OnBack.Broadcast(); });
 	Canvas->OnUnclaimedKey.BindWeakLambda(this, [this](const FKey Key) { OnUnclaimedKey.Broadcast(Key); });
@@ -67,6 +76,13 @@ void UFolioWidget::ApplyBindings()
 void UFolioWidget::ReleaseSlateResources(const bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
+
+	if (RevealHandle.IsValid() && FFolioModule::IsAvailable())
+	{
+		FFolioModule::Get().OnTextRevealed().Remove(RevealHandle);
+	}
+	RevealHandle.Reset();
+
 	Canvas.Reset();
 
 	for (const FName Name : OwnedTextures)
@@ -162,6 +178,72 @@ bool UFolioWidget::SetElementProperty(const FString& ElementId, const FString& P
 	Canvas->MarkDirty(TEXT("element property"));
 
 	return true;
+}
+
+Rml::Element* UFolioWidget::ResolveElement(const FString& ElementId) const
+{
+	if (!Canvas.IsValid())
+	{
+		return nullptr;
+	}
+
+	Rml::ElementDocument* Document = Canvas->GetDocument();
+	return Document ? Document->GetElementById(Folio::ToRmlString(ElementId)) : nullptr;
+}
+
+bool UFolioWidget::SetElementMarkup(const FString& ElementId, const FString& Markup)
+{
+	Folio::Text::FElementRichText* Text = Folio::Text::AsRichText(ResolveElement(ElementId));
+	if (!Text)
+	{
+		return false;
+	}
+
+	Text->SetMarkup(Folio::ToRmlString(Markup));
+
+	// Play rather than leaving it to the next update: a line handed over while the previous one was
+	// still typing would otherwise carry on from where that one had got to.
+	Text->Play();
+
+	Canvas->MarkDirty(TEXT("text markup"));
+	return true;
+}
+
+bool UFolioWidget::SkipElementReveal(const FString& ElementId)
+{
+	Folio::Text::FElementRichText* Text = Folio::Text::AsRichText(ResolveElement(ElementId));
+	if (!Text)
+	{
+		return false;
+	}
+
+	Text->Skip();
+	Canvas->MarkDirty(TEXT("text skip"));
+	return true;
+}
+
+bool UFolioWidget::IsElementRevealing(const FString& ElementId) const
+{
+	const Folio::Text::FElementRichText* Text = Folio::Text::AsRichText(ResolveElement(ElementId));
+	return Text != nullptr && Text->IsRevealing();
+}
+
+float UFolioWidget::GetElementRevealDuration(const FString& ElementId) const
+{
+	const Folio::Text::FElementRichText* Text = Folio::Text::AsRichText(ResolveElement(ElementId));
+	return Text ? Text->GetDuration() : 0.f;
+}
+
+void UFolioWidget::HandleTextRevealed(Rml::Element* Element)
+{
+	// Every widget in the process hears every line, so the one that owns this element is the only
+	// one that reports it.
+	if (!Element || !Canvas.IsValid() || Element->GetOwnerDocument() != Canvas->GetDocument())
+	{
+		return;
+	}
+
+	OnTextRevealed.Broadcast(Folio::ToFString(Element->GetId()));
 }
 
 void UFolioWidget::RegisterTexture(const FName Name, UTexture* Texture)

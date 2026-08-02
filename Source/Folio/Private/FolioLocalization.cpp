@@ -3,6 +3,8 @@
 #include "FolioModule.h"
 #include "FolioRmlUi.h"
 
+#include "FolioCore/FolioTextElement.h"
+
 #include "Internationalization/Culture.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
@@ -124,6 +126,26 @@ namespace Folio::Loc
 		for (Rml::Element* Element : Tagged)
 		{
 			const FString Key = Folio::ToFString(Element->GetAttribute<Rml::String>("data-loc", ""));
+
+			// A <text> carries markup rather than RML, and carries it on the element rather than in
+			// a child. Read as inner RML it would come back escaped, and written back it would be
+			// escaped again, so the string would gain a layer of &lt; on every pass.
+			if (Folio::Text::FElementRichText* Rich = Folio::Text::AsRichText(Element))
+			{
+				const FString Source = Folio::ToFString(Rich->GetMarkup());
+				if (Key.IsEmpty() || Source.TrimStartAndEnd().IsEmpty())
+				{
+					continue;
+				}
+
+				const FText Localized = FText::AsLocalizable_Advanced(Namespace, Key, Source);
+				if (!Localized.ToString().Equals(Source, ESearchCase::CaseSensitive))
+				{
+					Rich->SetMarkup(Folio::ToRmlString(Localized.ToString()));
+				}
+				continue;
+			}
+
 			if (Key.IsEmpty() || !HoldsOnlyText(Element) || IsBound(Element))
 			{
 				// Reported by uipreview --strict and by the gather script, which see the markup rather
@@ -173,9 +195,17 @@ namespace Folio::Loc
 		{
 			const FString Key = Folio::ToFString(Element->GetAttribute<Rml::String>("data-loc", ""));
 
-			Rml::String Inner;
-			Element->GetInnerRML(Inner);
-			const FString Shown = Folio::ToFString(Inner);
+			FString Shown;
+			if (const Folio::Text::FElementRichText* Rich = Folio::Text::AsRichText(Element))
+			{
+				Shown = Folio::ToFString(Rich->GetMarkup());
+			}
+			else
+			{
+				Rml::String Inner;
+				Element->GetInnerRML(Inner);
+				Shown = Folio::ToFString(Inner);
+			}
 
 			// The live table rather than AsLocalizable, because the question here is whether a
 			// translation exists at all, not what to display.

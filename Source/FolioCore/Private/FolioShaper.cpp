@@ -16,8 +16,9 @@ namespace Folio
 			{
 				const bool bKerning = Context.font_kerning != Rml::Style::FontKerning::None;
 				unsigned int PriorGlyph = 0;
+				unsigned int CharIndex = 0;
 
-				for (auto It = Rml::StringIteratorU8(String); It; ++It)
+				for (auto It = Rml::StringIteratorU8(String); It; ++It, ++CharIndex)
 				{
 					const unsigned int GlyphIndex = Face.GetGlyphIndex(char32_t(*It));
 
@@ -39,6 +40,7 @@ namespace Folio
 					FShapedGlyph& Glyph = OutGlyphs.emplace_back();
 					Glyph.GlyphIndex = GlyphIndex;
 					Glyph.AdvanceEm = Box->AdvanceEm;
+					Glyph.CharIndex = CharIndex;
 
 					PriorGlyph = GlyphIndex;
 				}

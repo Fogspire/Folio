@@ -90,6 +90,27 @@ identical to one asked for at the cap.
 
 Raising it means raising `pxrange` when baking, at a quadratic cost in atlas area.
 
+### A revealing `<text>` builds its geometry every frame
+
+The reveal paints each glyph with its own alpha, and RmlUi's own text geometry is generated once and
+cached, so a line that is typing regenerates its mesh per frame. It stops the moment the last
+character lands: the runs are handed back to RmlUi and drawn from cached geometry like any other
+text.
+
+That is fine for a dialogue box and would not be for a screen of them. Nothing enforces a limit.
+
+### `text-transform` and the reveal disagree
+
+The reveal walks the laid-out characters against the ones it parsed, matching them so that collapsed
+whitespace and line breaks do not shift the schedule. A transform that changes their length breaks
+that match, and the reveal falls back to timing them in order - usually still right, and not
+guaranteed to be.
+
+### A `<text>` holds prose and nothing else
+
+No `<img>`, no data binding, no `{{ }}` - the braces belong to its markup. A line that has to name
+the player is a job for a term or for `SetMarkup` from game code.
+
 ---
 
 ## Vector art

@@ -1,0 +1,79 @@
+<rml>
+<head>
+	<title>Dialogue</title>
+
+	<!--
+		A line of dialogue that types itself out.
+
+		Copy into your own UI/screens/ and edit. The parts worth keeping:
+		  - the line is a <text>, whose contents are Folio's markup rather than RML. `<angry>` is a
+		    style, `{tag:}` is a name from UI/terms, `{delay:}` slows a stretch of it down. All of it
+		    survives translation, because it is a string rather than elements
+		  - one data-loc on the whole line. The markup is part of the string a translator receives,
+		    and moving <angry> onto the word that carries the emphasis in their language is something
+		    only they can do
+		  - the feel is in the stylesheet. Rate, fade and pacing are inherited properties, so a game
+		    tunes how its dialogue reads in one place rather than per line
+		  - the continue prompt is a rule, not code: <text> carries .is-revealing while it types and
+		    .is-revealed when it has finished, so the prompt appears on its own
+		  - reveal-sound names a sound and plays nothing. The game hears about it through
+		    FFolioModule::OnTextRevealSound and decides what that is
+	-->
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<meta name="folio-size" content="1280x720"/>
+
+	<style>
+		body {
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-end;
+		}
+
+		.box {
+			width: 100%;
+			border: 1dp #3a3a48;
+			border-radius: 10dp;
+		}
+
+		.speaker { margin-bottom: 6dp; }
+
+		/*
+		 * How this game's dialogue reads. Every line inherits it, so this is the only place the
+		 * pacing is decided.
+		 *
+		 * reveal-punctuation is the one worth playing with: without it an even stream of characters
+		 * reads flat however well written the line is, and a beat after a full stop is most of what
+		 * makes it sound like someone talking.
+		 */
+		.line {
+			reveal: typewriter;
+			reveal-rate: 45;
+			reveal-fade: 0.08;
+			reveal-rise: 2dp;
+			reveal-punctuation: 0.18;
+			reveal-sound: "dialogue-blip";
+		}
+
+		/* Nothing until the line has finished saying itself. */
+		.continue {
+			margin-top: 12dp;
+			text-align: right;
+			opacity: 0;
+			transition: opacity 0.2s cubic-out;
+		}
+
+		.line.is-revealed ~ .continue { opacity: 1; }
+	</style>
+</head>
+
+<body class="screen s-pad-xl">
+	<div class="box c-surface s-pad-l e-2">
+		<div class="speaker t-label c-accent" data-loc="speaker">Kaede</div>
+
+		<text class="line t-body c-text" data-loc="line_1">You <angry>must</> go to the
+			{tag:Place.Mountain.Temple}, I{delay:0.2}...{/} think?</text>
+
+		<div class="continue t-caption c-dim" data-loc="continue">Continue</div>
+	</div>
+</body>
+</rml>

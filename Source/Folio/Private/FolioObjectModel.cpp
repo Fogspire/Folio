@@ -37,8 +37,9 @@ namespace
 			return Numeric->IsFloatingPoint() ? EKind::Float : EKind::Int;
 		}
 
-		// Everything else - FString, FName, FText, enums, structs, object pointers - goes through
-		// ExportText, which every property type implements.
+		// Everything else - FString, FName, FText, enums, structs, object pointers - reads as a
+		// string. The three text types are read directly and everything else through ExportText,
+		// which every property type implements.
 		return EKind::String;
 	}
 
@@ -83,7 +84,34 @@ namespace
 		default:
 		{
 			FString Text;
-			Property.ExportTextItem_Direct(Text, ValuePtr, nullptr, Parent, PPF_None);
+
+			/*
+			 * The text types are read rather than exported. ExportTextItem writes the *source form*
+			 * of a property, which for an FText carrying a namespace and key is the whole
+			 * NSLOCTEXT("ns", "key", "source") expression - so every properly localised string
+			 * bound into a document rendered as its own declaration. A text built at runtime has
+			 * no key and exports as its contents, which is why this survived: the bug only appears
+			 * once a string is localised.
+			 *
+			 * FString and FName are here for the same reason in miniature: ExportText quotes and
+			 * escapes anything with a delimiter in it, so a name with a space in it arrived quoted.
+			 */
+			if (const FTextProperty* AsText = CastField<FTextProperty>(&Property))
+			{
+				Text = AsText->GetPropertyValue(ValuePtr).ToString();
+			}
+			else if (const FStrProperty* AsString = CastField<FStrProperty>(&Property))
+			{
+				Text = AsString->GetPropertyValue(ValuePtr);
+			}
+			else if (const FNameProperty* AsName = CastField<FNameProperty>(&Property))
+			{
+				Text = AsName->GetPropertyValue(ValuePtr).ToString();
+			}
+			else
+			{
+				Property.ExportTextItem_Direct(Text, ValuePtr, nullptr, Parent, PPF_None);
+			}
 
 			const Rml::String New = Folio::ToRmlString(Text);
 			if (New == Out.StringValue) { return false; }

@@ -11,6 +11,7 @@ strings and the ids, and delete what you do not need. Nothing links them at runt
 | `main_menu.rml` | Title, one navigable stack, a build stamp |
 | `pause.rml` | A card over a scrim, Resume first |
 | `confirm.rml` | A destructive confirmation, with the safe action focused |
+| `dialogue.rml` | A line that types itself out, with emphasis, a shared place name and a continue prompt |
 
 Each one is rendered under `--strict` before it is committed, so a copied recipe starts clean.
 

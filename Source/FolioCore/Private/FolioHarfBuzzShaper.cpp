@@ -47,8 +47,8 @@ namespace Folio
 			const FShapingFont* GetFont(FFolioFontFace& Face);
 
 			void ShapeRun(const FShapingFont& Font, const char32_t* Codepoints, unsigned int Count,
-				hb_script_t Script, hb_direction_t Direction, hb_language_t Language, bool bKerning,
-				FShapedRun& OutGlyphs);
+				unsigned int FirstChar, hb_script_t Script, hb_direction_t Direction, hb_language_t Language,
+				bool bKerning, FShapedRun& OutGlyphs);
 
 			std::unordered_map<const FFolioFontFace*, FShapingFont> Fonts;
 			hb_buffer_t* Buffer = nullptr;
@@ -124,8 +124,8 @@ namespace Folio
 		}
 
 		void FHarfBuzzShaper::ShapeRun(const FShapingFont& Font, const char32_t* Run, unsigned int Count,
-			hb_script_t Script, hb_direction_t Direction, hb_language_t Language, bool bKerning,
-			FShapedRun& OutGlyphs)
+			unsigned int FirstChar, hb_script_t Script, hb_direction_t Direction, hb_language_t Language,
+			bool bKerning, FShapedRun& OutGlyphs)
 		{
 			hb_buffer_clear_contents(Buffer);
 			hb_buffer_add_utf32(Buffer, reinterpret_cast<const uint32_t*>(Run), int(Count), 0, int(Count));
@@ -165,6 +165,11 @@ namespace Folio
 				Glyph.AdvanceEm = float(Positions[Index].x_advance) * Font.EmScale;
 				Glyph.OffsetXEm = float(Positions[Index].x_offset) * Font.EmScale;
 				Glyph.OffsetYEm = float(Positions[Index].y_offset) * Font.EmScale;
+
+				// The buffer was filled from codepoints, so a cluster is already a codepoint index
+				// rather than a byte offset. It is relative to the run, which is a slice of the
+				// string, so the run's own start puts it back into the string's numbering.
+				Glyph.CharIndex = FirstChar + Infos[Index].cluster;
 			}
 		}
 
@@ -254,7 +259,7 @@ namespace Folio
 				{
 					const auto& Run = Runs[Index - 1];
 					ShapeRun(*Font, Codepoints.data() + Run.first, (unsigned int)(Run.second - Run.first),
-						Scripts[Run.first], Direction, Language, bKerning, OutGlyphs);
+						(unsigned int)Run.first, Scripts[Run.first], Direction, Language, bKerning, OutGlyphs);
 				}
 			}
 			else
@@ -262,7 +267,7 @@ namespace Folio
 				for (const auto& Run : Runs)
 				{
 					ShapeRun(*Font, Codepoints.data() + Run.first, (unsigned int)(Run.second - Run.first),
-						Scripts[Run.first], Direction, Language, bKerning, OutGlyphs);
+						(unsigned int)Run.first, Scripts[Run.first], Direction, Language, bKerning, OutGlyphs);
 				}
 			}
 		}

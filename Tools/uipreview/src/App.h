@@ -64,6 +64,9 @@ public:
 private:
 	bool ResolveRoot();
 	bool LoadFonts();
+
+	/** Reads every UI/terms/*.terms, so `{tag:}` resolves in the preview as it does in game. */
+	void LoadTerms();
 	bool LoadDocumentFromDisk();
 	/** Picks up sprite failures that never reach the render interface. */
 	void CollectSpritesFromDiagnostics();

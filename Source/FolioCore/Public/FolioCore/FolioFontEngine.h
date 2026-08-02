@@ -20,6 +20,29 @@ namespace Folio
 	/// Shared bytes of a font file. Declared in FolioFontFace.h.
 	using FFontData = std::shared_ptr<const std::vector<unsigned char>>;
 
+	/// Asked about every glyph of a string as it is turned into quads, so a caller can fade,
+	/// move or drop individual characters without giving up shaping, kerning or ligatures.
+	///
+	/// RmlUi's own text path has no route to this: a string is one colour, and its geometry is
+	/// generated once and cached, so per-character state that changes every frame cannot reach
+	/// it. Anything wanting that renders the laid-out lines itself through GenerateStringPainted.
+	class IGlyphPainter
+	{
+	public:
+		virtual ~IGlyphPainter() = default;
+
+		/// CharIndex counts codepoints from the start of the string being generated. Every glyph
+		/// of a cluster reports the same one, so a ligature or an attached mark is never half
+		/// revealed.
+		///
+		/// Alpha multiplies whatever colour the pass is drawing with, which is what makes an
+		/// outline or a shadow fade with the glyph it decorates rather than staying behind. Offset
+		/// is in pixels and moves the glyph alone, leaving the pen where the shaper put it.
+		///
+		/// Returning false drops the glyph entirely, which is cheaper than drawing it clear.
+		virtual bool PaintGlyph(unsigned int CharIndex, float& OutAlpha, Rml::Vector2f& OutOffset) const = 0;
+	};
+
 	/// Replaces RmlUi's FreeType font engine with one that renders from multi-channel distance
 	/// fields, so text stays sharp at any size, any DPI and under any transform scale.
 	///
@@ -30,6 +53,11 @@ namespace Folio
 	{
 	public:
 		explicit FFolioFontEngine(IMsdfTextureSink& InSink, const FMsdfAtlasParams& InParams = {}, int InPageSize = 1024);
+
+		/// The engine the host built, or null before it has. Rml::GetFontEngineInterface() would
+		/// answer the same question, except that it reads a global belonging to whichever module
+		/// asks and only one of them ever set it.
+		static FFolioFontEngine* Get();
 
 		/// Installs the field cache. Fields survive between runs, which matters because generating
 		/// one costs a few milliseconds and a screen can want hundreds. Set it before loading any
@@ -68,6 +96,14 @@ namespace Folio
 			Rml::FontEffectsHandle FontEffectsHandle, Rml::StringView String, Rml::Vector2f Position,
 			Rml::ColourbPremultiplied Colour, float Opacity,
 			const Rml::TextShapingContext& TextShapingContext, Rml::TexturedMeshList& MeshList) override;
+
+		/// GenerateString with a say in every glyph. The width returned is the string's, unchanged
+		/// by whatever the painter did, so a line still measures the same whether it is half faded
+		/// in or not and text never moves as it appears.
+		int GenerateStringPainted(Rml::RenderManager& RenderManager, Rml::FontFaceHandle FaceHandle,
+			Rml::FontEffectsHandle FontEffectsHandle, Rml::StringView String, Rml::Vector2f Position,
+			Rml::ColourbPremultiplied Colour, const Rml::TextShapingContext& TextShapingContext,
+			const IGlyphPainter& Painter, Rml::TexturedMeshList& MeshList);
 
 		int GetVersion(Rml::FontFaceHandle Handle) override;
 
@@ -112,7 +148,12 @@ namespace Folio
 		int AppendPass(Rml::RenderManager& RenderManager, FHandle& Resolved, Rml::StringView String,
 			Rml::Vector2f Position, Rml::ColourbPremultiplied Colour,
 			const Rml::TextShapingContext& TextShapingContext, const FMsdfEffectParams* Effect,
-			Rml::TexturedMeshList& MeshList);
+			const IGlyphPainter* Painter, Rml::TexturedMeshList& MeshList);
+
+		int GenerateInternal(Rml::RenderManager& RenderManager, Rml::FontFaceHandle FaceHandle,
+			Rml::FontEffectsHandle FontEffectsHandle, Rml::StringView String, Rml::Vector2f Position,
+			Rml::ColourbPremultiplied Colour, const Rml::TextShapingContext& TextShapingContext,
+			const IGlyphPainter* Painter, Rml::TexturedMeshList& MeshList);
 		FVariationCoords BuildCoords(const FFaceEntry& Entry, Rml::Style::FontWeight Weight, int Size) const;
 		bool RegisterFace(FFontData Data, int FaceIndex, const Rml::String& Family,
 			Rml::Style::FontStyle Style, Rml::Style::FontWeight Weight, bool bFallbackFace,

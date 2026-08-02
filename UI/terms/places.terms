@@ -1,0 +1,14 @@
+# Places, for the dialogue recipe. A game's own tables live in <project>/UI/terms.
+#
+# One name per line, written once. Every `{tag:}` in every document and every translation resolves
+# through here, which is what keeps a place called the same thing in a quest log, a map pin and a
+# line of dialogue.
+#
+#   @class <name>    the style class every entry in this file carries
+#   Tag = Text       the entry
+#   Tag:form = Text  a form of it, for languages that inflect a name and can ask for one
+
+@class term
+
+Place.Mountain.Temple = Mountain Temple
+Place.Village.Kurogane = Kurogane Village

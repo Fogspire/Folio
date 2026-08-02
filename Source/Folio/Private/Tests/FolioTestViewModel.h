@@ -97,6 +97,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Folio")
 	TArray<FString> Tags;
 
+	/** A localised string, which is what most of a game's user-visible text actually is. */
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	FText Title;
+
 	/** Nothing can bind a map, and the mount is expected to say so rather than fail. */
 	UPROPERTY(BlueprintReadWrite, Category = "Folio")
 	TMap<FString, int32> Unbindable;

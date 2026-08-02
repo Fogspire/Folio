@@ -29,6 +29,13 @@ body
 
 li { display: block; }
 
+/*
+ * `<text>` is a paragraph of styled, revealable prose. Its runs are built from its markup and
+ * are inline, so they wrap as one block of text rather than stacking.
+ */
+text { display: block; }
+text span { display: inline; }
+
 em, i { font-style: italic; }
 strong, b { font-weight: bold; }
 

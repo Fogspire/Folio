@@ -21,6 +21,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Layout and panels](layout.md)** | Flexbox, the box model, units, and the three layout traps that cost everyone a day. |
 | **[Components, themes and recipes](components_and_themes.md)** | The shipped library, why a component carries no colour, and how a game overrides it. |
 | **[Text and fonts](text_and_fonts.md)** | Registering faces, variable weights, font effects and their size cap, and the small-text trade-off. |
+| **[Rich text, terms and the typewriter](rich_text.md)** | `<text>`: emphasis inside a translatable line, names shared across the game, and dialogue that types itself out. |
 | **[Images and sprites](images.md)** | Spritesheets, the image decorator's fit modes, ninepatch, and when a PNG is the right answer. |
 | **[Vector art](vectors.md)** | SVG baked to distance fields: infinitely scalable icons, the colour-layer stack, and what a field cannot represent. |
 | **[Animation](animation.md)** | Transitions, keyframes, what is cheap to animate and what will cost you frames. |

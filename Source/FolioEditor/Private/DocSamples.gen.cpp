@@ -6,10 +6,13 @@
 #include "CoreMinimal.h"
 
 #include "FolioCore/FolioFontEngine.h"
+#include "FolioCore/FolioTextElement.h"
 
 #include "FolioDocumentPath.h"
 #include "FolioHudMotion.h"
 #include "FolioMarkerDocument.h"
+#include "FolioInputGlyphs.h"
+#include "FolioInputPrompts.h"
 #include "FolioModule.h"
 #include "FolioNavBindings.h"
 #include "FolioSpring.h"
@@ -33,6 +36,7 @@ namespace FolioDocSamples
 	// The game-side names the samples use. Declared as plainly as possible: the Folio call is what is
 	// being checked, and everything around it only has to be well-formed enough to reach it.
 	inline UFolioWidget* Document = nullptr;
+	inline UFolioWidget* Widget = nullptr;
 	inline UFolioWorldDocument* Terminal = nullptr;
 	inline UFolioMarkerDocument* Nameplate = nullptr;
 	inline UFolioHudMotion* Motion = nullptr;
@@ -42,6 +46,9 @@ namespace FolioDocSamples
 	inline UObject* PlayerViewModel = nullptr;
 	inline UObject* Model = nullptr;
 	inline UDataTable* Table = nullptr;
+	inline UDataTable* MyGlyphTable = nullptr;
+
+	inline FText Line;
 	inline UTexture* CaptureTarget = nullptr;
 
 	inline Rml::Element* Element = nullptr;
@@ -104,6 +111,19 @@ namespace FolioDocSamples
 		Document->bInteractive = false;   // or SetInteractive(false) on one already up
 	}
 
+	// docs/hosting.md#3
+	inline void Sample_docs_hosting_md_3()
+	{
+		Widget->ScaleFollow = 1.0f;
+		Widget->Scale = 1.0f;   // a multiplier on top, which a HUD scale slider writes
+	}
+
+	// docs/hosting.md#4
+	inline void Sample_docs_hosting_md_4()
+	{
+		Widget->Supersample = 2;
+	}
+
 	// docs/hud_motion.md#0
 	inline void Sample_docs_hud_motion_md_0()
 	{
@@ -150,6 +170,21 @@ namespace FolioDocSamples
 		FFolioModule::Get().SetConfirmButton(Folio::EConfirmButton::East);
 	}
 
+	// docs/input_prompts.md#1
+	inline void Sample_docs_input_prompts_md_1()
+	{
+		// Keyboard drawn, gamepad from licensed art with a drawn fallback.
+		Folio::SetGlyphSources(
+		    { EFolioGlyphSource::Drawn },
+		    { EFolioGlyphSource::Image, EFolioGlyphSource::Drawn });
+	}
+
+	// docs/input_prompts.md#2
+	inline void Sample_docs_input_prompts_md_2()
+	{
+		Folio::RegisterGlyphTable(MyGlyphTable);
+	}
+
 	// docs/markers.md#1
 	inline void Sample_docs_markers_md_1()
 	{
@@ -167,6 +202,22 @@ namespace FolioDocSamples
 	inline void Sample_docs_performance_profiling_md_0()
 	{
 		Canvas->MarkDirty(TEXT("my own reason"));
+	}
+
+	// docs/rich_text.md#0
+	inline void Sample_docs_rich_text_md_0()
+	{
+		Document->SetElementMarkup(TEXT("line"), Line.ToString());
+	}
+
+	// docs/rich_text.md#1
+	inline void Sample_docs_rich_text_md_1()
+	{
+		if (Folio::Text::FElementRichText* Text = Folio::Text::AsRichText(
+				Canvas->GetDocument()->GetElementById("line")))
+		{
+			Text->Skip();
+		}
 	}
 
 	// docs/text_and_fonts.md#0
@@ -222,8 +273,8 @@ namespace FolioDocSamples
 		Motion->SetDocumentSource(Document);
 	}
 
-	// docs/ui_sounds.md#1
-	inline void Sample_docs_ui_sounds_md_1()
+	// docs/ui_sounds.md#2
+	inline void Sample_docs_ui_sounds_md_2()
 	{
 		Element->AddEventListener("click", Listener);
 	}

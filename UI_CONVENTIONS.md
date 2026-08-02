@@ -44,6 +44,9 @@ This is the complete set. **A property not on this list does not exist.**
 **Interaction**
 `nav` `nav-up` `nav-right` `nav-down` `nav-left` · `tab-index` · `focus` · `pointer-events` · `cursor` · `caret-color` · `drag` · `visibility`
 
+**Text reveal** — `<text>` only, and all inherited
+`reveal` (none, typewriter) · `reveal-rate` · `reveal-fade` · `reveal-rise` · `reveal-punctuation` · `reveal-sound` · `reveal-start` (auto, manual)
+
 **Misc**
 `fill-image` (progress elements) · `scrollbar-margin`
 
@@ -760,6 +763,12 @@ RML is not HTML. Only these tags are backed by real element types with behaviour
 | `form`, `input`, `select`, `textarea`, `label` | Form controls. `input` types: `text`, `password`, `checkbox`, `radio`, `range`, `submit` |
 | `progress` / `progressbar` | Takes `value`, `max`, `direction` (`top`, `right`, `bottom`, `left`, `clockwise`, `counter-clockwise`) and `start-edge`, plus the `fill-image` property |
 | `tabset` | `<tabset><tabs><tab>…</tab></tabs><panels><panel>…</panel></panels></tabset>`. Sets `:selected` on the active tab and its panel, and `display: none` on the others, as inline properties |
+| `text` | A paragraph of prose whose contents are Folio's markup rather than RML: `<style>x</>`, `{tag:}`, `{delay:}`. Reveals one character at a time under `reveal: typewriter`. See [rich text](docs/rich_text.md) |
+
+**`<text>` is read raw, and closes as RML.** Its contents are never parsed as elements, which is
+what lets a translated string carry markup. The element itself still closes with `</text>`; the
+`</>` shorthand closes a style *inside* it. It holds prose and nothing else - no `<img>`, no
+binding, no `{{ }}`, because the braces belong to the markup.
 
 **A tabset silently grows a second, empty `tabs` and `panels` pair.** It creates either child on
 demand whenever it looks for one and does not find it, and during parsing it looks before the
@@ -927,6 +936,11 @@ normal source pass.
 `uipreview --culture pseudo --strict` reports untagged literal text as `W-LOC-UNTAGGED`. Note
 that **`--strict` alone does not run the localisation lint** — the check only runs when a culture
 is loaded, so the two flags go together.
+
+A `<text>` is the one exception to the text-and-nothing-else rule, and the reason it exists: its
+markup is part of the string, so emphasis and substituted names survive translation and a translator
+can move them onto whichever word carries them in their language. One key covers the whole line, and
+`gather_rml.py` writes the brief that explains the tags to whoever receives it.
 
 Assume translated strings are up to 40% longer than English.
 

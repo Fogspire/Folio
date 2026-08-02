@@ -4,6 +4,8 @@
 
 #include "Diagnostics.h"
 
+#include <FolioCore/FolioTextElement.h>
+
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
@@ -121,11 +123,8 @@ std::optional<std::string> Localizer::Lookup(const std::string& key) const
 	return it->second;
 }
 
-std::string Localizer::Pseudoize(const std::string& text) const
+std::string Localizer::AccentText(const std::string& text) const
 {
-	if (text.empty())
-		return text;
-
 	std::string body;
 	body.reserve(text.size() * 2);
 
@@ -179,11 +178,14 @@ std::string Localizer::Pseudoize(const std::string& text) const
 		++i;
 	}
 
+	return body;
+}
+
+std::string Localizer::Inflate(std::string body, size_t original, size_t current) const
+{
 	// Inflate with whole words, which preserves realistic wrap points. Character doubling
 	// would not, and wrapping is what this mode exists to test.
-	const size_t original = CountCodePoints(text);
 	const size_t target = (size_t)std::ceil((double)original * 1.4);
-	size_t current = CountCodePoints(body);
 
 	size_t index = 0;
 	while (current < target)
@@ -218,6 +220,55 @@ std::string Localizer::Pseudoize(const std::string& text) const
 	return "[" + body + "]";
 }
 
+std::string Localizer::Pseudoize(const std::string& text) const
+{
+	if (text.empty())
+		return text;
+
+	const std::string accented = AccentText(text);
+	return Inflate(accented, CountCodePoints(text), CountCodePoints(accented));
+}
+
+std::string Localizer::PseudoizeMarkup(const std::string& markup) const
+{
+	if (markup.empty())
+		return markup;
+
+	// Accented in pieces and inflated once, so the line grows by 40% overall and carries a
+	// single pair of brackets however many styles it contains.
+	std::string body;
+	size_t letters = 0;
+	size_t i = 0;
+
+	while (i < markup.size())
+	{
+		const size_t open = markup.find_first_of("<{", i);
+		const size_t close = open == std::string::npos
+			? std::string::npos
+			: markup.find(markup[open] == '<' ? '>' : '}', open);
+
+		if (open == std::string::npos || close == std::string::npos)
+		{
+			const std::string tail = markup.substr(i);
+			body += AccentText(tail);
+			letters += CountCodePoints(tail);
+			break;
+		}
+
+		if (open > i)
+		{
+			const std::string literal = markup.substr(i, open - i);
+			body += AccentText(literal);
+			letters += CountCodePoints(literal);
+		}
+
+		body += markup.substr(open, close - open + 1);
+		i = close + 1;
+	}
+
+	return Inflate(body, letters, letters);
+}
+
 void Localizer::ApplyToDocument(Rml::ElementDocument* document, bool lint_untagged)
 {
 	if (!document || !active)
@@ -229,6 +280,39 @@ void Localizer::ApplyToDocument(Rml::ElementDocument* document, bool lint_untagg
 	for (Rml::Element* element : tagged)
 	{
 		const Rml::String key = element->GetAttribute<Rml::String>("data-loc", "");
+
+		// A <text> holds markup rather than RML, and it holds it on the element rather than in a
+		// child. Reading it as inner RML would return the escaped form and writing it back would
+		// escape it again, so the string a translator sees would grow a layer of &lt; per pass.
+		if (Folio::Text::FElementRichText* rich = Folio::Text::AsRichText(element))
+		{
+			const std::string source_markup = rich->GetMarkup();
+			if (key.empty() || IsWhitespaceOnly(source_markup))
+			{
+				diagnostics.Report(Severity::Warning, "W-LOC-EMPTY",
+					"element with data-loc=\"" + key + "\" has no text content");
+				continue;
+			}
+
+			std::string markup;
+			if (const std::optional<std::string> translated = Lookup(key))
+			{
+				markup = *translated;
+			}
+			else
+			{
+				markup = source_markup;
+				if (!pseudo)
+				{
+					diagnostics.Report(Severity::Warning, "W-LOC-MISSING",
+						"no translation for '" + key + "'; showing the source text");
+				}
+			}
+
+			rich->SetMarkup(pseudo ? PseudoizeMarkup(markup) : markup);
+			continue;
+		}
+
 		Rml::String source;
 		element->GetInnerRML(source);
 
@@ -286,6 +370,10 @@ void Localizer::ApplyToDocument(Rml::ElementDocument* document, bool lint_untagg
 	for (Rml::Element* element : all)
 	{
 		if (element->HasAttribute("data-loc") || element->HasAttribute("data-noloc"))
+			continue;
+
+		// The runs inside a <text> are built from its markup, which is keyed on the <text> itself.
+		if (Folio::Text::IsRichText(element->GetParentNode()))
 			continue;
 
 		// Text is itself a child element, so "has no children" would exempt every element

@@ -43,8 +43,25 @@ public:
 	 */
 	std::string Pseudoize(const std::string& text) const;
 
+	/**
+	 * Pseudoizes a `<text>` element's markup, leaving `<style>` tags and `{directive}` braces
+	 * exactly as they were. Accenting a term tag would only prove that a corrupted tag does not
+	 * resolve, which is not the question pseudo-localization asks.
+	 */
+	std::string PseudoizeMarkup(const std::string& markup) const;
+
 private:
 	std::optional<std::string> Lookup(const std::string& key) const;
+
+	/** Swaps letters for recognisable accented stand-ins. No inflation and no brackets. */
+	std::string AccentText(const std::string& text) const;
+
+	/**
+	 * Pads with filler words until the visible length reaches 140% of the original, then wraps
+	 * the result in brackets. `current` counts only what a reader sees, which is not the same as
+	 * the length of `body` once markup is in it.
+	 */
+	std::string Inflate(std::string body, size_t original, size_t current) const;
 
 	Diagnostics& diagnostics;
 	std::map<std::string, std::string> strings;

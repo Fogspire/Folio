@@ -96,6 +96,27 @@
 .e-2        { box-shadow: #0000007f 0dp 6dp 18dp; }
 .e-3        { box-shadow: #000000a5 0dp 14dp 40dp; }
 
+/* --- Text markup ------------------------------------------------------------------ */
+
+/*
+ * What `<text>`'s markup resolves to. A style tag becomes a class of the same name, so `<angry>`
+ * asks for `.angry` and this is where a game says what angry looks like.
+ *
+ * A starter vocabulary rather than a fixed one: rename these, add to them, and delete what a game
+ * does not use. The only rule is that a tag the writers use has to have a rule somewhere, or the
+ * word it marks renders as ordinary text and nobody finds out.
+ *
+ * `.term` is the exception worth keeping. Every table names its own class, and a name that reads
+ * differently from the sentence around it is how a player learns that a place is a place.
+ */
+
+.term       { color: #61afef; }
+
+.angry      { color: #e06c75; font-weight: bold; }
+.shout      { font-weight: bold; letter-spacing: 1dp; }
+.soft       { color: #a8a8b8; font-style: italic; }
+.aside      { color: #8a8a99; font-size: 0.9em; }
+
 /* --- Layout helpers --------------------------------------------------------------- */
 
 .x-row      { display: flex; flex-direction: row; align-items: center; }

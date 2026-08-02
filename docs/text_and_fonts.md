@@ -171,6 +171,8 @@ quietly instantiated nine weights.
 
 ## Where to go next
 
+- **[Rich text and the typewriter](rich_text.md)** — emphasis inside a translatable line, names
+  shared across the game, and text that types itself out.
 - **[Vector art](vectors.md)** — the same distance fields, for icons.
 - **[Localisation](localization.md)** — translated strings run about 40% longer; check with
   `--culture pseudo` before it matters.

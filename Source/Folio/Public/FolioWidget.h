@@ -12,6 +12,11 @@
 class SFolioCanvas;
 class UTexture;
 
+namespace Rml
+{
+	class Element;
+}
+
 /** One requested binding, kept so it can be applied before the document loads and again on rebuild. */
 USTRUCT()
 struct FFolioViewModelBinding
@@ -152,6 +157,44 @@ public:
 	FOLIO_API bool SetElementProperty(const FString& ElementId, const FString& Property, const FString& Value);
 
 	/**
+	 * Gives a `<text>` element a new line, and starts it revealing.
+	 *
+	 * The route for prose the game owns rather than the document: a line of dialogue, a log entry, a
+	 * quest description. Markup is Folio's own - `<angry>x</>`, `{tag:Place.X}`, `{delay:0.2}` - and
+	 * a data binding cannot carry it, because the braces belong to the markup.
+	 *
+	 * The string is the game's, so it is translated as game text, through the asset it came from,
+	 * rather than by a `data-loc` key on the document.
+	 *
+	 * False if no document is up, nothing carries that id, or what does is not a `<text>`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API bool SetElementMarkup(const FString& ElementId, const FString& Markup);
+
+	/** Completes a revealing `<text>` at once, as a player pressing skip would. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API bool SkipElementReveal(const FString& ElementId);
+
+	/** Whether that `<text>` is still typing. False for anything that is not one. */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	FOLIO_API bool IsElementRevealing(const FString& ElementId) const;
+
+	/** Seconds the whole line takes from the start, which is what an auto-advance timer wants. */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	FOLIO_API float GetElementRevealDuration(const FString& ElementId) const;
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFolioTextRevealed, const FString&, ElementId);
+
+	/**
+	 * A `<text>` finished revealing, named by its id.
+	 *
+	 * Fires for a line that was skipped as well as one that ran to the end: what it reports is that
+	 * the line is fully on screen, which is the question a caller is asking.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Folio")
+	FFolioTextRevealed OnTextRevealed;
+
+	/**
 	 * Hands a texture to this document under a name it can draw.
 	 *
 	 *     Widget->RegisterTexture(TEXT("minimap"), CaptureTarget);
@@ -263,6 +306,11 @@ private:
 	/** Applies every requested binding to the canvas. Must run before the document loads. */
 	void ApplyBindings();
 
+	/** @return The element with that id in the document that is up, or null. */
+	Rml::Element* ResolveElement(const FString& ElementId) const;
+
+	void HandleTextRevealed(Rml::Element* Element);
+
 	UPROPERTY()
 	TArray<FFolioViewModelBinding> Bindings;
 
@@ -270,4 +318,10 @@ private:
 	TSet<FName> OwnedTextures;
 
 	TSharedPtr<SFolioCanvas> Canvas;
+
+	/**
+	 * Subscription to the module's reveal report, which is process-wide because the element that
+	 * finished has no idea which widget is hosting it. Filtered here by owning document.
+	 */
+	FDelegateHandle RevealHandle;
 };

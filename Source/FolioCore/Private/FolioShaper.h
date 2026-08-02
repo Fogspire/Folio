@@ -23,6 +23,11 @@ namespace Folio
 		/// Where the glyph sits relative to the pen, y up. Nonzero for attached marks.
 		float OffsetXEm = 0.0f;
 		float OffsetYEm = 0.0f;
+		/// Which codepoint of the shaped string this glyph came from, counting codepoints rather
+		/// than bytes. A ligature carries the index of the first character it stands for and an
+		/// attached mark carries its base's, so a caller walking the string one character at a
+		/// time finds every glyph that belongs to that character and never splits a cluster.
+		unsigned int CharIndex = 0;
 	};
 
 	using FShapedRun = std::vector<FShapedGlyph>;

@@ -55,6 +55,19 @@ Split it, and key the parts:
 Awkward, and unavoidable: a translator needs to be able to reorder those words, which means they have
 to be separate strings whatever system you use.
 
+### Except for prose, where the markup travels in the string
+
+A line of dialogue with emphasis in it is one string, not three, because a translator has to be able
+to move the emphasis onto whichever word carries it in their language. That is what `<text>` is for:
+
+```html
+<text data-loc="line_1">You <angry>must</> go to the {tag:Place.Mountain.Temple}.</text>
+```
+
+`<angry>` is a style rather than an element and `{tag:}` is a name from `UI/terms` rather than a
+binding, so all of it survives being a string. One key covers the line. See
+[rich text](rich_text.md); the rest of this page applies to it unchanged.
+
 ### Values from your game are not translatable strings
 
 A number, a player name, a percentage — those arrive through a data binding and are game state. Do not
@@ -125,6 +138,13 @@ The script fails, and stops the gather, on anything that would produce untransla
 text: a duplicate key meaning two different things, a key with no text under it, a key on an element
 containing other elements, a key on a bound value, or two documents deriving the same namespace.
 
+It also writes **`Source/Generated/FolioText.notes.md`**, the brief that goes to a translator with
+the PO: what the tags in a `<text>` mean, what each `{tag:}` prints in English, and which strings
+carry which. Unreal's PO export has no room for a note against a string, so it travels beside it.
+
+Terms are gathered as their own namespace, `Folio.Terms`, keyed by tag. A place name is translated
+once there and every line that mentions it follows.
+
 Re-run it whenever you add or change user-visible text.
 
 `--script-only` regenerates the header alone, which is the fast check while writing markup.
@@ -139,6 +159,21 @@ Because the UI is its own target, `Folio.po` is a self-contained handoff: send i
 translation service and nothing else about the project goes with it.
 
 The Translation Editor in the Localization Dashboard works normally.
+
+### Check what comes back
+
+```bash
+./scripts/loc.sh --check-po Folio.po
+```
+
+Markup travels inside the strings, so a translation can be a perfectly good string and still be text
+the game cannot read. Every translated line is parsed: an unclosed `<angry>`, a retyped
+`{tag:Place.Mountain.Tmple}` or an invented style is an error naming the line in the PO. A
+translator *dropping* a term is a warning rather than an error - writing a name out in full is the
+right call when a language inflects it and the table has no form for that case.
+
+This is the check that makes handing over the raw tags safe, and it is worth running on everything
+that comes back before it is imported.
 
 ## 5. Check it
 

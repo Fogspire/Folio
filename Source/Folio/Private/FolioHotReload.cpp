@@ -30,6 +30,7 @@ namespace
 		Irrelevant,
 		Markup,
 		Style,
+		Terms,
 		Asset,
 	};
 
@@ -44,6 +45,10 @@ namespace
 		if (Extension == TEXT("rcss"))
 		{
 			return EChangeKind::Style;
+		}
+		if (Extension == TEXT("terms"))
+		{
+			return EChangeKind::Terms;
 		}
 
 		// Anything else RmlUi opened is art, and there is no list of image extensions to keep in
@@ -202,6 +207,7 @@ bool FFolioHotReload::Flush(float)
 
 	bool bMarkup = false;
 	bool bStyle = false;
+	bool bTerms = false;
 	bool bAsset = false;
 
 	for (const FString& Path : Changed)
@@ -217,14 +223,23 @@ bool FFolioHotReload::Flush(float)
 		{
 		case EChangeKind::Markup: bMarkup = true; break;
 		case EChangeKind::Style:  bStyle = true; break;
+		case EChangeKind::Terms:  bTerms = true; break;
 		case EChangeKind::Asset:  bAsset = true; break;
 		default: break;
 		}
 	}
 
-	if (!bMarkup && !bStyle && !bAsset)
+	if (!bMarkup && !bStyle && !bTerms && !bAsset)
 	{
 		return false;
+	}
+
+	// A term is substituted while a document's runs are built, so changing one means rebuilding
+	// them: reloading the tables alone would leave every screen showing the old name.
+	if (bTerms)
+	{
+		Folio.LoadTerms();
+		bMarkup = true;
 	}
 
 	// A copy: reloading a document can destroy a canvas, and the live set is what would be iterated.

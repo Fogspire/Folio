@@ -6,6 +6,9 @@
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
+#include "FolioTerms.h"
+#include "FolioCore/FolioTerms.h"
+#include "FolioCore/FolioTextElement.h"
 #include "FolioFileInterface.h"
 #include "FolioCoreHost.h"
 #include "FolioFontCache.h"
@@ -104,8 +107,22 @@ void FFolioModule::StartupModule()
 	Folio::RegisterFolioFontEffects();
 	Folio::RegisterFolioFilters();
 	Folio::RegisterFolioDecorators();
+	Folio::Text::RegisterFolioText();
+
+	// Folio owns no sound assets, so a revealed character is reported and nothing is played. The
+	// callback is a plain function pointer, which is what keeps the element free of Unreal.
+	Folio::Text::SetSoundCallback([](Rml::Element*, const Rml::String& Sound, int)
+	{
+		FFolioModule::Get().OnTextRevealSound().Broadcast(Folio::ToFString(Sound));
+	});
+
+	Folio::Text::SetCompleteCallback([](Rml::Element* Element)
+	{
+		FFolioModule::Get().OnTextRevealed().Broadcast(Element);
+	});
 
 	RegisterFonts();
+	LoadTerms();
 
 	// Ahead of CommonUI's, so a focused document actually receives the gamepad.
 	FFolioInputPreprocessor::Register();
@@ -159,6 +176,10 @@ void FFolioModule::ShutdownModule()
 	Rml::SetSystemInterface(nullptr);
 
 	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
+	Folio::Text::SetSoundCallback(nullptr);
+	Folio::Text::SetCompleteCallback(nullptr);
+	Folio::Text::ReleaseFolioText();
+	Folio::FTermTables::Get().Clear();
 	Folio::ReleaseFolioFontEffects();
 	Folio::ReleaseFolioDecorators();
 	Folio::ReleaseFolioFilters();
@@ -182,6 +203,59 @@ FString FFolioModule::GetUiRoot() const
 
 	const FString Lower = ContentRoot / TEXT("ui");
 	return FPaths::DirectoryExists(Lower) ? Lower : Upper;
+}
+
+void FFolioModule::LoadTerms()
+{
+	Folio::FTermTables& Terms = Folio::FTermTables::Get();
+	Terms.Clear();
+
+	const FString Directory = GetUiRoot() / TEXT("terms");
+	if (!FPaths::DirectoryExists(Directory))
+	{
+		return;
+	}
+
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files, *(Directory / TEXT("*.terms")), true, false);
+
+	// Sorted, so a term defined twice is always reported against the same one of the two files
+	// whichever machine reads them.
+	Files.Sort();
+
+	for (const FString& File : Files)
+	{
+		// Absolute, for the same reason font faces are: the read goes through our file interface,
+		// and a relative path would resolve against the content root rather than here.
+		Terms.LoadFile(Folio::ToRmlString(Directory / File));
+	}
+
+	// The table holds the source text; a translation of it lives in the Folio.Terms namespace under
+	// the tag as its key. Resolving here rather than at each use is the whole point of a term: the
+	// name is translated once and every line that mentions it agrees.
+	//
+	// An @external entry is skipped: its text belongs to whatever the game keeps it in, is gathered
+	// there, and arrives through OnTermsLoaded below. Resolving it here would translate it twice.
+	Terms.ForEach([](const std::string& Key, Folio::FTermEntry& Entry)
+	{
+		if (Entry.bExternal)
+		{
+			return;
+		}
+
+		const FString Source = Folio::ToFString(Entry.Text);
+		const FText Localized = FText::AsLocalizable_Advanced(TEXT("Folio.Terms"),
+			Folio::ToFString(Key), Source);
+
+		if (!Localized.ToString().Equals(Source, ESearchCase::CaseSensitive))
+		{
+			Entry.Text = Folio::ToRmlString(Localized.ToString());
+		}
+	});
+
+	UE_LOG(LogFolio, Log, TEXT("%s"), *Folio::ToFString(Terms.GetReport()));
+
+	Folio::OnTermsLoaded().Broadcast();
 }
 
 void FFolioModule::RegisterFonts()

@@ -25,6 +25,8 @@
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
 #include "FolioCore/FolioInputState.h"
+#include "FolioCore/FolioTerms.h"
+#include "FolioCore/FolioTextElement.h"
 
 #include <RmlUi/Core.h>
 #include <RmlUi/Debugger.h>
@@ -228,6 +230,7 @@ bool App::Initialise()
 	Folio::RegisterFolioFontEffects();
 	Folio::RegisterFolioFilters();
 	Folio::RegisterFolioDecorators();
+	Folio::Text::RegisterFolioText();
 
 	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));
 
@@ -260,6 +263,10 @@ bool App::Initialise()
 
 	if (!localizer.Load(root, options.culture))
 		return false;
+
+	// After the localizer, because a pseudo run inflates the terms as well. A place name that
+	// only overflows once it is substituted is exactly the layout this mode is looking for.
+	LoadTerms();
 
 	MountInputModel();
 	MountDataModel();
@@ -371,6 +378,39 @@ void App::MountDataModel()
 
 	data_model.SetPreviewInfo(options.culture.empty() ? "source" : options.culture, options.width, options.height,
 		options.dp_ratio);
+}
+
+void App::LoadTerms()
+{
+	const fs::path terms_dir = fs::path(UiDirectory(root)) / "terms";
+
+	std::vector<fs::path> found;
+	std::error_code ec;
+	if (fs::is_directory(terms_dir, ec))
+	{
+		for (const fs::directory_entry& entry : fs::directory_iterator(terms_dir, ec))
+		{
+			if (entry.is_regular_file() && entry.path().extension() == ".terms")
+				found.push_back(entry.path());
+		}
+	}
+
+	// Sorted, so a duplicate term is always reported against the same one of the two files
+	// whichever machine the check runs on.
+	std::sort(found.begin(), found.end());
+
+	const std::string ui = ToForwardSlashes(fs::path(UiDirectory(root)).filename().string());
+	for (const fs::path& file : found)
+	{
+		Folio::FTermTables::Get().LoadFile("/" + ui + "/terms/" + ToForwardSlashes(file.filename().string()));
+	}
+
+	if (localizer.IsPseudo())
+	{
+		Folio::FTermTables::Get().ForEach([this](const std::string&, Folio::FTermEntry& entry) {
+			entry.Text = localizer.Pseudoize(entry.Text);
+		});
+	}
 }
 
 bool App::LoadFonts()

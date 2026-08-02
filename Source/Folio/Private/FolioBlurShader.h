@@ -41,6 +41,11 @@ namespace Folio
 	 * Sigma is in pixels. Enqueues its own render commands, so it is safe to call from the
 	 * game thread during a paint pass: the work lands ahead of Slate's own rendering for the
 	 * same frame, which is what keeps the result available to the geometry that samples it.
+	 *
+	 * Step is how many pixels one tap advances, for a target rendered denser than the document that
+	 * asked for the blur. The kernel is capped at a tap count, so a supersampled target given the same
+	 * blur in its own pixels would run out of taps at half the distance and end in a visible edge;
+	 * stepping keeps the kernel covering the same distance in the document either way.
 	 */
-	void BlurRenderTarget(class UTextureRenderTarget2D* Target, float Sigma);
+	void BlurRenderTarget(class UTextureRenderTarget2D* Target, float Sigma, float Step = 1.0f);
 }

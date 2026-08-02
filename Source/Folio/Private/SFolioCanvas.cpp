@@ -20,6 +20,14 @@
 namespace
 {
 	TArray<SFolioCanvas*> LiveCanvases;
+
+	TAutoConsoleVariable<int32> CVarNativeText(
+		TEXT("folio.Supersample.NativeText"), 1,
+		TEXT("Whether a supersampled document draws its text at the screen's own resolution rather "
+			"than through the supersampled target. Glyphs are distance fields and are sharp at any "
+			"size already, so the round trip only softens them. Zero draws everything through the "
+			"target, which is what to compare against if text looks wrong."),
+		ECVF_Default);
 }
 
 const TArray<SFolioCanvas*>& SFolioCanvas::GetLiveCanvases()
@@ -172,12 +180,21 @@ void SFolioCanvas::SetSupersample(const int32 InSamples)
 		return;
 	}
 
+	const bool bHadDocument = Host.IsValid();
 	Supersample = Wanted;
 
 	// Dropped rather than resized: the next paint makes one the right size, and holding a target that
 	// nothing is going to draw into is a target the pool cannot have back.
 	Target.Reset();
 	TargetBrush = FSlateBrush();
+
+	// A background's antialiasing skirt is baked into its geometry in rendered pixels, and the sample
+	// count is what a rendered pixel is worth. Restyling is what regenerates it; without this the
+	// skirt keeps the width the count it was built under wanted.
+	if (bHadDocument)
+	{
+		Host.ReloadStyleSheets();
+	}
 }
 
 bool SFolioCanvas::SupersamplingNow() const
@@ -196,17 +213,17 @@ float SFolioCanvas::ContextToLocal(const FGeometry& AllottedGeometry) const
 
 float SFolioCanvas::ScaleFor(const FGeometry& AllottedGeometry) const
 {
-	// Times the sample count: the document is laid out into a bigger context and has to fill it, or
-	// supersampling would shrink everything rather than sharpening it.
-	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale)
-		* float(Supersample);
+	// Not touched by the sample count. Supersampling is a denser target for the same document, so the
+	// layout, the glyph atlas and the hit testing are the ones an unsupersampled document has.
+	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale);
 }
 
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 {
 	// Pixels, because that is what a context unit is. The dp ratio is carried separately and RmlUi
-	// applies it to dp lengths itself.
-	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale * float(Supersample);
+	// applies it to dp lengths itself. Screen pixels whatever the sample count: what supersampling
+	// makes bigger is the target, not the document.
+	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale;
 
 	ContextSize = FIntPoint(FMath::Max(1, FMath::RoundToInt(Pixels.X)),
 		FMath::Max(1, FMath::RoundToInt(Pixels.Y)));
@@ -243,7 +260,11 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const float RenderScale =
 		AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
 
-	Host.Update(InDeltaTime, ScaleFor(AllottedGeometry), RenderScale * ContextToLocal(AllottedGeometry));
+	// Times the sample count, because a background's antialiasing skirt is measured in rendered pixels
+	// and a supersampled document has more of them per document pixel. Left out, the skirt is as wide
+	// as it is on screen and the supersampling has nothing left to sharpen.
+	Host.Update(InDeltaTime, ScaleFor(AllottedGeometry),
+		RenderScale * ContextToLocal(AllottedGeometry) * float(Supersample));
 }
 
 
@@ -295,20 +316,33 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 		return LayerId;
 	}
 
+	// RmlUi emits geometry in context units, and the context is sized in dp rather than in Slate's
+	// local units. Those agree only while dp follows Slate's own scale, so the draw goes through a
+	// child geometry that carries the difference. Without it a document lands short of the bottom
+	// right on a window Slate scales down, and past it on one Slate scales up.
+	const FGeometry Paint = AllottedGeometry.MakeChild(FVector2D(ContextSize),
+		FSlateLayoutTransform(ContextToLocal(AllottedGeometry)));
+
 	/*
 	 * Supersampled: the document is drawn into a target of its own and that target is drawn to the
 	 * screen, filtered down. Four samples an edge instead of one, which is the only thing that helps
 	 * a shallow diagonal.
+	 *
+	 * The document itself is untouched by it - laid out, shaped and hit-tested in screen pixels - and
+	 * only the target it lands in is denser. Text goes further and skips the target altogether: see
+	 * DrawDeferredFields.
 	 */
 	if (SupersamplingNow())
 	{
-		if (!Target.IsValid() || Target->SizeX != ContextSize.X || Target->SizeY != ContextSize.Y)
+		const FIntPoint TargetSize(ContextSize.X * Supersample, ContextSize.Y * Supersample);
+
+		if (!Target.IsValid() || Target->SizeX != TargetSize.X || Target->SizeY != TargetSize.Y)
 		{
 			UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
 			Fresh->RenderTargetFormat = RTF_RGBA8;
 			Fresh->ClearColor = FLinearColor::Transparent;
 			Fresh->bAutoGenerateMips = false;
-			Fresh->InitAutoFormat(ContextSize.X, ContextSize.Y);
+			Fresh->InitAutoFormat(TargetSize.X, TargetSize.Y);
 			Fresh->UpdateResourceImmediate(true);
 
 			Target.Reset(Fresh);
@@ -316,7 +350,7 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			// The brush caches its resource, so it is rebuilt with the target rather than repointed.
 			TargetBrush = FSlateBrush();
 			TargetBrush.SetResourceObject(Fresh);
-			TargetBrush.ImageSize = FVector2D(ContextSize);
+			TargetBrush.ImageSize = FVector2D(TargetSize);
 			TargetBrush.DrawAs = ESlateBrushDrawType::Image;
 
 		}
@@ -339,9 +373,14 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			}
 		}
 
-		if (TargetHandle.IsValid() && Renderer->BeginSurface(ContextSize, Target.Get()))
+		const bool bNativeText = CVarNativeText.GetValueOnGameThread() != 0;
+
+		if (TargetHandle.IsValid()
+			&& Renderer->BeginSurface(ContextSize, Target.Get(), Supersample, bNativeText))
 		{
 			Context->Render();
+
+			NativeTextRuns = Renderer->NumDeferredFields();
 			Renderer->EndSurface();
 
 			const FVector2f Size = AllottedGeometry.GetLocalSize();
@@ -376,16 +415,13 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, TargetHandle, Quad, Indices,
 				nullptr, 0, 0, ESlateDrawEffect::PreMultipliedAlpha);
 
-			return LayerId + 1;
+			// Over the composite, through the same geometry the direct path draws with, so the text is
+			// the text an unsupersampled document would have drawn.
+			return Renderer->DrawDeferredFields(OutDrawElements, Paint, LayerId + 1) + 1;
 		}
 	}
 
-	// RmlUi emits geometry in context units, and the context is sized in dp rather than in Slate's
-	// local units. Those agree only while dp follows Slate's own scale, so the draw goes through a
-	// child geometry that carries the difference. Without it a document lands short of the bottom
-	// right on a window Slate scales down, and past it on one Slate scales up.
-	const FGeometry Paint = AllottedGeometry.MakeChild(FVector2D(ContextSize),
-		FSlateLayoutTransform(ContextToLocal(AllottedGeometry)));
+	NativeTextRuns = 0;
 
 	Renderer->BeginFrame(OutDrawElements, Paint, LayerId, ContextSize);
 	Context->Render();
@@ -402,7 +438,7 @@ FVector2f SFolioCanvas::ToContextSpace(const FGeometry& MyGeometry, const FPoint
 {
 	// The context is sized in pixels, and Slate's local space is pixels over Slate's own scale.
 	const FVector2f Local = FVector2f(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
-	return Local * MyGeometry.Scale * float(Supersample);
+	return Local * MyGeometry.Scale;
 }
 
 FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

@@ -36,6 +36,17 @@ public:
 	FFolioLayerStack();
 	~FFolioLayerStack();
 
+	/**
+	 * How many samples per pixel each way every layer from here on is allocated at.
+	 *
+	 * Supersampling. The document keeps laying out in its own pixels and the geometry is recorded in
+	 * them; only the target is denser, and the replay's transform stretches the one onto the other. So
+	 * a layout is identical at every sample count and only the rasterisation is finer, which is the
+	 * whole point - and the font atlas, the text metrics and the hit testing never move.
+	 */
+	void SetResolutionScale(int32 InScale) { Scale = FMath::Max(1, InScale); }
+
+	/** Size is the document's, not the target's: the scale above is applied here. */
 	bool Push(FIntPoint Size, FIntPoint Origin = FIntPoint::ZeroValue);
 
 	/**
@@ -87,6 +98,19 @@ public:
 	void DrawField(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
 		UTexture* Texture, FVector2f Offset, FVector4f Field, FVector4f Effect);
 
+	/**
+	 * Records text with a scissor and no mask, rather than the layer's current state.
+	 *
+	 * For a glyph run that was held back and is being put back: it belongs where it arrived, and by the
+	 * time something is found to be drawing over it the clip in force is the coverer's.
+	 *
+	 * DepthFromTop picks the layer: zero is the top, and one is the layer a composite is about to draw
+	 * into, which is where text that composite is going to cover belongs.
+	 */
+	void DrawFieldClipped(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+		UTexture* Texture, FVector2f Offset, FVector4f Field, FVector4f Effect, const FIntRect& Scissor,
+		int32 DepthFromTop = 0);
+
 	/** Records a clip mask operation, which every later draw in this layer tests against. */
 	void SetClipMask(Rml::ClipMaskOperation Operation, const TArray<FSlateVertex>& Vertices,
 		const TArray<SlateIndex>& Indices, FVector2f Offset);
@@ -98,6 +122,18 @@ public:
 
 	/** Where the top layer sits, which is the origin geometry is recorded against. */
 	FIntPoint CurrentOrigin() const { return Stack.IsEmpty() ? FIntPoint::ZeroValue : Stack.Last().Origin; }
+
+	/**
+	 * What the top layer has actually drawn, in the document's own pixels.
+	 *
+	 * Not the same as the region it covers: a layer is allocated to the scissor, and with nothing
+	 * clipping that is the whole context - so a drop shadow on one card would otherwise read as
+	 * covering the screen. Empty when it has drawn nothing.
+	 */
+	FSlateRect CurrentContentRect() const;
+
+	/** Whether draws recorded into the top layer are testing a stencil. */
+	bool CurrentHasClipMask() const { return !Stack.IsEmpty() && Stack.Last().bClipMaskEnabled; }
 
 	/** Resolves the current layer and composites it into the one below. */
 	void CompositeDown(bool bBlend, float BlurSigma,
@@ -164,6 +200,12 @@ private:
 	UTextureRenderTarget2D* Acquire(FIntPoint Size);
 	void Release(UTextureRenderTarget2D* Target);
 
+	/** The document pixels a layer covers, which is its target's size unless it is supersampled. */
+	static FIntPoint DocumentSizeOf(const FLayer& Layer);
+
+	/** How many target pixels one of the layer's document pixels is, each way. */
+	static float ScaleOf(const FLayer& Layer);
+
 	/** Replays a layer's recorded draws into its target, then clears the recording. */
 	void Resolve(FLayer& Layer);
 
@@ -172,4 +214,6 @@ private:
 
 	TArray<FLayer> Stack;
 	TMultiMap<FIntPoint, TStrongObjectPtr<UTextureRenderTarget2D>> Pool;
+
+	int32 Scale = 1;
 };

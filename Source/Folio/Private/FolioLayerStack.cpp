@@ -33,6 +33,57 @@ void FFolioLayerStack::Reset()
 {
 	Stack.Empty();
 	Pool.Empty();
+	Scale = 1;
+}
+
+FIntPoint FFolioLayerStack::DocumentSizeOf(const FLayer& Layer)
+{
+	return Layer.ClipSize.X > 0 && Layer.ClipSize.Y > 0 ? Layer.ClipSize : Layer.Size;
+}
+
+float FFolioLayerStack::ScaleOf(const FLayer& Layer)
+{
+	const FIntPoint Document = DocumentSizeOf(Layer);
+	return Document.X > 0 ? float(Layer.Size.X) / float(Document.X) : 1.0f;
+}
+
+FSlateRect FFolioLayerStack::CurrentContentRect() const
+{
+	if (Stack.IsEmpty())
+	{
+		return FSlateRect();
+	}
+
+	const FLayer& Layer = Stack.Last();
+
+	bool bAny = false;
+	FVector2f Min = FVector2f::ZeroVector;
+	FVector2f Max = FVector2f::ZeroVector;
+
+	for (const FFolioDraw& Draw : Layer.Draws.GetDraws())
+	{
+		// A mask contributes no colour, so it is not part of what the layer paints over anything.
+		if (Draw.Kind != FFolioDraw::EKind::Geometry && Draw.Kind != FFolioDraw::EKind::Field)
+		{
+			continue;
+		}
+
+		for (const FFolioUIVertex& Vertex : Draw.Vertices)
+		{
+			Min = bAny ? FVector2f::Min(Min, Vertex.Position) : Vertex.Position;
+			Max = bAny ? FVector2f::Max(Max, Vertex.Position) : Vertex.Position;
+			bAny = true;
+		}
+	}
+
+	if (!bAny)
+	{
+		return FSlateRect();
+	}
+
+	// Recorded against the layer's origin, and the caller works in the document's space.
+	const FVector2f Origin(float(Layer.Origin.X), float(Layer.Origin.Y));
+	return FSlateRect(Min.X + Origin.X, Min.Y + Origin.Y, Max.X + Origin.X, Max.Y + Origin.Y);
 }
 
 UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size)
@@ -75,12 +126,13 @@ void FFolioLayerStack::Release(UTextureRenderTarget2D* Target)
 
 bool FFolioLayerStack::Push(const FIntPoint Size, const FIntPoint Origin)
 {
-	if (Size.X <= 0 || Size.Y <= 0 || !Acquire(Size))
+	if (Size.X <= 0 || Size.Y <= 0 || !Acquire(FIntPoint(Size.X * Scale, Size.Y * Scale)))
 	{
 		return false;
 	}
 
 	Stack.Last().Origin = Origin;
+	Stack.Last().ClipSize = Size;
 	return true;
 }
 
@@ -192,6 +244,21 @@ void FFolioLayerStack::DrawField(const TArray<FSlateVertex>& Vertices, const TAr
 		Layer.bClipMaskEnabled, Layer.bClipMaskInverted);
 }
 
+void FFolioLayerStack::DrawFieldClipped(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+	UTexture* Texture, const FVector2f Offset, const FVector4f Field, const FVector4f Effect,
+	const FIntRect& Scissor, const int32 DepthFromTop)
+{
+	const int32 Index = Stack.Num() - 1 - DepthFromTop;
+	if (!Stack.IsValidIndex(Index) || Indices.Num() < 3 || !Texture)
+	{
+		return;
+	}
+
+	FLayer& Layer = Stack[Index];
+	Layer.Draws.AddFieldAt(Vertices, Indices, Texture, Offset, Field, Effect,
+		/*bMasked*/ false, /*bMaskInverted*/ false, Scissor);
+}
+
 void FFolioLayerStack::SetClipMask(const Rml::ClipMaskOperation Operation, const TArray<FSlateVertex>& Vertices,
 	const TArray<SlateIndex>& Indices, const FVector2f Offset)
 {
@@ -245,9 +312,13 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 
 	Folio::ApplyColourFilters(Layer.Target.Get(), Colour);
 
+	// Sigma arrives in the document's pixels, and a supersampled layer has more of them per document
+	// pixel: an unscaled blur would tighten as the sample count rose. The step goes with it, so the
+	// kernel reaches the same distance into the document rather than running out of taps sooner.
 	if (BlurSigma > 0.0f)
 	{
-		Folio::BlurRenderTarget(Layer.Target.Get(), BlurSigma);
+		const float LayerScale = ScaleOf(Layer);
+		Folio::BlurRenderTarget(Layer.Target.Get(), BlurSigma * LayerScale, LayerScale);
 	}
 
 	// Last, because the mask decides what survives: masking before a blur would let the blur bleed
@@ -285,9 +356,12 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	// desaturated layer and desaturating a blurred one differ wherever the blur crosses an edge.
 	Folio::ApplyColourFilters(Source.Target.Get(), Colour);
 
+	// In the document's pixels, so a supersampled layer scales it up to its own, stepping the kernel
+	// by the same amount to keep its reach.
 	if (BlurSigma > 0.0f)
 	{
-		Folio::BlurRenderTarget(Source.Target.Get(), BlurSigma);
+		const float SourceScale = ScaleOf(Source);
+		Folio::BlurRenderTarget(Source.Target.Get(), BlurSigma * SourceScale, SourceScale);
 	}
 
 	Folio::ApplyMask(Source.Target.Get(), Mask, {});
@@ -301,7 +375,11 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	Draw.Texture.Reset(Source.Target.Get());
 	Draw.bMasked = false;
 
-	const FVector2f Size(Source.Size.X, Source.Size.Y);
+	// The document's pixels, not the target's: this quad is recorded into the layer below, and a
+	// recording is replayed through that layer's own document-to-target transform. Sized from the
+	// target instead, a supersampled composite lands at the sample count squared.
+	const FIntPoint SourceDocument = DocumentSizeOf(Source);
+	const FVector2f Size(SourceDocument.X, SourceDocument.Y);
 	const FLinearColor White(1.0f, 1.0f, 1.0f, 1.0f);
 
 	// Where the source sits in the destination's space. The two match whenever a layer was pushed to
@@ -340,7 +418,10 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ResolveLayers);
 	SCOPE_CYCLE_COUNTER(STAT_FolioResolveLayers);
 
-	if (Layer.Draws.IsEmpty() || !Layer.Target.IsValid())
+	// A pooled layer is handed out cleared, so an empty one has nothing to do. A caller's target is not:
+	// it lives between frames, and a document that draws nothing into it this frame - every glyph run
+	// held back, and no background behind them - would otherwise composite the frame before.
+	if (!Layer.Target.IsValid() || (Layer.Draws.IsEmpty() && !Layer.bCallerOwned))
 	{
 		Layer.Draws.Reset();
 		return;
@@ -396,7 +477,10 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 				ERenderTargetLoadAction::ENoAction, ERenderTargetLoadAction::EClear,
 				FExclusiveDepthStencil::DepthNop_StencilWrite);
 
-			GraphBuilder.AddPass(RDG_EVENT_NAME("FolioLayer"), Parameters, ERDGPassFlags::Raster,
+			// Never culled: with every glyph run held back for the screen there is nothing to draw, and
+			// the pass is then here only to clear the target - which is exactly when it must still run.
+			GraphBuilder.AddPass(RDG_EVENT_NAME("FolioLayer"), Parameters,
+				ERDGPassFlags::Raster | ERDGPassFlags::NeverCull,
 				[Parameters, Size, Clip, Draws = MoveTemp(Draws)](FRHICommandList& RHICmdList)
 				{
 					const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);

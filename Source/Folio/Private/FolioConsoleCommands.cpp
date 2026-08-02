@@ -84,7 +84,8 @@ namespace
 	{
 		if (Args.Num() == 0)
 		{
-			UE_LOG(LogFolio, Warning, TEXT("usage: folio.Show <path relative to the project directory>"));
+			UE_LOG(LogFolio, Warning,
+				TEXT("usage: folio.Show <path relative to the project directory> [supersample]"));
 			return;
 		}
 
@@ -97,7 +98,11 @@ namespace
 
 		HideDocument();
 
-		ActiveCanvas = SNew(SFolioCanvas).DocumentPath(Args[0]);
+		// A sample count on the command line, because whether 2 is worth it is a judgement about one
+		// document's edges at one resolution and the only way to make it is to see both.
+		const int32 Supersample = Args.Num() > 1 ? FCString::Atoi(*Args[1]) : 1;
+
+		ActiveCanvas = SNew(SFolioCanvas).DocumentPath(Args[0]).Supersample(Supersample);
 
 		// Wrapped in a weak widget so the viewport holding it does not keep the canvas alive
 		// past folio.Hide, which would leave its RmlUi context rendering.
@@ -1239,7 +1244,8 @@ namespace
 
 	FAutoConsoleCommand ShowCommand(
 		TEXT("folio.Show"),
-		TEXT("Loads an .rml document into the game viewport. Path is relative to the project directory."),
+		TEXT("folio.Show <document> [supersample]. Loads an .rml document into the game viewport. Path "
+			"is relative to the project directory; the sample count is 1 to 4 and defaults to 1."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ShowDocument));
 
 	FAutoConsoleCommand HideCommand(
@@ -1728,13 +1734,20 @@ namespace
 			const float UmgScale = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(
 				FIntPoint(FMath::RoundToInt(Pixels.X), FMath::RoundToInt(Pixels.Y)));
 
+			// A supersampled document says so, and says how much of its text skipped the target. A
+			// count of zero on a screen with words on it means every run was drawn over and resampled.
+			const FString Sampling = Canvas->GetSupersample() > 1
+				? FString::Printf(TEXT(", supersample %dx, %d native glyph runs"),
+					Canvas->GetSupersample(), Canvas->GetNativeTextRuns())
+				: FString();
+
 			UE_LOG(LogFolio, Display,
 				TEXT("folio.Screens: '%s' context %dx%d dp, %.0fx%.0f px, drawn %.0fx%.0f px, "
-					"dp ratio %.4f, UMG would use %.4f"),
+					"dp ratio %.4f, UMG would use %.4f%s"),
 				*Host.GetDocumentPath(), Size.X, Size.Y,
 				Pixels.X, Pixels.Y,
 				Size.X * ContextToLocal * Geometry.Scale, Size.Y * ContextToLocal * Geometry.Scale,
-				DpRatio, UmgScale);
+				DpRatio, UmgScale, *Sampling);
 		}
 	}
 

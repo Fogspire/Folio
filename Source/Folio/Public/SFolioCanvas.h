@@ -208,6 +208,12 @@ public:
 	/** What the last tick laid out against: context size in dp, the dp ratio, and context-to-local. */
 	void GetScaleReport(FIntPoint& OutContextSize, float& OutDpRatio, float& OutContextToLocal) const;
 
+	/** Samples per pixel each way. One draws straight to the screen. */
+	int32 GetSupersample() const { return Supersample; }
+
+	/** Glyph runs the last paint drew at the screen's own resolution rather than through the target. */
+	int32 GetNativeTextRuns() const { return NativeTextRuns; }
+
 	/**
 	 * The back action, when nothing in the document wanted it.
 	 *
@@ -326,6 +332,9 @@ private:
 
 	/** One to draw straight to the screen. */
 	int32 Supersample = 1;
+
+	/** What the last paint drew natively, for the report. Mutable: painting is const. */
+	mutable int32 NativeTextRuns = 0;
 
 	/** Where a supersampled document is drawn before it is scaled down. Mutable: painting is const. */
 	mutable TStrongObjectPtr<class UTextureRenderTarget2D> Target;

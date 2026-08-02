@@ -17,9 +17,13 @@ namespace
 	constexpr int32 MaxTaps = 32;
 
 	void AddBlurPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Source, FRDGTextureRef Destination,
-		const FVector2f Direction, const float Sigma, const FIntPoint Size)
+		const FVector2f Direction, const float Sigma, const FIntPoint Size, const float Step)
 	{
-		const int32 Taps = FMath::Clamp(FMath::CeilToInt(Sigma * 2.0f), 1, MaxTaps);
+		// The shader works in taps rather than in pixels, so a step is expressed by widening what one
+		// tap covers and narrowing sigma to match. The two cancel: the same curve over the same
+		// distance, sampled less finely.
+		const float TapSigma = Sigma / FMath::Max(Step, 1.0f);
+		const int32 Taps = FMath::Clamp(FMath::CeilToInt(TapSigma * 2.0f), 1, MaxTaps);
 
 		FFolioBlurPS::FParameters* Parameters = GraphBuilder.AllocParameters<FFolioBlurPS::FParameters>();
 		// The RDG texture goes in as an RDG parameter. Reaching for GetRHI() here is what the
@@ -27,9 +31,9 @@ namespace
 		Parameters->SourceTexture = Source;
 		Parameters->SourceSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		Parameters->BlurParameters = FVector4f(
-			Direction.X / static_cast<float>(Size.X),
-			Direction.Y / static_cast<float>(Size.Y),
-			Sigma,
+			Direction.X * FMath::Max(Step, 1.0f) / static_cast<float>(Size.X),
+			Direction.Y * FMath::Max(Step, 1.0f) / static_cast<float>(Size.Y),
+			TapSigma,
 			static_cast<float>(Taps));
 		Parameters->InvSize = FVector2f(1.0f / Size.X, 1.0f / Size.Y);
 		Parameters->RenderTargets[0] = FRenderTargetBinding(Destination, ERenderTargetLoadAction::ENoAction);
@@ -44,7 +48,7 @@ namespace
 
 namespace Folio
 {
-	void BlurRenderTarget(UTextureRenderTarget2D* Target, const float Sigma)
+	void BlurRenderTarget(UTextureRenderTarget2D* Target, const float Sigma, const float Step)
 	{
 		if (!Target || Sigma <= 0.0f)
 		{
@@ -60,7 +64,7 @@ namespace Folio
 		const FIntPoint Size(Target->SizeX, Target->SizeY);
 
 		ENQUEUE_RENDER_COMMAND(FolioBlur)(
-			[Resource, Size, Sigma](FRHICommandListImmediate& RHICmdList)
+			[Resource, Size, Sigma, Step](FRHICommandListImmediate& RHICmdList)
 			{
 				FRDGBuilder GraphBuilder(RHICmdList);
 
@@ -72,8 +76,8 @@ namespace Folio
 					FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
 				FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioBlurScratch"));
 
-				AddBlurPass(GraphBuilder, TargetTexture, Scratch, FVector2f(1.0f, 0.0f), Sigma, Size);
-				AddBlurPass(GraphBuilder, Scratch, TargetTexture, FVector2f(0.0f, 1.0f), Sigma, Size);
+				AddBlurPass(GraphBuilder, TargetTexture, Scratch, FVector2f(1.0f, 0.0f), Sigma, Size, Step);
+				AddBlurPass(GraphBuilder, Scratch, TargetTexture, FVector2f(0.0f, 1.0f), Sigma, Size, Step);
 
 				GraphBuilder.Execute();
 			});

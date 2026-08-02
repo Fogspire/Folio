@@ -160,8 +160,11 @@ its licence. Do not settle for a bundled face and call it a constraint.
 
 **Slanted and curved edges want `Supersample = 2` on the widget.** Background antialiasing is one
 pixel of coverage, which is exact and still steps visibly on a shallow diagonal. Supersampling draws
-the document at twice the size and scales it down; the layout is unchanged. It costs a render target
-and gains text nothing, so it is a per-document choice. See [docs/hosting.md](docs/hosting.md).
+the document into a target twice the size and scales it down; the layout, the shaping and the hit
+testing are untouched, because only the target is denser. Text skips the target and is drawn to the
+screen at its own resolution, so it is the same text either way - except inside a filter, a shadow or
+a mask, which read their layer back and keep what is in it. It costs a render target, so it is a
+per-document choice. See [docs/hosting.md](docs/hosting.md).
 
 Put that choice behind a console command when you wire Folio into a project: take a value of 1 to 4,
 hold it on whatever owns the widget, and rebuild the document when it changes. Whether 1 or 2 is

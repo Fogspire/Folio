@@ -683,10 +683,18 @@ document links - so it reaches a game's own rules and elements the theme has nev
 }
 ```
 
-What a stylesheet cannot reach is movement written from code every frame. `UFolioHudMotion` reads the
-setting and snaps to rest; anything else you drive yourself should read
-`UFolioAccessibilityLibrary::IsReducedMotionOn` and do the same. A shader that moves, a video, and a
-`<text>` that types itself out are all outside it.
+It also turns **smooth scrolling** off. That one is not a transition - RmlUi glides a focused item
+into view from its own controller, so no stylesheet reaches it - and a list sliding under the thumb is
+movement like any other.
+
+What is left is movement written from code every frame. `UFolioHudMotion` reads the setting and snaps
+to rest; anything else you drive yourself should read `UFolioAccessibilityLibrary::IsReducedMotionOn`
+and do the same. A video and a render-target surface are outside it either way.
+
+A shader decorator is not: it has no clock of its own, so the only way one moves is a stylesheet
+animating the `decorator` property, and that stops with everything else.
+
+A `<text>` typing itself out is deliberately outside it - see below.
 
 `uipreview --reduced-motion` turns on the same theme, for judging a screen with everything still.
 
@@ -712,6 +720,27 @@ Check one at the ratio a high-contrast theme should meet rather than the ordinar
 ```bash
 ./bin/win64/uipreview.exe UI/screens/settings.rml --root . --theme high-contrast --a11y-contrast 7
 ```
+
+### Text speed
+
+Its own setting, and deliberately not part of reduced motion:
+
+```cpp
+UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored. Clamped to 0.1 - 10
+UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
+```
+
+Players look for text speed separately, and the two wants come apart: somebody can need menus still
+and dialogue paced, or instant text and every transition intact. Tying them together denies both. A
+typewriter is also small, local, predictable movement, which is the opposite of what triggers a
+vestibular response.
+
+**The multiplier divides the whole schedule** - `reveal-rate`, an authored `{delay:0.2}` and the
+punctuation beats all move together - so a writer's pacing survives the setting rather than being
+flattened by it. Instant text skips rather than never starting, so `revealcomplete` still fires and
+whatever was waiting on the line still runs.
+
+`uipreview --text-speed 4` and `--instant-text` preview both; `folio.Text.Speed` is the console.
 
 ### Colour vision
 

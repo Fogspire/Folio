@@ -150,6 +150,28 @@ long it will take from the start — which is what an auto-advance timer wants.
 `folio.Text.Skip` does the same thing to every revealing line, for testing pacing without a
 controller in your hand.
 
+### The player's speed
+
+Two settings, and both belong in an options menu rather than in the stylesheet:
+
+```cpp
+UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored
+UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
+```
+
+**The multiplier divides the whole schedule** — `reveal-rate`, an authored `{delay:0.2}` and the
+punctuation beats all move together. Scaling only the per-character rate would flatten hand-written
+pacing exactly where it matters, so a line that pauses before a name still pauses, proportionally.
+
+Instant text skips rather than never starting, so `revealcomplete` still fires and an auto-advance
+timer waiting on it still runs.
+
+Neither is part of **reduced motion**, on purpose: players look for text speed separately, and
+somebody can need menus still and dialogue paced, or instant text and every transition intact. See
+[accessibility](accessibility.md#text-speed).
+
+`uipreview --text-speed 4` and `--instant-text` preview both.
+
 ### Sound
 
 `reveal-sound: "dialogue-blip"` names a sound and plays nothing, in keeping with the rest of

@@ -1020,7 +1020,8 @@ screen being rebuilt.
 | | |
 |---|---|
 | `SetTextScale(1.5)` | Writes the root font size, so it reaches type sized in `rem` and nothing sized in `dp`. **Size your type in `rem`.** |
-| `SetReducedMotion(true)` | The `reduced-motion` theme. Code that moves things per frame reads `IsReducedMotionOn` and snaps. |
+| `SetReducedMotion(true)` | The `reduced-motion` theme, and instant scrolling. Code that moves things per frame reads `IsReducedMotionOn` and snaps. |
+| `SetTextSpeed(2)`, `SetInstantText(true)` | How fast `<text>` types. Its own setting on purpose: players look for text speed separately, and a typewriter is not what a vestibular setting is for. |
 | `SetHighContrast(true)` | The `high-contrast` theme. |
 
 Check them the way a player would use them:

@@ -250,7 +250,15 @@ bool App::Initialise()
 	if (context && options.reduced_motion)
 	{
 		context->ActivateTheme("reduced-motion", true);
+
+		// Not a transition, so no stylesheet reaches it: RmlUi glides a focused item into view from
+		// its own controller, and a list sliding under the thumb is movement like any other.
+		context->SetDefaultScrollBehavior(Rml::ScrollBehavior::Instant, 1.0f);
 	}
+
+	// Its own setting, not part of reduced motion. See docs/accessibility.md.
+	Folio::Text::RevealSettings().Speed = options.text_speed;
+	Folio::Text::RevealSettings().bInstant = options.instant_text;
 	if (!context)
 	{
 		diagnostics.Report(Severity::Error, "E-INIT-CONTEXT", "could not create the RmlUi context");

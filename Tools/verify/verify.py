@@ -367,6 +367,26 @@ def main() -> int:
             else:
                 harness.ok(label)
 
+        # Text speed is its own setting rather than part of reduced motion, so it is checked on its
+        # own terms: the same frame of the same line, typed at three speeds, has to differ.
+        dialogue = repo / "rcss" / "recipes" / "dialogue.rml"
+        if dialogue.is_file():
+            shots = {}
+            for label, extra in (("authored", []), ("fast", ["--text-speed", "4"]),
+                                 ("instant", ["--instant-text"])):
+                path = out / f"reveal.{label}.png"
+                harness.run([str(dialogue), "--root", str(repo), "--frames", "12",
+                             "--no-assets-wanted", "--screenshot", str(path), *extra])
+                shots[label] = path.read_bytes() if path.is_file() else b""
+
+            if not all(shots.values()):
+                harness.fail("could not capture the reveal at three speeds")
+            elif len(set(shots.values())) != 3:
+                harness.fail("text speed changed nothing - the same frame typed at three speeds "
+                             "should show three different amounts of the line")
+            else:
+                harness.ok("text speed and instant text differ from authored")
+
         # And the simulation has to actually do something, or it is a flag that reads as a pass.
         plain = out / "simulate.normal.png"
         seen = out / "simulate.deuteranopia.png"

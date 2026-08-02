@@ -28,6 +28,7 @@ Type `folio.` in the console and Unreal will complete the rest.
 | `folio.Terms` | Every loaded term, the file it came from and the text it resolves to. |
 | `folio.Terms.Reload` | Reads `UI/terms` again and rebuilds every open document, since a term is substituted while a document's runs are built. |
 | `folio.Text.Skip` | Completes every `<text>` still revealing, as a player pressing skip would. For judging pacing without a controller in your hand. |
+| `folio.Text.Speed [multiplier\|instant]` | How fast `<text>` types, 1 being as authored. `instant` flips whether it types at all. Its own setting rather than part of reduced motion. |
 
 ## Navigation
 

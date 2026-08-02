@@ -136,6 +136,13 @@ namespace FolioDocSamples
 		UFolioAccessibilityLibrary::SetHighContrast(true);
 	}
 
+	// docs/accessibility.md#8
+	inline void Sample_docs_accessibility_md_8()
+	{
+		UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored. Clamped to 0.1 - 10
+		UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
+	}
+
 	// docs/assigning_documents.md#0
 	inline void Sample_docs_assigning_documents_md_0()
 	{
@@ -274,6 +281,13 @@ namespace FolioDocSamples
 		{
 			Text->Skip();
 		}
+	}
+
+	// docs/rich_text.md#2
+	inline void Sample_docs_rich_text_md_2()
+	{
+		UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored
+		UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
 	}
 
 	// docs/text_and_fonts.md#0

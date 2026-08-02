@@ -215,6 +215,29 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
 	static FOLIO_API bool IsHighContrastOn();
 
+	/**
+	 * How fast `<text>` types. 1 is as authored, 2 is twice as fast. Clamped to 0.1 - 10.
+	 *
+	 * Its own setting rather than part of reduced motion, because players look for it separately and
+	 * because the two wants come apart: someone can need menus still and dialogue paced, or instant
+	 * text and every transition intact.
+	 *
+	 * The multiplier divides the whole schedule, so `reveal-rate`, an authored `{delay:0.2}` and the
+	 * punctuation beats all move together and the writer's pacing survives.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API void SetTextSpeed(float Multiplier);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API float GetTextSpeed();
+
+	/** Every line arrives whole. The row a player finds as "instant text". */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API void SetInstantText(bool bInstant);
+
+	UFUNCTION(BlueprintPure, Category = "Folio|Accessibility|Presentation")
+	static FOLIO_API bool IsInstantTextOn();
+
 	/** How much the reader says beyond a control's name. Worth a row beside the speech rate. */
 	UFUNCTION(BlueprintCallable, Category = "Folio|Accessibility")
 	static FOLIO_API void SetReaderVerbosity(EFolioReaderVerbosity Verbosity);

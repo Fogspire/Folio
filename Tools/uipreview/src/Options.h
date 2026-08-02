@@ -90,6 +90,11 @@ struct Options {
 	/** Render `filmstrip_frames` and count how often the whole screen changes brightness. */
 	bool flash_check = false;
 
+	/** How fast <text> types, 1 being as authored, and whether it types at all. A player's setting,
+	    and deliberately not part of --reduced-motion. */
+	float text_speed = 1.0f;
+	bool instant_text = false;
+
 	/** Field resolution per em, and the field's width in texels. A field resolves best near 1:1,
 	    so this trades small-text clarity against magnification headroom. */
 	int msdf_px_em = 48;

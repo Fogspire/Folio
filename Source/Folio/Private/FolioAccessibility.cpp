@@ -1297,6 +1297,26 @@ bool UFolioAccessibilityLibrary::IsHighContrastOn()
 	return Folio::Presentation::IsHighContrastOn();
 }
 
+void UFolioAccessibilityLibrary::SetTextSpeed(const float Multiplier)
+{
+	Folio::Presentation::SetTextSpeed(Multiplier);
+}
+
+float UFolioAccessibilityLibrary::GetTextSpeed()
+{
+	return Folio::Presentation::GetTextSpeed();
+}
+
+void UFolioAccessibilityLibrary::SetInstantText(const bool bInstant)
+{
+	Folio::Presentation::SetInstantText(bInstant);
+}
+
+bool UFolioAccessibilityLibrary::IsInstantTextOn()
+{
+	return Folio::Presentation::IsInstantTextOn();
+}
+
 FString UFolioAccessibilityLibrary::ReviewNext()
 {
 	return FFolioReview::Move(FFolioReview::EMove::Next);

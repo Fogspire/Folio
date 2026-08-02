@@ -2060,6 +2060,25 @@ namespace
 			Folio::FSpeech::NumQueued());
 	}
 
+	void TextSpeedAccessibility(const TArray<FString>& Args)
+	{
+		if (Args.Num() > 0)
+		{
+			if (Args[0].ToLower() == TEXT("instant"))
+			{
+				UFolioAccessibilityLibrary::SetInstantText(!UFolioAccessibilityLibrary::IsInstantTextOn());
+			}
+			else
+			{
+				UFolioAccessibilityLibrary::SetTextSpeed(FCString::Atof(*Args[0]));
+			}
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("folio.Text.Speed: %.2fx%s"),
+			UFolioAccessibilityLibrary::GetTextSpeed(),
+			UFolioAccessibilityLibrary::IsInstantTextOn() ? TEXT(", instant") : TEXT(""));
+	}
+
 	void SayAccessibility(const TArray<FString>& Args)
 	{
 		const FString Text = FString::Join(Args, TEXT(" "));
@@ -2102,6 +2121,12 @@ namespace
 		TEXT("folio.Accessibility.Reader [0|1]. Turns the game's own screen reader on or off, which is "
 			"what an options menu toggle calls. No argument flips it."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ReaderAccessibility));
+
+	FAutoConsoleCommand TextSpeedCommand(
+		TEXT("folio.Text.Speed"),
+		TEXT("folio.Text.Speed [multiplier|instant]. How fast <text> types, 1 being as authored. "
+			"'instant' flips whether it types at all. Separate from reduced motion on purpose."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&TextSpeedAccessibility));
 
 	FAutoConsoleCommand AccessibilityVerbosityCommand(
 		TEXT("folio.Accessibility.Verbosity"),

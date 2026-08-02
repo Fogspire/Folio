@@ -105,6 +105,8 @@ void PrintUsage(std::FILE* stream)
 		"                        Above 1, --a11y also reports text the setting cannot move and\n"
 		"                        text that no longer fits\n"
 		"  --reduced-motion      Turn every transition and animation off, as the setting does\n"
+		"  --text-speed <N>      How fast <text> types, 1 being as authored, 0.1 to 10\n"
+		"  --instant-text        Every <text> arrives whole, as the setting does\n"
 		"  --flash-check         Render --filmstrip-frames frames and report flashing over the\n"
 		"                        WCAG limit of three a second, which is a seizure risk and a\n"
 		"                        certification question\n"
@@ -299,6 +301,21 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		else if (arg == "--flash-check")
 		{
 			o.flash_check = true;
+		}
+		else if (arg == "--instant-text")
+		{
+			o.instant_text = true;
+		}
+		else if (arg == "--text-speed")
+		{
+			if (!TakeValue(argc, argv, i, "--text-speed", value, error))
+				return ParseResult::Error;
+			o.text_speed = (float)std::atof(value.c_str());
+			if (o.text_speed < 0.1f || o.text_speed > 10.0f)
+			{
+				error = "--text-speed expects a number between 0.1 and 10, got '" + value + "'";
+				return ParseResult::Error;
+			}
 		}
 		else if (arg == "--simulate")
 		{

@@ -2,6 +2,11 @@
 
 #include "CoreMinimal.h"
 
+namespace Rml
+{
+	class Context;
+}
+
 /**
  * The settings that change how a screen is presented rather than what it says.
  *
@@ -40,6 +45,23 @@ namespace Folio::Presentation
 	/** The `high-contrast` theme, named so a game does not have to hard-code the string. */
 	void SetHighContrast(bool bEnabled);
 	bool IsHighContrastOn();
+
+	/**
+	 * How fast `<text>` types, and whether it types at all.
+	 *
+	 * Deliberately not part of reduced motion: text speed is its own well-known setting and players
+	 * look for it separately. The multiplier divides the whole schedule, so `reveal-rate`, an
+	 * authored `{delay:0.2}` and the punctuation beats all move together and a writer's pacing
+	 * survives the setting.
+	 */
+	void SetTextSpeed(float Multiplier);
+	float GetTextSpeed();
+
+	void SetInstantText(bool bInstant);
+	bool IsInstantTextOn();
+
+	/** Applies the settings a fresh context has to be told about, which is scrolling. */
+	void ApplyToContext(Rml::Context* Context);
 
 	/**
 	 * Bumped whenever any of these changes.

@@ -2,6 +2,10 @@
 
 #include "FolioDocumentHost.h"
 
+#include "FolioCore/FolioTextElement.h"
+
+#include <RmlUi/Core/Context.h>
+
 namespace
 {
 	struct FPresentationState
@@ -58,6 +62,45 @@ void Folio::Presentation::SetReducedMotion(const bool bReduce)
 	++Presentation.Revision;
 
 	FFolioDocumentHost::SetTheme(ReducedMotionTheme, bReduce);
+
+	// A stylesheet cannot reach the smooth scroll, because it is not a transition: RmlUi glides a
+	// focused item into view from its own controller. A list sliding under the thumb is movement like
+	// any other.
+	for (FFolioDocumentHost* Host : FFolioDocumentHost::GetLiveHosts())
+	{
+		ApplyToContext(Host->GetContext());
+	}
+}
+
+void Folio::Presentation::ApplyToContext(Rml::Context* Context)
+{
+	if (Context)
+	{
+		Context->SetDefaultScrollBehavior(
+			IsReducedMotionOn() ? Rml::ScrollBehavior::Instant : Rml::ScrollBehavior::Smooth, 1.0f);
+	}
+}
+
+void Folio::Presentation::SetTextSpeed(const float Multiplier)
+{
+	// A tenth is unreadably slow and ten is instant in everything but name; both are wider than any
+	// setting should offer and exist so a bad value cannot make dialogue unusable.
+	Folio::Text::RevealSettings().Speed = FMath::Clamp(Multiplier, 0.1f, 10.0f);
+}
+
+float Folio::Presentation::GetTextSpeed()
+{
+	return Folio::Text::RevealSettings().Speed;
+}
+
+void Folio::Presentation::SetInstantText(const bool bInstant)
+{
+	Folio::Text::RevealSettings().bInstant = bInstant;
+}
+
+bool Folio::Presentation::IsInstantTextOn()
+{
+	return Folio::Text::RevealSettings().bInstant;
 }
 
 bool Folio::Presentation::IsReducedMotionOn()

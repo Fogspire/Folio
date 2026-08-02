@@ -195,11 +195,23 @@ visible rather than something a player discovers.
 
 ### Reduced motion cannot reach motion that is drawn
 
-It is a stylesheet rule, so it stops every transition and animation and nothing else. A shader that
-moves, a video, a `<text>` typing itself out and anything a game writes from its own tick keep going.
+It is a stylesheet rule plus a scroll behaviour, so it stops every transition, every animation and the
+smooth scroll. A video, a render-target surface and anything a game writes from its own tick keep
+going.
 
 `UFolioHudMotion` is wired to it and snaps. Anything else you drive per frame has to read
 `IsReducedMotionOn` itself; nothing can find it for you.
+
+A `<text>` typing itself out is **deliberately** outside it and has its own setting - see
+[accessibility](accessibility.md#text-speed).
+
+### Reduced motion stops transition-completed events
+
+Turning transitions off means a `transitionend` never arrives, because no transition ever starts.
+Nothing in the shipped library sequences anything that way, and a game that does will find that step
+never happens for the players most likely to have the setting on.
+
+Sequence off a timer, an animation-completed callback or an explicit call instead.
 
 ### Announcements are not guaranteed to arrive
 

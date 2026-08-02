@@ -61,6 +61,9 @@ bool FFolioDocumentHost::Create(const TCHAR* Label, const FIntPoint InSize)
 		return false;
 	}
 
+	// A context created after the setting was turned on has to be told, the same as a theme.
+	Folio::Presentation::ApplyToContext(Context);
+
 	// Applied before anything loads, so a document never renders a frame in the wrong theme.
 	for (const FName Theme : GetActiveThemes())
 	{

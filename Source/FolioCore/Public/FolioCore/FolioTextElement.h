@@ -75,6 +75,31 @@ namespace Folio::Text
 	/// for the same reason: the element that finished does not know what is hosting it.
 	using FCompleteCallback = void (*)(Rml::Element* Element);
 
+	/// How fast text types, and whether it types at all.
+	///
+	/// Deliberately not part of reduced motion. Text speed is its own well-known setting and players
+	/// look for it separately: tying the two together means someone who wants menus still but
+	/// dialogue paced cannot have both, and someone who wants instant text has to give up every
+	/// transition to get it. A typewriter is also small, local, predictable movement, which is the
+	/// opposite of what triggers a vestibular response.
+	struct FRevealSettings
+	{
+		/// Multiplies the whole schedule, so `reveal-rate`, `{delay:0.2}` and the punctuation beats
+		/// all move together. Two is twice as fast; a writer's pacing is preserved either way.
+		float Speed = 1.0f;
+
+		/// Every line arrives whole. What the setting a player finds as "instant text" sets.
+		bool bInstant = false;
+	};
+
+	/// Process-wide, and one copy per module by design: a `<text>` belongs to the RmlUi instance of
+	/// whichever module built it, and so does the setting it reads.
+	inline FRevealSettings& RevealSettings()
+	{
+		static FRevealSettings Instance;
+		return Instance;
+	}
+
 	namespace Detail
 	{
 		struct FProperties
@@ -201,6 +226,17 @@ namespace Folio::Text
 			if (bRunsDirty)
 			{
 				Build();
+			}
+
+			// A player who has turned typing off has turned it off everywhere, including on the line
+			// that is about to start. Skipped rather than never started, so `revealcomplete` still
+			// fires and whatever was waiting on it still runs.
+			if (RevealSettings().bInstant)
+			{
+				bPlaying = true;
+				bComplete = false;
+				Skip();
+				return;
 			}
 
 			Elapsed = 0.0f;
@@ -506,6 +542,7 @@ namespace Folio::Text
 		{
 			const float Rate = std::max(GetNumber(Detail::Properties().Rate, 45.0f), 0.001f);
 			const float Step = 1.0f / Rate;
+			const float Speed = std::max(RevealSettings().Speed, 0.01f);
 			const float Punctuation = std::max(GetNumber(Detail::Properties().Punctuation, 0.0f), 0.0f);
 
 			CharTimes.assign(std::size_t(Parsed.CharCount), 0.0f);
@@ -544,7 +581,10 @@ namespace Folio::Text
 					}
 				}
 
-				Accumulated += Wait;
+				// The player's speed divides the whole wait, authored delays and punctuation beats
+				// included. Scaling only the per-character step would make a line with hand-written
+				// pacing ignore the setting exactly where the pacing matters most.
+				Accumulated += Wait / Speed;
 				CharTimes[std::size_t(Index)] = Accumulated;
 			}
 

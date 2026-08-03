@@ -13,6 +13,7 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Engine/GameViewportClient.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -115,6 +116,12 @@ void UFolioMarkerDocument::TickComponent(const float DeltaTime, const ELevelTick
 		return;
 	}
 
+	// Before anything else, and whether or not the marker is on screen. A polled model is only noticed
+	// by being read, so without this a marker shows whatever its source held the instant the document
+	// loaded and never changes again - and never marks itself dirty, which leaves the invalidation path
+	// skipping the update entirely and every animation frozen with it.
+	Host->TickDataModels();
+
 	float Opacity = 1.0f;
 	bOnScreen = IsVisible() && Project(Opacity);
 
@@ -204,7 +211,14 @@ bool UFolioMarkerDocument::Project(float& OutOpacity)
 	}
 
 	const FVector Location = GetComponentLocation();
-	const float Distance = float(FVector::Dist(Controller->PlayerCameraManager->GetCameraLocation(), Location));
+
+	// The pawn only when there is one: a spectator, a cinematic, the frames before possession all
+	// leave the camera as the only thing standing anywhere, and banding off the origin would take
+	// every marker in the level out at once.
+	const APawn* Pawn = DistanceFrom == EFolioMarkerDistanceFrom::Pawn ? Controller->GetPawn() : nullptr;
+	const FVector From = Pawn ? Pawn->GetActorLocation() : Controller->PlayerCameraManager->GetCameraLocation();
+
+	const float Distance = float(FVector::Dist(From, Location));
 
 	OutOpacity = 1.0f;
 	float TransitionScaleFactor = 1.0f;

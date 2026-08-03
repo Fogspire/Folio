@@ -32,6 +32,29 @@ enum class EFolioMarkerTransition : uint8
 };
 
 /**
+ * What a marker measures its distance from, for scaling and fading.
+ *
+ * The two part company the moment a camera is not on the player: a third-person camera pulled back
+ * from the shoulder, a camera that swings wide in combat, an aim mode that pushes in. A marker banded
+ * off the camera then changes size and fades as the *camera* moves, which reads as the world
+ * breathing rather than as the player closing on something.
+ */
+UENUM(BlueprintType)
+enum class EFolioMarkerDistanceFrom : uint8
+{
+	/** The view. Right when the bands are about how much of the screen a marker is worth. */
+	Camera,
+
+	/**
+	 * The player's pawn, falling back to the camera when there is not one.
+	 *
+	 * Right when the bands are about the world - how far away the thing being labelled actually is,
+	 * which is what a player means by near and far.
+	 */
+	Pawn,
+};
+
+/**
  * A document that lives on the screen but follows a place in the world.
  *
  * Nameplates, objective markers, damage numbers, interaction prompts, waypoints. The document is laid
@@ -81,6 +104,14 @@ public:
 	/** Moved by this many dp after projection, so a plate can clear a head without moving the actor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
 	FVector2D ScreenOffset = FVector2D(0.0, -16.0);
+
+	/**
+	 * Where every distance below is measured from: the view, or the player standing in the world.
+	 *
+	 * Camera by default, which is what a marker did before there was a choice.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio|Distance")
+	EFolioMarkerDistanceFrom DistanceFrom = EFolioMarkerDistanceFrom::Camera;
 
 	/**
 	 * Shrink with distance, the way something in the world would.

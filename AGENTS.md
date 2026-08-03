@@ -296,19 +296,23 @@ needs a `filter`, which costs a render target.
 The same property carrying both a transition and an animation loses one of them, silently apart from
 a warning that names neither rule. One or the other, never both.
 
-**If the project uses CommonUI, turn off its virtual pointer.** Both default on, and both are in the
-game's `DefaultEngine.ini` rather than anything Folio owns:
+**If the project uses CommonUI, turn off its virtual pointer.** All three default on, and all three
+are in the game's `DefaultEngine.ini` rather than anything Folio owns:
 
 ```ini
 [ConsoleVariables]
 CommonUI.ShouldVirtualAcceptSimulateMouseButton=0
 CommonUI.EnableVirtualPointer=0
+CommonUI.SyncCursorToFocusedWidgetOnInputMethodChange=0
 ```
 
 The first stops the pad's accept button becoming a left mouse click at CommonUI's software cursor,
 which presses whatever the cursor is over rather than what is focused. The second stops the stick
 driving that cursor, which otherwise makes a player holding only a pad generate real mouse movement.
-Both present as focus bugs and neither is one. See
+The third stops the cursor jumping to the focused widget when the player picks up the pad: the
+focused widget is the canvas, so the jump is to the middle of the screen and Folio reads the move it
+synthesises as the mouse being taken back.
+All present as focus bugs and none is one. See
 [docs/input_and_navigation.md](docs/input_and_navigation.md).
 
 **A HUD sets `Interactive` false on its `UFolioWidget`.** Anything the player does not click or

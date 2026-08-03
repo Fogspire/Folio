@@ -7,6 +7,10 @@
 
 #include "Editor.h"
 #include "EngineUtils.h"
+#include "HAL/PlatformFileManager.h"
+#include "ISourceControlModule.h"
+#include "Misc/FileHelper.h"
+#include "SourceControlHelpers.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
@@ -349,6 +353,182 @@ void FolioLevelActions::CheckStagedDirectories()
 		FText::AsNumber(Documents.Num()), FText::FromString(UiRoot), FText::FromString(Relative))));
 
 	Log.Open(EMessageSeverity::Warning, /*bForce*/ true);
+}
+
+namespace
+{
+	/** One console variable, and the two lines that say why a document needs it off. */
+	struct FCommonUiOverride
+	{
+		const TCHAR* Key;
+		const TCHAR* Value;
+		const TCHAR* Comment;
+	};
+
+	const FCommonUiOverride CommonUiOverrides[] =
+	{
+		{
+			TEXT("CommonUI.ShouldVirtualAcceptSimulateMouseButton"), TEXT("0"),
+			TEXT("; Folio: the pad's accept button becomes a left click at CommonUI's software cursor, so a confirm\n"
+				"; presses whatever the cursor is over rather than what is focused.")
+		},
+		{
+			TEXT("CommonUI.EnableVirtualPointer"), TEXT("0"),
+			TEXT("; Folio: the stick drives that cursor, so a player on a pad is generating real mouse movement.")
+		},
+		{
+			TEXT("CommonUI.SyncCursorToFocusedWidgetOnInputMethodChange"), TEXT("0"),
+			TEXT("; Folio: picking up the pad warps the cursor onto the focused widget, which reads as the mouse\n"
+				"; coming back and hands the device straight to the pointer again.")
+		},
+	};
+
+	const TCHAR* ConsoleVariablesSection = TEXT("[ConsoleVariables]");
+
+	/** Whether this line is that key being set, whatever it is set to and however it is spaced. */
+	bool LineSets(const FString& Line, const TCHAR* Key)
+	{
+		FString Trimmed = Line.TrimStartAndEnd();
+		if (!Trimmed.RemoveFromStart(Key, ESearchCase::IgnoreCase))
+		{
+			return false;
+		}
+
+		return Trimmed.TrimStart().StartsWith(TEXT("="));
+	}
+
+	/** Makes the file writable, through source control where there is any. */
+	bool MakeWritable(const FString& File)
+	{
+		if (ISourceControlModule::Get().IsEnabled())
+		{
+			USourceControlHelpers::CheckOutOrAddFile(File, /*bSilent*/ true);
+		}
+
+		IPlatformFile& Platform = FPlatformFileManager::Get().GetPlatformFile();
+		if (!Platform.FileExists(*File) || !Platform.IsReadOnly(*File))
+		{
+			return true;
+		}
+
+		return Platform.SetReadOnly(*File, false);
+	}
+}
+
+bool FolioLevelActions::HasCommonUI()
+{
+	return FModuleManager::Get().IsModuleLoaded(TEXT("CommonUI"));
+}
+
+void FolioLevelActions::SetCommonUiConsoleVariables()
+{
+	const FString Ini = FPaths::ConvertRelativePathToFull(
+		FPaths::ProjectConfigDir() / TEXT("DefaultEngine.ini"));
+
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *Ini))
+	{
+		Notify(FText::Format(LOCTEXT("NoDefaultEngineIni", "Could not read '{0}'."),
+			FText::FromString(Ini)), /*bFailed*/ true);
+		return;
+	}
+
+	TArray<FString> Lines;
+	Text.ParseIntoArrayLines(Lines, /*bCullEmpty*/ false);
+
+	// The section as it stands. Everything already in it is left alone, so the only question this
+	// answers is where a line that is missing goes.
+	int32 SectionStart = INDEX_NONE;
+	int32 SectionEnd = Lines.Num();
+	for (int32 Index = 0; Index < Lines.Num(); ++Index)
+	{
+		const FString Trimmed = Lines[Index].TrimStartAndEnd();
+		if (SectionStart == INDEX_NONE)
+		{
+			if (Trimmed.Equals(ConsoleVariablesSection, ESearchCase::IgnoreCase))
+			{
+				SectionStart = Index + 1;
+			}
+		}
+		else if (Trimmed.StartsWith(TEXT("[")))
+		{
+			SectionEnd = Index;
+			break;
+		}
+	}
+
+	TArray<FString> Added;
+	TArray<FString> Block;
+	for (const FCommonUiOverride& Override : CommonUiOverrides)
+	{
+		bool bPresent = false;
+		for (int32 Index = SectionStart; Index != INDEX_NONE && Index < SectionEnd && !bPresent; ++Index)
+		{
+			bPresent = LineSets(Lines[Index], Override.Key);
+		}
+
+		if (bPresent)
+		{
+			continue;
+		}
+
+		TArray<FString> CommentLines;
+		FString(Override.Comment).ParseIntoArrayLines(CommentLines, /*bCullEmpty*/ false);
+
+		Block.Add(FString());
+		Block.Append(CommentLines);
+		Block.Add(FString::Printf(TEXT("%s=%s"), Override.Key, Override.Value));
+
+		Added.Add(Override.Key);
+	}
+
+	if (Added.IsEmpty())
+	{
+		Notify(LOCTEXT("CommonUiAlreadySet",
+			"Nothing to add: DefaultEngine.ini already has every CommonUI variable a document needs."),
+			/*bFailed*/ false);
+		return;
+	}
+
+	if (SectionStart == INDEX_NONE)
+	{
+		Lines.Add(FString());
+		Lines.Add(ConsoleVariablesSection);
+		SectionEnd = Lines.Num();
+	}
+
+	Lines.Insert(Block, SectionEnd);
+
+	// The file's own line ending, so a project keeping these files with Unix endings gets three new
+	// lines in its diff rather than every line in the file.
+	const TCHAR* Terminator = Text.Contains(TEXT("\r\n")) ? TEXT("\r\n") : TEXT("\n");
+
+	if (!MakeWritable(Ini)
+		|| !FFileHelper::SaveStringToFile(FString::Join(Lines, Terminator) + Terminator, *Ini,
+			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+	{
+		Notify(FText::Format(LOCTEXT("CommonUiIniReadOnly",
+			"Could not write '{0}'. It is read-only, and source control did not check it out."),
+			FText::FromString(Ini)), /*bFailed*/ true);
+		return;
+	}
+
+	FMessageLog Log(FolioMessageLogName);
+	Log.NewPage(LOCTEXT("CommonUiPage", "CommonUI"));
+	for (const FString& Key : Added)
+	{
+		Log.Info()->AddToken(FTextToken::Create(FText::Format(
+			LOCTEXT("CommonUiSet", "Added {0}=0 to [ConsoleVariables] in DefaultEngine.ini."),
+			FText::FromString(Key))));
+	}
+
+	Log.Open(EMessageSeverity::Info, /*bForce*/ true);
+
+	Notify(FText::Format(
+		LOCTEXT("CommonUiWritten",
+			"Set {0} CommonUI {0}|plural(one=variable,other=variables) in DefaultEngine.ini. "
+			"Restart the editor: these are read once, on the way up."),
+		FText::AsNumber(Added.Num())), /*bFailed*/ false);
 }
 
 #undef LOCTEXT_NAMESPACE

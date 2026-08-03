@@ -34,4 +34,20 @@ namespace FolioLevelActions
 	 * directories, because a document pulls in stylesheets and art beside it.
 	 */
 	void StageDocumentsUsedInLevel();
+
+	/**
+	 * Writes the CommonUI console variables a project running documents needs into DefaultEngine.ini.
+	 *
+	 * CommonUI's virtual pointer defaults on, and every part of it aims input at a software cursor
+	 * rather than at what is focused. Under a document that reads as the pad pressing the wrong control
+	 * and as the device flickering between pad and mouse, and neither looks like a setting. Written to
+	 * the file rather than set live, because these are read once on the way up.
+	 *
+	 * Anything already in the section is left exactly as it is, whatever it is set to: a project that
+	 * has taken a deliberate position on one of them said so there.
+	 */
+	void SetCommonUiConsoleVariables();
+
+	/** @return Whether this project has CommonUI, which is the only thing the variables above matter to. */
+	bool HasCommonUI();
 }

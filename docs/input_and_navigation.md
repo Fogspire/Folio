@@ -244,17 +244,24 @@ confirm presses whatever the cursor happens to be sitting over rather than what 
 exactly like a focus bug and is not one: the giveaway is that keyboard enter works, the pad does not,
 and Folio's input trace shows nothing at all for the press because it never arrives as a key.
 
-Two console variables, both defaulting on, in `DefaultEngine.ini`:
+Three console variables, all defaulting on, in `DefaultEngine.ini`:
 
 ```ini
 [ConsoleVariables]
 CommonUI.ShouldVirtualAcceptSimulateMouseButton=0
 CommonUI.EnableVirtualPointer=0
+CommonUI.SyncCursorToFocusedWidgetOnInputMethodChange=0
 ```
 
 The second turns off the software cursor itself. Leave it on and the stick drives the pointer, which
 means a player holding only a pad is generating real mouse movement - so hover follows the stick, and
 anything keyed off which device is in use flickers between pad and mouse several times a second.
+
+The third moves the cursor to the centre of the focused widget every time the player picks up the
+pad, so that the fake accept click lands on the right control. The focused widget is the canvas, so
+the centre of it is the centre of the screen, and Slate synthesises a mouse move to get there - far
+enough that Folio reads it as the player taking the mouse back and hands the device straight to the
+pointer again. With the first line off there is no fake click left to aim.
 
 ## Binding a key while a screen is up
 

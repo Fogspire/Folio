@@ -82,6 +82,15 @@ double GetTime();
 bool ProcessEvents(Rml::Context* context, KeyDownCallback key_down_callback = nullptr, bool power_save = false);
 void RequestExit();
 
+/**
+ * Clears to nothing rather than to opaque black, for a frame that is going to become a texture.
+ *
+ * Both the layer the renderer composites into and the target it composites onto have to be
+ * transparent, or the ground shows up in the alpha of whatever is baked - and only where the
+ * effect is soft, which reads as the colour being wrong rather than the clear.
+ */
+void SetTransparentClear(bool value);
+
 void BeginFrame();
 /** Resolves the renderer's layers into the default framebuffer. Capture after this. */
 void EndFrame();

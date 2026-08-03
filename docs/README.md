@@ -71,9 +71,9 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[An inventory screen](tutorials/inventory.md)** | A grid, drag and drop between slots, gamepad navigation, and a data model behind it. |
 | **[A list of ten thousand items](tutorials/long_lists.md)** | Binding a fixed-size window instead of the array, so scrolling allocates nothing at all. |
 | **[A controls screen](tutorials/keybinding.md)** | Rebinding against Enhanced Input's own profile: a press-any-key panel that catches keys the game has bound, and what to do when one is already taken. |
-| **[A helmet HUD that responds to the player](tutorials/visor_hud.md)** | A first-person visor with no art at all: a helmet made of one border, curvature without 3D transforms, and two components trailing the camera and the stride. |
+| **[A helmet HUD that responds to the player](tutorials/visor_hud.md)** | A first-person visor with no art at all: a helmet made of one border, curvature without 3D transforms, two components trailing the camera and the stride, and baking the aperture glow so it stops costing a render target a frame. |
 | **[A paper doll, and 3D items in a grid](tutorials/paper_doll.md)** | A character in a profile frame and meshes in inventory cells: isolating a capture without a staging area, the premultiply trap, and one rig feeding a page of targets. |
-| **[The coloured screen edge](tutorials/screen_edge.md)** | Standing in fire, taking a hit, running on low health: an inset box-shadow is the whole effect, and states cross-fade while events animate. |
+| **[The coloured screen edge](tutorials/screen_edge.md)** | Standing in fire, taking a hit, running on low health: an inset box-shadow is the whole effect, states cross-fade while events animate - then bake the lot to textures, because a full-screen layer costs a render target every frame. |
 
 ## Reference
 

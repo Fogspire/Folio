@@ -86,6 +86,8 @@ struct BackendData {
 	// Arguments set during event processing and nulled otherwise.
 	Rml::Context* context = nullptr;
 	Backend::KeyDownCallback key_down_callback = nullptr;
+
+	bool transparent_clear = false;
 };
 static Rml::UniquePtr<BackendData> data;
 
@@ -249,10 +251,28 @@ void Backend::RequestExit()
 	glfwSetWindowShouldClose(data->window, GLFW_TRUE);
 }
 
+void Backend::SetTransparentClear(const bool value)
+{
+	RMLUI_ASSERT(data);
+	data->transparent_clear = value;
+}
+
 void Backend::BeginFrame()
 {
 	RMLUI_ASSERT(data);
-	data->render_interface->Clear();
+
+	if (data->transparent_clear)
+	{
+		// Set before the renderer's own BeginFrame, which clears its first layer with whatever
+		// clear colour is current. Both that layer and this target have to be empty.
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+	}
+	else
+	{
+		data->render_interface->Clear();
+	}
+
 	data->render_interface->BeginFrame();
 }
 

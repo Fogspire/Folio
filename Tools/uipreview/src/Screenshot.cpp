@@ -47,14 +47,35 @@ bool CaptureBackBuffer(int width, int height, std::vector<unsigned char>& out_rg
 	return true;
 }
 
-bool WritePng(const std::string& path, const std::vector<unsigned char>& rgba, int width, int height, std::string& out_error)
+bool WritePng(const std::string& path, const std::vector<unsigned char>& rgba, int width, int height,
+	std::string& out_error, bool force_rgba)
 {
 	std::error_code ec;
 	const std::filesystem::path parent = std::filesystem::path(path).parent_path();
 	if (!parent.empty())
 		std::filesystem::create_directories(parent, ec);
 
-	if (const unsigned error = lodepng::encode(path, rgba, (unsigned)width, (unsigned)height))
+	unsigned error = 0;
+	if (force_rgba)
+	{
+		lodepng::State state;
+		state.info_raw.colortype = LCT_RGBA;
+		state.info_raw.bitdepth = 8;
+		state.info_png.color.colortype = LCT_RGBA;
+		state.info_png.color.bitdepth = 8;
+		state.encoder.auto_convert = 0;
+
+		std::vector<unsigned char> encoded;
+		error = lodepng::encode(encoded, rgba, (unsigned)width, (unsigned)height, state);
+		if (!error)
+			error = lodepng::save_file(encoded, path);
+	}
+	else
+	{
+		error = lodepng::encode(path, rgba, (unsigned)width, (unsigned)height);
+	}
+
+	if (error)
 	{
 		out_error = lodepng_error_text(error);
 		return false;

@@ -141,11 +141,69 @@ In order of likelihood, and check these before concluding anything structural:
 3. **Poor batching from texture switches.** `Draws` and `Geometry batches` tell you; the fix is
    atlasing more aggressively rather than anything in code.
 4. **Layer effects.** `filter`, `backdrop-filter` and `box-shadow` each need an offscreen pass, which
-   `Resolve layers` measures. They are not free and a screen using several is paying for each.
+   `Resolve layers` measures. They are not free and a screen using several is paying for each. On a
+   full-screen element it is the most expensive thing in the document - see below, and bake it.
 5. **A polled data model.** `BindViewModel(..., bPollEveryFrame = true)` re-reads every bound field
    every frame, and it also stops the document from ever idling. A source implementing
    `INotifyFieldValueChanged` — which `UMVVMViewModelBase` does — updates on change instead, which is
    the reason to use one.
+
+## A full-screen layer effect, and baking it away
+
+The single most expensive thing a document can do, and the easiest one to write by accident:
+
+```css
+/* A damage vignette. One full-screen render target, allocated, cleared, drawn and composited. */
+#scorch {
+	position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+	border-radius: 90dp;
+	box-shadow: 0dp 0dp 70dp 12dp #f2551b66 inset;
+}
+```
+
+`box-shadow`, `filter`, `backdrop-filter` and `mask-image` are each drawn by rendering the element
+into an offscreen target and reading it back. On a full-screen element that target is the size of the
+screen, and on a document with a running animation it is resolved **every frame** - because an
+animating document never idles. A HUD with three of them spends several milliseconds a frame drawing
+a wash that never changes.
+
+**`uipreview` warns about it**, as `W-PERF-FULLSCREENLAYER`, on any element covering at least 75% of
+the viewport. It is a warning rather than a note because there is nothing to see: the effect looks
+exactly as intended in both renderers and only a profiler says what it cost. `--strict` is what stops
+it shipping.
+
+### Bake it
+
+The effect does not change, so it should be a texture. `--bake` renders one element alone, on
+nothing, cropped to its border box, and writes it as a PNG with straight alpha:
+
+```bash
+uipreview examples/screen_edge_baker.rml --root . --size 1920x1080 --dp-ratio 1 	--bake "#base=examples/art/edge_base.png" 	--bake "#burning=examples/art/edge_burning.png"
+```
+
+Then draw the texture and delete the property that made it:
+
+```css
+#scorch { decorator: image(/UI/art/scorch.png fill); }
+```
+
+Everything a state or an event did still works, because none of it was ever the shadow: `opacity` is
+what fades, cross-fades and flashes, and `opacity` is free.
+
+The VSCode preview puts a **Bake to PNG** button on the warning, and `Folio: Bake Element to PNG`
+does the same from the palette for any element you can name with a selector.
+
+Anything can be baked, not just a wash - a glow behind a panel, a masked plate, a gradient stack.
+The element is rendered at full opacity whatever the document rests at, so a layer that is faded out
+until the game turns it on still bakes.
+
+**Keep both documents.** The one that describes the effect is how it gets changed and re-baked, so it
+is worth keeping beside the one that draws the result - `examples/screen_edge_baker.rml` and
+`examples/screen_edge.rml` are the pair. Mark the source with `folio-bake-source` on its `body` and
+the warning leaves it alone, since its cost is paid once, by a tool.
+
+Baking is a resolution decision. The texture is stretched with `fill`, which is invisible on a soft
+wash and would not be on anything with an edge; bake at the size it will be drawn at.
 
 ## Text is not the expensive part
 

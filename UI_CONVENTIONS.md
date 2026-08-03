@@ -987,6 +987,7 @@ theme pass with no findings, so building on the component library inherits that.
 | `folio-hidden` | Decoration. Skipped by the checks and by the screen-reader tree. |
 | `folio-announce[="assertive"]` | A line read out whenever it changes, wherever the reader happens to be. Also how a value nobody can focus - the number between a minus and a plus - gets heard. `assertive` cuts in over whatever is being said; bare waits its turn. |
 | `folio-screen-effect` | A full-screen wash or flash. Hidden when a player turns screen effects off. |
+| `folio-bake-source` | On `body`: this document exists to be baked into textures, so the full-screen layer warning does not apply to it. |
 | `folio-inert` | Out of reach, as the background behind a modal is. `focus: none` with `pointer-events: none` says the same thing, and is what `docs/modals.md` already tells you to write. |
 
 A control counts as named if it has `folio-label`, its own text, text inside it, a `<label for>`

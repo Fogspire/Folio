@@ -327,7 +327,69 @@ FSlateApplication::Get().SetAllUserFocusToGameViewport();
 Keep the components' tick disabled until the HUD is up, and disable it again when it comes down;
 there is no reason to run two springs against a document that does not exist.
 
-## 9. Before you believe it
+## 9. Bake the glow
+
+The helmet's aperture is `#aperture-key`: a keyline and a 26dp glow over the whole opening. That glow
+is a **layer effect on an element covering most of the viewport**, which is a full-screen render
+target - allocated, cleared, drawn and composited. On a HUD, which never idles because something is
+always animating, that is one every frame.
+
+`uipreview` says so:
+
+```
+warning: [W-PERF-FULLSCREENLAYER] #aperture-key: box-shadow on an element covering 77% of the
+viewport costs a full-screen render target, every frame the document draws.
+```
+
+It applies to the radar's `mask-image` too if the disc grows large enough, and to any `filter` used
+the same way. Nothing about it is visible - that is the point of the warning.
+
+**Nothing about the glow changes at runtime, so it should be a texture.** Split the document in two:
+the one that describes the effect, and the one that draws the result.
+
+```html
+<!-- UI/screens/visor_baker.rml -->
+<body folio-bake-source>
+	<div id="aperture-key" class="wash"/>
+</body>
+```
+
+`folio-bake-source` on the `body` says this document exists to be baked, so the warning leaves it
+alone. Then produce the art:
+
+```bash
+uipreview.exe UI/screens/visor_baker.rml --root . --size 1920x1080 --dp-ratio 1 	--bake "#aperture-key=UI/art/visor_aperture.png"
+```
+
+And draw it, dropping the property and the radius it came from:
+
+```css
+#aperture-key {
+	position: absolute;
+	left: 0dp; top: 0dp; right: 0dp; bottom: 0dp;
+	decorator: image(/UI/art/visor_aperture.png fill);
+}
+```
+
+The border and the radius are in the texture now. Everything that *moves* still works untouched,
+because none of it was ever the shadow: section 6's sway is a `transform` and section 5's sweep is a
+rotation, and both are free.
+
+In VSCode the warning carries a **Bake to PNG** button, and `Folio: Bake Element to PNG` does the
+same for any element from the palette.
+
+**Keep the baker.** It is the only readable description of the glow, and it is what you edit when the
+blue is too strong - change it, re-bake, done. Delete it and you have a PNG nobody can adjust.
+
+What cannot be baked is anything whose shape depends on what is behind it. A `backdrop-filter`
+blurring the live scene through the visor is the real example: it is expensive because it reads the
+frame underneath, and a texture cannot.
+
+See **[performance and profiling](../performance_profiling.md)** for `--bake` in full, and
+**[the coloured screen edge](screen_edge.md)** for the same workflow on a document made entirely of
+washes.
+
+## 10. Before you believe it
 
 ```bash
 uipreview.exe UI/screens/visor.rml --root . --size 1920x1080 --strict --a11y
@@ -344,6 +406,7 @@ draw order all matter in ways a preview on black cannot show you.
 ## Where to go next
 
 - **[HUD motion](../hud_motion.md)** — every property on the component, and how to tune a spring.
+- **[Performance and profiling](../performance_profiling.md)** — what the layer passes cost, and `--bake`.
 - **[Hosting a document](../hosting.md)** — `Interactive`, focus, and CommonUI.
 - **[Layout](../layout.md)** — flexbox, and the traps.
 - **[UI_CONVENTIONS.md](../../UI_CONVENTIONS.md)** — what exists. Read it before inventing a property.

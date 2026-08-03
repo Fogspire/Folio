@@ -36,6 +36,11 @@
         "command": "folio.openInUipreview",
         "title": "Folio: Open in uipreview",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "folio.bakeElement",
+        "title": "Folio: Bake Element to PNG",
+        "icon": "$(file-media)"
       }
     ],
     "keybindings": [

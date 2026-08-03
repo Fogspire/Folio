@@ -1,0 +1,81 @@
+<rml>
+<head>
+	<title>Screen edge effects, before baking</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* Stand-in for the game. A real HUD paints nothing here. */
+		body {
+			/* Positioned, or every .edge below resolves against the initial containing block instead. */
+			position: relative;
+			width: 100%;
+			height: 100%;
+			background-color: #56603f;
+			font-family: Roboto Mono;
+		}
+
+		/*
+		 * Every layer is the same box: the whole view, rounded, drawn behind the readouts, and
+		 * unable to take focus or a click. Only the shadow and the opacity differ.
+		 */
+		.edge {
+			position: absolute;
+			left: 0dp;
+			top: 0dp;
+			width: 100%;
+			height: 100%;
+			border-radius: 90dp;
+			z-index: -1;
+			opacity: 0;
+			pointer-events: none;
+			focus: none;
+		}
+
+		/* Always on, and the reason the corners read as corners rather than as a state. */
+		#base {
+			box-shadow: 0dp 0dp 55dp 40dp #0a0812a5 inset;
+			opacity: 1;
+		}
+
+		/* A state. Cross-faded, because box-shadow cannot be interpolated. */
+		#burning { box-shadow: 0dp 0dp 55dp 55dp #f2551b8f inset; transition: opacity 0.45s cubic-out; }
+		#frozen  { box-shadow: 0dp 0dp 55dp 55dp #3fa9f58f inset; transition: opacity 0.45s cubic-out; }
+
+		body.burning #burning { opacity: 1; animation: 1.1s sine-in-out infinite breathe; }
+		body.frozen  #frozen  { opacity: 1; }
+
+		@keyframes breathe { from { opacity: 0.55; } 50% { opacity: 1; } to { opacity: 0.55; } }
+
+		/* An event. Reaches further in than any state layer, so a hit reads over a standing effect. */
+		#hit { box-shadow: 0dp 0dp 55dp 100dp #ff1d3d inset; }
+
+		body.hit-a #hit { animation: 0.42s cubic-out hit-a; }
+		body.hit-b #hit { animation: 0.42s cubic-out hit-b; }
+
+		/* Declared twice with the same body: RCSS restarts an animation only when the property changes. */
+		@keyframes hit-a { from { opacity: 0; } 12% { opacity: 0.75; } to { opacity: 0; } }
+		@keyframes hit-b { from { opacity: 0; } 12% { opacity: 0.75; } to { opacity: 0; } }
+
+		.note {
+			position: absolute;
+			left: 90dp;
+			bottom: 80dp;
+			font-size: 20dp;
+			color: #f0e7d6;
+			font-effect: shadow(2dp 2dp #0a0812);
+		}
+	</style>
+</head>
+<!-- folio-bake-source: this document exists to produce the textures screen_edge.rml draws, so
+     the full-screen layer warning does not apply. The cost is paid once, here, by the tool. -->
+<body class="burning hit-a" folio-bake-source>
+	<!-- Every layer is marked, so a player who has turned screen effects off loses the lot: a wash
+	     over the HUD, a breathing overlay and a hit flash are three different problems and whoever
+	     needs one gone needs all three gone. -->
+	<div id="base" class="edge" folio-screen-effect/>
+	<div id="burning" class="edge" folio-screen-effect/>
+	<div id="frozen" class="edge" folio-screen-effect/>
+	<div id="hit" class="edge" folio-screen-effect/>
+
+	<div class="note">standing in fire, taking a hit</div>
+</body>
+</rml>

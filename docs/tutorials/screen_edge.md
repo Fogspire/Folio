@@ -19,8 +19,12 @@ element's own border, and an element that is the whole view is a vignette.
 ```
 
 ```bash
-./bin/win64/uipreview.exe examples/screen_edge.rml --root . --strict --screenshot out/edge.png
+./bin/win64/uipreview.exe examples/screen_edge_baker.rml --root . --screenshot out/edge.png
 ```
+
+Two documents ship, and section 8 is why: `screen_edge_baker.rml` is the effect written out as
+`box-shadow`, and `screen_edge.rml` is the same picture drawn from textures baked out of it. Author
+in the first; ship the second.
 
 ---
 
@@ -228,23 +232,91 @@ A permanent dark `#base` at low alpha is worth having even in a game with no sta
 what makes the coloured layers read as the screen changing colour rather than as a rectangle
 appearing, because the corners were already dark.
 
-## 8. Cost
+## 8. Cost, and baking it away
 
-**`box-shadow` is a layer effect, and every visible one is an offscreen pass** at the size of its
-element. These elements are the whole screen, so this is the one place in a document where the stack
-depth is worth thinking about. `stat Folio` reports it under **Resolve layers**.
+**`box-shadow` is a layer effect: every visible one is an offscreen pass at the size of its element.**
+These elements are the whole screen, so each is a full-screen render target - allocated, cleared,
+drawn and composited. And because a document with a running animation never idles, that is not once,
+it is every frame. `stat Folio` reports it under **Resolve layers**; the layer memory shows up as
+**Layer targets**.
 
-Authoring one layer per state and one per event is still right - it is what makes the cross-fade
-possible at all - but keep the number that can be *on at once* small. A state machine where only one
-hazard can apply, plus a base and an event layer, is three. Ten status effects each with their own
-layer, all able to stack, is not.
+It is the most expensive thing a document can do, and it looks exactly the same as the cheap version,
+which is why `uipreview` warns rather than leaving it to a profiler:
 
-Animate `opacity` and nothing else. It is what section 5 already forces, and animating the geometry
-instead - `border-radius`, the insets, the shadow's own numbers - rebuilds the blurred layer every
-frame rather than reusing it.
+```
+warning: [W-PERF-FULLSCREENLAYER] #burning: box-shadow on an element covering 100% of the
+viewport costs a full-screen render target, and it is animating, so that is one every frame.
+```
+
+Anything covering at least 75% of the viewport with `box-shadow`, `filter`, `backdrop-filter` or
+`mask-image` gets one, and `--strict` fails on it.
+
+### Bake it
+
+Nothing about the wash changes at runtime, so it should not be recomputed at runtime. `--bake` renders
+one element alone, on nothing, cropped to its border box, and writes it as a PNG with straight alpha:
+
+```bash
+./bin/win64/uipreview.exe examples/screen_edge_baker.rml --root . --size 1920x1080 --dp-ratio 1 	--bake "#base=examples/art/edge_base.png" 	--bake "#burning=examples/art/edge_burning.png" 	--bake "#frozen=examples/art/edge_frozen.png" 	--bake "#hit=examples/art/edge_hit.png"
+```
+
+The element is baked at full strength whatever the document rests at, so the `opacity: 0` section 5
+put on every state layer does not bake an empty texture.
+
+Then draw the textures, and delete the property and the radius that made them:
+
+```css
+.edge {
+	position: absolute;
+	left: 0dp; top: 0dp; width: 100%; height: 100%;
+	z-index: -1;
+	opacity: 0;
+	pointer-events: none;
+	focus: none;
+}
+
+#base    { decorator: image(/folio/examples/art/edge_base.png fill);    opacity: 1; }
+#burning { decorator: image(/folio/examples/art/edge_burning.png fill); transition: opacity 0.45s cubic-out; }
+```
+
+**The corners are in the art now.** No `border-radius`, no `box-shadow` - the shape stopped being
+something the renderer works out per frame, which is the whole point.
+
+Every state and every event still works unchanged, because none of it was ever the shadow: sections 5
+and 7 are about `opacity`, and `opacity` is free. Six quads replace four full-screen passes.
+
+In VSCode the warning carries a **Bake to PNG** button that prefills the selector, and
+`Folio: Bake Element to PNG` does the same for any element from the palette.
+
+### Keep both documents
+
+The baker is not scaffolding to delete. It is the only readable description of the effect, and it is
+what you edit when the orange is too strong or the falloff too tight - change it, re-bake, done.
+Deleting it leaves four PNGs nobody can adjust.
+
+Mark it so the warning knows the difference:
+
+```html
+<body class="burning hit-a" folio-bake-source>
+```
+
+That says the document exists to be baked - its cost is paid once, by a tool - and the full-screen
+layer warning skips it. It is the only exemption there is, and it is a statement about the document
+rather than a way to silence the check.
+
+### When not to bake
+
+A wash is the easy case: it is soft, so stretching one texture over any viewport is invisible. Bake at
+the size it will be drawn at, and be more careful with anything carrying an edge - `fill` stretches,
+and a hard line stretched off its pixel grid will show.
+
+An effect whose *shape* changes at runtime cannot be baked at all. A `backdrop-filter` blurring live
+content behind a panel is the real example: it is expensive for a reason, and the reason is that it
+reads the frame underneath.
 
 ## Where to go next
 
 - **[A helmet HUD that responds to the player](visor_hud.md)** — the rest of a HUD around this: anchoring, instruments out of gradients, and motion that trails the camera.
 - **[Animation](../animation.md)** — transitions, keyframes, and what can and cannot be interpolated.
+- **[Performance and profiling](../performance_profiling.md)** — `stat Folio`, what the layer passes cost, and `--bake` in full.
 - **[UI_CONVENTIONS.md](../../UI_CONVENTIONS.md)** — the full property list. Read it before inventing one.

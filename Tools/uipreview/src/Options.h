@@ -53,6 +53,11 @@ struct Options {
 	std::string keys;
 	std::string shot_each;
 	std::string screenshot;
+	/** `selector=out.png` per element to render alone, on nothing, and write with alpha. Repeatable,
+	    so one baker document produces a whole set in one run. */
+	std::vector<std::string> bakes;
+	/** Pixels of room around a baked element's border box, for an effect that reaches outside it. */
+	int bake_margin = 0;
 	/** Directory to fill with one PNG per frame from the document's first, plus a manifest naming
 	    them and the step between them. A capture over time rather than after it. */
 	std::string filmstrip;
@@ -134,7 +139,7 @@ struct Options {
 	/** True when the run renders a fixed number of frames and exits. */
 	bool IsOneShot() const { return !screenshot.empty() || !keys.empty() || dump_tree || !metrics_report.empty()
 		|| !provenance_report.empty() || !a11y_report.empty() || a11y || a11y_tree
-		|| !a11y_tree_report.empty() || !filmstrip.empty() || flash_check; }
+		|| !a11y_tree_report.empty() || !filmstrip.empty() || flash_check || !bakes.empty(); }
 };
 
 enum class ParseResult { Ok, HelpRequested, FontReportRequested, Error };

@@ -2,6 +2,7 @@ add_executable(uipreview
 	src/main.cpp
 	src/AccessibilityReport.cpp
 	src/App.cpp
+	src/Bake.cpp
 	src/ColourVision.cpp
 	src/CoreHost.cpp
 	src/DataModel.cpp
@@ -19,6 +20,7 @@ add_executable(uipreview
 	src/MsdfProgram.cpp
 	src/Options.cpp
 	src/Paths.cpp
+	src/PerformanceReport.cpp
 	src/Reload.cpp
 	src/RenderInterface.cpp
 	src/Screenshot.cpp

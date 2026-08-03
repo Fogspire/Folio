@@ -747,6 +747,10 @@ flash. Three problems in one - a coloured wash over the HUD is a legibility prob
 overlay is a motion problem, and a hit flash is a photosensitivity problem - and whoever needs one of
 them gone usually needs all of them gone.
 
+These are full-screen layers, which is the most expensive shape a document has: bake them and
+draw textures rather than reaching for `box-shadow` or `filter` on something the size of the
+screen. See **[performance](performance_profiling.md)**.
+
 Folio cannot tell a vignette from a panel, so **mark the layers**:
 
 ```html

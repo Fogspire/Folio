@@ -1,5 +1,7 @@
 #include "Options.h"
 
+#include "Bake.h"
+
 #include <cstdlib>
 #include <cstring>
 
@@ -72,6 +74,10 @@ void PrintUsage(std::FILE* stream)
 		"  --filmstrip-frames <N>  How many frames the filmstrip is (default 60)\n"
 		"  --frames <N>          Frames pumped before a capture (default 30)\n"
 		"  --dt <MS>             Simulated milliseconds per frame (default 16.67, 0 freezes)\n"
+		"  --bake <SEL>=<FILE>   Render one element alone, on nothing, cropped to its box, and\n"
+		"                        write it as a PNG with straight alpha. Repeatable. Turns an\n"
+		"                        effect that costs a render target every frame into a texture\n"
+		"  --bake-margin <PX>    Room around a baked element, for an effect reaching outside it\n"
 		"\n"
 		"Content\n"
 		"  --data <FILE>         Mount a JSON file as the document's data model\n"
@@ -391,6 +397,31 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 			if (o.filmstrip_frames < 1 || o.filmstrip_frames > 3600)
 			{
 				error = "--filmstrip-frames expects 1 to 3600, got '" + value + "'";
+				return ParseResult::Error;
+			}
+		}
+		else if (arg == "--bake")
+		{
+			if (!TakeValue(argc, argv, i, "--bake", value, error))
+				return ParseResult::Error;
+
+			std::string selector;
+			std::string path;
+			if (!ParseBakeArgument(value, selector, path))
+			{
+				error = "--bake expects <selector>=<out.png>, got '" + value + "'";
+				return ParseResult::Error;
+			}
+			o.bakes.push_back(value);
+		}
+		else if (arg == "--bake-margin")
+		{
+			if (!TakeValue(argc, argv, i, "--bake-margin", value, error))
+				return ParseResult::Error;
+			o.bake_margin = std::atoi(value.c_str());
+			if (o.bake_margin < 0 || o.bake_margin > 4096)
+			{
+				error = "--bake-margin expects 0 to 4096, got '" + value + "'";
 				return ParseResult::Error;
 			}
 		}

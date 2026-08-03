@@ -23,6 +23,29 @@ const os = require("os");
 const path = require("path");
 const rcss = require("./rcss");
 
+/**
+ * The full-screen layer warning, pulled back out of uipreview's own output.
+ *
+ * Reported rather than re-derived: uipreview has the laid-out boxes and this does not, and a second
+ * implementation of the same rule is a second thing to get wrong.
+ */
+const FULLSCREEN_LAYER = /\[W-PERF-FULLSCREENLAYER\]\s+(\S+?):\s+([^]*?)\s+on an element covering\s+(\d+)%/g;
+
+function fullScreenLayers(messages) {
+	const out = [];
+	if (!messages) {
+		return out;
+	}
+
+	FULLSCREEN_LAYER.lastIndex = 0;
+	let match = FULLSCREEN_LAYER.exec(messages);
+	while (match) {
+		out.push({ path: match[1], properties: match[2], coverage: Number(match[3]) });
+		match = FULLSCREEN_LAYER.exec(messages);
+	}
+	return out;
+}
+
 /** Properties whose appearance the harness does not compare. Worth saying so on the document. */
 const UNCOMPARED = ["box-shadow", "filter:", "backdrop-filter", "mask-image"];
 
@@ -151,6 +174,82 @@ function buildArguments(document, capture) {
 	}
 
 	return args;
+}
+
+/**
+ * Renders one element to a PNG with alpha, and offers to swap the rule over to it.
+ *
+ * The reason this is a button and not a note: the expensive thing and its replacement are the same
+ * markup, so producing the texture needs nothing from the author but a filename. A path is prompted
+ * for rather than derived, since where a game keeps its art is not something the extension knows.
+ */
+async function bakeElement(selector) {
+	const document = currentDocument;
+	if (!document) {
+		vscode.window.showErrorMessage("Folio: open an .rml document first.");
+		return;
+	}
+
+	const chosen = selector || await vscode.window.showInputBox({
+		title: "Folio: bake an element",
+		prompt: "A selector for the element to render, as RCSS would write it",
+		placeHolder: "#scorch",
+	});
+
+	if (!chosen) {
+		return;
+	}
+
+	const uipreview = findUipreview();
+	if (!uipreview) {
+		vscode.window.showErrorMessage(
+			"Folio: could not find uipreview. Build it with ./scripts/build.sh, or set folio.uipreviewPath.");
+		return;
+	}
+
+	// The id makes a better filename than the selector does, and a selector that is not an id has no
+	// obvious name to suggest at all.
+	const suggested = chosen.startsWith("#") ? chosen.slice(1).replace(/[^\w.-]/g, "_") : "baked";
+	const target = await vscode.window.showSaveDialog({
+		title: "Folio: bake to",
+		defaultUri: vscode.Uri.file(path.join(rootArgument(), "UI", "art", suggested + ".png")),
+		filters: { "PNG image": ["png"] },
+	});
+
+	if (!target) {
+		return;
+	}
+
+	const settings = config();
+	const args = [document, "--root", rootArgument(), "--bake", chosen + "=" + target.fsPath];
+
+	// The document's own size, not the preview's zoomed one: a texture wants the resolution the
+	// element is drawn at, and the zoom is for looking.
+	const size = settings.get("size");
+	if (size) {
+		args.push("--size", size);
+	}
+
+	const dp = Number(settings.get("dpRatio"));
+	if (Number.isFinite(dp) && dp > 0) {
+		args.push("--dp-ratio", String(dp));
+	}
+
+	await new Promise((resolve) => {
+		cp.execFile(uipreview, args, { timeout: 60000 }, (error, stdout, stderr) => {
+			const messages = [stdout, stderr].filter(Boolean).join("").trim();
+
+			if (!fs.existsSync(target.fsPath)) {
+				vscode.window.showErrorMessage(
+					"Folio: nothing was baked. " + (messages || String(error || "")));
+			} else {
+				vscode.window.showInformationMessage(
+					"Folio: baked " + chosen + " to " + vscode.workspace.asRelativePath(target) + ". Draw it "
+					+ "with decorator: image(<path> fill), and drop the layer property it replaces.");
+			}
+			resolve();
+		});
+	});
 }
 
 /**
@@ -288,6 +387,7 @@ function render() {
 				// image is still worth showing; the warnings are shown beside it rather than instead.
 				warned: Boolean(error),
 				uncompared: uncomparedFeatures(currentDocument),
+				layers: fullScreenLayers(messages),
 			});
 
 			// Now that the panel is showing the new strip, and not before: the old frames are what was
@@ -383,6 +483,15 @@ function show(state) {
 	const messageLines = state.messages ? state.messages.split(String.fromCharCode(10)).length : 0;
 
 	const notes = [];
+	for (const layer of state.layers || []) {
+		notes.push(
+			`<div class="note warn">` +
+			`<strong>${escape(layer.path)}</strong> covers ${layer.coverage}% of the viewport and uses ` +
+			`${escape(layer.properties)}, so it costs a full-screen render target every frame the ` +
+			`document draws. Bake it and draw the texture instead. ` +
+			`<button class="bake" data-path="${escape(layer.path)}">Bake to PNG</button></div>`);
+	}
+
 	if (state.uncompared && state.uncompared.length > 0) {
 		notes.push(
 			`<div class="note">This document uses ${escape(state.uncompared.join(", "))}. ` +
@@ -484,6 +593,15 @@ function show(state) {
 		cursor: pointer;
 	}
 
+	button.bake {
+		margin-left: 6px;
+		background: var(--vscode-button-background);
+		color: var(--vscode-button-foreground);
+		border: none;
+		padding: 2px 10px;
+		cursor: pointer;
+	}
+
 	.note  { border-color: var(--vscode-editorInfo-foreground);    background: #8884; }
 	.warn  { border-color: var(--vscode-editorWarning-foreground); background: #fc04; }
 	.error { border-color: var(--vscode-editorError-foreground);   background: #f004; }
@@ -534,6 +652,10 @@ function show(state) {
 		const viewport = document.getElementById("viewport");
 		const harness = document.getElementById("harness");
 		const fold = document.getElementById("fold");
+
+		for (const button of document.querySelectorAll("button.bake")) {
+			button.addEventListener("click", () => api.postMessage({ kind: "bake", path: button.dataset.path }));
+		}
 
 		if (fold && harness) {
 			fold.addEventListener("click", () => {
@@ -1077,6 +1199,11 @@ async function handleMessage(message) {
 		return;
 	}
 
+	if (message.kind === "bake") {
+		await bakeElement(message.path);
+		return;
+	}
+
 	// Before the element lookup: a goto names a file and a line rather than an element, so looking one
 	// up first rejected it and this never ran.
 	if (message.kind === "goto") {
@@ -1330,7 +1457,8 @@ function activate(context) {
 		vscode.commands.registerCommand("folio.openPreview", openPreview),
 		vscode.commands.registerCommand("folio.refreshPreview", render),
 		vscode.commands.registerCommand("folio.toggleTimeline", toggleTimeline),
-		vscode.commands.registerCommand("folio.openInUipreview", openInUipreview));
+		vscode.commands.registerCommand("folio.openInUipreview", openInUipreview),
+		vscode.commands.registerCommand("folio.bakeElement", () => bakeElement(null)));
 
 	/*
 	 * Reopening the preview after a window reload.

@@ -1,10 +1,12 @@
 #include "AccessibilityReport.h"
 #include "App.h"
+#include "Bake.h"
 #include "Diagnostics.h"
 #include "JsonReport.h"
 #include "MetricsReport.h"
 #include "ProvenanceReport.h"
 #include "Options.h"
+#include "PerformanceReport.h"
 
 #include "FolioCore/FolioCoreVersion.h"
 
@@ -51,6 +53,15 @@ int main(int argc, char** argv)
 		// being printed after the run has already decided it passed.
 		if (options.a11y || !options.a11y_report.empty())
 			CheckAccessibility(options, app, diagnostics);
+
+		// Always, unlike the accessibility checks: this one costs a tree walk and catches something
+		// no screenshot shows, so there is nothing to gain by making it opt in.
+		CheckPerformance(options, app, diagnostics);
+
+		// After the checks, because a baker document is expected to trip the full-screen layer
+		// warning: producing the texture is the whole point of it.
+		if (!options.bakes.empty())
+			RunBakes(options, app, diagnostics);
 
 		diagnostics.PrintSummary(options.document);
 		const int exit_code = run_result != 0 ? run_result : diagnostics.ComputeExitCode(options.strict);

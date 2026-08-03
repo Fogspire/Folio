@@ -519,6 +519,8 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 			TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ReplayLayer);
 			SCOPE_CYCLE_COUNTER(STAT_FolioLayerReplay);
 
+			SCOPE_CYCLE_COUNTER(STAT_FolioLayerGraph);
+
 			FRDGBuilder GraphBuilder(RHICmdList);
 			// Braced: the scope has to close before Execute, which asserts on an open breadcrumb.
 			{
@@ -569,13 +571,83 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 						RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
 						RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
+						// One buffer pair for the replay rather than one per draw.
+						//
+						// A layer's geometry is rebuilt whenever it is drawn, so nothing is worth keeping
+						// between frames - but creating, locking and unlocking a volatile buffer is a fixed
+						// cost per call, and a shadow layer is dozens of draws. Two 236x50dp drop shadows
+						// measured 74 buffer pairs and 0.83ms of render thread a frame that way, which was
+						// most of what a layer cost. Concatenated, it is two.
+						FBufferRHIRef VertexBuffer;
+						FBufferRHIRef IndexBuffer;
+						TArray<uint32, TInlineAllocator<64>> BaseVertex;
+						TArray<uint32, TInlineAllocator<64>> FirstIndex;
+						{
+							SCOPE_CYCLE_COUNTER(STAT_FolioLayerBuffers);
+
+							uint32 TotalVertices = 0;
+							uint32 TotalIndices = 0;
+							BaseVertex.Reserve(Draws.Num());
+							FirstIndex.Reserve(Draws.Num());
+
+							for (const FFolioDraw& Draw : Draws)
+							{
+								BaseVertex.Add(TotalVertices);
+								FirstIndex.Add(TotalIndices);
+								TotalVertices += Draw.Vertices.Num();
+								TotalIndices += Draw.Indices.Num();
+							}
+
+							if (TotalVertices > 0 && TotalIndices > 0)
+							{
+								const uint32 VertexBytes = TotalVertices * sizeof(FFolioUIVertex);
+								VertexBuffer = RHICmdList.CreateBuffer(
+									FRHIBufferCreateDesc::CreateVertex(TEXT("FolioLayerVertices"), VertexBytes)
+										.AddUsage(EBufferUsageFlags::Volatile)
+										.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+								uint8* VertexData = (uint8*)RHICmdList.LockBuffer(VertexBuffer, 0, VertexBytes,
+									RLM_WriteOnly);
+
+								const uint32 IndexBytes = TotalIndices * sizeof(uint32);
+								IndexBuffer = RHICmdList.CreateBuffer(
+									FRHIBufferCreateDesc::CreateIndex(TEXT("FolioLayerIndices"), IndexBytes,
+										sizeof(uint32))
+										.AddUsage(EBufferUsageFlags::Volatile)
+										.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+								uint8* IndexData = (uint8*)RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes,
+									RLM_WriteOnly);
+
+								for (const FFolioDraw& Draw : Draws)
+								{
+									const uint32 Vertices = Draw.Vertices.Num() * sizeof(FFolioUIVertex);
+									FMemory::Memcpy(VertexData, Draw.Vertices.GetData(), Vertices);
+									VertexData += Vertices;
+
+									// Indices stay draw-local; BaseVertexIndex on the draw call is what
+									// offsets them into the shared buffer.
+									const uint32 Indices = Draw.Indices.Num() * sizeof(uint32);
+									FMemory::Memcpy(IndexData, Draw.Indices.GetData(), Indices);
+									IndexData += Indices;
+								}
+
+								RHICmdList.UnlockBuffer(VertexBuffer);
+								RHICmdList.UnlockBuffer(IndexBuffer);
+							}
+						}
+
+						if (!VertexBuffer || !IndexBuffer)
+						{
+							return;
+						}
+
 						const FIntRect Whole(0, 0, Size.X, Size.Y);
 						const FVector2f Ratio(Clip.X > 0 ? float(Size.X) / float(Clip.X) : 1.0f,
 							Clip.Y > 0 ? float(Size.Y) / float(Clip.Y) : 1.0f);
 						bool bScissored = false;
 
-						for (const FFolioDraw& Draw : Draws)
+						for (int32 DrawIndex = 0; DrawIndex < Draws.Num(); ++DrawIndex)
 						{
+							const FFolioDraw& Draw = Draws[DrawIndex];
 							const bool bField = Draw.Kind == FFolioDraw::EKind::Field;
 							const bool bMaskPass = Draw.Kind != FFolioDraw::EKind::Geometry && !bField;
 
@@ -620,8 +692,16 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 								}
 							}
 
-							SetGraphicsPipelineState(RHICmdList, State, MaskStencilRef);
-							RHICmdList.SetStencilRef(MaskStencilRef);
+							{
+								SCOPE_CYCLE_COUNTER(STAT_FolioLayerState);
+								SetGraphicsPipelineState(RHICmdList, State, MaskStencilRef);
+								RHICmdList.SetStencilRef(MaskStencilRef);
+
+								// After the pipeline state, every time. Binding a stream before one is
+								// bound is dropped, and the draw reads nothing - which showed as a
+								// surface that rendered completely empty.
+								RHICmdList.SetStreamSource(0, VertexBuffer, 0);
+							}
 
 							FFolioUIParameters PassParameters = *Parameters;
 							PassParameters.MsdfField = Draw.Field;
@@ -648,26 +728,6 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 							{
 								SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters);
 							}
-
-							// Volatile buffers: a layer's geometry is rebuilt whenever it is drawn,
-							// so there is nothing worth keeping between frames.
-							const uint32 VertexBytes = Draw.Vertices.Num() * sizeof(FFolioUIVertex);
-							FBufferRHIRef VertexBuffer = RHICmdList.CreateBuffer(
-								FRHIBufferCreateDesc::CreateVertex(TEXT("FolioLayerVertices"), VertexBytes)
-									.AddUsage(EBufferUsageFlags::Volatile)
-									.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
-							void* VertexData = RHICmdList.LockBuffer(VertexBuffer, 0, VertexBytes, RLM_WriteOnly);
-							FMemory::Memcpy(VertexData, Draw.Vertices.GetData(), VertexBytes);
-							RHICmdList.UnlockBuffer(VertexBuffer);
-
-							const uint32 IndexBytes = Draw.Indices.Num() * sizeof(uint32);
-							FBufferRHIRef IndexBuffer = RHICmdList.CreateBuffer(
-								FRHIBufferCreateDesc::CreateIndex(TEXT("FolioLayerIndices"), IndexBytes, sizeof(uint32))
-									.AddUsage(EBufferUsageFlags::Volatile)
-									.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
-							void* IndexData = RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes, RLM_WriteOnly);
-							FMemory::Memcpy(IndexData, Draw.Indices.GetData(), IndexBytes);
-							RHICmdList.UnlockBuffer(IndexBuffer);
 
 							// `overflow: hidden`, which the screen path gives to Slate as a clip zone and a
 							// recording has to carry itself. Clamped to the layer, because RmlUi's scissor is
@@ -699,9 +759,8 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 								bScissored = bWanted;
 							}
 
-							RHICmdList.SetStreamSource(0, VertexBuffer, 0);
-							RHICmdList.DrawIndexedPrimitive(IndexBuffer, 0, 0, Draw.Vertices.Num(), 0,
-								Draw.Indices.Num() / 3, 1);
+							RHICmdList.DrawIndexedPrimitive(IndexBuffer, BaseVertex[DrawIndex], 0,
+								Draw.Vertices.Num(), FirstIndex[DrawIndex], Draw.Indices.Num() / 3, 1);
 						}
 					});
 			}

@@ -293,6 +293,8 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 		return;
 	}
 
+	KeepFocus();
+
 	UpdateContextSize(AllottedGeometry);
 
 	// Before the context update, so a value read this frame lays out this frame.
@@ -320,6 +322,14 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	// not supersampling, since the samples then add to the skirt rather than replacing it.
 	const bool bUpdated = Host.Update(InDeltaTime, ScaleFor(AllottedGeometry),
 		RenderScale * ContextToLocal(AllottedGeometry));
+
+	// After the update, and again every frame it holds focus. A document focused before it has been laid
+	// out once has nothing to give focus to: what is navigable is a computed value, so until then RmlUi
+	// finds no tab element at all and the first press of a direction is spent arriving.
+	if (HasAnyUserFocus().IsSet())
+	{
+		FocusFirstElement();
+	}
 
 	UpdateAccessibility(bUpdated, AllottedGeometry);
 
@@ -876,8 +886,12 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 	// The literal key first, so a text field still receives W as a letter. Only when nothing is
 	// taking text does a letter get to mean a direction, which is what lets the arrows, WASD and
 	// IJKL all navigate at once without any of them breaking typing.
-	// Before anything RmlUi might do with it: the game asked for this key outright.
-	if (GameKeys.Contains(KeyEvent.GetKey()))
+	//
+	// Before anything RmlUi might do with it: the game asked for this key outright. A field being
+	// typed into is the exception, and only for the keyboard - a pad button is never a character, so
+	// a game key on one still arrives while a name is being entered.
+	const bool bTyping = IsTakingText() && !KeyEvent.GetKey().IsGamepadKey();
+	if (!bTyping && GameKeys.Contains(KeyEvent.GetKey()))
 	{
 		OnUnclaimedKey.ExecuteIfBound(KeyEvent.GetKey());
 		return FReply::Handled();
@@ -1082,6 +1096,27 @@ void SFolioCanvas::FocusFirstElement()
 		First->Focus(bVisible);
 		MarkDirty(TEXT("first focus"));
 	}
+}
+
+void SFolioCanvas::KeepFocus()
+{
+	if (!WantsFocus() || !FSlateApplication::IsInitialized() || HasAnyUserFocus().IsSet())
+	{
+		return;
+	}
+
+	// A document in front of this one that also asked for focus keeps it. Both are only ever up
+	// together while one of them is stepping back to the other, and the one in front is the one the
+	// player is answering.
+	for (const SFolioCanvas* Canvas : LiveCanvases)
+	{
+		if (Canvas != this && Canvas->WantsFocus() && Canvas->HasAnyUserFocus().IsSet())
+		{
+			return;
+		}
+	}
+
+	FSlateApplication::Get().SetAllUserFocus(SharedThis(this), EFocusCause::SetDirectly);
 }
 
 void SFolioCanvas::OnFocusLost(const FFocusEvent& FocusEvent)

@@ -179,6 +179,21 @@ public:
 	void FocusFirstElement();
 
 	/**
+	 * Takes Slate focus back when a document that asked to keep it has lost it.
+	 *
+	 * CommonUI's action router refocuses its leaf-most activatable widget every time the input method
+	 * changes, and a document put in front of a game rather than pushed onto its widget stack is not in
+	 * that tree - so the first press on a device the player was not already using hands focus to
+	 * whatever is behind the menu. The presses after it do the same, and the menu answers nothing until
+	 * it is clicked.
+	 *
+	 * Per frame rather than per press, because the press that changes the input method is routed along
+	 * the path the router rewrites while handling it: taking focus back on the next one is a press late,
+	 * every time.
+	 */
+	void KeepFocus();
+
+	/**
 	 * The player picked up something else.
 	 *
 	 * Two things go wrong without this, and both of them point the player at the wrong control.

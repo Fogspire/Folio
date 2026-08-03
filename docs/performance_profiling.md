@@ -172,13 +172,27 @@ the viewport. It is a warning rather than a note because there is nothing to see
 exactly as intended in both renderers and only a profiler says what it cost. `--strict` is what stops
 it shipping.
 
-### Bake it
+### Bake it, in the engine
 
-The effect does not change, so it should be a texture. `--bake` renders one element alone, on
-nothing, cropped to its border box, and writes it as a PNG with straight alpha:
+The effect does not change, so it should be a texture. A bake renders one element alone, on nothing,
+cropped to its border box, and writes it as a PNG with straight alpha.
+
+**A layer effect has to be baked in the engine**, from the editor console:
+
+```
+folio.Bake UI/screens/hud_baker.rml #scorch UI/art/scorch.png 1920 1080
+```
+
+`uipreview --bake` does the same thing and is quicker to reach, but the two renderers do not draw
+`box-shadow`, `filter`, `backdrop-filter` or `mask-image` identically - the same inset shadow peaks
+at alpha 16 in the preview and 70 in the engine, with a different falloff. A texture baked in the
+preview and drawn in the game is faint and the wrong shape, and it reads as bad art rather than as a
+renderer difference. `--bake` refuses those four outright and prints the `folio.Bake` line to use
+instead; for everything else - gradients, images, colour, borders - the renderers agree and either
+will do:
 
 ```bash
-uipreview examples/screen_edge_baker.rml --root . --size 1920x1080 --dp-ratio 1 	--bake "#base=examples/art/edge_base.png" 	--bake "#burning=examples/art/edge_burning.png"
+uipreview UI/screens/panel.rml --root . --bake "#plate=UI/art/plate.png"
 ```
 
 Then draw the texture and delete the property that made it:
@@ -190,8 +204,9 @@ Then draw the texture and delete the property that made it:
 Everything a state or an event did still works, because none of it was ever the shadow: `opacity` is
 what fades, cross-fades and flashes, and `opacity` is free.
 
-The VSCode preview puts a **Bake to PNG** button on the warning, and `Folio: Bake Element to PNG`
-does the same from the palette for any element you can name with a selector.
+The VSCode preview puts the `folio.Bake` line for the flagged element on the warning, with a button
+to copy it. `Folio: Bake Element to PNG` in the palette runs the preview's own bake, for the elements
+that do not need the engine.
 
 Anything can be baked, not just a wash - a glow behind a panel, a masked plate, a gradient stack.
 The element is rendered at full opacity whatever the document rests at, so a layer that is faded out
@@ -201,6 +216,11 @@ until the game turns it on still bakes.
 is worth keeping beside the one that draws the result - `examples/screen_edge_baker.rml` and
 `examples/screen_edge.rml` are the pair. Mark the source with `folio-bake-source` on its `body` and
 the warning leaves it alone, since its cost is paid once, by a tool.
+
+**Put no state classes on a baker's body.** A bake brings its own element up to full opacity, but a
+running animation drives the property itself and RmlUi does not reliably release one - so a layer
+caught mid-animation can bake as an empty texture. A baker presents every layer plainly and lets each
+bake raise its own. Both bakes warn when the element they are given is animating.
 
 Baking is a resolution decision. The texture is stretched with `fill`, which is invisible on a soft
 wash and would not be on anything with an edge; bake at the size it will be drawn at.

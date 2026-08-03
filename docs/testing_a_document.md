@@ -56,7 +56,7 @@ save would be slow for no gain.
 | `--text-scale 1.5` | The accessibility text scale. With `--a11y`, also reports the text it could not move and anything that stopped fitting. |
 | `--reduced-motion` | Every transition, animation and smooth scroll off, as the setting does. |
 | `--no-screen-effects` | Hides the layers marked `folio-screen-effect`. |
-| `--bake <SEL>=<FILE>` | Renders one element alone, on nothing, cropped to its box, as a PNG with alpha. Repeatable. See [performance](performance_profiling.md). |
+| `--bake <SEL>=<FILE>` | Renders one element alone, on nothing, cropped to its box, as a PNG with alpha. Repeatable. Refuses a layer effect and names the `folio.Bake` line to use in the editor instead, since the two renderers do not draw those alike. See [performance](performance_profiling.md). |
 | `--text-speed 4`, `--instant-text` | How fast `<text>` types, and whether it types at all. Separate from reduced motion. |
 | `--simulate deuteranopia` | Redraws captures, and re-runs the contrast pass, as that colour vision sees them. Also `protanopia`, `tritanopia`, `achromatopsia`. |
 | `--flash-check` | Renders `--filmstrip-frames` frames and reports flashing over three a second, which is a seizure risk and a certification question. |

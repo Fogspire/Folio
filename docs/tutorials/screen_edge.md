@@ -251,17 +251,27 @@ viewport costs a full-screen render target, and it is animating, so that is one 
 Anything covering at least 75% of the viewport with `box-shadow`, `filter`, `backdrop-filter` or
 `mask-image` gets one, and `--strict` fails on it.
 
-### Bake it
+### Bake it, in the engine
 
-Nothing about the wash changes at runtime, so it should not be recomputed at runtime. `--bake` renders
-one element alone, on nothing, cropped to its border box, and writes it as a PNG with straight alpha:
+Nothing about the wash changes at runtime, so it should not be recomputed at runtime. A bake renders
+one element alone, on nothing, cropped to its border box, and writes it as a PNG with straight alpha.
+From the editor console:
 
-```bash
-./bin/win64/uipreview.exe examples/screen_edge_baker.rml --root . --size 1920x1080 --dp-ratio 1 	--bake "#base=examples/art/edge_base.png" 	--bake "#burning=examples/art/edge_burning.png" 	--bake "#frozen=examples/art/edge_frozen.png" 	--bake "#hit=examples/art/edge_hit.png"
+```
+folio.Bake /folio/examples/screen_edge_baker.rml #base examples/art/edge_base.png 1920 1080
+folio.Bake /folio/examples/screen_edge_baker.rml #burning examples/art/edge_burning.png 1920 1080
+folio.Bake /folio/examples/screen_edge_baker.rml #frozen examples/art/edge_frozen.png 1920 1080
+folio.Bake /folio/examples/screen_edge_baker.rml #hit examples/art/edge_hit.png 1920 1080
 ```
 
-The element is baked at full strength whatever the document rests at, so the `opacity: 0` section 5
-put on every state layer does not bake an empty texture.
+**The engine, not `uipreview`.** The two renderers do not draw `box-shadow` the same - this shadow
+peaks at alpha 16 in the preview and 70 in the engine - so a texture baked there is faint and the
+wrong shape in the game. `uipreview --bake` refuses a layer effect and prints the line above instead.
+
+The element is baked at full opacity whatever the document rests at, so the `opacity: 0` section 5
+put on every state layer does not bake an empty texture. A *running animation* is the exception: it
+drives the property itself and cancelling one is not reliable, which is why the baker carries no
+state classes on its `body`. Dress it in `hit-a` and the hit layer bakes as nothing at all.
 
 Then draw the textures, and delete the property and the radius that made them:
 
@@ -285,8 +295,8 @@ something the renderer works out per frame, which is the whole point.
 Every state and every event still works unchanged, because none of it was ever the shadow: sections 5
 and 7 are about `opacity`, and `opacity` is free. Six quads replace four full-screen passes.
 
-In VSCode the warning carries a **Bake to PNG** button that prefills the selector, and
-`Folio: Bake Element to PNG` does the same for any element from the palette.
+In VSCode the warning carries the `folio.Bake` line for the element it flagged, with a button to copy
+it.
 
 ### Keep both documents
 

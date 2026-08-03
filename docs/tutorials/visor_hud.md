@@ -355,11 +355,18 @@ the one that describes the effect, and the one that draws the result.
 ```
 
 `folio-bake-source` on the `body` says this document exists to be baked, so the warning leaves it
-alone. Then produce the art:
+alone, and it carries no state classes - a running animation drives its own property and cancelling
+one for a bake is not reliable, so a layer caught mid-animation bakes empty. Then produce the art,
+from the editor console:
 
-```bash
-uipreview.exe UI/screens/visor_baker.rml --root . --size 1920x1080 --dp-ratio 1 	--bake "#aperture-key=UI/art/visor_aperture.png"
 ```
+folio.Bake UI/screens/visor_baker.rml #aperture-key UI/art/visor_aperture.png 1920 1080
+```
+
+**The engine, not `uipreview`.** The two renderers do not draw `box-shadow`, `filter`,
+`backdrop-filter` or `mask-image` identically, so a layer effect baked in the preview is faint and
+the wrong shape in the game. `uipreview --bake` refuses those four and prints the line above instead;
+for anything else it is the quicker route.
 
 And draw it, dropping the property and the radius it came from:
 
@@ -375,8 +382,8 @@ The border and the radius are in the texture now. Everything that *moves* still 
 because none of it was ever the shadow: section 6's sway is a `transform` and section 5's sweep is a
 rotation, and both are free.
 
-In VSCode the warning carries a **Bake to PNG** button, and `Folio: Bake Element to PNG` does the
-same for any element from the palette.
+In VSCode the warning carries the `folio.Bake` line for the element it flagged, with a button to copy
+it.
 
 **Keep the baker.** It is the only readable description of the glow, and it is what you edit when the
 blue is too strong - change it, re-bake, done. Delete it and you have a PNG nobody can adjust.

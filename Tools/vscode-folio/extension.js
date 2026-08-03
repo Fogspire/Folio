@@ -179,9 +179,12 @@ function buildArguments(document, capture) {
 /**
  * Renders one element to a PNG with alpha, and offers to swap the rule over to it.
  *
- * The reason this is a button and not a note: the expensive thing and its replacement are the same
- * markup, so producing the texture needs nothing from the author but a filename. A path is prompted
- * for rather than derived, since where a game keeps its art is not something the extension knows.
+ * Only for what the preview may bake. A layer effect - box-shadow, filter, backdrop-filter,
+ * mask-image - is refused by uipreview and has to go through folio.Bake in the editor, because the
+ * two renderers do not draw those alike. The full-screen layer note hands over that command instead.
+ *
+ * A path is prompted for rather than derived, since where a game keeps its art is not something the
+ * extension knows.
  */
 async function bakeElement(selector) {
 	const document = currentDocument;
@@ -387,7 +390,11 @@ function render() {
 				// image is still worth showing; the warnings are shown beside it rather than instead.
 				warned: Boolean(error),
 				uncompared: uncomparedFeatures(currentDocument),
-				layers: fullScreenLayers(messages),
+				layers: fullScreenLayers(messages).map((layer) => ({
+					...layer,
+					document: vscode.workspace.asRelativePath(currentDocument).split("\\").join("/"),
+					suggested: layer.path.startsWith("#") ? layer.path.slice(1) : "baked",
+				})),
 			});
 
 			// Now that the panel is showing the new strip, and not before: the old frames are what was
@@ -484,12 +491,18 @@ function show(state) {
 
 	const notes = [];
 	for (const layer of state.layers || []) {
+		// The command rather than a button that runs one: a layer effect has to be baked by the
+		// engine, and this extension only drives uipreview. Handing over the line to paste into the
+		// editor console is the honest amount of help it can give.
+		const command = `folio.Bake ${layer.document} ${layer.path} UI/art/${layer.suggested}.png 1920 1080`;
 		notes.push(
 			`<div class="note warn">` +
 			`<strong>${escape(layer.path)}</strong> covers ${layer.coverage}% of the viewport and uses ` +
 			`${escape(layer.properties)}, so it costs a full-screen render target every frame the ` +
-			`document draws. Bake it and draw the texture instead. ` +
-			`<button class="bake" data-path="${escape(layer.path)}">Bake to PNG</button></div>`);
+			`document draws. Bake it in the editor and draw the texture instead - the preview cannot, ` +
+			`because the two renderers do not draw these alike.` +
+			`<pre class="command">${escape(command)}</pre>` +
+			`<button class="bake" data-command="${escape(command)}">Copy command</button></div>`);
 	}
 
 	if (state.uncompared && state.uncompared.length > 0) {
@@ -593,6 +606,14 @@ function show(state) {
 		cursor: pointer;
 	}
 
+	pre.command {
+		margin: 6px 0 0 0;
+		padding: 6px 8px;
+		background: #0004;
+		white-space: pre-wrap;
+		font-family: var(--vscode-editor-font-family);
+	}
+
 	button.bake {
 		margin-left: 6px;
 		background: var(--vscode-button-background);
@@ -654,7 +675,7 @@ function show(state) {
 		const fold = document.getElementById("fold");
 
 		for (const button of document.querySelectorAll("button.bake")) {
-			button.addEventListener("click", () => api.postMessage({ kind: "bake", path: button.dataset.path }));
+			button.addEventListener("click", () => api.postMessage({ kind: "copy", text: button.dataset.command }));
 		}
 
 		if (fold && harness) {
@@ -1199,8 +1220,9 @@ async function handleMessage(message) {
 		return;
 	}
 
-	if (message.kind === "bake") {
-		await bakeElement(message.path);
+	if (message.kind === "copy") {
+		await vscode.env.clipboard.writeText(message.text || "");
+		vscode.window.showInformationMessage("Folio: copied. Paste it into the editor console.");
 		return;
 	}
 

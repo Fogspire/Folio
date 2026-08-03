@@ -5,6 +5,8 @@
 #include "Options.h"
 #include "Screenshot.h"
 
+#include <FolioCore/FolioBake.h>
+
 #include "backend/UipreviewBackendGLFW.h"
 
 #include <RmlUi/Core/Context.h>
@@ -14,114 +16,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <set>
 #include <vector>
 
 namespace uipreview {
 namespace {
-
-/** Every inline property a bake sets, so one pass can undo all of it. */
-struct Applied {
-	Rml::Element* element = nullptr;
-	const char* property = nullptr;
-};
-
-/*
- * What an ancestor of the baked element has to stop doing.
- *
- * It cannot simply be hidden. RmlUi drops an invisible element from the stacking context along with
- * everything under it, so hiding the body hides the thing being baked - which is why this is a list
- * of what an ancestor paints rather than one `visibility` on the root.
- */
-constexpr const char* AncestorSilenced[] = {"background-color", "decorator", "box-shadow", "filter",
-	"backdrop-filter", "mask-image", "border-width", "opacity"};
-constexpr const char* AncestorValues[] = {"transparent", "none", "none", "none", "none", "none", "0dp",
-	"1"};
-
-void Set(Rml::Element* element, const char* property, const char* value, std::vector<Applied>& applied)
-{
-	element->SetProperty(property, value);
-	applied.push_back({element, property});
-}
-
-void Isolate(Rml::Element* element, Rml::Element* keep, const std::set<Rml::Element*>& ancestors,
-	std::vector<Applied>& applied)
-{
-	if (!element)
-		return;
-
-	if (element == keep)
-	{
-		// At full strength whatever the document rests at. A layer that is faded out until the game
-		// turns it on would otherwise bake to nothing, and opacity is what the element drawing the
-		// texture animates anyway.
-		Set(element, "opacity", "1", applied);
-		return;
-	}
-
-	if (ancestors.count(element) != 0)
-	{
-		for (size_t i = 0; i < sizeof(AncestorSilenced) / sizeof(AncestorSilenced[0]); ++i)
-			Set(element, AncestorSilenced[i], AncestorValues[i], applied);
-
-		for (int i = 0; i < element->GetNumChildren(); ++i)
-			Isolate(element->GetChild(i), keep, ancestors, applied);
-
-		return;
-	}
-
-	Set(element, "visibility", "hidden", applied);
-}
-
-void Restore(const std::vector<Applied>& applied)
-{
-	for (const Applied& one : applied)
-		one.element->RemoveProperty(one.property);
-}
-
-/**
- * Straight alpha, because Folio premultiplies a file texture as it loads.
- *
- * RmlUi composites premultiplied and the framebuffer is read back the same way, so writing it as it
- * stands would have the engine multiply by alpha a second time. The symptom is a wash that looks
- * right where it is opaque and too dark everywhere it is not, which reads as the colour being wrong
- * rather than the encoding.
- */
-void Unpremultiply(std::vector<unsigned char>& rgba)
-{
-	for (size_t i = 0; i + 3 < rgba.size(); i += 4)
-	{
-		const unsigned alpha = rgba[i + 3];
-		if (alpha == 0 || alpha == 255)
-			continue;
-
-		for (int channel = 0; channel < 3; ++channel)
-		{
-			const unsigned value = (rgba[i + channel] * 255u + alpha / 2) / alpha;
-			rgba[i + channel] = (unsigned char)std::min(255u, value);
-		}
-	}
-}
-
-/** The element's border box in framebuffer pixels, grown by the margin and clipped to the frame. */
-bool CropRect(Rml::Element* element, int frame_width, int frame_height, int margin, int& out_x, int& out_y,
-	int& out_width, int& out_height)
-{
-	const Rml::Vector2f offset = element->GetAbsoluteOffset(Rml::BoxArea::Border);
-	const Rml::Vector2f size = element->GetBox().GetSize(Rml::BoxArea::Border);
-
-	const int left = (int)std::floor(offset.x) - margin;
-	const int top = (int)std::floor(offset.y) - margin;
-	const int right = (int)std::ceil(offset.x + size.x) + margin;
-	const int bottom = (int)std::ceil(offset.y + size.y) + margin;
-
-	out_x = std::max(0, left);
-	out_y = std::max(0, top);
-	out_width = std::min(frame_width, right) - out_x;
-	out_height = std::min(frame_height, bottom) - out_y;
-
-	return out_width > 0 && out_height > 0;
-}
 
 void Crop(const std::vector<unsigned char>& source, int source_width, int x, int y, int width, int height,
 	std::vector<unsigned char>& out)
@@ -178,12 +76,29 @@ bool RunBakes(const Options& options, App& app, Diagnostics& diagnostics)
 			continue;
 		}
 
-		std::set<Rml::Element*> ancestors;
-		for (Rml::Element* up = element->GetParentNode(); up; up = up->GetParentNode())
-			ancestors.insert(up);
+		// The four properties the two renderers do not draw the same. A texture baked here and drawn
+		// in the engine is faint and the wrong shape, and it reads as bad art rather than as a
+		// renderer difference - so this refuses rather than producing one.
+		if (Folio::Bake::NeedsEngineBake(element))
+		{
+			diagnostics.Report(Severity::Error, "E-BAKE-NEEDSENGINE",
+				selector + " draws a layer effect - box-shadow, filter, backdrop-filter or "
+				"mask-image - which this renderer and the engine do not draw identically. Bake it in "
+				"the editor instead: folio.Bake " + options.document + " " + selector + " " + path,
+				options.document);
+			ok = false;
+			continue;
+		}
 
-		std::vector<Applied> applied;
-		Isolate(document, element, ancestors, applied);
+		if (Folio::Bake::HasAnimation(element))
+		{
+			diagnostics.Report(Severity::Warning, "W-BAKE-ANIMATED",
+				selector + " is animating. The animation is cancelled for the bake, which RmlUi does "
+				"not always honour - check the result is not empty, and prefer a baker document with "
+				"no state classes on its body.", options.document);
+		}
+
+		const std::vector<Folio::Bake::FApplied> applied = Folio::Bake::Isolate(document, element);
 
 		// Twice: the property change is a style dirty, and the frame after it is the one that has the
 		// isolated tree in it.
@@ -201,7 +116,7 @@ bool RunBakes(const Options& options, App& app, Diagnostics& diagnostics)
 		if (!CaptureBackBuffer(dimensions.x, dimensions.y, frame, error))
 		{
 			diagnostics.Report(Severity::Error, "E-BAKE-CAPTURE", selector + ": " + error, options.document);
-			Restore(applied);
+			Folio::Bake::Restore(applied);
 			ok = false;
 			continue;
 		}
@@ -210,21 +125,22 @@ bool RunBakes(const Options& options, App& app, Diagnostics& diagnostics)
 		int y = 0;
 		int width = 0;
 		int height = 0;
-		if (!CropRect(element, dimensions.x, dimensions.y, options.bake_margin, x, y, width, height))
+		if (!Folio::Bake::CropRect(element, dimensions.x, dimensions.y, options.bake_margin, x, y,
+				width, height))
 		{
 			diagnostics.Report(Severity::Error, "E-BAKE-EMPTY",
 				selector + ": lays out to nothing on screen, so there is nothing to bake",
 				options.document);
-			Restore(applied);
+			Folio::Bake::Restore(applied);
 			ok = false;
 			continue;
 		}
 
 		std::vector<unsigned char> cropped;
 		Crop(frame, dimensions.x, x, y, width, height, cropped);
-		Unpremultiply(cropped);
+		Folio::Bake::Unpremultiply(cropped);
 
-		Restore(applied);
+		Folio::Bake::Restore(applied);
 		context->Update();
 
 		if (!WritePng(path, cropped, width, height, error, /*force_rgba*/ true))

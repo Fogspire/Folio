@@ -67,7 +67,10 @@
 </head>
 <!-- folio-bake-source: this document exists to produce the textures screen_edge.rml draws, so
      the full-screen layer warning does not apply. The cost is paid once, here, by the tool. -->
-<body class="burning hit-a" folio-bake-source>
+<!-- No state classes. A baker presents every layer plainly and lets the bake bring each one up to
+     full strength in turn; a document dressed in the states it will be seen in bakes whichever
+     layers those classes happen to leave visible. -->
+<body folio-bake-source>
 	<!-- Every layer is marked, so a player who has turned screen effects off loses the lot: a wash
 	     over the HUD, a breathing overlay and a hit flash are three different problems and whoever
 	     needs one gone needs all three gone. -->

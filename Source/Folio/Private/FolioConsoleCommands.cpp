@@ -20,6 +20,7 @@
 #include "FolioAccessibilityLibrary.h"
 #include "FolioAccessibilityReview.h"
 #include "FolioSpeech.h"
+#include "FolioCore/FolioBake.h"
 #include "FolioCore/FolioElementPath.h"
 #include "FolioCore/FolioSemantics.h"
 
@@ -1004,6 +1005,62 @@ namespace
 		return Resource && Resource->ReadPixels(OutPixels) && !OutPixels.IsEmpty();
 	}
 
+	/**
+	 * The IEC sRGB transfer curve, which is the one the GPU inverts on an sRGB texture.
+	 *
+	 * Written out rather than reached for: `FLinearColor::ToFColor(true)` quantises as it converts,
+	 * and a bake divides by alpha afterwards, so the conversion has to stay in float until the end.
+	 */
+	float LinearToSrgb(const float Value)
+	{
+		const float Clamped = FMath::Clamp(Value, 0.0f, 1.0f);
+		return Clamped <= 0.0031308f
+			? Clamped * 12.92f
+			: 1.055f * FMath::Pow(Clamped, 1.0f / 2.4f) - 0.055f;
+	}
+
+	/**
+	 * The same render, into a float target, for a bake.
+	 *
+	 * An `RTF_RGBA8` surface stores linear values in eight bits, and a bake divides those by alpha to
+	 * recover a straight colour - so at the low alpha a soft wash is made of, one quantisation step
+	 * becomes tens of levels of colour error. A `#f2551b` shadow came back as `#ff5935` that way.
+	 * Sixteen float bits cost nothing here: this runs once, from a console command.
+	 */
+	bool RenderSurfaceToFloatPixels(FFolioDocumentHost& Host, const FIntPoint Size,
+		TArray<FFloat16Color>& OutPixels)
+	{
+		Rml::Context* Context = Host.GetContext();
+		FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface();
+		if (!Context || !Renderer)
+		{
+			return false;
+		}
+
+		UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>();
+		Target->RenderTargetFormat = RTF_RGBA16f;
+		Target->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		Target->bAutoGenerateMips = false;
+		Target->bForceLinearGamma = true;
+		Target->InitAutoFormat(Size.X, Size.Y);
+		Target->UpdateResourceImmediate(true);
+
+		TStrongObjectPtr<UTextureRenderTarget2D> Keep(Target);
+
+		if (!Renderer->BeginSurface(Size, Target))
+		{
+			return false;
+		}
+
+		Context->Render();
+		Renderer->EndSurface();
+
+		FlushRenderingCommands();
+
+		FTextureRenderTargetResource* Resource = Target->GameThread_GetRenderTargetResource();
+		return Resource && Resource->ReadFloat16Pixels(OutPixels) && !OutPixels.IsEmpty();
+	}
+
 	bool RenderSurfaceAndRead(FFolioDocumentHost& Host, const FIntPoint Size, FSurfaceSummary& Out)
 	{
 		TArray<FColor> Pixels;
@@ -1408,6 +1465,167 @@ namespace
 			*Args[0], Size.X, Size.Y, *Out);
 	}
 
+	/**
+	 * Renders one element to a PNG with alpha, through the engine's own renderer.
+	 *
+	 *   folio.Bake UI/screens/hud_baker.rml #scorch UI/art/scorch.png 1920 1080
+	 *
+	 * `uipreview --bake` does the same thing and is quicker to reach, but only the engine can bake a
+	 * layer effect. `box-shadow`, `filter`, `backdrop-filter` and `mask-image` are the four the two
+	 * renderers do not draw identically - the same inset shadow reaches a peak alpha of 16 in the
+	 * preview and 70 here - so a texture baked there and drawn in the game is faint and the wrong
+	 * shape. It reads as bad art rather than as a renderer difference, which is why this exists.
+	 *
+	 * The element is rendered alone, on nothing, cropped to its border box, and written straight
+	 * alpha so the texture loader's own premultiply is not applied twice.
+	 */
+	void RunBake(const TArray<FString>& Args)
+	{
+		if (Args.Num() < 3)
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("usage: folio.Bake <document> <selector> <out.png> [width] [height]"));
+			return;
+		}
+
+		const FIntPoint Size(
+			Args.Num() > 3 ? FMath::Max(1, FCString::Atoi(*Args[3])) : 1920,
+			Args.Num() > 4 ? FMath::Max(1, FCString::Atoi(*Args[4])) : 1080);
+
+		FFolioDocumentHost Host;
+		if (!Host.Create(TEXT("bake"), Size))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio bake: could not create a context"));
+			return;
+		}
+
+		Host.LoadDocument(Args[0]);
+		Rml::ElementDocument* Document = Host.GetDocument();
+		if (!Document)
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio bake: could not load '%s'"), *Args[0]);
+			return;
+		}
+
+		// Twice, as the surface shot does: the first update lays out and the second lets anything
+		// that reacted to layout settle.
+		Host.MarkDirty(TEXT("bake"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+		Host.MarkDirty(TEXT("bake"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+
+		Rml::Element* Element = Document->QuerySelector(Folio::ToRmlString(Args[1]));
+		if (!Element)
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio bake: nothing in '%s' matches '%s'"),
+				*Args[0], *Args[1]);
+			return;
+		}
+
+		if (Folio::Bake::HasAnimation(Element))
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("folio bake: '%s' is animating. The animation is cancelled for the bake, which "
+					"RmlUi does not always honour - check the result is not empty, and prefer a baker "
+					"document with no state classes on its body."), *Args[1]);
+		}
+
+		const std::vector<Folio::Bake::FApplied> Applied = Folio::Bake::Isolate(Document, Element);
+
+		// Twice again: the first update cancels whatever animation was driving the properties the
+		// isolation just set, and the second is the one those settings actually reach.
+		Host.MarkDirty(TEXT("bake isolate"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+		Host.MarkDirty(TEXT("bake isolate"));
+		Host.Update(0.0f, 1.0f, 1.0f);
+
+		int32 X = 0;
+		int32 Y = 0;
+		int32 Width = 0;
+		int32 Height = 0;
+		const bool bCropped = Folio::Bake::CropRect(Element, Size.X, Size.Y, 0, X, Y, Width, Height);
+
+		TArray<FFloat16Color> Pixels;
+		const bool bRendered = bCropped && RenderSurfaceToFloatPixels(Host, Size, Pixels);
+
+		Folio::Bake::Restore(Applied);
+
+		if (!bCropped)
+		{
+			UE_LOG(LogFolio, Error,
+				TEXT("folio bake: '%s' lays out to nothing at %dx%d, so there is nothing to bake"),
+				*Args[1], Size.X, Size.Y);
+			return;
+		}
+
+		if (!bRendered)
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio bake: nothing could be read back"));
+			return;
+		}
+
+		// The surface reads back linear, premultiplied in sRGB space before that: a straight
+		// #f2551b at 40% alpha arrives as sRGB(97, 34, 11) held as linear. Encoding back to sRGB
+		// recovers the premultiplied colour and dividing by alpha recovers the straight one, which
+		// is what a PNG holds and what the texture loader expects.
+		//
+		// Both in float, and quantised once at the end. Doing it in bytes divides an already
+		// quantised value by a small alpha and multiplies the error with it.
+		std::vector<uint8_t> Rgba;
+		Rgba.reserve(size_t(Width) * size_t(Height) * 4);
+		for (int32 Row = 0; Row < Height; ++Row)
+		{
+			for (int32 Column = 0; Column < Width; ++Column)
+			{
+				const FFloat16Color& Linear = Pixels[(Y + Row) * Size.X + (X + Column)];
+
+				const float Premultiplied[3] = { LinearToSrgb(Linear.R.GetFloat()),
+					LinearToSrgb(Linear.G.GetFloat()), LinearToSrgb(Linear.B.GetFloat()) };
+
+				// A blur runs in linear space on premultiplied colour, so a soft edge can come back
+				// with a channel brighter than its own alpha - which no straight colour can express,
+				// since the loader multiplies the two back together in bytes. Raising alpha to meet
+				// it keeps the colour and the brightness exact and only deepens what the wash takes
+				// out of the scene behind it, which on a soft edge is not visible. Clamping the
+				// colour instead loses half the wash wherever the blur is widest.
+				float Alpha = FMath::Clamp(Linear.A.GetFloat(), 0.0f, 1.0f);
+				Alpha = FMath::Max3(Alpha, FMath::Max(Premultiplied[0], Premultiplied[1]),
+					Premultiplied[2]);
+
+				for (const float Channel : Premultiplied)
+				{
+					const float Straight = Alpha > 0.0f ? Channel / Alpha : 0.0f;
+					Rgba.push_back(uint8_t(FMath::Clamp(FMath::RoundToInt(Straight * 255.0f), 0, 255)));
+				}
+
+				Rgba.push_back(uint8_t(FMath::Clamp(FMath::RoundToInt(Alpha * 255.0f), 0, 255)));
+			}
+		}
+
+		IImageWrapperModule& Wrappers = FModuleManager::LoadModuleChecked<IImageWrapperModule>(
+			TEXT("ImageWrapper"));
+		const TSharedPtr<IImageWrapper> Wrapper = Wrappers.CreateImageWrapper(EImageFormat::PNG);
+		if (!Wrapper.IsValid()
+			|| !Wrapper->SetRaw(Rgba.data(), Rgba.size(), Width, Height, ERGBFormat::RGBA, 8))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio bake: could not encode a PNG"));
+			return;
+		}
+
+		const FString Out = FPaths::IsRelative(Args[2])
+			? FPaths::Combine(FPaths::ProjectDir(), Args[2]) : Args[2];
+
+		if (!FFileHelper::SaveArrayToFile(Wrapper->GetCompressed(100), *Out))
+		{
+			UE_LOG(LogFolio, Error, TEXT("folio bake: could not write '%s'"), *Out);
+			return;
+		}
+
+		UE_LOG(LogFolio, Display, TEXT("folio bake: '%s' %s -> %s (%dx%d). Draw it with "
+			"decorator: image(<path> fill) and delete the property it replaces."),
+			*Args[0], *Args[1], *Out, Width, Height);
+	}
+
 	/** Two decimals, matching the preview: layout is float maths and the last bits are noise. */
 	double RoundTo2(const float Value)
 	{
@@ -1582,6 +1800,15 @@ namespace
 			"uipreview --metrics-report writes, so the two renderers can be compared on where text "
 			"landed rather than on pixels."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&RunMetricsReport));
+
+	FAutoConsoleCommand BakeCommand(
+		TEXT("folio.Bake"),
+		TEXT("folio.Bake <document> <selector> <out.png> [width] [height]. Renders one element alone, "
+			"on nothing, cropped to its box, as a PNG with alpha - so an effect that costs a render "
+			"target every frame becomes a texture. The engine rather than uipreview, because only "
+			"this renderer draws box-shadow, filter, backdrop-filter and mask-image the way the game "
+			"will."),
+		FConsoleCommandWithArgsDelegate::CreateStatic(&RunBake));
 
 	FAutoConsoleCommand SurfaceShotCommand(
 		TEXT("folio.Surface.Shot"),

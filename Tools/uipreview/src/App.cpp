@@ -295,7 +295,11 @@ bool App::Initialise()
 	// Data-bound strings never reach the document pass, so inflate them at the source or
 	// HUD text escapes pseudo-localization entirely.
 	if (localizer.IsPseudo())
+	{
 		data_model.TransformStrings([this](const std::string& text) { return localizer.Pseudoize(text); });
+		for (const std::unique_ptr<JsonDataModel>& model : extra_models)
+			model->TransformStrings([this](const std::string& text) { return localizer.Pseudoize(text); });
+	}
 
 	return LoadDocumentFromDisk();
 }
@@ -319,6 +323,32 @@ std::string App::DiscoverDataModelName() const
 		return match[1].str();
 
 	return {};
+}
+
+std::vector<std::string> App::DiscoverDataModelNames() const
+{
+	std::vector<std::string> names;
+
+	// An override names one model and means it: it is the document's own, and the rest still come
+	// from the markup so a second model is not lost by passing --data-model.
+	if (!options.data_model.empty())
+		names.push_back(options.data_model);
+
+	std::ifstream file(fs::path(root) / fs::path(document_path).relative_path());
+	if (!file)
+		return names;
+
+	const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	static const std::regex pattern(R"RX(data-model\s*=\s*"([^"]+)")RX");
+
+	for (std::sregex_iterator it(text.begin(), text.end(), pattern), end; it != end; ++it)
+	{
+		const std::string name = (*it)[1].str();
+		if (std::find(names.begin(), names.end(), name) == names.end())
+			names.push_back(name);
+	}
+
+	return names;
 }
 
 std::string App::FindConventionalDataFile(const std::string& model_name) const
@@ -364,7 +394,35 @@ void App::ApplyInputClasses()
 
 void App::MountDataModel()
 {
-	const std::string model_name = DiscoverDataModelName();
+	const std::vector<std::string> model_names = DiscoverDataModelNames();
+	const std::string model_name = model_names.empty() ? std::string() : model_names.front();
+
+	// Everything past the first, each from its own mock. --data belongs to the document's own model,
+	// so these only ever come from UI/mock/<name>.json.
+	extra_models.clear();
+	for (std::size_t index = 1; index < model_names.size(); ++index)
+	{
+		const std::string& name = model_names[index];
+		if (name == Folio::InputModel::Name())
+			continue;
+
+		auto model = std::make_unique<JsonDataModel>(diagnostics);
+		const std::string path = FindConventionalDataFile(name);
+
+		if (path.empty())
+		{
+			diagnostics.Report(Severity::Warning, "W-DATA-NODATA",
+				"the document mounts data-model=\"" + name + "\" but none was found at UI/mock/"
+				+ name + ".json");
+			model->MountEmpty(context, name);
+		}
+		else
+		{
+			model->Mount(context, name, path);
+		}
+
+		extra_models.push_back(std::move(model));
+	}
 
 	// The reserved model is already mounted and is not a game model, so there is no mock file to
 	// look for and nothing missing when there isn't one.
@@ -1089,8 +1147,14 @@ void App::HandleFileChanges(const std::vector<std::string>& changed)
 	if (reload_data && !rebuild_document)
 	{
 		data_model.Reload();
+		for (const std::unique_ptr<JsonDataModel>& model : extra_models)
+			model->Reload();
 		if (localizer.IsPseudo())
+		{
 			data_model.TransformStrings([this](const std::string& text) { return localizer.Pseudoize(text); });
+			for (const std::unique_ptr<JsonDataModel>& model : extra_models)
+				model->TransformStrings([this](const std::string& text) { return localizer.Pseudoize(text); });
+		}
 		std::printf("reloaded data model\n");
 	}
 

@@ -75,6 +75,14 @@ private:
 	void RecordImageElementSizes();
 	void WriteAssetsWanted();
 	std::string DiscoverDataModelName() const;
+	/**
+	 * Every model the document names, primary first.
+	 *
+	 * A screen with a rebinding page or an embedded panel mounts a second model beside its own, and
+	 * without this those bindings resolve to nothing and the document reports errors the game would
+	 * never see.
+	 */
+	std::vector<std::string> DiscoverDataModelNames() const;
 	std::string FindConventionalDataFile(const std::string& model_name) const;
 	void MountDataModel();
 
@@ -113,6 +121,8 @@ private:
 
 	MissingAssets missing_assets;
 	JsonDataModel data_model {diagnostics};
+	/** The models beyond the first, in the order the document names them. */
+	std::vector<std::unique_ptr<JsonDataModel>> extra_models;
 
 	// Bound into the reserved model by address, so they outlive it.
 	Rml::String input_device_value;

@@ -15,6 +15,7 @@ strings and the ids, and delete what you do not need. Nothing links them at runt
 | `nameplate.rml` | A marker document: a plate above a head, laid out at the component's Size |
 | `prompts.rml` | Every drawn glyph the library ships |
 | `bindings.rml` | A rebinding list over `UFolioInputBindings` |
+| `circle.rml` | Circles, rings, capsules - and why a bordered box is not one |
 
 Each one is rendered under `--strict` before it is committed, so a copied recipe starts clean.
 

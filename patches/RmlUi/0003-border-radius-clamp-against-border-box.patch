@@ -1,0 +1,40 @@
+From: Folio <folio@localhost>
+Subject: [PATCH] Clamp border-radius against the border box, not the padding box
+
+CSS Backgrounds 3 5.5 scales overlapping corner radii against the border box. RmlUi scales
+them against the box inside the borders, so a bordered square stops rounding at
+`size / 2 - border` and keeps a flat edge on every side exactly as wide as the border. A
+bordered element can therefore never be a circle, which is visible on any button-sized round
+element and reads as a rendering bug.
+
+The inner radii are derived by subtracting the edge sizes from the outer ones, so an outer
+radius of half the outer box yields an inner radius of exactly half the inner box: neither set
+of curves can overlap after the change.
+
+Removable once upstream scales against the border box.
+
+diff --git a/Source/Core/GeometryBackgroundBorder.cpp b/Source/Core/GeometryBackgroundBorder.cpp
+--- a/Source/Core/GeometryBackgroundBorder.cpp
++++ b/Source/Core/GeometryBackgroundBorder.cpp
+@@ -53,11 +53,17 @@
+ 		outer_radii = outer_radii_def;
+ 
+ 		// Scale the radii such that we have no overlapping curves.
++		//
++		// Against the border box, which is what CSS Backgrounds 3 specifies. Scaling against the box
++		// inside the borders stops a bordered square rounding past `size / 2 - border`, so it can never
++		// be a circle: it keeps a flat edge on every side exactly as wide as the border. The inner radii
++		// are derived below by subtracting the edge sizes, and an outer radius of half the outer box
++		// gives an inner radius of half the inner box, so those cannot overlap either.
+ 		float scale_factor = FLT_MAX;
+-		scale_factor = Math::Min(scale_factor, inner_size.x / (outer_radii[TOP_LEFT] + outer_radii[TOP_RIGHT]));       // Top
+-		scale_factor = Math::Min(scale_factor, inner_size.y / (outer_radii[TOP_RIGHT] + outer_radii[BOTTOM_RIGHT]));   // Right
+-		scale_factor = Math::Min(scale_factor, inner_size.x / (outer_radii[BOTTOM_RIGHT] + outer_radii[BOTTOM_LEFT])); // Bottom
+-		scale_factor = Math::Min(scale_factor, inner_size.y / (outer_radii[BOTTOM_LEFT] + outer_radii[TOP_LEFT]));     // Left
++		scale_factor = Math::Min(scale_factor, outer_size.x / (outer_radii[TOP_LEFT] + outer_radii[TOP_RIGHT]));       // Top
++		scale_factor = Math::Min(scale_factor, outer_size.y / (outer_radii[TOP_RIGHT] + outer_radii[BOTTOM_RIGHT]));   // Right
++		scale_factor = Math::Min(scale_factor, outer_size.x / (outer_radii[BOTTOM_RIGHT] + outer_radii[BOTTOM_LEFT])); // Bottom
++		scale_factor = Math::Min(scale_factor, outer_size.y / (outer_radii[BOTTOM_LEFT] + outer_radii[TOP_LEFT]));     // Left
+ 		scale_factor = Math::Min(1.0f, scale_factor);
+ 
+ 		for (float& radius : outer_radii)

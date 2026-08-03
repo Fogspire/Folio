@@ -152,6 +152,14 @@ container's height too — so a panel shrinks to its header and the body's conte
 below it. Use `flex: 1 1 auto` for vertical fills. `flex: 1 1 0` is correct on the horizontal
 axis, where it is how one cell absorbs the leftover width of a row.
 
+**A circle is a square box with a radius past half of it, and nothing else may touch its size.**
+Padding or an automatic width make the box wider than it is tall, and a lozenge that is nearly a
+circle reads as a bug. Centre the text with `line-height`. A border is fine and gives you a ring —
+but only because `patches/RmlUi/0003-border-radius-clamp-against-border-box.patch` scales
+overlapping radii against the border box as CSS specifies; stock RmlUi scales against the box
+inside the borders and can never round a bordered element past `size / 2 - border`. See
+`rcss/recipes/circle.rml`.
+
 **An `overflow: auto` container needs its scrollbar sized, or it destroys its own layout.**
 RmlUi ships no scrollbar styling, and an auto width on a scrollbar resolves to the container's
 full content width. The container lays out correctly right up until its content actually

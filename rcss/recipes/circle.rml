@@ -1,0 +1,145 @@
+<rml>
+<head>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		/* Round shapes, and the three ways to lose one.
+
+		   RmlUi has no circle. Every element is a box and `border-radius` is the only curve, so a
+		   circle is a square box with a radius of half its width, and a ring is that box with a
+		   border. Write the radius past half rather than as half: it is clamped to half whatever the
+		   box turns out to be, so one number stays right when the size changes.
+
+		   That a bordered box can be a circle at all is Folio's doing. Stock RmlUi scales
+		   overlapping radii against the box INSIDE the borders, so a bordered square stops rounding
+		   at `size / 2 - border` and keeps a flat edge on every side exactly as wide as the border.
+		   patches/RmlUi/0003-border-radius-clamp-against-border-box.patch scales against the border
+		   box instead, which is what CSS Backgrounds 3 5.5 specifies. Without it the ring below is a
+		   squircle. */
+
+		body {
+			font-family: Inter;
+			padding: 40dp;
+			display: flex;
+			flex-direction: column;
+			gap: 30dp;
+		}
+
+		.row { display: flex; flex-direction: row; align-items: center; gap: 26dp; }
+		.cap { font-size: 0.75rem; color: #9a9aa8; width: 160dp; }
+		.note { font-size: 0.75rem; color: #9a9aa8; }
+
+		/* --- Circles ---------------------------------------------------------------- */
+
+		/* Square, radius past half, nothing touching the size. */
+		.disc {
+			width: 64dp;
+			height: 64dp;
+			background-color: #e8e8f0;
+			border-radius: 200dp;
+		}
+
+		/* A shadow follows the same radii, so a hard offset under a circle is a circle. */
+		.disc.dropped { box-shadow: #0000008c 0dp 5dp 0dp; }
+
+		/* A border makes it a ring. `box-sizing: border-box` keeps the border inside the 64dp, so
+		   the shape does not grow when the outline gets thicker. */
+		.ring {
+			width: 64dp;
+			height: 64dp;
+			box-sizing: border-box;
+			border: 3dp #e8e8f0;
+			border-radius: 200dp;
+		}
+
+		/* Filled, outlined, and with a glyph centred by line-height rather than by padding. The
+		   line box is the inner height: 64 - 2 * 3. */
+		.button {
+			width: 64dp;
+			height: 64dp;
+			box-sizing: border-box;
+			border: 3dp #0c0c12;
+			border-radius: 200dp;
+			background-color: #e8e8f0;
+			line-height: 58dp;
+			text-align: center;
+			font-size: 1.4rem;
+			color: #0c0c12;
+		}
+
+		/* --- The two that are not circles ------------------------------------------- */
+
+		/* Padding. The box is 64 + 24 wide and 64 tall, so the radius clamps to 32 and the long
+		   sides stay straight: a capsule, whether or not one was wanted. */
+		.padded {
+			width: 64dp;
+			height: 64dp;
+			padding: 0dp 12dp;
+			border-radius: 200dp;
+			background-color: #f0a8ae;
+		}
+
+		/* An automatic width, which is the same mistake arriving from the content instead. */
+		.auto {
+			width: auto;
+			min-width: 64dp;
+			height: 64dp;
+			border-radius: 200dp;
+			background-color: #f0a8ae;
+			line-height: 64dp;
+			text-align: center;
+			color: #14141a;
+		}
+
+		/* --- Capsules and masks ------------------------------------------------------ */
+
+		/* A capsule is the same rule with a width on it: the radius clamps to half the height and
+		   every pixel of the long sides is straight because there is nothing left to curve. */
+		.capsule {
+			width: 150dp;
+			height: 40dp;
+			background-color: #e8e8f0;
+			border-radius: 200dp;
+			line-height: 40dp;
+			text-align: center;
+			color: #0c0c12;
+			font-size: 0.8rem;
+		}
+
+		/* Clipping a child to the curve needs `overflow` on the round element itself, and the child
+		   has to be in flow: overflow does not clip an absolutely positioned one. */
+		.masked {
+			width: 64dp;
+			height: 64dp;
+			border-radius: 200dp;
+			overflow: hidden;
+			background-color: #0c0c12;
+		}
+
+		.masked .art { display: block; width: 64dp; height: 64dp; background-color: #7ad97a; }
+	</style>
+</head>
+<body>
+	<div class="row">
+		<span class="cap" data-loc>Circle, ring, button</span>
+		<div class="disc"/>
+		<div class="disc dropped"/>
+		<div class="ring"/>
+		<div class="button" data-noloc>A</div>
+		<span class="note" data-loc>Square box, radius past half.</span>
+	</div>
+
+	<div class="row">
+		<span class="cap" data-loc>Not circles</span>
+		<div class="padded"/>
+		<div class="auto" data-noloc>LSHIFT</div>
+		<span class="note" data-loc>Padding and an automatic width both make the box wider than it is tall.</span>
+	</div>
+
+	<div class="row">
+		<span class="cap" data-loc>Capsule and mask</span>
+		<div class="capsule" data-loc>Capsule</div>
+		<div class="masked"><div class="art"/></div>
+		<span class="note" data-loc>Same rule. Clipping needs overflow on the round element.</span>
+	</div>
+</body>
+</rml>

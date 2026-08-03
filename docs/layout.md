@@ -74,6 +74,43 @@ spills out below it.
 `flex: 1 1 0` is correct on the **horizontal** axis, where it is how one cell absorbs the leftover
 width of a row. The rule of thumb: `auto` for vertical fills, `0` for horizontal shares.
 
+## Round shapes
+
+There is no circle. Every element is a box and `border-radius` is the only curve, so a circle is a
+square box with a radius of half its width. Write the radius as a large number rather than as half
+the size — it is clamped to half whatever the box turns out to be, so one value stays correct when
+the size changes.
+
+```css
+.badge { width: 46dp; height: 46dp; box-sizing: border-box; border: 3dp #241f2e;
+         border-radius: 200dp; background-color: #2e2839; }
+```
+
+A border is fine, and a bordered circle is a ring. That is worth stating because stock RmlUi cannot
+do it: it scales overlapping radii against the box *inside* the borders, so a bordered square stops
+rounding at `size / 2 - border` and keeps a flat edge on every side exactly as wide as the border —
+a squircle, and an obvious one at button size. `patches/RmlUi/0003-border-radius-clamp-against-border-box.patch`
+scales against the border box instead, which is what CSS Backgrounds 3 §5.5 specifies. **A Folio
+built without that patch cannot draw a bordered circle.**
+
+### The two that still catch everyone
+
+**Padding and an automatic width.** Either one makes the box wider than it is tall, and a lozenge
+that is nearly a circle looks like a mistake rather than a shape. Size a round element explicitly and
+centre its text with `line-height` rather than with padding.
+
+```css
+/* Wrong. An oval, however large the radius is. */
+.key { min-width: 46dp; height: 46dp; padding: 0dp 12dp; border-radius: 200dp; }
+
+/* Right. */
+.key { width: 46dp; height: 46dp; padding: 0dp; line-height: 40dp; text-align: center;
+       border-radius: 200dp; }
+```
+
+`rcss/recipes/circle.rml` has circles, rings, capsules and masks side by side, including both of the
+wrong ones.
+
 ## Scrolling
 
 `overflow` takes `visible`, `hidden`, `auto`, `scroll`. There is no `clip`.

@@ -1484,13 +1484,20 @@ namespace
 		if (Args.Num() < 3)
 		{
 			UE_LOG(LogFolio, Warning,
-				TEXT("usage: folio.Bake <document> <selector> <out.png> [width] [height]"));
+				TEXT("usage: folio.Bake <document> <selector> <out.png> [width] [height] [downscale]"));
 			return;
 		}
 
 		const FIntPoint Size(
 			Args.Num() > 3 ? FMath::Max(1, FCString::Atoi(*Args[3])) : 1920,
 			Args.Num() > 4 ? FMath::Max(1, FCString::Atoi(*Args[4])) : 1080);
+
+		// Rendered at the size it will be drawn at, then written smaller. Baking at a small size
+		// instead would change the picture: a 70dp blur is a much larger fraction of a 288dp box than
+		// of a 1080dp one, so the vignette comes out thicker. A soft wash downsamples to a quarter
+		// with nothing visible lost, and a quarter is a sixteenth of the texture memory - which is
+		// paid on the game thread, decoding and uploading, the first frame the effect is drawn.
+		const int32 Downscale = Args.Num() > 5 ? FMath::Clamp(FCString::Atoi(*Args[5]), 1, 16) : 1;
 
 		FFolioDocumentHost Host;
 		if (!Host.Create(TEXT("bake"), Size))
@@ -1553,6 +1560,7 @@ namespace
 		int32 Width = 0;
 		int32 Height = 0;
 		const bool bCropped = Folio::Bake::CropRect(Element, Size.X, Size.Y, 0, X, Y, Width, Height);
+		const FIntPoint Rendered(Width, Height);
 
 		TArray<FFloat16Color> Pixels;
 		const bool bRendered = bCropped && RenderSurfaceToFloatPixels(Host, Size, Pixels);
@@ -1580,35 +1588,85 @@ namespace
 		//
 		// Both in float, and quantised once at the end. Doing it in bytes divides an already
 		// quantised value by a small alpha and multiplies the error with it.
-		std::vector<uint8_t> Rgba;
-		Rgba.reserve(size_t(Width) * size_t(Height) * 4);
+		// Premultiplied and sRGB-encoded, in float, so the downsample below averages the same values
+		// the compositor would and the divide by alpha happens once, at the end.
+		TArray<FVector4f> Premultiplied;
+		Premultiplied.SetNumUninitialized(Width * Height);
 		for (int32 Row = 0; Row < Height; ++Row)
 		{
 			for (int32 Column = 0; Column < Width; ++Column)
 			{
 				const FFloat16Color& Linear = Pixels[(Y + Row) * Size.X + (X + Column)];
-
-				const float Premultiplied[3] = { LinearToSrgb(Linear.R.GetFloat()),
-					LinearToSrgb(Linear.G.GetFloat()), LinearToSrgb(Linear.B.GetFloat()) };
-
-				// A blur runs in linear space on premultiplied colour, so a soft edge can come back
-				// with a channel brighter than its own alpha - which no straight colour can express,
-				// since the loader multiplies the two back together in bytes. Raising alpha to meet
-				// it keeps the colour and the brightness exact and only deepens what the wash takes
-				// out of the scene behind it, which on a soft edge is not visible. Clamping the
-				// colour instead loses half the wash wherever the blur is widest.
-				float Alpha = FMath::Clamp(Linear.A.GetFloat(), 0.0f, 1.0f);
-				Alpha = FMath::Max3(Alpha, FMath::Max(Premultiplied[0], Premultiplied[1]),
-					Premultiplied[2]);
-
-				for (const float Channel : Premultiplied)
-				{
-					const float Straight = Alpha > 0.0f ? Channel / Alpha : 0.0f;
-					Rgba.push_back(uint8_t(FMath::Clamp(FMath::RoundToInt(Straight * 255.0f), 0, 255)));
-				}
-
-				Rgba.push_back(uint8_t(FMath::Clamp(FMath::RoundToInt(Alpha * 255.0f), 0, 255)));
+				Premultiplied[Row * Width + Column] = FVector4f(
+					LinearToSrgb(Linear.R.GetFloat()), LinearToSrgb(Linear.G.GetFloat()),
+					LinearToSrgb(Linear.B.GetFloat()), FMath::Clamp(Linear.A.GetFloat(), 0.0f, 1.0f));
 			}
+		}
+
+		if (Downscale > 1)
+		{
+			const int32 SmallWidth = FMath::Max(1, Width / Downscale);
+			const int32 SmallHeight = FMath::Max(1, Height / Downscale);
+
+			TArray<FVector4f> Small;
+			Small.SetNumUninitialized(SmallWidth * SmallHeight);
+
+			for (int32 Row = 0; Row < SmallHeight; ++Row)
+			{
+				for (int32 Column = 0; Column < SmallWidth; ++Column)
+				{
+					FVector4f Sum(0.0f, 0.0f, 0.0f, 0.0f);
+					int32 Count = 0;
+
+					for (int32 SubRow = 0; SubRow < Downscale; ++SubRow)
+					{
+						const int32 SourceRow = Row * Downscale + SubRow;
+						if (SourceRow >= Height)
+						{
+							break;
+						}
+
+						for (int32 SubColumn = 0; SubColumn < Downscale; ++SubColumn)
+						{
+							const int32 SourceColumn = Column * Downscale + SubColumn;
+							if (SourceColumn >= Width)
+							{
+								break;
+							}
+
+							Sum += Premultiplied[SourceRow * Width + SourceColumn];
+							++Count;
+						}
+					}
+
+					Small[Row * SmallWidth + Column] = Count > 0 ? Sum / float(Count) : Sum;
+				}
+			}
+
+			Premultiplied = MoveTemp(Small);
+			Width = SmallWidth;
+			Height = SmallHeight;
+		}
+
+		std::vector<uint8_t> Rgba;
+		Rgba.reserve(size_t(Width) * size_t(Height) * 4);
+		for (const FVector4f& Pixel : Premultiplied)
+		{
+			// A blur runs in linear space on premultiplied colour, so a soft edge can come back with
+			// a channel brighter than its own alpha - which no straight colour can express, since the
+			// loader multiplies the two back together in bytes. Raising alpha to meet it keeps the
+			// colour and the brightness exact and only deepens what the wash takes out of the scene
+			// behind it, which on a soft edge is not visible. Clamping the colour instead loses half
+			// the wash wherever the blur is widest.
+			const float Alpha = FMath::Max3(Pixel.W, FMath::Max(Pixel.X, Pixel.Y), Pixel.Z);
+
+			for (int32 Channel = 0; Channel < 3; ++Channel)
+			{
+				const float Straight = Alpha > 0.0f ? Pixel[Channel] / Alpha : 0.0f;
+				Rgba.push_back(uint8_t(FMath::Clamp(FMath::RoundToInt(Straight * 255.0f), 0, 255)));
+			}
+
+			Rgba.push_back(uint8_t(FMath::Clamp(FMath::RoundToInt(Alpha * 255.0f), 0, 255)));
 		}
 
 		IImageWrapperModule& Wrappers = FModuleManager::LoadModuleChecked<IImageWrapperModule>(
@@ -1630,9 +1688,9 @@ namespace
 			return;
 		}
 
-		UE_LOG(LogFolio, Display, TEXT("folio bake: '%s' %s -> %s (%dx%d). Draw it with "
-			"decorator: image(<path> fill) and delete the property it replaces."),
-			*Args[0], *Args[1], *Out, Width, Height);
+		UE_LOG(LogFolio, Display, TEXT("folio bake: '%s' %s -> %s (%dx%d, rendered at %dx%d). Draw it "
+			"with decorator: image(<path> fill) and delete the property it replaces."),
+			*Args[0], *Args[1], *Out, Width, Height, Rendered.X, Rendered.Y);
 	}
 
 	/** Two decimals, matching the preview: layout is float maths and the last bits are noise. */
@@ -1812,7 +1870,7 @@ namespace
 
 	FAutoConsoleCommand BakeCommand(
 		TEXT("folio.Bake"),
-		TEXT("folio.Bake <document> <selector> <out.png> [width] [height]. Renders one element alone, "
+		TEXT("folio.Bake <document> <selector> <out.png> [width] [height] [downscale]. Renders one element alone, "
 			"on nothing, cropped to its box, as a PNG with alpha - so an effect that costs a render "
 			"target every frame becomes a texture. The engine rather than uipreview, because only "
 			"this renderer draws box-shadow, filter, backdrop-filter and mask-image the way the game "

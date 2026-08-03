@@ -181,10 +181,14 @@ void CheckPerformance(const Options& options, App& app, Diagnostics& diagnostics
 			message += finding.animated
 				? ", and it is animating, so that is one every frame"
 				: ", every frame the document draws";
-			message += ". Bake it: folio.Bake in the editor writes the element to a PNG, and an image "
-				"decorator draws it in one quad with no target.";
+			message += ". Worth knowing rather than worth fixing on its own: check stat Folio before "
+				"reaching for folio.Bake, and mind that a baked full-screen texture is its own cost "
+				"on the game thread the frame it first draws.";
 
-			diagnostics.Report(Severity::Warning, "W-PERF-FULLSCREENLAYER", std::move(message),
+			// Info rather than a warning. A vignette or a scrim built the obvious way is a legitimate
+			// document, the replay behind it is no longer what it was, and a texture is not always
+			// the cheaper answer - so this reports and does not fail a build.
+			diagnostics.Report(Severity::Info, "I-PERF-FULLSCREENLAYER", std::move(message),
 				options.document, 0,
 				{{"path", finding.path}, {"properties", finding.properties},
 					{"coverage", int(std::lround(finding.coverage * 100.0f))},

@@ -96,7 +96,7 @@ same question without a person watching.
 
 | | |
 |---|---|
-| `folio.Bake <document> <selector> <out.png> [w] [h]` | Renders one element alone, on nothing, cropped to its box, as a PNG with alpha - so an effect costing a render target every frame becomes a texture. The engine rather than `uipreview`, because only this renderer draws `box-shadow`, `filter`, `backdrop-filter` and `mask-image` the way the game will. |
+| `folio.Bake <document> <selector> <out.png> [w] [h] [downscale]` | Renders one element alone, on nothing, cropped to its box, as a PNG with alpha - so an effect costing a render target every frame becomes a texture. The engine rather than `uipreview`, because only this renderer draws `box-shadow`, `filter`, `backdrop-filter` and `mask-image` the way the game will. `downscale` renders at [w]x[h] and writes a fraction of that, which is how a soft full-screen wash becomes a texture worth loading. |
 | `folio.Surface.Shot <document> <out.png> [w] [h]` | Renders a document the way a surface does and writes a PNG. A viewport screenshot would carry the game behind it; this is the document alone on a transparent ground. |
 | `folio.Metrics.Report <document> <out.json> [w] [h] [dp]` | The same report `uipreview --metrics-report` writes, so where text landed can be diffed between renderers. |
 

@@ -176,16 +176,37 @@ sized to the element, and the texture is thrown away and rebuilt whenever that s
 `transition: width` regenerates it every frame the transition runs, for a shadow that did not change
 shape.
 
-`uipreview` reports all three, and `--strict` gates the first two:
+`uipreview` reports all three, and `--strict` gates the first:
 
 | | |
 |---|---|
-| `W-PERF-RESIZINGLAYER` | A layer effect on an element whose box is transitioned. The expensive one |
-| `W-PERF-FULLSCREENLAYER` | A layer effect covering at least 75% of the viewport |
-| `I-PERF-LAYERCOUNT` | How many elements draw one at all. Info, because a document demonstrating masks legitimately has seven |
+| `W-PERF-RESIZINGLAYER` | A layer effect on an element whose box is transitioned. The expensive one, and the only one that fails a build |
+| `I-PERF-FULLSCREENLAYER` | A layer effect covering at least 75% of the viewport |
+| `I-PERF-LAYERCOUNT` | How many elements draw one at all |
 
-They are warnings rather than notes because there is nothing to see: the effect looks exactly as
-intended and only a profiler says what it cost.
+Only the first is a warning. A vignette or a scrim built the obvious way is a legitimate document,
+and a texture is not automatically the cheaper answer - see below. The other two are there to be
+read next to `stat Folio`, not to block anything.
+
+### A texture is not free either
+
+Baking moves the cost rather than removing it. A full-screen PNG is decoded, premultiplied and
+uploaded **on the game thread, inside `Render`, the first frame it is drawn** - and at 1920x1080 that
+is eight megabytes of it. Swapping a full-screen `box-shadow` for a full-screen texture can trade a
+steady render-thread cost for a game-thread spike the first time the effect appears, which is worse:
+the spike lands exactly when something dramatic is happening on screen.
+
+So bake soft things small. `folio.Bake` takes a downscale as its last argument, which renders at the
+size the effect will be drawn at and writes a fraction of it:
+
+```
+folio.Bake UI/screens/hud_baker.rml #scorch UI/art/scorch.png 1920 1080 4
+```
+
+That is 480x270 - half a megabyte instead of eight, and on a soft wash there is nothing to see.
+**Do not bake at a small size instead.** A `70dp` blur is a much larger fraction of a 270dp box than
+of a 1080dp one, so the vignette comes out thicker; the render has to happen at the real size and the
+downsample after it.
 
 **A document that idles pays none of it.** Folio skips the frame entirely when nothing changed, so
 layers on a settled screen are free. One running animation anywhere in the document ends that, and

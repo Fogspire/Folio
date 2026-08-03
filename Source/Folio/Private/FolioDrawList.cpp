@@ -81,6 +81,13 @@ void FFolioDrawList::AddField(const TArray<FSlateVertex>& Vertices, const TArray
 	UTexture* Texture, const FVector2f Offset, const FVector4f Field, const FVector4f Effect,
 	const bool bMasked, const bool bMaskInverted)
 {
+	AddFieldAt(Vertices, Indices, Texture, Offset, Field, Effect, bMasked, bMaskInverted, Scissor);
+}
+
+void FFolioDrawList::AddFieldAt(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+	UTexture* Texture, const FVector2f Offset, const FVector4f Field, const FVector4f Effect,
+	const bool bMasked, const bool bMaskInverted, const FIntRect& InScissor)
+{
 	if (Indices.Num() < 3 || !Texture)
 	{
 		return;
@@ -95,7 +102,7 @@ void FFolioDrawList::AddField(const TArray<FSlateVertex>& Vertices, const TArray
 	Draw.Effect = Effect;
 	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ true, bDecodeSrgb, Draw);
 
-	Draw.Scissor = Scissor;
+	Draw.Scissor = InScissor;
 	Draws.Add(MoveTemp(Draw));
 }
 

@@ -105,6 +105,8 @@ void FFolioRenderInterface::BeginRecording(FFolioDrawList& InDrawList, const FIn
 {
 	DrawList = &InDrawList;
 	DrawList->Reset();
+	DeferredFields.Reset();
+	bDeferFields = false;
 	FrameAlpha = 1.0f;
 
 	ElementList = nullptr;
@@ -133,10 +135,13 @@ void FFolioRenderInterface::BeginRecording(FFolioDrawList& InDrawList, const FIn
 	LayerComposites.Reset();
 }
 
-bool FFolioRenderInterface::BeginSurface(const FIntPoint InContextSize, UTextureRenderTarget2D* Target)
+bool FFolioRenderInterface::BeginSurface(const FIntPoint InContextSize, UTextureRenderTarget2D* Target,
+	const int32 InSupersample, const bool bInDeferFields)
 {
 	ElementList = nullptr;
 	DrawList = nullptr;
+	DeferredFields.Reset();
+	bDeferFields = bInDeferFields;
 	ContextSize = InContextSize;
 	LayerId = 0;
 	MaxLayerId = 0;
@@ -161,9 +166,15 @@ bool FFolioRenderInterface::BeginSurface(const FIntPoint InContextSize, UTexture
 	PendingBackdropSigma = 0.0f;
 	LayerComposites.Reset();
 
+	// Every layer the document pushes is allocated this much denser than the space it is recorded in,
+	// so the raster is finer and the layout is untouched.
+	Layers.SetResolutionScale(InSupersample);
+
 	// The document's own layer, standing in for Slate. Every effect layer RmlUi pushes composites down
 	// into this one, exactly as it would composite into the screen. The caller's target rather than a
 	// pooled one, because a material samples it long after the pool would have reused it.
+	//
+	// The context size is the clip: the target is larger, and the replay scales the document onto it.
 	bSurface = Layers.PushInto(Target, InContextSize);
 	return bSurface;
 }
@@ -176,7 +187,9 @@ void FFolioRenderInterface::EndSurface()
 	}
 
 	Layers.Pop();
+	Layers.SetResolutionScale(1);
 	bSurface = false;
+	bDeferFields = false;
 
 	EndFrame();
 }
@@ -310,11 +323,35 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 
 		if (!Layers.IsEmpty())
 		{
+			FVector2f Offset;
+			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
+			// Held back for the screen rather than drawn into a target that is about to be scaled down.
+			// The offset is folded in, because a run that is put back later is put back on its own.
+			if (ShouldDeferField())
+			{
+				FDeferredField& Deferred = DeferredFields.AddDefaulted_GetRef();
+				Deferred.Run.Vertices.Reserve(Vertices.Num());
+
+				for (const FSlateVertex& Source : Vertices)
+				{
+					FSlateVertex& Out = Deferred.Run.Vertices.Add_GetRef(Source);
+					Out.Position = FVector2f(Source.Position) + Offset;
+				}
+
+				Deferred.Run.Indices = Compiled.Indices;
+				Deferred.Page = Texture;
+				Deferred.Bounds = BoundsOf(Vertices, Offset);
+				Deferred.Scissor = FIntRect(ScissorRegion.Left(), ScissorRegion.Top(),
+					ScissorRegion.Right(), ScissorRegion.Bottom());
+				Deferred.bScissored = bScissorEnabled;
+				return;
+			}
+
 			FVector4f FieldParams, EffectParams;
 			PackMsdfParameters(*Field, FieldParams, EffectParams);
 
-			FVector2f Offset;
-			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+			FlushCoveredFields(BoundsOf(Vertices, Offset));
 
 			Layers.DrawField(Vertices, Compiled.Indices, Field->Page->Texture.Get(),
 				Offset - LayerOrigin, FieldParams, EffectParams);
@@ -359,6 +396,8 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 
 		FVector2f Offset;
 		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+
+		FlushCoveredFields(BoundsOf(Vertices, Offset));
 
 		Layers.DrawTriangles(Vertices, Compiled.Indices, LayerTexture, Offset - LayerOrigin);
 		return;
@@ -445,6 +484,228 @@ void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, cons
 		ESlateDrawEffect::PreMultipliedAlpha);
 
 	MaxLayerId = FMath::Max(MaxLayerId, LayerId);
+}
+
+//
+// Text held back from a supersampled surface
+//
+
+bool FFolioRenderInterface::ShouldDeferField() const
+{
+	// Not inside a layer: what a layer holds is read back by a filter, a mask or a shadow, and text
+	// pulled out of it would be missing from the very thing that reads it.
+	//
+	// Not under a clip mask either, which is a stencil the surface owns and Slate cannot express.
+	return bSurface && bDeferFields && !Layers.HasDocumentLayer() && !Layers.CurrentHasClipMask();
+}
+
+FSlateRect FFolioRenderInterface::BoundsOf(const TArray<FSlateVertex>& Vertices, const FVector2f Offset)
+{
+	if (Vertices.IsEmpty())
+	{
+		return FSlateRect();
+	}
+
+	FVector2f Min = FVector2f(Vertices[0].Position) + Offset;
+	FVector2f Max = Min;
+
+	for (const FSlateVertex& Vertex : Vertices)
+	{
+		const FVector2f Position = FVector2f(Vertex.Position) + Offset;
+		Min = FVector2f::Min(Min, Position);
+		Max = FVector2f::Max(Max, Position);
+	}
+
+	return FSlateRect(Min.X, Min.Y, Max.X, Max.Y);
+}
+
+void FFolioRenderInterface::ReturnFieldToLayer(const FDeferredField& Field, const int32 DepthFromTop)
+{
+	FMsdfBinding* Binding = FindMsdfBinding(Field.Page);
+	if (!Binding)
+	{
+		return;
+	}
+
+	FVector4f FieldParams, EffectParams;
+	PackMsdfParameters(*Binding, FieldParams, EffectParams);
+
+	Layers.DrawFieldClipped(Field.Run.Vertices, Field.Run.Indices, Binding->Page->Texture.Get(),
+		FVector2f::ZeroVector, FieldParams, EffectParams,
+		Field.bScissored ? Field.Scissor : FIntRect(), DepthFromTop);
+}
+
+void FFolioRenderInterface::FlushCoveredFields(const FSlateRect& Bounds, const int32 DepthFromTop)
+{
+	// Held-back text belongs to the surface, so it only goes back when the surface is what the draw
+	// asking is drawing into. Anywhere else is a layer of the document's own: a different target, and
+	// one that is read back rather than composited straight to the screen.
+	if (DeferredFields.IsEmpty() || !bSurface || Layers.Num() - 1 - DepthFromTop != 0)
+	{
+		return;
+	}
+
+	for (int32 Index = 0; Index < DeferredFields.Num(); )
+	{
+		FDeferredField& Field = DeferredFields[Index];
+
+		if (!FSlateRect::DoRectanglesIntersect(Field.Bounds, Bounds))
+		{
+			++Index;
+			continue;
+		}
+
+		// Only the glyphs the draw actually reaches. A run is a line of them and its bounds are the
+		// whole line, so a card overlapping one word would otherwise cost the sentence.
+		FDeferredField Covered;
+		if (SplitCoveredGlyphs(Field, Bounds, Covered))
+		{
+			ReturnFieldToLayer(Covered, DepthFromTop);
+			++Index;
+			continue;
+		}
+
+		ReturnFieldToLayer(Field, DepthFromTop);
+
+		// Order matters and this keeps it: what goes back goes back in the order it arrived.
+		DeferredFields.RemoveAt(Index);
+	}
+}
+
+bool FFolioRenderInterface::SplitCoveredGlyphs(FDeferredField& Field, const FSlateRect& Bounds,
+	FDeferredField& OutCovered)
+{
+	// One quad per glyph, four vertices and six indices each, which is what RmlUi's font engine emits.
+	// Anything else is not a run of glyphs and is handled whole.
+	const int32 Quads = Field.Run.Vertices.Num() / 4;
+	if (Quads < 2 || Field.Run.Vertices.Num() % 4 != 0 || Field.Run.Indices.Num() != Quads * 6)
+	{
+		return false;
+	}
+
+	TArray<FSlateVertex> KeptVertices;
+	TArray<FSlateVertex> CoveredVertices;
+
+	for (int32 Quad = 0; Quad < Quads; ++Quad)
+	{
+		const TArrayView<const FSlateVertex> Corners(&Field.Run.Vertices[Quad * 4], 4);
+
+		FVector2f Min = FVector2f(Corners[0].Position);
+		FVector2f Max = Min;
+
+		for (const FSlateVertex& Corner : Corners)
+		{
+			Min = FVector2f::Min(Min, FVector2f(Corner.Position));
+			Max = FVector2f::Max(Max, FVector2f(Corner.Position));
+		}
+
+		TArray<FSlateVertex>& Into = FSlateRect::DoRectanglesIntersect(
+			FSlateRect(Min.X, Min.Y, Max.X, Max.Y), Bounds) ? CoveredVertices : KeptVertices;
+
+		Into.Append(Corners.GetData(), 4);
+	}
+
+	if (CoveredVertices.IsEmpty() || KeptVertices.IsEmpty())
+	{
+		return false;
+	}
+
+	// Rebuilt rather than sliced: the two halves are no longer contiguous in the original.
+	const auto QuadIndices = [](const int32 Count)
+	{
+		TArray<SlateIndex> Indices;
+		Indices.Reserve(Count * 6);
+
+		for (int32 Quad = 0; Quad < Count; ++Quad)
+		{
+			const SlateIndex Base = static_cast<SlateIndex>(Quad * 4);
+			Indices.Append({ Base, SlateIndex(Base + 1), SlateIndex(Base + 2),
+				Base, SlateIndex(Base + 2), SlateIndex(Base + 3) });
+		}
+
+		return Indices;
+	};
+
+	OutCovered = Field;
+	OutCovered.Run.Vertices = MoveTemp(CoveredVertices);
+	OutCovered.Run.Indices = QuadIndices(OutCovered.Run.Vertices.Num() / 4);
+
+	Field.Run.Vertices = MoveTemp(KeptVertices);
+	Field.Run.Indices = QuadIndices(Field.Run.Vertices.Num() / 4);
+	Field.Bounds = BoundsOf(Field.Run.Vertices, FVector2f::ZeroVector);
+
+	return true;
+}
+
+int32 FFolioRenderInterface::DrawDeferredFields(FSlateWindowElementList& InElementList,
+	const FGeometry& InGeometry, const int32 InLayerId, TArray<FDeferredField>* OutRetain)
+{
+	if (DeferredFields.IsEmpty())
+	{
+		if (OutRetain)
+		{
+			OutRetain->Reset();
+		}
+
+		return InLayerId;
+	}
+
+	// Taken first: BeginFrame is the ordinary Slate entry point and the loop below draws through the
+	// ordinary Slate paths, which read the state it installs.
+	TArray<FDeferredField> Pending = MoveTemp(DeferredFields);
+	DeferredFields.Reset();
+
+	const int32 Highest = DrawFieldRuns(Pending, InElementList, InGeometry, InLayerId);
+
+	if (OutRetain)
+	{
+		*OutRetain = MoveTemp(Pending);
+	}
+
+	return Highest;
+}
+
+int32 FFolioRenderInterface::DrawFieldRuns(const TArray<FDeferredField>& Pending,
+	FSlateWindowElementList& InElementList, const FGeometry& InGeometry, const int32 InLayerId)
+{
+	if (Pending.IsEmpty())
+	{
+		return InLayerId;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_DeferredText);
+	SCOPE_CYCLE_COUNTER(STAT_FolioDeferredText);
+
+	const FIntPoint Size(FMath::RoundToInt(InGeometry.GetLocalSize().X),
+		FMath::RoundToInt(InGeometry.GetLocalSize().Y));
+
+	BeginFrame(InElementList, InGeometry, InLayerId, Size);
+
+	for (const FDeferredField& Field : Pending)
+	{
+		const FMsdfBinding* Binding = ResolveMsdfBinding(Field.Page);
+		if (!Binding)
+		{
+			continue;
+		}
+
+		bScissorEnabled = Field.bScissored;
+		ScissorRegion = Rml::Rectanglei::FromCorners(
+			Rml::Vector2i(Field.Scissor.Min.X, Field.Scissor.Min.Y),
+			Rml::Vector2i(Field.Scissor.Max.X, Field.Scissor.Max.Y));
+
+		ApplyClipping();
+
+		// Positions are already in the document's space with the run's own offset and transform folded
+		// in, so what is left is the widget's own geometry - which is what DrawGeometry applies.
+		DrawGeometry(Field.Run, Rml::Vector2f(0.0f, 0.0f), Binding->Handle, FVector2f(1.0f, 1.0f),
+			/*bStraightAlpha*/ true);
+	}
+
+	const int32 Highest = MaxLayerId;
+	EndFrame();
+
+	return Highest;
 }
 
 void FFolioRenderInterface::ReleaseGeometry(const Rml::CompiledGeometryHandle Handle)
@@ -1130,6 +1391,17 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 		return;
 	}
 
+	// What this layer painted is about to be drawn over the layer below, so held-back text underneath
+	// it goes back first. What it painted, not the region it was allocated: an unclipped element gets
+	// a layer the size of the whole context, and that would put every glyph run on the screen back.
+	//
+	// Widened by the blur, which is the one thing that puts colour outside the geometry that made it.
+	if (const FSlateRect Painted = Layers.CurrentContentRect(); Painted.IsValid())
+	{
+		FlushCoveredFields(Sigma > 0.0f ? Painted.ExtendBy(FMargin(3.0f * Sigma)) : Painted,
+			/*DepthFromTop*/ 1);
+	}
+
 	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma, Colour, Mask);
 }
 
@@ -1538,6 +1810,9 @@ const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetGradientTexture
 		return FindTexture(*Cached);
 	}
 
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_BakeGradient);
+	SCOPE_CYCLE_COUNTER(STAT_FolioBakeDecorator);
+
 	TArray<uint8> Bgra;
 	Folio::RasterizeGradient(Shader.Gradient, BoxSize, TextureSize, Bgra);
 
@@ -1570,6 +1845,9 @@ const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetEffectTexture(
 	{
 		return FindTexture(*Cached);
 	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_BakeShaderEffect);
+	SCOPE_CYCLE_COUNTER(STAT_FolioBakeDecorator);
 
 	std::vector<unsigned char> Rgba;
 	Folio::RasterizeShaderEffect(Shader.Effect, Width, Height, Rgba);
@@ -1674,6 +1952,7 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		}
 		else
 		{
+			FlushCoveredFields(BoundsOf(Vertices, Offset));
 			Layers.AddDraw(MoveTemp(Draw));
 		}
 

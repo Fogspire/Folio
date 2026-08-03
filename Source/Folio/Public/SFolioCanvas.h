@@ -221,6 +221,12 @@ public:
 	/** What the last tick laid out against: context size in dp, the dp ratio, and context-to-local. */
 	void GetScaleReport(FIntPoint& OutContextSize, float& OutDpRatio, float& OutContextToLocal) const;
 
+	/** Samples per pixel each way. One draws straight to the screen. */
+	int32 GetSupersample() const { return Supersample; }
+
+	/** Glyph runs the last paint drew at the screen's own resolution rather than through the target. */
+	int32 GetNativeTextRuns() const { return NativeTextRuns; }
+
 	/**
 	 * The back action, when nothing in the document wanted it.
 	 *
@@ -364,8 +370,38 @@ private:
 	/** One to draw straight to the screen. */
 	int32 Supersample = 1;
 
+	/** What the last paint drew natively, for the report. Mutable: painting is const. */
+	mutable int32 NativeTextRuns = 0;
+
 	/** Where a supersampled document is drawn before it is scaled down. Mutable: painting is const. */
 	mutable TStrongObjectPtr<class UTextureRenderTarget2D> Target;
+
+	/** The same document at one sample per pixel, which is what the composite draws. */
+	mutable TStrongObjectPtr<class UTextureRenderTarget2D> Resolved;
+
+	/**
+	 * Whether the resolved target still holds this document as it stands.
+	 *
+	 * A supersampled document renders into a target that survives the frame, so a frame in which
+	 * nothing changed can composite what is already there instead of rasterising the whole document
+	 * again at the sample count squared. Cleared whenever the document updates or the targets move.
+	 */
+	mutable bool bSurfaceValid = false;
+
+	/** Set by the tick that updated the document, and cleared by the paint that re-rendered it. */
+	mutable bool bSurfaceDirty = true;
+
+	/**
+	 * The glyph runs the last surface held back.
+	 *
+	 * Text is never in the target, so a frame that reuses the target still has to draw it, and the
+	 * runs are the same ones - the document did not change. Held behind a pointer because what a run
+	 * is belongs to the renderer, which is private to the module.
+	 */
+	mutable TSharedPtr<struct FFolioRetainedText> RetainedText;
+
+	/** A transparent RGBA8 target of this size, for the two above. */
+	static class UTextureRenderTarget2D* MakeTarget(FIntPoint Size);
 
 	/** Names that target for Slate. Rebuilt with it, because a brush caches the resource. */
 	mutable FSlateBrush TargetBrush;

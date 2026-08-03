@@ -115,8 +115,12 @@ public:
 	 * antialiasing is a single pixel of coverage, and a shallow diagonal advances a pixel every six
 	 * or more, so the run between two steps stays visible however exact the blend is.
 	 *
-	 * It costs a render target of the viewport times this, squared, and one composite a frame. Text
-	 * is a distance field and gains nothing, so a screen that is mostly text is paying for nothing.
+	 * Text is a distance field and is drawn at the screen's own resolution either way, so a screen that
+	 * is mostly text gains nothing from this.
+	 *
+	 * Two is the one worth paying for. Four is sixteen times the pixels and four times the memory of
+	 * two, per layer, for an edge nobody sees: at 4K that is half a gigabyte of render target before
+	 * the document pushes a single shadow. See docs/supersampling.md.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Folio|Scale", meta = (ClampMin = "1", ClampMax = "4"))
 	int32 Supersample = 1;

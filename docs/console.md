@@ -10,7 +10,7 @@ Type `folio.` in the console and Unreal will complete the rest.
 
 | | |
 |---|---|
-| `folio.Show <document>` | Puts a document on screen, over the game. `folio.Hide` to close. |
+| `folio.Show <document> [supersample]` | Puts a document on screen, over the game. `folio.Hide` to close. The sample count is 1 to 4, for looking at a slanted edge both ways. |
 | `folio.ShowWindow <document>` | The same in a movable window, which is easier to compare against a reference. `folio.CloseWindow`. |
 | `folio.HotReload` | Rebuilds the open documents from disk. An `.rcss` edit reloads stylesheets only, keeping the DOM, focus and scroll; an `.rml` edit rebuilds. |
 | `folio.ReloadTextures` | Picks up a re-baked atlas. **RmlUi caches a texture by path forever**, so this is what makes `msdfbake` output appear without reopening. `folio.ReloadTextures all` releases every texture whether or not it looks changed. |
@@ -66,6 +66,8 @@ See **[documents in the world](world_documents.md)**.
 | `folio.Input.Trace` | Every input event as it reaches a document, and what consumed it. |
 | `folio.Font.Report` | Which faces are loaded, their variation tuples, and what they cost in atlas pages and glyphs. Finds a screen that quietly instantiated nine weights. |
 | `folio.Font.ClearCache` | Drops the generated fields and regenerates. For proving a bake rather than a cache. |
+| `folio.Screens` | What every screen document is laid out against, and - for a supersampled one - the sample count and how many glyph runs the last paint drew at the screen's own resolution. |
+| `folio.Supersample.NativeText [0\|1]` | Whether a supersampled document keeps its text out of the target. On by default. Zero is the comparison: everything through the target, text included. |
 | `folio.Marker.Test [distance] [document]` | Puts a marker in front of the player with a fade band, so the distance settings can be seen without building a level for them. Again to remove it. |
 
 See **[performance and profiling](performance_profiling.md)**.

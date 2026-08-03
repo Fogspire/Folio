@@ -68,11 +68,73 @@ public:
 	 * whole document composites as one surface. The cost is the resample the direct paths avoid.
 	 *
 	 * Paired with EndSurface, which resolves the layer and hands over its target.
+	 *
+	 * @param InContextSize   The document's own size in pixels, which is the space its geometry is in.
+	 * @param Target          Where it lands. Larger than the context by Supersample, each way.
+	 * @param InSupersample   Samples per pixel each way. The layout does not change; the raster does.
+	 * @param bInDeferFields  Hold text back for the caller to draw at the screen's own resolution.
+	 *                        Only a caller that goes on to call DrawDeferredFields may ask for this.
 	 */
-	bool BeginSurface(FIntPoint InContextSize, class UTextureRenderTarget2D* Target);
+	bool BeginSurface(FIntPoint InContextSize, class UTextureRenderTarget2D* Target,
+		int32 InSupersample = 1, bool bInDeferFields = false);
 
 	/** Resolves the surface into the target it was given. */
 	void EndSurface();
+
+	struct FCompiledGeometry
+	{
+		/** Positions are RmlUi-local; the render transform is applied per draw. */
+		TArray<FSlateVertex> Vertices;
+		TArray<SlateIndex> Indices;
+	};
+
+	/** One glyph run, kept in the document's own space until there is a screen to put it on. */
+	struct FDeferredField
+	{
+		/** Positions with the run's translation and any RCSS transform already folded in. */
+		FCompiledGeometry Run;
+
+		/** The field page, resolved to a material only if this run reaches Slate. */
+		Rml::TextureHandle Page = 0;
+
+		/** What the run covers, for deciding whether a later draw lands on top of it. */
+		FSlateRect Bounds;
+
+		/** The clip in force when the run arrived, which is not the one in force when it is put back. */
+		FIntRect Scissor;
+		bool bScissored = false;
+	};
+
+	/**
+	 * Draws the text a supersampled surface held back, straight to Slate at the screen's resolution.
+	 *
+	 * Supersampling is a target the document is drawn into and scaled down, and a resample is exactly
+	 * what glyphs do not want: they are distance fields, sharp at any size already, and the round trip
+	 * through a denser target only softens them. So a glyph run drawn into the bottom of a surface is
+	 * held back instead and drawn here, where one document pixel is one screen pixel and the result is
+	 * the same text an unsupersampled document draws.
+	 *
+	 * Geometry is in document pixels, so the geometry handed over is the one the direct path uses.
+	 *
+	 * @return The highest Slate layer used, which is the caller's own when there was nothing to draw.
+	 *
+	 * @param OutRetain Takes the runs rather than dropping them, for a caller that will repaint the
+	 *                  same document without re-rendering it. Pass them back to DrawFieldRuns.
+	 */
+	int32 DrawDeferredFields(FSlateWindowElementList& InElementList, const FGeometry& InGeometry,
+		int32 InLayerId, TArray<FDeferredField>* OutRetain = nullptr);
+
+	/**
+	 * Draws runs a caller kept from an earlier surface, for a frame that reuses the target it made.
+	 *
+	 * A supersampled document that has not changed does not need rendering again - the target still
+	 * holds it - but the text was never in the target, so it has to be drawn every frame.
+	 */
+	int32 DrawFieldRuns(const TArray<FDeferredField>& Runs, FSlateWindowElementList& InElementList,
+		const FGeometry& InGeometry, int32 InLayerId);
+
+	/** How many glyph runs are waiting for DrawDeferredFields. */
+	int32 NumDeferredFields() const { return DeferredFields.Num(); }
 
 	void EndFrame();
 
@@ -188,13 +250,6 @@ public:
 	virtual void ReleaseShader(Rml::CompiledShaderHandle Shader) override;
 
 private:
-	struct FCompiledGeometry
-	{
-		/** Positions are RmlUi-local; the render transform is applied per draw. */
-		TArray<FSlateVertex> Vertices;
-		TArray<SlateIndex> Indices;
-	};
-
 	struct FTexture
 	{
 		/** Only set for a saved layer, which has to stay a render target. */
@@ -388,6 +443,47 @@ private:
 
 	/** Set between BeginSurface and EndSurface, where the bottom layer is the destination. */
 	bool bSurface = false;
+
+	//
+	// Text held back from a supersampled surface.
+	//
+
+	TArray<FDeferredField> DeferredFields;
+
+	/** Set by BeginSurface when the caller will draw the held-back text itself. */
+	bool bDeferFields = false;
+
+	/** Whether this draw is one to hold back: text, on the surface itself, with no stencil in play. */
+	bool ShouldDeferField() const;
+
+	/** The rectangle a set of vertices covers, in whatever space they are in. */
+	static FSlateRect BoundsOf(const TArray<FSlateVertex>& Vertices, FVector2f Offset);
+
+	/**
+	 * Puts back any held-back run this draw would land on top of, in the order the runs arrived.
+	 *
+	 * Held-back text is drawn over the whole surface, so anything the document paints over it would
+	 * come out underneath. Every draw into the surface is tested against what is waiting, and a run
+	 * that something covers goes back into the layer where it belongs - supersampled, like the rest of
+	 * that element. Text nothing covers, which is nearly all of it, stays native.
+	 *
+	 * DepthFromTop is where the draw doing the covering is going: zero for the surface itself, and one
+	 * for a layer compositing down into it.
+	 */
+	void FlushCoveredFields(const FSlateRect& Bounds, int32 DepthFromTop = 0);
+
+	/**
+	 * Takes the glyphs a rectangle covers out of a run, leaving the rest of it held back.
+	 *
+	 * A run is a whole line, and its bounds are that line's; a card overlapping one word at the end of
+	 * it would otherwise put the entire sentence through the target. False when the run is not a plain
+	 * list of glyph quads, or when the rectangle covers all of it or none of it, and the caller then
+	 * deals with the run whole.
+	 */
+	bool SplitCoveredGlyphs(FDeferredField& Field, const FSlateRect& Bounds, FDeferredField& OutCovered);
+
+	/** Records one held-back run into the surface at its own clip. */
+	void ReturnFieldToLayer(const FDeferredField& Field, int32 DepthFromTop);
 
 	/**
 	 * The size a layer is allocated at, and the origin its contents are offset by.

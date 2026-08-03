@@ -5,6 +5,8 @@
 
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
+#include "FolioInvalidation.h"
+#include "FolioResolveShader.h"
 #include "FolioInput.h"
 #include "FolioUiSounds.h"
 #include "FolioRmlUi.h"
@@ -18,9 +20,23 @@
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
+/** What a canvas keeps of the text its last surface held back. */
+struct FFolioRetainedText
+{
+	TArray<FFolioRenderInterface::FDeferredField> Runs;
+};
+
 namespace
 {
 	TArray<SFolioCanvas*> LiveCanvases;
+
+	TAutoConsoleVariable<int32> CVarNativeText(
+		TEXT("folio.Supersample.NativeText"), 1,
+		TEXT("Whether a supersampled document draws its text at the screen's own resolution rather "
+			"than through the supersampled target. Glyphs are distance fields and are sharp at any "
+			"size already, so the round trip only softens them. Zero draws everything through the "
+			"target, which is what to compare against if text looks wrong."),
+		ECVF_Default);
 }
 
 const TArray<SFolioCanvas*>& SFolioCanvas::GetLiveCanvases()
@@ -195,7 +211,44 @@ void SFolioCanvas::SetSupersample(const int32 InSamples)
 	// Dropped rather than resized: the next paint makes one the right size, and holding a target that
 	// nothing is going to draw into is a target the pool cannot have back.
 	Target.Reset();
+	Resolved.Reset();
 	TargetBrush = FSlateBrush();
+	bSurfaceValid = false;
+}
+
+UTextureRenderTarget2D* SFolioCanvas::MakeTarget(const FIntPoint Size)
+{
+	// Scoped because this is not supposed to happen every frame. A sample count change or a resize
+	// makes one; a canvas making one every paint is a bug, and this is where it shows.
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_AllocateSurface);
+	SCOPE_CYCLE_COUNTER(STAT_FolioAllocateTarget);
+
+	const float Megabytes = float(Size.X) * float(Size.Y) * 4.0f / (1024.0f * 1024.0f);
+
+	UE_LOG(LogFolio, Verbose, TEXT("allocating a %dx%d surface target (%.1f MB)"),
+		Size.X, Size.Y, Megabytes);
+
+	// Said once, loudly, because the cost is quadratic in the sample count and in the resolution, and
+	// every layer the document pushes is another one of these. What it looks like from outside is the
+	// operating system warning about memory while the frame rate collapses.
+	static bool bWarned = false;
+	if (Megabytes > 96.0f && !bWarned)
+	{
+		bWarned = true;
+		UE_LOG(LogFolio, Warning,
+			TEXT("a supersampled document wants a %dx%d target, which is %.0f MB - and every layer it "
+				"pushes for a shadow or a filter is another. Two samples each way is the one worth "
+				"paying for; four is sixteen times the pixels for an edge nobody sees."),
+			Size.X, Size.Y, Megabytes);
+	}
+
+	UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
+	Fresh->RenderTargetFormat = RTF_RGBA8;
+	Fresh->ClearColor = FLinearColor::Transparent;
+	Fresh->bAutoGenerateMips = false;
+	Fresh->InitAutoFormat(Size.X, Size.Y);
+	Fresh->UpdateResourceImmediate(true);
+	return Fresh;
 }
 
 bool SFolioCanvas::SupersamplingNow() const
@@ -214,17 +267,17 @@ float SFolioCanvas::ContextToLocal(const FGeometry& AllottedGeometry) const
 
 float SFolioCanvas::ScaleFor(const FGeometry& AllottedGeometry) const
 {
-	// Times the sample count: the document is laid out into a bigger context and has to fill it, or
-	// supersampling would shrink everything rather than sharpening it.
-	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale)
-		* float(Supersample);
+	// Not touched by the sample count. Supersampling is a denser target for the same document, so the
+	// layout, the glyph atlas and the hit testing are the ones an unsupersampled document has.
+	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale);
 }
 
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 {
 	// Pixels, because that is what a context unit is. The dp ratio is carried separately and RmlUi
-	// applies it to dp lengths itself.
-	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale * float(Supersample);
+	// applies it to dp lengths itself. Screen pixels whatever the sample count: what supersampling
+	// makes bigger is the target, not the document.
+	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale;
 
 	ContextSize = FIntPoint(FMath::Max(1, FMath::RoundToInt(Pixels.X)),
 		FMath::Max(1, FMath::RoundToInt(Pixels.Y)));
@@ -261,10 +314,21 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const float RenderScale =
 		AllottedGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector().GetMax();
 
+	// The render scale is not touched by the sample count. A background's antialiasing skirt is part of
+	// the document's geometry, so keeping it a screen pixel wide is what makes the geometry identical
+	// however densely it is rasterised - and it is what stops supersampling ever looking harder than
+	// not supersampling, since the samples then add to the skirt rather than replacing it.
 	const bool bUpdated = Host.Update(InDeltaTime, ScaleFor(AllottedGeometry),
 		RenderScale * ContextToLocal(AllottedGeometry));
 
 	UpdateAccessibility(bUpdated, AllottedGeometry);
+
+	// A supersampled surface reads this to decide whether the target it already has is still this
+	// document, so a frame that changed nothing does not rasterise it again.
+	if (bUpdated)
+	{
+		bSurfaceDirty = true;
+	}
 }
 
 
@@ -439,27 +503,38 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 		return LayerId;
 	}
 
+	// RmlUi emits geometry in context units, and the context is sized in dp rather than in Slate's
+	// local units. Those agree only while dp follows Slate's own scale, so the draw goes through a
+	// child geometry that carries the difference. Without it a document lands short of the bottom
+	// right on a window Slate scales down, and past it on one Slate scales up.
+	const FGeometry Paint = AllottedGeometry.MakeChild(FVector2D(ContextSize),
+		FSlateLayoutTransform(ContextToLocal(AllottedGeometry)));
+
 	/*
 	 * Supersampled: the document is drawn into a target of its own and that target is drawn to the
 	 * screen, filtered down. Four samples an edge instead of one, which is the only thing that helps
 	 * a shallow diagonal.
+	 *
+	 * The document itself is untouched by it - laid out, shaped and hit-tested in screen pixels - and
+	 * only the target it lands in is denser. Text goes further and skips the target altogether: see
+	 * DrawDeferredFields.
 	 */
 	if (SupersamplingNow())
 	{
-		if (!Target.IsValid() || Target->SizeX != ContextSize.X || Target->SizeY != ContextSize.Y)
-		{
-			UTextureRenderTarget2D* Fresh = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
-			Fresh->RenderTargetFormat = RTF_RGBA8;
-			Fresh->ClearColor = FLinearColor::Transparent;
-			Fresh->bAutoGenerateMips = false;
-			Fresh->InitAutoFormat(ContextSize.X, ContextSize.Y);
-			Fresh->UpdateResourceImmediate(true);
+		const FIntPoint TargetSize(ContextSize.X * Supersample, ContextSize.Y * Supersample);
 
-			Target.Reset(Fresh);
+		if (!Target.IsValid() || Target->SizeX != TargetSize.X || Target->SizeY != TargetSize.Y)
+		{
+			bSurfaceValid = false;
+			Target.Reset(MakeTarget(TargetSize));
+
+			// One sample per pixel, which is what the screen takes. The document is drawn into the big
+			// one and averaged into this, rather than left for the composite's sampler to shrink.
+			Resolved.Reset(MakeTarget(ContextSize));
 
 			// The brush caches its resource, so it is rebuilt with the target rather than repointed.
 			TargetBrush = FSlateBrush();
-			TargetBrush.SetResourceObject(Fresh);
+			TargetBrush.SetResourceObject(Resolved.Get());
 			TargetBrush.ImageSize = FVector2D(ContextSize);
 			TargetBrush.DrawAs = ESlateBrushDrawType::Image;
 
@@ -483,10 +558,36 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			}
 		}
 
-		if (TargetHandle.IsValid() && Renderer->BeginSurface(ContextSize, Target.Get()))
+		const bool bNativeText = CVarNativeText.GetValueOnGameThread() != 0;
+
+		/*
+		 * A document that has not changed is already in the target, and rasterising it again would
+		 * cost the sample count squared for the same picture. So a clean frame composites what is
+		 * there and redraws only the text, which was never in the target to begin with.
+		 *
+		 * This is what makes a supersampled screen affordable while it sits still: the cost is the
+		 * frame it changes on, not every frame it is up.
+		 */
+		const bool bReuse = bSurfaceValid && !bSurfaceDirty && Resolved.IsValid()
+			&& Folio::InvalidationEnabled();
+
+		if (TargetHandle.IsValid()
+			&& (bReuse || Renderer->BeginSurface(ContextSize, Target.Get(), Supersample, bNativeText)))
 		{
-			Context->Render();
-			Renderer->EndSurface();
+			if (!bReuse)
+			{
+				Context->Render();
+
+				NativeTextRuns = Renderer->NumDeferredFields();
+				Renderer->EndSurface();
+
+				// The box filter, done here rather than left to the composite's sampler, which only
+				// averages the whole block when the quad happens to land exactly on the texel grid.
+				Folio::ResolveSupersample(Target.Get(), Resolved.Get(), Supersample);
+
+				bSurfaceValid = true;
+				bSurfaceDirty = false;
+			}
 
 			const FVector2f Size = AllottedGeometry.GetLocalSize();
 			const FSlateRenderTransform& ToWindow = AllottedGeometry.GetAccumulatedRenderTransform();
@@ -496,6 +597,13 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 				FVector2f(Size.X, Size.Y), FVector2f(0.0f, Size.Y),
 			};
 
+			// One texel to one pixel, so the composite is a copy rather than a second resample. Only
+			// while the widget is axis-aligned: a rotated one has no pixel grid to snap to, and is
+			// being resampled by the rotation anyway.
+			float RowAX, RowAY, RowBX, RowBY;
+			ToWindow.GetMatrix().GetMatrix(RowAX, RowAY, RowBX, RowBY);
+			const bool bSnap = FMath::IsNearlyZero(RowAY) && FMath::IsNearlyZero(RowBX);
+
 			TArray<FSlateVertex> Quad;
 			Quad.SetNumUninitialized(4);
 
@@ -504,6 +612,12 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 				FSlateVertex& Vertex = Quad[Index];
 				Vertex = FSlateVertex();
 				Vertex.Position = FVector2f(TransformPoint(ToWindow, Corners[Index]));
+
+				if (bSnap)
+				{
+					Vertex.Position = FVector2f(FMath::RoundToFloat(Vertex.Position.X),
+						FMath::RoundToFloat(Vertex.Position.Y));
+				}
 				Vertex.TexCoords[0] = Index == 1 || Index == 2 ? 1.0f : 0.0f;
 				Vertex.TexCoords[1] = Index >= 2 ? 1.0f : 0.0f;
 				Vertex.TexCoords[2] = 1.0f;
@@ -520,19 +634,29 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 			FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, TargetHandle, Quad, Indices,
 				nullptr, 0, 0, ESlateDrawEffect::PreMultipliedAlpha);
 
-			PaintAccessibility(Args, AllottedGeometry, CullingRect, OutDrawElements, LayerId,
+			// Over the composite, through the same geometry the direct path draws with, so the text is
+			// the text an unsupersampled document would have drawn. Kept, because a frame that reuses
+			// the target has no render to hold text back for it.
+			if (!RetainedText.IsValid())
+			{
+				RetainedText = MakeShared<FFolioRetainedText>();
+			}
+
+			const int32 Highest = bReuse
+				? Renderer->DrawFieldRuns(RetainedText->Runs, OutDrawElements, Paint, LayerId + 1)
+				: Renderer->DrawDeferredFields(OutDrawElements, Paint, LayerId + 1, &RetainedText->Runs);
+
+			// Above the text, like the direct path puts it above the document: the proxies draw nothing,
+			// but Slate records the bounds a screen reader's cursor follows when it paints them.
+			PaintAccessibility(Args, AllottedGeometry, CullingRect, OutDrawElements, Highest + 1,
 				InWidgetStyle, bParentEnabled);
 
-			return LayerId + 1;
+			return Highest + 1;
 		}
 	}
 
-	// RmlUi emits geometry in context units, and the context is sized in dp rather than in Slate's
-	// local units. Those agree only while dp follows Slate's own scale, so the draw goes through a
-	// child geometry that carries the difference. Without it a document lands short of the bottom
-	// right on a window Slate scales down, and past it on one Slate scales up.
-	const FGeometry Paint = AllottedGeometry.MakeChild(FVector2D(ContextSize),
-		FSlateLayoutTransform(ContextToLocal(AllottedGeometry)));
+	NativeTextRuns = 0;
+	bSurfaceValid = false;
 
 	Renderer->BeginFrame(OutDrawElements, Paint, LayerId, ContextSize);
 	Context->Render();
@@ -552,7 +676,7 @@ FVector2f SFolioCanvas::ToContextSpace(const FGeometry& MyGeometry, const FPoint
 {
 	// The context is sized in pixels, and Slate's local space is pixels over Slate's own scale.
 	const FVector2f Local = FVector2f(MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()));
-	return Local * MyGeometry.Scale * float(Supersample);
+	return Local * MyGeometry.Scale;
 }
 
 FReply SFolioCanvas::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

@@ -1,5 +1,7 @@
 #include "FolioColourShader.h"
 
+#include "FolioInsights.h"
+
 #include "Engine/TextureRenderTarget2D.h"
 #include "GlobalRenderResources.h"
 #include "PixelShaderUtils.h"
@@ -53,30 +55,37 @@ namespace Folio
 		ENQUEUE_RENDER_COMMAND(FolioColour)(
 			[Resource, Size, Ordered = MoveTemp(Ordered)](FRHICommandListImmediate& RHICmdList)
 			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ColourFilter);
+				SCOPE_CYCLE_COUNTER(STAT_FolioColourFilter);
+
 				FRDGBuilder GraphBuilder(RHICmdList);
-
-				FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder,
-					Resource->GetRenderTargetTexture(), TEXT("FolioLayer"));
-
-				const FRDGTextureDesc ScratchDesc = FRDGTextureDesc::Create2D(Size, PF_B8G8R8A8,
-					FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
-				FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioColourScratch"));
-
-				// Ping-ponged, because a pass cannot read and write the same texture. An odd number of
-				// filters would otherwise leave the result in the scratch target, so the last pass is
-				// followed by a copy back when the count is odd.
-				FRDGTextureRef Read = TargetTexture;
-				FRDGTextureRef Write = Scratch;
-
-				for (const FColourFilter& Filter : Ordered)
+				// Braced: the scope has to close before Execute, which asserts on an open breadcrumb.
 				{
-					AddColourPass(GraphBuilder, Read, Write, Filter, Size);
-					Swap(Read, Write);
-				}
+					RDG_EVENT_SCOPE_STAT(GraphBuilder, FolioEffects, "FolioEffects");
 
-				if (Read != TargetTexture)
-				{
-					AddCopyTexturePass(GraphBuilder, Read, TargetTexture);
+					FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder,
+						Resource->GetRenderTargetTexture(), TEXT("FolioLayer"));
+
+					const FRDGTextureDesc ScratchDesc = FRDGTextureDesc::Create2D(Size, PF_B8G8R8A8,
+						FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
+					FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioColourScratch"));
+
+					// Ping-ponged, because a pass cannot read and write the same texture. An odd number of
+					// filters would otherwise leave the result in the scratch target, so the last pass is
+					// followed by a copy back when the count is odd.
+					FRDGTextureRef Read = TargetTexture;
+					FRDGTextureRef Write = Scratch;
+
+					for (const FColourFilter& Filter : Ordered)
+					{
+						AddColourPass(GraphBuilder, Read, Write, Filter, Size);
+						Swap(Read, Write);
+					}
+
+					if (Read != TargetTexture)
+					{
+						AddCopyTexturePass(GraphBuilder, Read, TargetTexture);
+					}
 				}
 
 				GraphBuilder.Execute();

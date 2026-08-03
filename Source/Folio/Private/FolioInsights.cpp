@@ -13,10 +13,24 @@ DEFINE_STAT(STAT_FolioDrawGeometry);
 DEFINE_STAT(STAT_FolioLoadTexture);
 DEFINE_STAT(STAT_FolioResolveLayers);
 DEFINE_STAT(STAT_FolioAccessibility);
+DEFINE_STAT(STAT_FolioDeferredText);
+DEFINE_STAT(STAT_FolioBakeDecorator);
+DEFINE_STAT(STAT_FolioAllocateTarget);
+DEFINE_STAT(STAT_FolioLayerReplay);
+DEFINE_STAT(STAT_FolioBlur);
+DEFINE_STAT(STAT_FolioColourFilter);
+DEFINE_STAT(STAT_FolioMaskFilter);
+DEFINE_STAT(STAT_FolioSupersample);
+DEFINE_STAT(STAT_FolioWorldSurfaces);
 DEFINE_STAT(STAT_FolioDraws);
 DEFINE_STAT(STAT_FolioBatches);
+DEFINE_STAT(STAT_FolioLayerMemory);
 
 UE_TRACE_CHANNEL_DEFINE(FolioChannel);
+
+DEFINE_GPU_STAT(FolioLayers);
+DEFINE_GPU_STAT(FolioEffects);
+DEFINE_GPU_STAT(FolioSupersample);
 
 CSV_DEFINE_CATEGORY(Folio, false);
 

@@ -120,26 +120,52 @@ edge - a slanted card, a long diagonal, a wide curve - advances one pixel every 
 straight run between two steps is visible however accurate the blend is. Widening the skirt with
 `folio.Antialias.Width` trades a hard step for a blurry one rather than fixing it.
 
-**`Supersample` is the fix.** Set it to 2 and the document is laid out into a context twice the size
-each way, drawn into a target of its own, and scaled down - four samples per pixel on every edge.
+**`Supersample` is the fix.** Set it to 2 and the document is drawn into a target twice the size each
+way and scaled down - four samples per pixel on every edge.
 
 ```cpp
 Widget->Supersample = 2;
 ```
 
-Nothing in the markup changes: the dp ratio is multiplied by the same number, so the layout is
-identical and only the rasterisation is denser.
+Nothing about the document changes. It lays out, shapes and hit-tests in screen pixels at every
+sample count; what gets bigger is the target, and the replay stretches the one onto the other. So the
+sample count is not a layout decision and cannot move a line break, and `folio.Screens` reports the
+same context size whatever it is set to.
+
+**Text does not go through the target.** Glyphs are distance fields - sharp at any size already - and
+a resample can only soften them, which is visible on a menu and unmissable on body copy. So a glyph
+run drawn straight into a supersampled document is held back and drawn to the screen afterwards, at
+one document pixel to one screen pixel. The text is the text an unsupersampled document draws, to the
+pixel, while the panel behind it gets its four samples an edge.
+
+Two cases put a run back through the target, both because it belongs to something that reads it back:
+
+- text inside a `filter`, `box-shadow`, `mask-image` or any other element that pushes a layer;
+- text under a clip mask, which is a stencil on the surface and not something Slate can express.
+
+Text that something else in the same document paints over goes back too - a run is only held out if
+nothing covers it, which is checked per draw rather than assumed. A document that finishes with a
+full-screen sheen, scrim or vignette therefore keeps all of its text in the target, because all of it
+is painted over; `folio.Screens` reporting zero native runs on a screen like that is the mechanism
+working, not failing.
+
+`folio.Supersample.NativeText 0` turns the whole thing off and puts every run through the target,
+which is what to compare against if text looks wrong. `folio.Screens` reports the sample count and
+how many runs the last paint drew natively; zero on a screen with words on it means something is
+covering all of them.
 
 What it costs:
 
-- A render target of the viewport times the sample count, squared. At 4K and 2x that is about 32MB,
-  per supersampled document.
-- One composite a frame.
-- **Text gains nothing.** Glyphs are distance fields and are already resolution independent, so they
-  go through a resample they did not need. A screen that is mostly text is paying for nothing.
+- A render target of the viewport times the sample count, squared - and another for every layer the
+  document pushes for a shadow or a filter, held between frames. At 1080p and 2x that is 33MB each;
+  at 4K and 4x it is 531MB each, which is where the operating system starts warning about memory.
+- One resolve pass and one composite a frame.
 
 So it is per document rather than a project setting: on for a menu or a HUD with slanted panels, off
-for a text-heavy screen or a tight memory budget.
+for one with nothing but text on it or a tight memory budget. **Two is the sample count worth paying
+for; four is sixteen times the pixels for an edge nobody sees.**
+**[Supersampling](supersampling.md)** is the whole of it: what it must not change, the three ways of
+getting it wrong that all look like it making the picture worse, and the measurements behind that.
 
 `folio.Screens` reports what every screen document is laid out against: pixels, the ratio, what UMG
 would use, and what the document actually covers. **`drawn` has to match `px`**; when it does not,

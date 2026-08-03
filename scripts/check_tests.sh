@@ -89,7 +89,17 @@ name="$(basename "$project" .uproject)"
 
 # The newest non-backup log, not "<Project>.log": an editor already holding that name sends this run
 # to <Project>_2.log, and reading the wrong file reports nothing at all while still exiting 0.
-log="$(ls -t "$logs/$name.log" "$logs/${name}_"[0-9]*.log 2>/dev/null | grep -v -- '-backup-' | head -1)"
+#
+# Globbed with a nullglob rather than passed to ls: an unmatched pattern reaches ls as a literal, and
+# its exit code then takes the whole script down through pipefail before anything is reported.
+shopt -s nullglob
+candidates=("$logs/$name.log" "$logs/${name}_"[0-9]*.log)
+shopt -u nullglob
+
+log=""
+if [[ ${#candidates[@]} -gt 0 ]]; then
+	log="$(ls -t "${candidates[@]}" 2>/dev/null | grep -v -- '-backup-' | head -1 || true)"
+fi
 
 if [[ ! -f "$log" ]]; then
 	echo "error: no log found under $logs" >&2

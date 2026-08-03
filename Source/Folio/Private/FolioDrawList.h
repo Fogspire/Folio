@@ -74,6 +74,11 @@ public:
 		UTexture* Texture, FVector2f Offset, FVector4f Field, FVector4f Effect,
 		bool bMasked, bool bMaskInverted);
 
+	/** The same, against a scissor of its own rather than the one currently set. */
+	void AddFieldAt(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
+		UTexture* Texture, FVector2f Offset, FVector4f Field, FVector4f Effect,
+		bool bMasked, bool bMaskInverted, const FIntRect& InScissor);
+
 	/** Records a clip mask operation, which every later draw tests against. */
 	void AddClipMask(Rml::ClipMaskOperation Operation, const TArray<FSlateVertex>& Vertices,
 		const TArray<SlateIndex>& Indices, FVector2f Offset);

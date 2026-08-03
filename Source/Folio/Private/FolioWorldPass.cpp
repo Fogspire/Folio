@@ -336,8 +336,67 @@ void FFolioWorldPass::AddSurface(FRDGBuilder& GraphBuilder, const FSceneView& Vi
 			RHICmdList.SetViewport(Viewport.Min.X, Viewport.Min.Y, 0.0f,
 				Viewport.Max.X, Viewport.Max.Y, 1.0f);
 
-			for (const FFolioDraw& Draw : Draws->GetDraws())
+			// One buffer pair for the whole document rather than one per draw. Creating, locking and
+			// unlocking a volatile buffer is a fixed cost per call, and a document is dozens of draws.
+			const TArray<FFolioDraw>& All = Draws->GetDraws();
+
+			FBufferRHIRef VertexBuffer;
+			FBufferRHIRef IndexBuffer;
+			TArray<uint32, TInlineAllocator<64>> BaseVertex;
+			TArray<uint32, TInlineAllocator<64>> FirstIndex;
 			{
+				uint32 TotalVertices = 0;
+				uint32 TotalIndices = 0;
+				BaseVertex.Reserve(All.Num());
+				FirstIndex.Reserve(All.Num());
+
+				for (const FFolioDraw& Draw : All)
+				{
+					BaseVertex.Add(TotalVertices);
+					FirstIndex.Add(TotalIndices);
+					TotalVertices += Draw.Vertices.Num();
+					TotalIndices += Draw.Indices.Num();
+				}
+
+				if (TotalVertices == 0 || TotalIndices == 0)
+				{
+					return;
+				}
+
+				const uint32 VertexBytes = TotalVertices * sizeof(FFolioUIVertex);
+				VertexBuffer = RHICmdList.CreateBuffer(
+					FRHIBufferCreateDesc::CreateVertex(TEXT("FolioWorldVertices"), VertexBytes)
+						.AddUsage(EBufferUsageFlags::Volatile)
+						.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+				uint8* VertexData = (uint8*)RHICmdList.LockBuffer(VertexBuffer, 0, VertexBytes, RLM_WriteOnly);
+
+				const uint32 IndexBytes = TotalIndices * sizeof(uint32);
+				IndexBuffer = RHICmdList.CreateBuffer(
+					FRHIBufferCreateDesc::CreateIndex(TEXT("FolioWorldIndices"), IndexBytes, sizeof(uint32))
+						.AddUsage(EBufferUsageFlags::Volatile)
+						.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
+				uint8* IndexData = (uint8*)RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes, RLM_WriteOnly);
+
+				for (const FFolioDraw& Draw : All)
+				{
+					const uint32 Vertices = Draw.Vertices.Num() * sizeof(FFolioUIVertex);
+					FMemory::Memcpy(VertexData, Draw.Vertices.GetData(), Vertices);
+					VertexData += Vertices;
+
+					// Indices stay draw-local; BaseVertexIndex on the draw call offsets them.
+					const uint32 Indices = Draw.Indices.Num() * sizeof(uint32);
+					FMemory::Memcpy(IndexData, Draw.Indices.GetData(), Indices);
+					IndexData += Indices;
+				}
+
+				RHICmdList.UnlockBuffer(VertexBuffer);
+				RHICmdList.UnlockBuffer(IndexBuffer);
+			}
+
+			for (int32 DrawIndex = 0; DrawIndex < All.Num(); ++DrawIndex)
+			{
+				const FFolioDraw& Draw = All[DrawIndex];
+
 				// A clip mask never reaches a recording, so anything that is neither geometry nor a
 				// field has no meaning on this path.
 				const bool bField = Draw.Kind == FFolioDraw::EKind::Field;
@@ -400,30 +459,10 @@ void FFolioWorldPass::AddSurface(FRDGBuilder& GraphBuilder, const FSceneView& Vi
 					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), Local);
 				}
 
-				// Volatile buffers: a document's geometry is handed over whenever it is drawn, so
-				// there is nothing worth keeping between frames.
-				const uint32 VertexBytes = Draw.Vertices.Num() * sizeof(FFolioUIVertex);
-				FBufferRHIRef VertexBuffer = RHICmdList.CreateBuffer(
-					FRHIBufferCreateDesc::CreateVertex(TEXT("FolioWorldVertices"), VertexBytes)
-						.AddUsage(EBufferUsageFlags::Volatile)
-						.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
-				void* VertexData = RHICmdList.LockBuffer(VertexBuffer, 0, VertexBytes, RLM_WriteOnly);
-				FMemory::Memcpy(VertexData, Draw.Vertices.GetData(), VertexBytes);
-				RHICmdList.UnlockBuffer(VertexBuffer);
-
-				const uint32 IndexBytes = Draw.Indices.Num() * sizeof(uint32);
-				FBufferRHIRef IndexBuffer = RHICmdList.CreateBuffer(
-					FRHIBufferCreateDesc::CreateIndex(TEXT("FolioWorldIndices"), IndexBytes,
-							sizeof(uint32))
-						.AddUsage(EBufferUsageFlags::Volatile)
-						.SetInitialState(ERHIAccess::VertexOrIndexBuffer));
-				void* IndexData = RHICmdList.LockBuffer(IndexBuffer, 0, IndexBytes, RLM_WriteOnly);
-				FMemory::Memcpy(IndexData, Draw.Indices.GetData(), IndexBytes);
-				RHICmdList.UnlockBuffer(IndexBuffer);
-
+				// After the pipeline state, every time: a stream bound before one is bound is dropped.
 				RHICmdList.SetStreamSource(0, VertexBuffer, 0);
-				RHICmdList.DrawIndexedPrimitive(IndexBuffer, 0, 0, Draw.Vertices.Num(), 0,
-					Draw.Indices.Num() / 3, 1);
+				RHICmdList.DrawIndexedPrimitive(IndexBuffer, BaseVertex[DrawIndex], 0,
+					Draw.Vertices.Num(), FirstIndex[DrawIndex], Draw.Indices.Num() / 3, 1);
 			}
 		});
 }

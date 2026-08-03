@@ -28,6 +28,9 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Allocate target"), STAT_FolioAllocateTarget, STA
 /// Render thread. The work the game thread only queues: everything above ends at the enqueue, so a
 /// layer that costs milliseconds to replay reports as microseconds without these.
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: replay layer"), STAT_FolioLayerReplay, STATGROUP_Folio, );
+DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: layer graph"), STAT_FolioLayerGraph, STATGROUP_Folio, );
+DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: layer buffers"), STAT_FolioLayerBuffers, STATGROUP_Folio, );
+DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: layer state"), STAT_FolioLayerState, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: blur"), STAT_FolioBlur, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: colour filter"), STAT_FolioColourFilter, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: mask"), STAT_FolioMaskFilter, STATGROUP_Folio, );

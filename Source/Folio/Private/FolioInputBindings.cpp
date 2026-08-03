@@ -196,6 +196,17 @@ void UFolioInputBindings::Refresh()
 
 		return A.Category == B.Category ? A.Action < B.Action : A.Category < B.Category;
 	});
+
+	// A rebinding screen with nothing on it looks like markup that failed rather than a profile with
+	// nothing in it, and the two are fixed in different places.
+	if (Bindings.IsEmpty())
+	{
+		UE_LOG(LogFolio, Warning,
+			TEXT("the active key profile lists no mappable actions, so a rebinding screen built from it "
+				"is blank. Enhanced Input lists an action once its mapping context has been registered "
+				"with this player's user settings and its keys carry Player Mappable Key Settings - a "
+				"context added to the subsystem alone is not registered."));
+	}
 }
 
 void UFolioInputBindings::Rebind(const FString& Mapping, const int32 Slot)

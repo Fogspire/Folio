@@ -79,6 +79,16 @@ bool RunBakes(const Options& options, App& app, Diagnostics& diagnostics)
 		// The four properties the two renderers do not draw the same. A texture baked here and drawn
 		// in the engine is faint and the wrong shape, and it reads as bad art rather than as a
 		// renderer difference - so this refuses rather than producing one.
+		if (Folio::Bake::ReadsTheBackdrop(element))
+		{
+			diagnostics.Report(Severity::Error, "E-BAKE-BACKDROP",
+				selector + " uses backdrop-filter, which blurs what is behind it. Baked alone there "
+				"is nothing behind it, so the texture would be empty. This is the one effect that has "
+				"to stay a layer.", options.document);
+			ok = false;
+			continue;
+		}
+
 		if (Folio::Bake::NeedsEngineBake(element))
 		{
 			diagnostics.Report(Severity::Error, "E-BAKE-NEEDSENGINE",

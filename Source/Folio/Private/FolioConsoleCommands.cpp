@@ -1522,6 +1522,15 @@ namespace
 			return;
 		}
 
+		if (Folio::Bake::ReadsTheBackdrop(Element))
+		{
+			UE_LOG(LogFolio, Error,
+				TEXT("folio bake: '%s' uses backdrop-filter, which blurs what is behind it. Baked "
+					"alone there is nothing behind it, so the texture would be empty. This is the one "
+					"effect that has to stay a layer."), *Args[1]);
+			return;
+		}
+
 		if (Folio::Bake::HasAnimation(Element))
 		{
 			UE_LOG(LogFolio, Warning,

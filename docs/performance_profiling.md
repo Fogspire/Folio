@@ -222,6 +222,13 @@ running animation drives the property itself and RmlUi does not reliably release
 caught mid-animation can bake as an empty texture. A baker presents every layer plainly and lets each
 bake raise its own. Both bakes warn when the element they are given is animating.
 
+**`backdrop-filter` cannot be baked at all.** It blurs what is behind it, so baked alone - on
+nothing - the texture is empty. Both bakes refuse it. It is expensive for exactly the reason it
+cannot be a texture, and the ways out are all outside RCSS: drop it to a plain scrim, or, if the
+scene behind it is frozen while it is up, have the game capture one blurred frame when it opens and
+draw that as an ordinary texture. Two stacked full-screen ones - a blurred scrim under a blurred
+modal - is paying twice for a frame nobody is looking past.
+
 Baking is a resolution decision. The texture is stretched with `fill`, which is invisible on a soft
 wash and would not be on anything with an edge; bake at the size it will be drawn at.
 

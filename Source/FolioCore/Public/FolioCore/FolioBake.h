@@ -151,6 +151,36 @@ namespace Folio::Bake
 	}
 
 	/**
+	 * Whether this element's appearance depends on what is behind it.
+	 *
+	 * `backdrop-filter` reads the frame underneath and blurs that, so there is nothing to bake: the
+	 * element is rendered alone, on nothing, and a blur of nothing is nothing. It is expensive for
+	 * exactly the reason it cannot be a texture.
+	 */
+	inline bool ReadsTheBackdrop(Rml::Element* Element)
+	{
+		if (!Element)
+		{
+			return false;
+		}
+
+		if (Element->GetComputedValues().has_backdrop_filter())
+		{
+			return true;
+		}
+
+		for (int i = 0; i < Element->GetNumChildren(); ++i)
+		{
+			if (ReadsTheBackdrop(Element->GetChild(i)))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Whether an animation is driving this element's properties.
 	 *
 	 * A bake sets `animation: none` before it sets `opacity`, because a running animation drives the

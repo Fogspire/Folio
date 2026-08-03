@@ -385,6 +385,10 @@ void FFolioWorldPass::AddSurface(FRDGBuilder& GraphBuilder, const FSceneView& Vi
 					: GWhiteTexture->TextureRHI;
 				Local.MsdfField = Draw.Field;
 				Local.MsdfEffect = Draw.Effect;
+				if (Draw.bTiles)
+				{
+					Local.UISampler = TStaticSamplerState<SF_Bilinear, AM_Wrap, AM_Wrap, AM_Wrap>::GetRHI();
+				}
 
 				SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), Local);
 				if (bField)

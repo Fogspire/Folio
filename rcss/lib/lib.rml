@@ -33,6 +33,7 @@
 	<link type="text/rcss" href="/folio/lib/toggle.rcss"/>
 	<link type="text/rcss" href="/folio/lib/tabbar.rcss"/>
 	<link type="text/rcss" href="/folio/lib/modal.rcss"/>
+	<link type="text/rcss" href="/folio/lib/motes.rcss"/>
 
 	<link type="text/rcss" href="/folio/themes/default.rcss"/>
 </head>

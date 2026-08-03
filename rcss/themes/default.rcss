@@ -1002,3 +1002,21 @@ scrollbarhorizontal sliderbar:hover
 	.pg-key, .pg-face, .pg-bumper, .pg-trigger { background-color: #ffffff; color: #000000; }
 	.pg-unbound { border-color: #c6c6d2; color: #c6c6d2; }
 }
+
+/* --- motes ------------------------------------------------------------------------ */
+
+/*
+ * The tiles are white, so these three lines are the whole look of the field: a cool far and mid
+ * behind a warmer, dimmer near, none of them strong enough to compete with text over the top.
+ * Raise the alpha before the brightness - a mote that reads as a light is one that stays faint.
+ */
+.motes-far  .motes-tile { image-color: #c8d0ff4d; }
+.motes-mid  .motes-tile { image-color: #dce4ff66; }
+.motes-near .motes-tile { image-color: #f0c67440; }
+
+/* Nothing is carried by the field, and a moving texture behind text is exactly what contrast is
+   meant to remove. */
+@media (theme: high-contrast)
+{
+	.motes { display: none; }
+}

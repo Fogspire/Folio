@@ -73,6 +73,24 @@ A property carrying both a transition and an animation is the related trap: a tr
 animation here, so one of the two is dropped. The log says `Could not animate property 'opacity' on
 element` and names neither rule.
 
+**A percentage inside an animated `transform` resolves once, when the animation starts, and on a
+document's initial style that is before the first layout.** The element has no box yet, so
+`translateY(100%)` resolves against a height of zero, both ends of the keyframe become
+`translateY(0px)`, and the animation runs forever without moving anything. Nothing is logged and
+the rule is valid, so it reads as the animation not being applied at all.
+
+```css
+/* Never moves. */
+@keyframes scroll { from { transform: translateY(0%); } to { transform: translateY(100%); } }
+
+/* Moves. */
+@keyframes scroll { from { transform: translateY(0dp); } to { transform: translateY(1200dp); } }
+```
+
+Write the distance in `dp`. A percentage is only safe on an animation that starts later than the
+first layout - one driven by a class the game adds - and it is not worth the distinction.
+`transition` is unaffected: it starts from a state change, by which point the element has a box.
+
 ## What is cheap
 
 **Animate `transform`, `opacity`, `color`, `background-color`, `border-color` and `filter`.** None of

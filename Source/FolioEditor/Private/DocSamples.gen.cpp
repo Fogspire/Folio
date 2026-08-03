@@ -296,6 +296,12 @@ namespace FolioDocSamples
 		UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
 	}
 
+	// docs/supersampling.md#0
+	inline void Sample_docs_supersampling_md_0()
+	{
+		Widget->Supersample = 2;   // 1 to 4, each way
+	}
+
 	// docs/text_and_fonts.md#0
 	inline void Sample_docs_text_and_fonts_md_0()
 	{

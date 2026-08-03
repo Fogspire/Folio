@@ -59,7 +59,8 @@ void FFolioDrawList::Convert(const TArray<FSlateVertex>& Vertices, const TArray<
 }
 
 void FFolioDrawList::AddTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-	UTexture* Texture, const FVector2f Offset, const bool bMasked, const bool bMaskInverted)
+	UTexture* Texture, const FVector2f Offset, const bool bMasked, const bool bMaskInverted,
+	const bool bTiles)
 {
 	if (Indices.Num() < 3 || !Texture)
 	{
@@ -71,6 +72,7 @@ void FFolioDrawList::AddTriangles(const TArray<FSlateVertex>& Vertices, const TA
 	Draw.Texture.Reset(Texture);
 	Draw.bMasked = bMasked;
 	Draw.bMaskInverted = bMaskInverted;
+	Draw.bTiles = bTiles;
 	Convert(Vertices, Indices, Offset, /*bUnpremultiply*/ false, bDecodeSrgb, Draw);
 
 	Draw.Scissor = Scissor;

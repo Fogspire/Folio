@@ -241,7 +241,7 @@ void FFolioLayerStack::AddDraw(FFolioDraw&& Draw)
 }
 
 void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-	UTexture* Texture, const FVector2f Offset)
+	UTexture* Texture, const FVector2f Offset, const bool bTiles)
 {
 	if (Stack.IsEmpty() || Indices.Num() < 3 || !Texture)
 	{
@@ -250,7 +250,7 @@ void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const
 
 	FLayer& Layer = Stack.Last();
 	Layer.Draws.AddTriangles(Vertices, Indices, Texture, Offset,
-		Layer.bClipMaskEnabled, Layer.bClipMaskInverted);
+		Layer.bClipMaskEnabled, Layer.bClipMaskInverted, bTiles);
 }
 
 void FFolioLayerStack::DrawField(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
@@ -626,6 +626,11 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 							FFolioUIParameters PassParameters = *Parameters;
 							PassParameters.MsdfField = Draw.Field;
 							PassParameters.MsdfEffect = Draw.Effect;
+							if (Draw.bTiles)
+							{
+								PassParameters.UISampler =
+									TStaticSamplerState<SF_Bilinear, AM_Wrap, AM_Wrap, AM_Wrap>::GetRHI();
+							}
 							if (Draw.Texture.IsValid() && Draw.Texture->GetResource())
 							{
 								if (FRHITexture* Bound = Draw.Texture->GetResource()->GetTexture2DRHI())

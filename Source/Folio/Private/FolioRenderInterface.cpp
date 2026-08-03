@@ -20,7 +20,9 @@
 #include "Modules/ModuleManager.h"
 #include "Rendering/DrawElements.h"
 #include "Rendering/SlateRenderer.h"
+#include "Rendering/SlateResourceHandle.h"
 #include "TextureResource.h"
+#include "Textures/SlateShaderResource.h"
 
 namespace
 {
@@ -229,6 +231,12 @@ Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Sp
 
 	TUniquePtr<FCompiledGeometry> Compiled = MakeUnique<FCompiledGeometry>();
 
+	// RmlUi expresses `image(src repeat)` as one quad whose coordinates run to the tile count and
+	// leaves the wrapping to the sampler, and it never tells the backend which decorator it is
+	// drawing for. Sniffing the coordinates is the only signal there is. The tolerance is loose
+	// enough that a quad ending a fraction of a texel past its edge is not read as a tile.
+	constexpr float UnitSquareTolerance = 1.0e-3f;
+
 	Compiled->Vertices.Reserve(Vertices.size());
 	for (const Rml::Vertex& Vertex : Vertices)
 	{
@@ -240,6 +248,11 @@ Rml::CompiledGeometryHandle FFolioRenderInterface::CompileGeometry(const Rml::Sp
 		Out.TexCoords[3] = 1.0f;
 		Out.MaterialTexCoords = FVector2f(Vertex.tex_coord.x, Vertex.tex_coord.y);
 		Out.Color = ToSlateColor(Vertex.colour);
+
+		Compiled->bTiles |= Vertex.tex_coord.x < -UnitSquareTolerance
+			|| Vertex.tex_coord.x > 1.0f + UnitSquareTolerance
+			|| Vertex.tex_coord.y < -UnitSquareTolerance
+			|| Vertex.tex_coord.y > 1.0f + UnitSquareTolerance;
 	}
 
 	Compiled->Indices.Reserve(Indices.size());
@@ -381,7 +394,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
 
 		DrawList->AddTriangles(Vertices, Compiled.Indices, Recorded,
-			Offset, /*bMasked*/ false, /*bMaskInverted*/ false);
+			Offset, /*bMasked*/ false, /*bMaskInverted*/ false, Compiled.bTiles);
 		return;
 	}
 
@@ -399,18 +412,21 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 
 		FlushCoveredFields(BoundsOf(Vertices, Offset));
 
-		Layers.DrawTriangles(Vertices, Compiled.Indices, LayerTexture, Offset - LayerOrigin);
+		Layers.DrawTriangles(Vertices, Compiled.Indices, LayerTexture, Offset - LayerOrigin,
+			Compiled.bTiles);
 		return;
 	}
 
 	const FSlateResourceHandle& Resource = Bound ? Bound->Handle : GetWhiteHandle();
 
 	ApplyClipping();
-	DrawGeometry(Compiled, Translation, Resource, FVector2f(1.0f, 1.0f));
+	DrawGeometry(Compiled, Translation, Resource, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ false,
+		Compiled.bTiles);
 }
 
 void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, const Rml::Vector2f Translation,
-	const FSlateResourceHandle& Resource, const FVector2f UvScale, const bool bStraightAlpha)
+	const FSlateResourceHandle& Resource, const FVector2f UvScale, const bool bStraightAlpha,
+	const bool bTiles)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_DrawGeometry);
 	SCOPE_CYCLE_COUNTER(STAT_FolioDrawGeometry);
@@ -471,6 +487,22 @@ void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, cons
 		}
 	}
 
+	// Wrap sampling, which `image(src repeat)` is the only thing to want. The batch flags are the
+	// only route to it: Slate chooses the sampler per batch and never consults the texture's own
+	// address mode, so `TA_Clamp` on the UTexture is not what decides this.
+	//
+	// An atlased proxy stays clamped. Wrapping a sub-rectangle samples its neighbours in the sheet
+	// rather than itself, which is why RmlUi refuses `repeat` on a sprite in the first place.
+	ESlateBatchDrawFlag BatchFlags = ESlateBatchDrawFlag::None;
+	if (bTiles)
+	{
+		const FSlateShaderResourceProxy* Proxy = Resource.GetResourceProxy();
+		if (Proxy && Proxy->StartUV.IsNearlyZero() && Proxy->SizeUV.Equals(FVector2f(1.0f, 1.0f)))
+		{
+			BatchFlags = ESlateBatchDrawFlag::TileU | ESlateBatchDrawFlag::TileV;
+		}
+	}
+
 	// RmlUi 6.x supplies vertex colours and generated texture data premultiplied and expects
 	// the blend mode to match. Straight-alpha blending here is what produces the dark fringing
 	// around text and translucent edges that reads as a filtering problem.
@@ -481,7 +513,8 @@ void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, cons
 		ScratchVertices,
 		Compiled.Indices,
 		nullptr, 0, 0,
-		ESlateDrawEffect::PreMultipliedAlpha);
+		ESlateDrawEffect::PreMultipliedAlpha,
+		BatchFlags);
 
 	MaxLayerId = FMath::Max(MaxLayerId, LayerId);
 }

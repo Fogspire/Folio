@@ -87,7 +87,7 @@ public:
 
 	/** Records a triangle list. Positions are in layer space. */
 	void DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-		UTexture* Texture, FVector2f Offset);
+		UTexture* Texture, FVector2f Offset, bool bTiles = false);
 
 	/**
 	 * Records text, whose texture is a distance field rather than an image.

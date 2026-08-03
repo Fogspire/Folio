@@ -86,6 +86,15 @@ public:
 		/** Positions are RmlUi-local; the render transform is applied per draw. */
 		TArray<FSlateVertex> Vertices;
 		TArray<SlateIndex> Indices;
+
+		/**
+		 * The texture coordinates run outside the unit square.
+		 *
+		 * Only meaningful on the texture path, where `image(src repeat)` is the one thing that
+		 * produces it and it means the sampler has to wrap. A gradient's geometry carries pixel
+		 * offsets rather than coordinates, so this is true there too and means nothing.
+		 */
+		bool bTiles = false;
 	};
 
 	/** One glyph run, kept in the document's own space until there is a screen to put it on. */
@@ -351,7 +360,8 @@ private:
 		Rml::Vector2f Translation, FVector2f& OutOffset);
 
 	void DrawGeometry(const FCompiledGeometry& Compiled, Rml::Vector2f Translation,
-		const FSlateResourceHandle& Resource, const FVector2f UvScale, bool bStraightAlpha = false);
+		const FSlateResourceHandle& Resource, const FVector2f UvScale, bool bStraightAlpha = false,
+		bool bTiles = false);
 
 	/** The texture for a gradient at this size, generated on first use and cached. */
 	/** The baked gradient for a box size. Returns the record rather than the Slate handle alone, because

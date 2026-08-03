@@ -26,6 +26,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Vector art](vectors.md)** | SVG baked to distance fields: infinitely scalable icons, the colour-layer stack, and what a field cannot represent. |
 | **[Animation](animation.md)** | Transitions, keyframes, what is cheap to animate and what will cost you frames. |
 | **[The shader decorator](shader_decorator.md)** | Additive blending, scanlines and sweeps - the effects RCSS has no syntax for. |
+| **[Drifting motes](motes.md)** | Atmosphere behind a menu, in six quads and no particle system. |
 | **[Scrolling and scrollbars](scrolling.md)** | One serious trap, and why an incidental `overflow` confines focus. |
 
 ## Making it respond

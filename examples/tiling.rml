@@ -1,0 +1,73 @@
+<rml>
+<head>
+	<title>Repeating decorators</title>
+	<meta name="folio-size" content="768x448"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* The `repeat` family lets the sampler do the tiling: RmlUi draws one quad whose texture
+		   coordinates run to the tile count, rather than a quad per tile. That needs wrap
+		   sampling, and the engine reaches it through a batch draw flag rather than the texture's
+		   own address mode - so this document is the case that catches it going missing.
+
+		   Read it as a grid. The tile is a white-and-blue frame with a yellow corner block and a
+		   red diagonal, all asymmetric on purpose: wrapped, every cell looks like every other
+		   cell. Clamped, the first cell is right and the rest of the element is its edge row
+		   stretched, which is a smear rather than an error.
+
+		   Also here because `repeat` is the only fit mode that cannot name a sprite. RmlUi refuses
+		   it in both renderers, with a warning, since a sub-rectangle of an atlas has nothing to
+		   wrap against - so the source is a file. */
+		body
+		{
+			font-family: Inter;
+			font-size: 13dp;
+			color: #7b8494;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			padding: 24dp;
+			box-sizing: border-box;
+			display: flex;
+			flex-wrap: wrap;
+		}
+
+		.cell { width: 224dp; margin: 0 20dp 20dp 0; }
+		.label { margin-bottom: 6dp; }
+		.box { height: 128dp; }
+
+		.both { decorator: image(/folio/examples/tile_check.png repeat); }
+		.across { decorator: image(/folio/examples/tile_check.png repeat-x); }
+		.down { decorator: image(/folio/examples/tile_check.png repeat-y); }
+
+		/* Under a filter the geometry goes through a layer rather than straight to Slate, which is
+		   a second sampler and the one that has been wrong on its own. */
+		.layered { decorator: image(/folio/examples/tile_check.png repeat); filter: brightness(1.4); }
+
+		/* Half a tile wide, so the coordinates stay inside the unit square and wrapping and
+		   clamping agree. It has to keep looking like a plain stretched tile. */
+		.sub { width: 32dp; height: 32dp; decorator: image(/folio/examples/tile_check.png repeat); }
+	</style>
+</head>
+<body>
+	<div class="cell">
+		<div class="label">repeat</div>
+		<div class="box both"/>
+	</div>
+	<div class="cell">
+		<div class="label">repeat-x</div>
+		<div class="box across"/>
+	</div>
+	<div class="cell">
+		<div class="label">repeat-y</div>
+		<div class="box down"/>
+	</div>
+	<div class="cell">
+		<div class="label">repeat, through a layer</div>
+		<div class="box layered"/>
+	</div>
+	<div class="cell">
+		<div class="label">smaller than one tile</div>
+		<div class="sub"/>
+	</div>
+</body>
+</rml>

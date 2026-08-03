@@ -202,6 +202,11 @@ read as a property name instead, which silently produces a transition that never
 .btn { transition: background-color 0.12s cubic-out, transform 0.12s cubic-out; }
 ```
 
+**A percentage inside an animated `transform` is resolved once, when the animation starts.** On a
+document's initial style that is before the first layout, so `translateY(100%)` resolves against a
+zero box, both keys collapse to `translateY(0px)`, and the animation runs forever without moving.
+Nothing is logged. Write the distance in `dp`. `transition` is unaffected.
+
 `transition: all 0.12s` is legal but transitions every animatable property including layout
 ones. Name the properties.
 
@@ -306,7 +311,7 @@ some preview correctly and render as nothing in engine:
 
 | | In engine |
 |---|---|
-| Every `*-gradient` decorator, `image`, `ninepatch`, `tiled-*` | Works |
+| Every `*-gradient` decorator, `image`, `ninepatch`, `tiled-*` | Works. The `repeat` fit modes sample wrapped, which Folio asks Slate for with a batch draw flag; they cannot name a sprite in either renderer, since a sub-rectangle of an atlas has nothing to wrap against |
 | `border-radius`, borders, `transform`, `opacity` on an element | Works |
 | `box-shadow`, clip masks, render layers, `filter: blur` | Works. Layers are render targets and clip masks are a real stencil, so an inverse mask - which is what stops an outer shadow painting inside its own element - is exact |
 | `backdrop-filter: blur` | Works, and is the one effect that reaches outside the UI: it blurs the backbuffer, so the 3D scene behind a HUD panel blurs with it. The blurred region is a rectangle, so a `border-radius` corner blurs square |

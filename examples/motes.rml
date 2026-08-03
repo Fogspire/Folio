@@ -1,0 +1,70 @@
+<rml>
+<head>
+	<title>Drifting motes behind a menu</title>
+	<meta name="folio-size" content="1280x720"/>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		/* The field is absolutely positioned, so its parent has to be the thing it should cover -
+		   here the body. Anything drawn after it in document order sits over the top. */
+		body
+		{
+			width: 100%;
+			height: 100%;
+			position: relative;
+			overflow: hidden;
+			background-color: #0e0e13;
+			font-family: Inter;
+		}
+
+		/* A wash under the menu column, so the motes stay behind the text rather than in it. A
+		   linear gradient rather than a radial one: at this contrast a radial banding into a dark
+		   background shows its rings, and the field is exactly the kind of flat dark surface that
+		   makes them visible. */
+		.veil
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 560dp;
+			height: 100%;
+			decorator: horizontal-gradient(#0e0e13e6 #0e0e1300);
+			pointer-events: none;
+		}
+
+		.stack
+		{
+			position: absolute;
+			left: 96dp;
+			top: 180dp;
+			width: 300dp;
+		}
+
+		h1 { font-size: 44dp; letter-spacing: 2dp; margin-bottom: 28dp; }
+	</style>
+</head>
+<body>
+	<div class="motes">
+		<div class="motes-layer motes-far">
+			<div class="motes-scroll"><div class="motes-tile"/><div class="motes-tile"/></div>
+		</div>
+		<div class="motes-layer motes-mid">
+			<div class="motes-scroll"><div class="motes-tile"/><div class="motes-tile"/></div>
+		</div>
+		<div class="motes-layer motes-near">
+			<div class="motes-scroll"><div class="motes-tile"/><div class="motes-tile"/></div>
+		</div>
+	</div>
+
+	<div class="veil"/>
+
+	<div class="stack">
+		<h1 class="c-text">HOLLOW</h1>
+		<div class="btn-stack">
+			<button class="btn btn-primary" autofocus>Continue</button>
+			<button class="btn">New Game</button>
+			<button class="btn">Options</button>
+			<button class="btn">Quit</button>
+		</div>
+	</div>
+</body>
+</rml>

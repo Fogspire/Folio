@@ -48,10 +48,13 @@ always wins over the library. Within the library, later `<link>`s win at equal s
 
 ## What is in it
 
-Nine components, each structure-only:
+Ten components, each structure-only:
 
 `button` · `panel` · `list` · `modal` · `tabbar` · `toggle` (checkbox, radio, segmented) ·
-`slider` · `field` · `tokens`
+`slider` · `field` · `tokens` · `motes`
+
+`motes` is the odd one: a drifting particle field for the background of a menu, with no interaction
+and nothing to compose into. See **[drifting motes](motes.md)**.
 
 Compose these rather than starting from a bare `div`. They already have the `box-sizing`, the flex
 bases and the scrollbar geometry right - and each of those is a documented trap in

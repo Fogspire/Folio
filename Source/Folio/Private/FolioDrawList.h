@@ -27,6 +27,9 @@ struct FFolioDraw
 	bool bMasked = false;
 	bool bMaskInverted = false;
 
+	/** Sample wrapped rather than clamped, for the one decorator that runs its coordinates past 1. */
+	bool bTiles = false;
+
 	/** The shader's MsdfField and MsdfEffect, packed by whoever recorded it. */
 	FVector4f Field = FVector4f::Zero();
 	FVector4f Effect = FVector4f::Zero();
@@ -59,7 +62,7 @@ class FFolioDrawList
 public:
 	/** Records a triangle list. Positions are in the recording's own 2D space. */
 	void AddTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-		UTexture* Texture, FVector2f Offset, bool bMasked, bool bMaskInverted);
+		UTexture* Texture, FVector2f Offset, bool bMasked, bool bMaskInverted, bool bTiles = false);
 
 	/** The scissor applied to everything recorded from now on. An empty rect clears it. */
 	void SetScissor(const FIntRect& InScissor) { Scissor = InScissor; }

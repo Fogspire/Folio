@@ -54,6 +54,18 @@ For anything that is a surface rather than a picture - a panel background, a but
 Fit modes: `fill` (the default, stretch), `contain`, `cover`, `scale-none`, `scale-down`, `repeat`.
 That is the replacement for `object-fit`, which does not exist.
 
+**The `repeat` family cannot name a sprite.** `repeat`, `repeat-x` and `repeat-y` draw one quad
+whose coordinates run to the tile count and leave the wrapping to the sampler, and a sub-rectangle of
+an atlas has nothing to wrap against - RmlUi refuses it in both renderers, with a warning. A
+repeating source is always its own file.
+
+A tile is its texture's pixel size in **dp**, so it keeps its size across resolutions like everything
+else. Which also means the pattern repeats every tile: a 960dp tile across a 1920dp screen draws the
+same thing twice, and for anything with recognisable features that reads as wallpaper. Stretching one
+tile with `fill` never repeats, and for a soft, featureless surface it is usually the better answer -
+give the art the box's aspect ratio and nothing looks stretched. `examples/tiling.rml` is the case in
+full.
+
 **`ninepatch`** for anything that must stretch without distorting its corners - which is most panels
 and every button:
 

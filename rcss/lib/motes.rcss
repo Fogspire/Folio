@@ -1,0 +1,112 @@
+/*
+ * A field of drifting motes, for the background of a menu.
+ *
+ * There are no particles. Each depth is one tile drawn twice, stacked, scrolled by a looping
+ * `translateY` on their shared parent - at 100% the second copy sits exactly where the first
+ * started, and the tiles are seamless top to bottom, so the loop has no visible frame. Three
+ * depths at unrelated speeds read as parallax. The whole field is six quads and no per-frame
+ * work outside the transform.
+ *
+ *     <div class="motes">
+ *         <div class="motes-layer motes-far">
+ *             <div class="motes-scroll"><div class="motes-tile"/><div class="motes-tile"/></div>
+ *         </div>
+ *         ...mid, near
+ *     </div>
+ *
+ * The tiles are white and `Tools/uiart/make_motes.py` bakes them, so `image-color` in the theme
+ * is the only thing that decides what colour a mote is - no colour appears here, as everywhere
+ * under lib/.
+ *
+ * The fit mode is `fill`, not `repeat`. A repeating tile is its texture's size in dp, so it would
+ * draw the same motes twice across a screen two tiles wide; stretching one over the box never
+ * repeats and costs the same.
+ *
+ * `@media (theme: reduced-motion)` in folio.rcss stops every animation, this one included, and
+ * the field settles as a still starfield rather than disappearing.
+ */
+
+.motes
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+/* The sway. A separate element from the fall because both want `transform`. */
+.motes-layer
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.motes-scroll
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+}
+
+/*
+ * 1200dp is the one number here, and the fall keyframe repeats it: the scroll travels exactly one
+ * tile, so the second copy arrives where the first started. Change one and change the other.
+ *
+ * It is a length rather than 100% because a percentage in an animated transform is resolved once,
+ * when the animation starts, which on the first frame is before the element has been laid out -
+ * so it resolves against a zero box and the animation never moves. See docs/animation.md.
+ *
+ * Two copies of height H cover any viewport up to H tall whatever the scroll offset, and under
+ * Unreal's default DPI curve a landscape viewport is about 1080dp tall at every resolution. A game
+ * that turns the dp follow down far enough to exceed 1200dp restates these three rules.
+ */
+.motes-tile
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 1200dp;
+}
+
+/* The copy that is above the viewport at rest, and in the viewport a full period later. */
+.motes-tile:first-child { top: -1200dp; }
+
+.motes-far  .motes-tile { decorator: image(/folio/art/motes_far.png fill); }
+.motes-mid  .motes-tile { decorator: image(/folio/art/motes_mid.png fill); }
+.motes-near .motes-tile { decorator: image(/folio/art/motes_near.png fill); }
+
+@keyframes motes-fall
+{
+	from { transform: translateY(0dp); }
+	to   { transform: translateY(1200dp); }
+}
+
+@keyframes motes-sway
+{
+	from { transform: translateX(-16dp); }
+	to   { transform: translateX(16dp); }
+}
+
+/*
+ * Depth. Speed is the parallax cue, so it is structural; brightness is taste and lives in the
+ * theme.
+ *
+ * The sway periods share no factor with each other or with the fall periods, so no two layers
+ * line up and the field never appears to pulse.
+ */
+.motes-far  .motes-scroll { animation: 54s linear-in infinite motes-fall; }
+.motes-mid  .motes-scroll { animation: 33s linear-in infinite motes-fall; }
+.motes-near .motes-scroll { animation: 19s linear-in infinite motes-fall; }
+
+.motes-far  { animation: 23s sine-in-out infinite alternate motes-sway; }
+.motes-mid  { animation: 17s sine-in-out infinite alternate motes-sway; }
+.motes-near { animation: 13s sine-in-out infinite alternate motes-sway; }

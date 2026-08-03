@@ -149,24 +149,19 @@ In order of likelihood, and check these before concluding anything structural:
    `INotifyFieldValueChanged` — which `UMVVMViewModelBase` does — updates on change instead, which is
    the reason to use one.
 
-## A full-screen layer effect, and baking it away
-
-The single most expensive thing a document can do, and the easiest one to write by accident:
-
-```css
-/* A damage vignette. One full-screen render target, allocated, cleared, drawn and composited. */
-#scorch {
-	position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-	border-radius: 90dp;
-	box-shadow: 0dp 0dp 70dp 12dp #f2551b66 inset;
-}
-```
+## What a layer effect costs
 
 `box-shadow`, `filter`, `backdrop-filter` and `mask-image` are each drawn by rendering the element
-into an offscreen target and reading it back. On a full-screen element that target is the size of the
-screen, and on a document with a running animation it is resolved **every frame** - because an
-animating document never idles. A HUD with three of them spends several milliseconds a frame drawing
-a wash that never changes.
+into an offscreen target and reading it back. None of what follows is visible in a screenshot, which
+is why it is worth reading before reaching for one rather than after the profiler.
+
+```css
+/* A damage vignette, and a card's drop shadow. The second one is the expensive mistake. */
+#scorch { position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+	box-shadow: 0dp 0dp 70dp 12dp #f2551b66 inset; }
+
+.slot { width: 236dp; box-shadow: -4dp 5dp 0dp #16130fcc; transition: width 0.14s cubic-out; }
+```
 
 **Size is not what a layer costs.** The pass is the cost - a target bound, drawn and composited - and
 it is much the same at any size. Two 236x50dp drop shadows on a HUD measured 1.26ms of render thread
@@ -184,6 +179,10 @@ shape.
 | `W-PERF-RESIZINGLAYER` | A layer effect on an element whose box is transitioned. The expensive one, and the only one that fails a build |
 | `I-PERF-FULLSCREENLAYER` | A layer effect covering at least 75% of the viewport |
 | `I-PERF-LAYERCOUNT` | How many elements draw one at all |
+| `I-PERF-NEVERIDLES` | An animation that runs forever, so every layer in the document is paid for every frame |
+
+`folio.Bake` warns on its own account when it writes a texture over a megapixel without a downscale,
+since that is memory and a game-thread upload rather than anything the document can see.
 
 Only the first is a warning. A vignette or a scrim built the obvious way is a legitimate document,
 and a texture is not automatically the cheaper answer - see below. The other two are there to be
@@ -212,7 +211,8 @@ downsample after it.
 **A document that idles pays none of it.** Folio skips the frame entirely when nothing changed, so
 layers on a settled screen are free. One running animation anywhere in the document ends that, and
 every layer in it starts costing every frame - which is why a screen effect coming up can look like
-it caused a spike that was actually sitting there all along.
+it caused a spike that was actually sitting there all along. The effect added no cost; it stopped the
+document idling. `I-PERF-NEVERIDLES` says when a document is in that state.
 
 ### Bake it, in the engine
 

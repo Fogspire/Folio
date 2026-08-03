@@ -1688,6 +1688,19 @@ namespace
 			return;
 		}
 
+		// A megapixel is four megabytes, decoded, premultiplied and uploaded on the game thread the
+		// first frame it draws. That lands inside Render, at the moment the effect appears, which is
+		// the moment least able to afford it - and a soft wash loses nothing to a downscale.
+		static constexpr int32 LargeTexturePixels = 1024 * 1024;
+		if (Width * Height > LargeTexturePixels && Downscale == 1)
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("folio bake: '%s' is %dx%d, about %.1fMB once loaded. That is decoded and uploaded "
+					"on the game thread the first frame it draws. Pass a downscale as the last argument "
+					"if it is a soft wash: 4 writes a quarter of it and a sixteenth of the memory."),
+				*Out, Width, Height, float(Width) * float(Height) * 4.0f / (1024.0f * 1024.0f));
+		}
+
 		UE_LOG(LogFolio, Display, TEXT("folio bake: '%s' %s -> %s (%dx%d, rendered at %dx%d). Draw it "
 			"with decorator: image(<path> fill) and delete the property it replaces."),
 			*Args[0], *Args[1], *Out, Width, Height, Rendered.X, Rendered.Y);

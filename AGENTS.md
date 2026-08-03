@@ -206,6 +206,41 @@ Then take a look at it:
 
 Actually look at the screenshot. It is the only way to catch a layout that is valid and wrong.
 
+### 9. Know what an effect costs before you reach for one
+
+Four properties are drawn by rendering the element into an offscreen target and reading it back:
+**`box-shadow`, `filter`, `backdrop-filter`, `mask-image`**. Everything below follows from that, and
+none of it is visible in a screenshot.
+
+**A layer costs a pass, not pixels.** Two 236x50dp drop shadows measured heavier than the
+full-screen vignette beside them. Count them; the size barely matters.
+
+**Never put one on an element whose box changes.** This is the one that is a bug rather than a
+trade-off. The texture is cached against the element's boxes, so a `transition: width` misses that
+cache and rebuilds the texture *every frame of the transition* - a pass, a readback and a new
+texture, for a shape that did not change. Transition `transform: scaleX()` on a fixed box instead.
+Blur radius makes no difference; it is the rebuild, not the blur. `--strict` fails on this.
+
+**An idle document is free, and one animation ends that for all of it.** Folio skips the frame
+entirely when nothing changed, so layers on a settled screen cost nothing. A single `infinite`
+animation anywhere in the document means every layer in it is paid for every frame - which is why
+this shows up as "the effect I just added caused a spike" when the effect added no cost at all and
+only stopped the document idling.
+
+**Baking moves the cost, it does not remove it.** `folio.Bake` turns an effect into a texture, and a
+texture is memory plus a decode and an upload on the game thread the first frame it draws. A
+full-screen one is eight megabytes of that, landing inside `Render` at the moment something dramatic
+happens. Bake soft things small - render at full size and write a quarter:
+
+```
+folio.Bake UI/screens/hud_baker.rml #vignette UI/art/vignette.png 1920 1080 4
+```
+
+**Measure before you change anything.** `stat Folio` in the editor. `RT: replay layer` is the render
+thread, `Render` is the game thread, and confusing the two sends you at the wrong half of the frame.
+
+See [docs/performance_profiling.md](docs/performance_profiling.md).
+
 ## Quick reference
 
 **Layout** is flexbox. No grid, no `calc()`, no `aspect-ratio`. `dp` for anything that should scale

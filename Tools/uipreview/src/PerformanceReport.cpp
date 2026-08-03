@@ -39,6 +39,30 @@ struct Finding {
 	bool resizes = false;
 };
 
+/** Whether any element in the document runs an animation that never ends. */
+bool NeverIdles(Rml::Element* element)
+{
+	if (!element)
+		return false;
+
+	if (const Rml::AnimationList* animation = element->GetComputedValues().animation())
+	{
+		for (const Rml::Animation& one : *animation)
+		{
+			if (one.num_iterations < 0 && !one.paused)
+				return true;
+		}
+	}
+
+	for (int i = 0; i < element->GetNumChildren(); ++i)
+	{
+		if (NeverIdles(element->GetChild(i)))
+			return true;
+	}
+
+	return false;
+}
+
 /** The layer-forcing properties this element has, in the order they are worth naming. */
 std::string LayerProperties(const Rml::ComputedValues& computed)
 {
@@ -194,6 +218,18 @@ void CheckPerformance(const Options& options, App& app, Diagnostics& diagnostics
 					{"coverage", int(std::lround(finding.coverage * 100.0f))},
 					{"animated", finding.animated}});
 		}
+	}
+
+	// The thing that turns a standing cost into a spike, and the hardest to see: layers on a settled
+	// screen are free because Folio skips the frame, so an effect that only starts an animation reads
+	// as having caused everything the document was already carrying.
+	if (NeverIdles(document))
+	{
+		diagnostics.Report(Severity::Info, "I-PERF-NEVERIDLES",
+			"an animation in this document runs forever, so it never idles - and a document that never "
+			"idles pays for all " + std::to_string(findings.size()) + " of its layer effects every "
+			"frame rather than only when something changed.",
+			options.document, 0, {{"layers", (int)findings.size()}});
 	}
 
 	// Counted as well as measured, because size is not what a layer costs. Each one is its own

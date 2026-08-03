@@ -19,7 +19,6 @@ An on-screen breakdown of where Folio's frame goes:
 | **Draw geometry** | Emitting one compiled mesh. Called a lot; each call should be tiny |
 | **Load texture** | Decoding art. Should be zero except when a screen first opens |
 | **Resolve layers** | The render-target passes behind `filter`, `box-shadow` and `backdrop-filter` |
-| **RT: replay layer** | Replaying one layer's draws on the render thread. Broken down by **RT: layer graph**, **RT: layer buffers** and **RT: layer state** |
 | **Draws** | Draw calls this frame |
 | **Geometry batches** | Batches this frame |
 

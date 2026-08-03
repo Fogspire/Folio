@@ -103,6 +103,73 @@ are real element types. Everything else is a generic element with no behaviour u
 
 Style `:focus-visible`, never `:focus`.
 
+### 6a. Make a press look pressed, and a held press repeat
+
+Two things bite every project that builds a stepper, and both read as the engine being broken.
+
+**A press shows nothing on a control that leans.** The library gives you
+`.focusable:active { transform: scale(0.98); }`. `transform` is one property rather than a list, so on
+a control with a transform of its own that rule *replaces* the skew instead of adding to it - and any
+`:focus-visible` rule you wrote is the same specificity and later in the cascade, so on a focused
+control the press never wins at all. The symptom is "click animations do not work with the mouse".
+
+**Restate `:active` for every state the control can be pressed in, transform and all:**
+
+```css
+.step                        { transform: skewX(-11deg); }
+.step:focus-visible          { transform: skewX(-11deg) scale(1.1); }
+.step:active,
+.step:focus-visible:active   { transform: skewX(-11deg) scale(0.94); }   /* both, or focused never presses */
+```
+
+**Holding a control does not repeat.** Neither RmlUi nor Folio has press-and-hold: `click` fires once
+on release and that is all. A stepper for a setting with a hundred values is unusable without it, so
+the repeat is the game's, driven from `mousedown`:
+
+```html
+<span class="step focusable"
+	data-event-click="Adjust(it_index, 1)"
+	data-event-mousedown="HoldStart(it_index, 1)"
+	data-event-mouseup="HoldStop"
+	data-event-mouseout="HoldStop">&gt;</span>
+```
+
+Four rules for the C++ side, and the third is the one everybody misses:
+
+- `mouseout` as well as `mouseup`. A cursor dragged off the button never releases on it, and without
+  this the repeat runs forever.
+- `HoldStart` performs the first step itself, then waits **half a second** before the first repeat, so
+  a slow deliberate click is still one step. Later repeats are much faster (0.07s, then 0.04s, then
+  0.02s) or a long range takes all day - it is only the *first* repeat that has to clear a human
+  click. Too short here and single clicks intermittently move the value twice, which reads as the
+  swallow below being broken when it is not.
+- **`mouseup` raises `click` too.** `HoldStart` has already acted on the press, so the click that
+  follows adds a second step and every mouse press moves the value twice. Set a `bSwallowClick` flag
+  in `HoldStop` and throw the next click away. A pad or a keyboard sends `click` with no `mousedown`
+  in front of it and must pass straight through, which is exactly what the flag gives you.
+- **Check the flag in whatever command the markup's `data-event-click` names**, not in one command you
+  picked. A stepper binds `Adjust` and a button binds `Activate`, and a mouse press is followed by a
+  click on both; guarding only one leaves the other double-stepping. Keep the raw "move the value"
+  routine separate and have the hold and the drag call *that*, so the repeat cannot swallow itself.
+- Tick the repeat on `FTSTicker`, not a world timer, if the screen can be up over a paused game.
+
+**A slider drags with `drag`, and the delta is all you get.** `drag: drag;` makes the bar pickable and
+moves nothing, which is what you want here. A data expression cannot ask an element where it is or how
+wide it is, so absolute positions are out; `ev.mouse_delta_x` is relative and is the whole interface:
+
+```html
+<span class="bar" data-event-drag="DragRow(it_index, ev.mouse_delta_x)">…</span>
+```
+
+Accumulate the pixels in C++ and carry the remainder - a drag reports a few pixels at a time, and
+rounding each event to zero steps means the bar never moves at all.
+
+**Typing a number into a row means an entry field outside the list.** A `data-value` two-way binding
+cannot write into a `data-for` row: array elements are mirrored, so the write lands on the copy and
+the setting never hears it. Put `EditText` on the model itself as a `BlueprintReadWrite` `FString`,
+open a small `<input type="text">` over the screen, and commit from C++ against the row the entry was
+opened on. `FocusElement` puts the caret in it, since `autofocus` only runs when the document loads.
+
 ### 7. Label anything a player reads
 
 ```html

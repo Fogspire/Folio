@@ -297,6 +297,7 @@ public:
 	/** The canvas, once built. Null before construction and after release. */
 	TSharedPtr<SFolioCanvas> GetCanvas() const { return Canvas; }
 
+	FOLIO_API virtual void SynchronizeProperties() override;
 	FOLIO_API virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 
 #if WITH_EDITOR

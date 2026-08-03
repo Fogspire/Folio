@@ -73,6 +73,24 @@ void UFolioWidget::ApplyBindings()
 	}
 }
 
+void UFolioWidget::SynchronizeProperties()
+{
+	Super::SynchronizeProperties();
+
+	/*
+	 * UWidget pushes its own Visibility onto the canvas here, which puts hit testing back on a document
+	 * that must not take the mouse. The symptom is the game losing the mouse for good the first time the
+	 * viewport's capture goes: a readout that answers a hit test swallows the click that would give the
+	 * capture back, so alt-tabbing away is enough to end mouse look until the level is restarted.
+	 *
+	 * Only the visible case, so a document hidden or collapsed by whatever hosts it stays that way.
+	 */
+	if (Canvas.IsValid() && !bInteractive && Canvas->GetVisibility() == EVisibility::Visible)
+	{
+		Canvas->SetVisibility(EVisibility::HitTestInvisible);
+	}
+}
+
 void UFolioWidget::ReleaseSlateResources(const bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);

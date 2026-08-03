@@ -12,6 +12,9 @@ strings and the ids, and delete what you do not need. Nothing links them at runt
 | `pause.rml` | A card over a scrim, Resume first |
 | `confirm.rml` | A destructive confirmation, with the safe action focused |
 | `dialogue.rml` | A line that types itself out, with emphasis, a shared place name and a continue prompt |
+| `nameplate.rml` | A marker document: a plate above a head, laid out at the component's Size |
+| `prompts.rml` | Every drawn glyph the library ships |
+| `bindings.rml` | A rebinding list over `UFolioInputBindings` |
 
 Each one is rendered under `--strict` before it is committed, so a copied recipe starts clean.
 

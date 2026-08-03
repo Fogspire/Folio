@@ -167,10 +167,30 @@ screen, and on a document with a running animation it is resolved **every frame*
 animating document never idles. A HUD with three of them spends several milliseconds a frame drawing
 a wash that never changes.
 
-**`uipreview` warns about it**, as `W-PERF-FULLSCREENLAYER`, on any element covering at least 75% of
-the viewport. It is a warning rather than a note because there is nothing to see: the effect looks
-exactly as intended in both renderers and only a profiler says what it cost. `--strict` is what stops
-it shipping.
+**Size is not what a layer costs.** The pass is the cost - a target bound, drawn and composited - and
+it is much the same at any size. Two 236x50dp drop shadows on a HUD measured 1.26ms of render thread
+between them, heavier than the full-screen vignette beside them. Count them before you measure them.
+
+**The worst place to put one is an element that resizes.** The effect is rendered into a texture
+sized to the element, and the texture is thrown away and rebuilt whenever that size changes - so a
+`transition: width` regenerates it every frame the transition runs, for a shadow that did not change
+shape.
+
+`uipreview` reports all three, and `--strict` gates the first two:
+
+| | |
+|---|---|
+| `W-PERF-RESIZINGLAYER` | A layer effect on an element whose box is transitioned. The expensive one |
+| `W-PERF-FULLSCREENLAYER` | A layer effect covering at least 75% of the viewport |
+| `I-PERF-LAYERCOUNT` | How many elements draw one at all. Info, because a document demonstrating masks legitimately has seven |
+
+They are warnings rather than notes because there is nothing to see: the effect looks exactly as
+intended and only a profiler says what it cost.
+
+**A document that idles pays none of it.** Folio skips the frame entirely when nothing changed, so
+layers on a settled screen are free. One running animation anywhere in the document ends that, and
+every layer in it starts costing every frame - which is why a screen effect coming up can look like
+it caused a spike that was actually sitting there all along.
 
 ### Bake it, in the engine
 

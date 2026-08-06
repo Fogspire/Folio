@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FolioRmlUi.h"
+#include "FolioSoundEvents.h"
 
 namespace Rml
 {
@@ -16,20 +17,6 @@ namespace Rml
  */
 namespace Folio
 {
-	enum class EUiSound : uint8
-	{
-		/** Focus moved to a different element. */
-		Focus,
-		/** A focused element was activated. */
-		Confirm,
-		/** Back was pressed, whether from Escape or the gamepad. */
-		Back,
-		/** An activation that went nowhere, because the element is disabled. */
-		Invalid,
-	};
-
-	const TCHAR* DescribeUiSound(EUiSound Sound);
-
 	/**
 	 * Listens to a document and reports the four moments.
 	 *

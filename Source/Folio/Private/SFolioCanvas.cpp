@@ -915,10 +915,19 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		// handle it, so it stops here - otherwise closing a page and ending the session are the same
 		// keystroke.
 		bool bTookBack = false;
-		if (!bConsumed && Key == Rml::Input::KI_ESCAPE && OnBack.IsBound())
+		if (Key == Rml::Input::KI_ESCAPE)
 		{
-			OnBack.Execute();
-			bTookBack = true;
+			if (bConsumed)
+			{
+				// Something in the document closed itself, which is the only back this side of the
+				// boundary knows the outcome of. The rest is the game's to report.
+				Folio::OnUiSound().Broadcast(Folio::EUiSound::Back);
+			}
+			else if (OnBack.IsBound())
+			{
+				OnBack.Execute();
+				bTookBack = true;
+			}
 		}
 
 		return bConsumed || bClaimed || bTookBack ? FReply::Handled() : FReply::Unhandled();
@@ -1167,9 +1176,16 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 
 	// Nothing in the document wanted the back action, so the game gets told. A modal that closed
 	// itself has consumed it and this does not fire.
-	if (!bConsumed && Key == Rml::Input::KI_ESCAPE)
+	if (Key == Rml::Input::KI_ESCAPE)
 	{
-		OnBack.ExecuteIfBound();
+		if (bConsumed)
+		{
+			Folio::OnUiSound().Broadcast(Folio::EUiSound::Back);
+		}
+		else
+		{
+			OnBack.ExecuteIfBound();
+		}
 	}
 
 	return bConsumed;

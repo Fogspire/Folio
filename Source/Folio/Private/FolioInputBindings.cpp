@@ -229,6 +229,8 @@ void UFolioInputBindings::Rebind(const FString& Mapping, const int32 Slot)
 	ConflictWith.Reset();
 	ConflictKey.Reset();
 
+	RebindEventDelegate.Broadcast(Folio::ERebindEvent::Listening);
+
 	if (!FSlateApplication::IsInitialized())
 	{
 		return;
@@ -247,12 +249,14 @@ void UFolioInputBindings::OnKeyCaptured(const FKey& Key)
 
 	if (Key == EKeys::Escape)
 	{
+		RebindEventDelegate.Broadcast(Folio::ERebindEvent::Cancelled);
 		return;
 	}
 
 	const UEnhancedPlayerMappableKeyProfile* Profile = GetProfile();
 	if (!Profile)
 	{
+		RebindEventDelegate.Broadcast(Folio::ERebindEvent::Cancelled);
 		return;
 	}
 
@@ -281,6 +285,8 @@ void UFolioInputBindings::OnKeyCaptured(const FKey& Key)
 	ConflictKey = Folio::LabelFor(Key).ToString();
 	ConflictWith = FString::Join(Names, TEXT(", "));
 	bConflict = true;
+
+	RebindEventDelegate.Broadcast(Folio::ERebindEvent::Conflict);
 }
 
 void UFolioInputBindings::ConfirmConflict()
@@ -301,6 +307,8 @@ void UFolioInputBindings::CancelRebind()
 	ConflictWith.Reset();
 	ConflictKey.Reset();
 	PendingKey = FKey();
+
+	RebindEventDelegate.Broadcast(Folio::ERebindEvent::Cancelled);
 }
 
 void UFolioInputBindings::StopListening()
@@ -345,6 +353,8 @@ void UFolioInputBindings::Apply(const FKey& Key)
 	Settings->SaveSettings();
 
 	Refresh();
+
+	RebindEventDelegate.Broadcast(Folio::ERebindEvent::Captured);
 }
 
 void UFolioInputBindings::ClearBinding(const FString& Mapping)
@@ -368,6 +378,8 @@ void UFolioInputBindings::ClearBinding(const FString& Mapping)
 	Settings->SaveSettings();
 
 	Refresh();
+
+	RebindEventDelegate.Broadcast(Folio::ERebindEvent::Cleared);
 }
 
 void UFolioInputBindings::ClearSlot(const FString& Mapping, const int32 Slot)
@@ -389,6 +401,8 @@ void UFolioInputBindings::ClearSlot(const FString& Mapping, const int32 Slot)
 	Settings->SaveSettings();
 
 	Refresh();
+
+	RebindEventDelegate.Broadcast(Folio::ERebindEvent::Cleared);
 }
 
 void UFolioInputBindings::ResetBinding(const FString& Mapping)

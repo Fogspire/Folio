@@ -97,7 +97,7 @@ public:
 	 * is a game decision. This exists because threading sound through a component library after
 	 * the fact means touching every component, and a delegate now costs nothing.
 	 */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUiSound, Folio::EUiSound);
+	using FOnUiSound = Folio::FOnUiSound;
 	FOnUiSound& OnUiSound() { return UiSoundDelegate; }
 
 	/**
@@ -108,7 +108,7 @@ public:
 	 * At most once a frame however fast the text is typing, because a click per character at sixty
 	 * characters a second is a buzz rather than a sound.
 	 */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTextRevealSound, const FString& /* SoundName */);
+	using FOnTextRevealSound = Folio::FOnTextRevealSound;
 	FOnTextRevealSound& OnTextRevealSound() { return TextRevealSoundDelegate; }
 
 	/**

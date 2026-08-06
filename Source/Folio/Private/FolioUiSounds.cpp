@@ -19,6 +19,21 @@ namespace Folio
 		}
 	}
 
+	bool AreSoundEventsAvailable()
+	{
+		return FFolioModule::IsAvailable();
+	}
+
+	FOnUiSound& OnUiSound()
+	{
+		return FFolioModule::Get().OnUiSound();
+	}
+
+	FOnTextRevealSound& OnTextRevealSound()
+	{
+		return FFolioModule::Get().OnTextRevealSound();
+	}
+
 	void FUiSoundListener::Attach(Rml::ElementDocument* Document)
 	{
 		Detach();
@@ -33,7 +48,6 @@ namespace Folio
 		// so a listener on the document sees events from every descendant.
 		Attached->AddEventListener(Rml::EventId::Focus, this, /*in_capture_phase*/ true);
 		Attached->AddEventListener(Rml::EventId::Click, this, true);
-		Attached->AddEventListener(Rml::EventId::Keydown, this, true);
 	}
 
 	void FUiSoundListener::Detach()
@@ -45,7 +59,6 @@ namespace Folio
 
 		Attached->RemoveEventListener(Rml::EventId::Focus, this, true);
 		Attached->RemoveEventListener(Rml::EventId::Click, this, true);
-		Attached->RemoveEventListener(Rml::EventId::Keydown, this, true);
 		Attached = nullptr;
 	}
 
@@ -84,13 +97,6 @@ namespace Folio
 			Report(Target->IsClassSet("is-disabled") || Target->IsPseudoClassSet("disabled")
 				? EUiSound::Invalid
 				: EUiSound::Confirm);
-			break;
-
-		case Rml::EventId::Keydown:
-			if (Event.GetParameter<int>("key_identifier", 0) == int(Rml::Input::KI_ESCAPE))
-			{
-				Report(EUiSound::Back);
-			}
 			break;
 
 		default:

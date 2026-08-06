@@ -10,6 +10,26 @@ class ULocalPlayer;
 class UEnhancedInputUserSettings;
 class UEnhancedPlayerMappableKeyProfile;
 
+namespace Folio
+{
+	/** What the rebinding flow just did, for a host that wants to sound it. */
+	enum class ERebindEvent : uint8
+	{
+		/** Waiting for a key. */
+		Listening,
+		/** A key was taken and written. */
+		Captured,
+		/** The key pressed is already spoken for, and the player has to agree. */
+		Conflict,
+		/** The wait ended with nothing written. */
+		Cancelled,
+		/** An action was left with no key on it. */
+		Cleared,
+		/** An action, or the whole list, went back to what it shipped as. */
+		Reset,
+	};
+}
+
 /** One rebindable action, as a document reads it. */
 USTRUCT(BlueprintType)
 struct FFolioKeyBinding
@@ -153,6 +173,16 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Folio")
 	FString ConflictKey;
 
+	/**
+	 * Every step of the flow as it happens.
+	 *
+	 * The state above says where the flow is, which a document reads once a frame and is all a panel
+	 * needs. A sound needs the moment rather than the state, and there is nowhere else to take it from:
+	 * the document calls the commands directly.
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnRebindEvent, Folio::ERebindEvent);
+	FOnRebindEvent& OnRebindEvent() { return RebindEventDelegate; }
+
 	virtual void BeginDestroy() override;
 
 private:
@@ -174,6 +204,8 @@ private:
 	FName Pending;
 	int32 PendingSlot = 0;
 	FKey PendingKey;
+
+	FOnRebindEvent RebindEventDelegate;
 
 	TSharedPtr<class FFolioKeyCapture> Capture;
 };

@@ -740,6 +740,30 @@ is shadowed.
 
 Inside a `data-for`, `it_index` is the zero-based index and is always available.
 
+### Several models in one document
+
+A document may mount as many models as it has been bound, and **a `data-model` inside another
+model's subtree is supported** — the inner element takes the named model and the outer model stops
+descending there. So a `<body data-model="menu">` holding a `<div data-model="bindings">` is a
+correct shape, and an empty list is never that nesting's fault.
+
+Bind every model **before the document loads**. Binding one afterwards reloads the document, which
+is reported and costs a rebuild.
+
+### Fill an array before the document loads
+
+A `data-for` builds its rows when the document resolves the model. An array filled after that only
+reaches the list through the model's per-frame poll, so a model that is bound empty and filled on
+open is a list that arrives a frame late at best and never at worst. Fill it where you create it.
+
+### Every list gets an empty state
+
+    <div class="row" data-for="item : Items">...</div>
+    <div class="none" data-if="Items.size == 0">Nothing here yet.</div>
+
+Without the second line an empty array and markup that failed to resolve are the same blank
+rectangle, and they are fixed in completely different places.
+
 ---
 
 ## 10. Stylesheet composition

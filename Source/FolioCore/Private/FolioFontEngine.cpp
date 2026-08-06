@@ -78,6 +78,16 @@ namespace Folio
 		bool bFront = false;
 	};
 
+	/// One stretch of a string that a single face can draw.
+	struct FFolioFontEngine::FSegment
+	{
+		FFolioFontFace* Face = nullptr;
+		Rml::StringView Text;
+		/// Where the stretch starts in codepoints, so a glyph still reports its position in the
+		/// whole string rather than in the piece it happened to land in.
+		unsigned int CharOffset = 0;
+	};
+
 	/// A face instance resolved at one size. Handles are cheap: the atlas they read from is
 	/// shared, so asking for the same instance at ten sizes costs ten of these and one atlas.
 	struct FFolioFontEngine::FHandle
@@ -85,7 +95,14 @@ namespace Folio
 		FFaceEntry* Entry = nullptr;
 		FFolioFontFace* Face = nullptr;
 		int Size = 0;
+		Rml::Style::FontWeight Weight = Rml::Style::FontWeight::Normal;
 		Rml::FontMetrics Metrics{};
+
+		/// Which face draws a codepoint this one has no glyph for. A null value is a remembered
+		/// "nobody does", so a missing character costs one scan rather than one per line.
+		std::unordered_map<char32_t, FFolioFontFace*> GlyphFallback;
+		/// Reused so segmenting a string does not allocate on every measure and every pass.
+		std::vector<FSegment> Segments;
 	};
 
 	struct FFolioFontEngine::FImpl
@@ -584,6 +601,7 @@ namespace Folio
 		Handle->Entry = Entry;
 		Handle->Face = Instance;
 		Handle->Size = Size;
+		Handle->Weight = Weight;
 
 		const FFolioFontFace& Face = *Instance;
 		const float Scale = float(Size);
@@ -689,6 +707,101 @@ namespace Folio
 		return Resolved != nullptr ? Resolved->Metrics : Impl->EmptyMetrics;
 	}
 
+	FFolioFontFace* FFolioFontEngine::FindGlyphFallback(FHandle& Resolved, char32_t Codepoint)
+	{
+		if (const auto Found = Resolved.GlyphFallback.find(Codepoint); Found != Resolved.GlyphFallback.end())
+		{
+			return Found->second;
+		}
+
+		FFolioFontFace* Answer = nullptr;
+
+		// Two passes, so a face registered as a fallback is preferred over one that merely happens
+		// to cover the character. Within a pass, registration order decides.
+		for (int Pass = 0; Pass < 2 && Answer == nullptr; ++Pass)
+		{
+			const bool bWantFallback = Pass == 0;
+
+			for (const std::unique_ptr<FFaceEntry>& Entry : Impl->Faces)
+			{
+				if (Entry.get() == Resolved.Entry || Entry->bFallback != bWantFallback
+					|| Entry->Instances.empty())
+				{
+					continue;
+				}
+
+				// Coverage is a property of the file, so any instance can answer it. Asking one
+				// that already exists keeps a face nobody ends up drawing from being cut at this
+				// size just to be rejected.
+				if (Entry->Instances.front().second->GetGlyphIndex(Codepoint) == 0)
+				{
+					continue;
+				}
+
+				Answer = GetInstance(*Entry, BuildCoords(*Entry, Resolved.Weight, Resolved.Size));
+				if (Answer != nullptr)
+				{
+					break;
+				}
+			}
+		}
+
+		Resolved.GlyphFallback.emplace(Codepoint, Answer);
+		return Answer;
+	}
+
+	const std::vector<FFolioFontEngine::FSegment>& FFolioFontEngine::SegmentByFace(FHandle& Resolved,
+		Rml::StringView String)
+	{
+		std::vector<FSegment>& Segments = Resolved.Segments;
+		Segments.clear();
+
+		FFolioFontFace& Primary = *Resolved.Face;
+		const char* Begin = String.begin();
+		FFolioFontFace* Face = nullptr;
+		unsigned int FirstChar = 0;
+		unsigned int CharIndex = 0;
+
+		const auto Flush = [&Segments, &Begin, &Face, &FirstChar](const char* End)
+		{
+			if (Face != nullptr && End > Begin)
+			{
+				FSegment& Segment = Segments.emplace_back();
+				Segment.Face = Face;
+				Segment.Text = Rml::StringView(Begin, End);
+				Segment.CharOffset = FirstChar;
+			}
+		};
+
+		for (auto It = Rml::StringIteratorU8(String); It; ++It, ++CharIndex)
+		{
+			const char32_t Codepoint = char32_t(*It);
+
+			// The face the document asked for answers for everything it has, and for everything
+			// no face has: a character nobody covers stays with the primary, so it is missing in
+			// one predictable way rather than differently wherever it appears.
+			FFolioFontFace* Wanted = &Primary;
+			if (Primary.GetGlyphIndex(Codepoint) == 0)
+			{
+				if (FFolioFontFace* Fallback = FindGlyphFallback(Resolved, Codepoint))
+				{
+					Wanted = Fallback;
+				}
+			}
+
+			if (Wanted != Face)
+			{
+				Flush(It.get());
+				Begin = It.get();
+				Face = Wanted;
+				FirstChar = CharIndex;
+			}
+		}
+
+		Flush(String.end());
+		return Segments;
+	}
+
 	int FFolioFontEngine::GetStringWidth(Rml::FontFaceHandle Handle, Rml::StringView String,
 		const Rml::TextShapingContext& TextShapingContext, Rml::Character PriorCharacter)
 	{
@@ -700,37 +813,45 @@ namespace Folio
 			return 0;
 		}
 
-		FFolioFontFace& Face = *Resolved->Face;
 		const float Scale = float(Resolved->Size);
-		const FShapedRun& Run = Impl->Shaper->Get(Face, String, TextShapingContext);
 
 		// Advances accumulate as whole pixels, matching RmlUi's own engine. Layout, caret
 		// positions and hit testing are all integer, so accumulating in float here would put this
 		// engine half a pixel out from everything that measures text.
 		int Width = 0;
+		bool bLeading = true;
 
-		// The character before the string is the previous line's last, and it is not part of the
-		// run, so its kerning pair is resolved on its own. Only the `kern` table can answer that,
-		// which is what RmlUi's own engine does here too.
-		if (!Run.empty() && PriorCharacter != Rml::Character::Null
-			&& TextShapingContext.font_kerning != Rml::Style::FontKerning::None)
+		for (const FSegment& Segment : SegmentByFace(*Resolved, String))
 		{
-			const unsigned int PriorGlyph = Face.GetGlyphIndex(char32_t(PriorCharacter));
-			if (PriorGlyph != 0)
-			{
-				Width += RoundToPixels(Face.GetKerningEm(PriorGlyph, Run.front().GlyphIndex) * Scale);
-			}
-		}
+			FFolioFontFace& Face = *Segment.Face;
+			const FShapedRun& Run = Impl->Shaper->Get(Face, Segment.Text, TextShapingContext);
 
-		for (const FShapedGlyph& Glyph : Run)
-		{
-			if (Face.GetOrAppendGlyph(Glyph.GlyphIndex) == nullptr)
+			// The character before the string is the previous line's last, and it is not part of
+			// the run, so its kerning pair is resolved on its own. Only the `kern` table can
+			// answer that, which is what RmlUi's own engine does here too. Only the first segment
+			// is adjacent to it; a later one is preceded by a different face, and there is no
+			// kerning across that boundary to find.
+			if (bLeading && !Run.empty() && PriorCharacter != Rml::Character::Null
+				&& TextShapingContext.font_kerning != Rml::Style::FontKerning::None)
 			{
-				continue;
+				const unsigned int PriorGlyph = Face.GetGlyphIndex(char32_t(PriorCharacter));
+				if (PriorGlyph != 0)
+				{
+					Width += RoundToPixels(Face.GetKerningEm(PriorGlyph, Run.front().GlyphIndex) * Scale);
+				}
 			}
+			bLeading = false;
 
-			Width += RoundToPixels(Glyph.AdvanceEm * Scale);
-			Width += int(TextShapingContext.letter_spacing);
+			for (const FShapedGlyph& Glyph : Run)
+			{
+				if (Face.GetOrAppendGlyph(Glyph.GlyphIndex) == nullptr)
+				{
+					continue;
+				}
+
+				Width += RoundToPixels(Glyph.AdvanceEm * Scale);
+				Width += int(TextShapingContext.letter_spacing);
+			}
 		}
 
 		return Rml::Math::Max(Width, 0);
@@ -814,114 +935,122 @@ namespace Folio
 		const Rml::TextShapingContext& TextShapingContext, const FMsdfEffectParams* Effect,
 		const IGlyphPainter* Painter, Rml::TexturedMeshList& MeshList)
 	{
-		FFolioFontFace& Face = *Resolved.Face;
 		const float Scale = float(Resolved.Size);
-		const FShapedRun& Run = Impl->Shaper->Get(Face, String, TextShapingContext);
 
-		// One mesh per atlas page per pass. A string almost always sits on a single page, so this
-		// is usually one draw; it only splits when a face has outgrown a page.
+		// One mesh per atlas page per pass, held across the segments: pages belong to the shared
+		// atlas rather than to a face, so a string that borrows a glyph from a second face still
+		// draws as one quad batch. A string almost always sits on a single page; it only splits
+		// when a face has outgrown one.
 		std::vector<int> MeshForPage;
 
 		int Width = 0;
 
-		for (const FShapedGlyph& Glyph : Run)
+		for (const FSegment& Segment : SegmentByFace(Resolved, String))
 		{
-			const FGlyphBox* Box = Face.GetOrAppendGlyph(Glyph.GlyphIndex);
-			if (Box == nullptr)
+			FFolioFontFace& Face = *Segment.Face;
+			const FShapedRun& Run = Impl->Shaper->Get(Face, Segment.Text, TextShapingContext);
+
+			for (const FShapedGlyph& Glyph : Run)
 			{
-				continue;
-			}
+				const unsigned int CharIndex = Glyph.CharIndex + Segment.CharOffset;
 
-			Rml::ColourbPremultiplied GlyphColour = Colour;
-			Rml::Vector2f GlyphOffset(0.0f, 0.0f);
-			bool bDraw = true;
-
-			if (Painter != nullptr)
-			{
-				float Alpha = 1.0f;
-				bDraw = Painter->PaintGlyph(Glyph.CharIndex, Alpha, GlyphOffset);
-
-				// Every channel, because the colour is premultiplied: scaling alpha alone would
-				// leave the colour brighter than its coverage and the glyph would glow as it
-				// faded rather than dissolving.
-				if (bDraw && Alpha < 1.0f)
+				const FGlyphBox* Box = Face.GetOrAppendGlyph(Glyph.GlyphIndex);
+				if (Box == nullptr)
 				{
-					const float Clamped = Alpha > 0.0f ? Alpha : 0.0f;
-					GlyphColour = Rml::ColourbPremultiplied(
-						Rml::byte(float(Colour.red) * Clamped),
-						Rml::byte(float(Colour.green) * Clamped),
-						Rml::byte(float(Colour.blue) * Clamped),
-						Rml::byte(float(Colour.alpha) * Clamped));
-					bDraw = GlyphColour.alpha > 0;
-				}
-			}
-
-			if (!Box->bEmpty && bDraw)
-			{
-				if (std::size_t(Box->Page) >= MeshForPage.size())
-				{
-					MeshForPage.resize(std::size_t(Box->Page) + 1, -1);
+					continue;
 				}
 
-				if (MeshForPage[Box->Page] < 0)
-				{
-					const Rml::Texture Texture = Effect != nullptr
-						? Face.GetEffectTexture(RenderManager, Box->Page, *Effect)
-						: Face.GetPageTexture(RenderManager, Box->Page);
+				Rml::ColourbPremultiplied GlyphColour = Colour;
+				Rml::Vector2f GlyphOffset(0.0f, 0.0f);
+				bool bDraw = true;
 
-					// A mesh already in the list for this texture belongs to an earlier line of the
-					// same element, and joining it keeps a paragraph to one draw rather than one per
-					// line. Order is unaffected: every pass of every line resolves to the same entry.
-					int Existing = -1;
-					for (std::size_t Index = 0; Index < MeshList.size(); ++Index)
+				if (Painter != nullptr)
+				{
+					float Alpha = 1.0f;
+					bDraw = Painter->PaintGlyph(CharIndex, Alpha, GlyphOffset);
+
+					// Every channel, because the colour is premultiplied: scaling alpha alone would
+					// leave the colour brighter than its coverage and the glyph would glow as it
+					// faded rather than dissolving.
+					if (bDraw && Alpha < 1.0f)
 					{
-						if (MeshList[Index].texture == Texture)
+						const float Clamped = Alpha > 0.0f ? Alpha : 0.0f;
+						GlyphColour = Rml::ColourbPremultiplied(
+							Rml::byte(float(Colour.red) * Clamped),
+							Rml::byte(float(Colour.green) * Clamped),
+							Rml::byte(float(Colour.blue) * Clamped),
+							Rml::byte(float(Colour.alpha) * Clamped));
+						bDraw = GlyphColour.alpha > 0;
+					}
+				}
+
+				if (!Box->bEmpty && bDraw)
+				{
+					if (std::size_t(Box->Page) >= MeshForPage.size())
+					{
+						MeshForPage.resize(std::size_t(Box->Page) + 1, -1);
+					}
+
+					if (MeshForPage[Box->Page] < 0)
+					{
+						const Rml::Texture Texture = Effect != nullptr
+							? Face.GetEffectTexture(RenderManager, Box->Page, *Effect)
+							: Face.GetPageTexture(RenderManager, Box->Page);
+
+						// A mesh already in the list for this texture belongs to an earlier line of the
+						// same element, and joining it keeps a paragraph to one draw rather than one per
+						// line. Order is unaffected: every pass of every line resolves to the same entry.
+						int Existing = -1;
+						for (std::size_t Index = 0; Index < MeshList.size(); ++Index)
 						{
-							Existing = int(Index);
-							break;
+							if (MeshList[Index].texture == Texture)
+							{
+								Existing = int(Index);
+								break;
+							}
 						}
+
+						if (Existing < 0)
+						{
+							Existing = int(MeshList.size());
+							MeshList.emplace_back();
+							MeshList.back().texture = Texture;
+						}
+
+						MeshForPage[Box->Page] = Existing;
 					}
 
-					if (Existing < 0)
-					{
-						Existing = int(MeshList.size());
-						MeshList.emplace_back();
-						MeshList.back().texture = Texture;
-					}
+					Rml::Mesh& Mesh = MeshList[std::size_t(MeshForPage[Box->Page])].mesh;
 
-					MeshForPage[Box->Page] = Existing;
+					// Snap the pen, not the glyph. Rounding a composed origin quantises each glyph's
+					// own bearing along with the pen, so characters meant to share a baseline land on
+					// slightly different ones. It is invisible at text sizes and unmistakable once a
+					// transform magnifies it.
+					//
+					// Plane bounds are y-up from the baseline; RmlUi's y runs down the screen. So is
+					// the shaper's offset, which only a mark attached to another glyph carries.
+					const float PenX = std::round(Position.x + float(Width) + Glyph.OffsetXEm * Scale);
+					const float BaselineY = std::round(Position.y - Glyph.OffsetYEm * Scale);
+
+					// Added after the snap rather than before it: a glyph the painter is moving is
+					// moving smoothly, and quantising that to whole pixels would make it judder.
+					const Rml::Vector2f Origin(
+						PenX + Box->PlaneLeft * Scale + GlyphOffset.x,
+						BaselineY - Box->PlaneTop * Scale + GlyphOffset.y);
+					const Rml::Vector2f Dimensions(
+						(Box->PlaneRight - Box->PlaneLeft) * Scale,
+						(Box->PlaneTop - Box->PlaneBottom) * Scale);
+
+					const float Texels = float(Impl->PageSize);
+					const Rml::Vector2f TopLeftUv(Box->AtlasLeft / Texels, Box->AtlasTop / Texels);
+					const Rml::Vector2f BottomRightUv(Box->AtlasRight / Texels, Box->AtlasBottom / Texels);
+
+					Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, GlyphColour, TopLeftUv, BottomRightUv);
 				}
 
-				Rml::Mesh& Mesh = MeshList[std::size_t(MeshForPage[Box->Page])].mesh;
-
-				// Snap the pen, not the glyph. Rounding a composed origin quantises each glyph's
-				// own bearing along with the pen, so characters meant to share a baseline land on
-				// slightly different ones. It is invisible at text sizes and unmistakable once a
-				// transform magnifies it.
-				//
-				// Plane bounds are y-up from the baseline; RmlUi's y runs down the screen. So is
-				// the shaper's offset, which only a mark attached to another glyph carries.
-				const float PenX = std::round(Position.x + float(Width) + Glyph.OffsetXEm * Scale);
-				const float BaselineY = std::round(Position.y - Glyph.OffsetYEm * Scale);
-
-				// Added after the snap rather than before it: a glyph the painter is moving is
-				// moving smoothly, and quantising that to whole pixels would make it judder.
-				const Rml::Vector2f Origin(
-					PenX + Box->PlaneLeft * Scale + GlyphOffset.x,
-					BaselineY - Box->PlaneTop * Scale + GlyphOffset.y);
-				const Rml::Vector2f Dimensions(
-					(Box->PlaneRight - Box->PlaneLeft) * Scale,
-					(Box->PlaneTop - Box->PlaneBottom) * Scale);
-
-				const float Texels = float(Impl->PageSize);
-				const Rml::Vector2f TopLeftUv(Box->AtlasLeft / Texels, Box->AtlasTop / Texels);
-				const Rml::Vector2f BottomRightUv(Box->AtlasRight / Texels, Box->AtlasBottom / Texels);
-
-				Rml::MeshUtilities::GenerateQuad(Mesh, Origin, Dimensions, GlyphColour, TopLeftUv, BottomRightUv);
+				Width += RoundToPixels(Glyph.AdvanceEm * Scale);
+				Width += int(TextShapingContext.letter_spacing);
 			}
-
-			Width += RoundToPixels(Glyph.AdvanceEm * Scale);
-			Width += int(TextShapingContext.letter_spacing);
 		}
 
 		return Rml::Math::Max(Width, 0);

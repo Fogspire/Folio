@@ -138,10 +138,22 @@ namespace Folio
 		struct FFaceEntry;
 		struct FHandle;
 		struct FEffectLayer;
+		struct FSegment;
 
 		FFaceEntry* FindFace(const Rml::String& Family, Rml::Style::FontStyle Style, Rml::Style::FontWeight Weight);
 		FHandle* ResolveHandle(Rml::FontFaceHandle Handle);
 		FFolioFontFace* GetInstance(FFaceEntry& Entry, const FVariationCoords& Coords);
+
+		/// @return A face that can draw this codepoint when the handle's own cannot, or null when
+		///	no registered face can either. Answers are remembered on the handle.
+		FFolioFontFace* FindGlyphFallback(FHandle& Resolved, char32_t Codepoint);
+
+		/// Splits a string into the longest stretches one face can draw, in order.
+		///
+		/// Shaping is per face, so this has to happen before it rather than after: a run shaped
+		/// against a face that has no glyph for half of it cannot be repaired by substitution.
+		/// The result is owned by the handle and replaced by the next call.
+		const std::vector<FSegment>& SegmentByFace(FHandle& Resolved, Rml::StringView String);
 
 		/// One pass over a string. Effects are the same glyphs read at a different threshold, so
 		/// they run through here too, with Effect naming which alias to sample.

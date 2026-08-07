@@ -269,6 +269,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void ClaimKey(FKey Key);
 
+	/**
+	 * Hands a claimed key back to the document.
+	 *
+	 * For a screen that wants a key only some of the time: a claim is absolute, so a document that
+	 * navigates with the arrows while a question is up has to give them back for as long as it is.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void ReleaseKey(FKey Key);
+
 private:
 	/** Held here as well as on the canvas, because a claim usually arrives before there is one. */
 	UPROPERTY()

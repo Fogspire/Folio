@@ -87,6 +87,13 @@ void SFolioWorldFocus::ReclaimFocus(FSlateApplication& SlateApp, const int32 Use
 		return;
 	}
 
+	// The console focuses the viewport widget for itself. Taking that back leaves it open with nothing
+	// able to be typed into it.
+	if (Folio::IsConsoleOpen())
+	{
+		return;
+	}
+
 	if (SlateApp.GetUserFocusedWidget(UserIndex) == Sink)
 	{
 		return;
@@ -176,6 +183,12 @@ void SFolioWorldFocus::Tick(const FGeometry&, const double, const float DeltaTim
 
 FReply SFolioWorldFocus::OnKeyDown(const FGeometry&, const FKeyEvent& KeyEvent)
 {
+	// The console owns the keyboard while it is up, whoever holds focus.
+	if (Folio::IsConsoleOpen())
+	{
+		return FReply::Unhandled();
+	}
+
 	Rml::Context* Context = Host ? Host->GetContext() : nullptr;
 	if (!Context)
 	{
@@ -254,6 +267,12 @@ FReply SFolioWorldFocus::OnKeyUp(const FGeometry&, const FKeyEvent& KeyEvent)
 
 FReply SFolioWorldFocus::OnKeyChar(const FGeometry&, const FCharacterEvent& CharacterEvent)
 {
+	// The console owns the keyboard while it is up, whoever holds focus.
+	if (Folio::IsConsoleOpen())
+	{
+		return FReply::Unhandled();
+	}
+
 	Rml::Context* Context = Host ? Host->GetContext() : nullptr;
 	if (!Context)
 	{

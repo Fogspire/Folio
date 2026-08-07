@@ -310,6 +310,16 @@ void UFolioWidget::ClaimKey(const FKey Key)
 	}
 }
 
+void UFolioWidget::ReleaseKey(const FKey Key)
+{
+	ClaimedKeys.Remove(Key);
+
+	if (Canvas.IsValid())
+	{
+		Canvas->ReleaseKey(Key);
+	}
+}
+
 bool UFolioWidget::ScrollElement(const FString& ElementId, const float Fraction)
 {
 	Rml::ElementDocument* Document = Canvas.IsValid() ? Canvas->GetDocument() : nullptr;

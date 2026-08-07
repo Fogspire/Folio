@@ -1,6 +1,9 @@
 #include "FolioInput.h"
 
 #include "InputCoreTypes.h"
+#include "Engine/Console.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
 
 namespace Folio
@@ -49,5 +52,12 @@ namespace Folio
 		if (Key == EKeys::Insert)      { return KI_INSERT; }
 
 		return KI_UNKNOWN;
+	}
+
+	bool IsConsoleOpen()
+	{
+		const UGameViewportClient* Viewport = GEngine ? GEngine->GameViewport : nullptr;
+		const UConsole* Console = Viewport ? Viewport->ViewportConsole : nullptr;
+		return Console && Console->ConsoleActive();
 	}
 }

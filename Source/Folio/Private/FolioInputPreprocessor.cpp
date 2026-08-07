@@ -1,5 +1,6 @@
 #include "FolioInputPreprocessor.h"
 
+#include "FolioInput.h"
 #include "FolioModule.h"
 #include "SFolioCanvas.h"
 #include "SFolioWorldFocus.h"
@@ -133,6 +134,13 @@ void FFolioInputPreprocessor::Unregister()
 
 bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
+	// The console reads the keyboard through the viewport widget it focused for itself. Reclaiming
+	// that on the next key is what leaves it open with nothing able to be typed into it.
+	if (Folio::IsConsoleOpen())
+	{
+		return false;
+	}
+
 	// A world document holds focus through its own sink, which is not a canvas. A screen document
 	// asking for input comes first: with a menu open, every pad press belongs to the menu and not to
 	// a panel on a wall behind it.
@@ -184,6 +192,11 @@ bool FFolioInputPreprocessor::HandleKeyDownEvent(FSlateApplication& SlateApp, co
 
 bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
+	if (Folio::IsConsoleOpen())
+	{
+		return false;
+	}
+
 	if (!InKeyEvent.GetKey().IsGamepadKey())
 	{
 		return false;
@@ -209,6 +222,11 @@ bool FFolioInputPreprocessor::HandleKeyUpEvent(FSlateApplication& SlateApp, cons
 bool FFolioInputPreprocessor::HandleAnalogInputEvent(FSlateApplication& SlateApp,
 	const FAnalogInputEvent& InAnalogInputEvent)
 {
+	if (Folio::IsConsoleOpen())
+	{
+		return false;
+	}
+
 	if (!InAnalogInputEvent.GetKey().IsGamepadKey())
 	{
 		return false;

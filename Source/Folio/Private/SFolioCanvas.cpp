@@ -323,10 +323,14 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const bool bUpdated = Host.Update(InDeltaTime, ScaleFor(AllottedGeometry),
 		RenderScale * ContextToLocal(AllottedGeometry));
 
-	// After the update, and again every frame it holds focus. A document focused before it has been laid
-	// out once has nothing to give focus to: what is navigable is a computed value, so until then RmlUi
-	// finds no tab element at all and the first press of a direction is spent arriving.
-	if (HasAnyUserFocus().IsSet())
+	// After the update, and again every frame. A document focused before it has been laid out once has
+	// nothing to give focus to: what is navigable is a computed value, so until then RmlUi finds no tab
+	// element at all and the first press of a direction is spent arriving.
+	//
+	// Not conditional on holding Slate focus. A screen that has only just come up has often not been
+	// handed it yet, and every one of those was a screen the player had to press a direction at before
+	// anything on it lit up.
+	if (bInteractive)
 	{
 		FocusFirstElement();
 	}
@@ -861,6 +865,12 @@ void SFolioCanvas::OnMouseLeave(const FPointerEvent& MouseEvent)
 
 FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
 {
+	// The console owns the keyboard while it is up, whoever holds focus.
+	if (Folio::IsConsoleOpen())
+	{
+		return FReply::Unhandled();
+	}
+
 	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
 	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
 	// added later cannot forget.
@@ -1090,8 +1100,16 @@ void SFolioCanvas::FocusFirstElement()
 
 	// Only when nothing in the document holds focus. A player halfway down a list who picks up the
 	// pad has not asked to start again, and a text field being typed into least of all.
+	//
+	// Something that cannot take focus itself does not count as holding it. RmlUi hands focus up to
+	// the parent when the element that had it is hidden, so a data binding closing a row leaves it on
+	// a container nothing can be navigated from - which is how a dialogue's answers come up unlit
+	// until a direction press starts again from the top.
 	const Rml::Element* Focus = Context->GetFocusElement();
-	if (Focus && Focus != Document && Focus != Context->GetRootElement())
+	const bool bHeld = Focus && Focus != Document && Focus != Context->GetRootElement()
+		&& Focus->GetComputedValues().tab_index() == Rml::Style::TabIndex::Auto;
+
+	if (bHeld)
 	{
 		return;
 	}
@@ -1110,6 +1128,13 @@ void SFolioCanvas::FocusFirstElement()
 void SFolioCanvas::KeepFocus()
 {
 	if (!WantsFocus() || !FSlateApplication::IsInitialized() || HasAnyUserFocus().IsSet())
+	{
+		return;
+	}
+
+	// The console focuses the viewport widget for itself. Taking that back on the next tick leaves it
+	// open with nothing able to be typed into it.
+	if (Folio::IsConsoleOpen())
 	{
 		return;
 	}
@@ -1207,6 +1232,12 @@ void SFolioCanvas::NoteDevice(const Folio::EInputDevice Device)
 
 FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent)
 {
+	// The console owns the keyboard while it is up, whoever holds focus.
+	if (Folio::IsConsoleOpen())
+	{
+		return FReply::Unhandled();
+	}
+
 	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
 	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
 	// added later cannot forget.
@@ -1227,6 +1258,12 @@ FReply SFolioCanvas::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& KeyEv
 
 FReply SFolioCanvas::OnKeyChar(const FGeometry& MyGeometry, const FCharacterEvent& CharacterEvent)
 {
+	// The console owns the keyboard while it is up, whoever holds focus.
+	if (Folio::IsConsoleOpen())
+	{
+		return FReply::Unhandled();
+	}
+
 	// Input changes something by definition, even when RmlUi decides not to act on it: a focus ring,
 	// a hover state, a caret position. Marked here rather than beside each Process call so a handler
 	// added later cannot forget.

@@ -13,6 +13,7 @@ strings and the ids, and delete what you do not need. Nothing links them at runt
 | `confirm.rml` | A destructive confirmation, with the safe action focused |
 | `dialogue.rml` | A line that types itself out, with emphasis, a shared place name and a continue prompt |
 | `nameplate.rml` | A marker document: a plate above a head, laid out at the component's Size |
+| `subtitles.rml` | Close captions: a stack of spoken lines, newest bright, each on its own clock |
 | `prompts.rml` | Every drawn glyph the library ships |
 | `bindings.rml` | A rebinding list over `UFolioInputBindings` |
 | `circle.rml` | Circles, rings, capsules - and why a bordered box is not one |

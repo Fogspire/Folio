@@ -49,6 +49,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Documents in the world](world_documents.md)** | A monitor on a desk, a sign on a wall. The three draw modes and the surface setup. |
 | **[Input prompts](input_prompts.md)** | Showing the key a player actually bound, drawn rather than authored, and swapping when they pick up a pad. |
 | **[Nameplates and markers](markers.md)** | Screen-space documents that follow a world location. |
+| **[Subtitles and closed captions](subtitles.md)** | A stack of spoken lines, each on its own clock. Why the sound does not decide how long one holds, and why a line has to be held in the list to animate away. |
 | **[A HUD that responds to the camera](hud_motion.md)** | Springs, so a visor lags a turn and settles. What transitions cannot express. |
 
 ## Shipping

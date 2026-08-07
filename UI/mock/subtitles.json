@@ -1,0 +1,42 @@
+{
+	"bAny": true,
+	"Offset": 0.0,
+	"Lines": [
+		{
+			"Speaker": "MARLOWE",
+			"bHasSpeaker": true,
+			"Text": "Two of them on the gantry. Wait for my mark.",
+			"Voice": 0,
+			"bFresh": false,
+			"bLeaving": true,
+			"bCue": false
+		},
+		{
+			"Speaker": "",
+			"bHasSpeaker": false,
+			"Text": "[a shutter grinds open]",
+			"Voice": 0,
+			"bFresh": false,
+			"bLeaving": false,
+			"bCue": true
+		},
+		{
+			"Speaker": "VOSS",
+			"bHasSpeaker": true,
+			"Text": "That is not the mark. That is the opposite of the mark.",
+			"Voice": 1,
+			"bFresh": false,
+			"bLeaving": false,
+			"bCue": false
+		},
+		{
+			"Speaker": "MARLOWE",
+			"bHasSpeaker": true,
+			"Text": "Go, go, go!",
+			"Voice": 0,
+			"bFresh": true,
+			"bLeaving": false,
+			"bCue": false
+		}
+	]
+}

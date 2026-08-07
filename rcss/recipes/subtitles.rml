@@ -1,0 +1,211 @@
+<rml>
+<head>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		/*
+		 * Close captions: a stack of spoken lines at the foot of the frame, newest at the bottom.
+		 *
+		 * The shape has not changed since Half-Life and there is a reason for that. A few lines at a
+		 * time, each on its own clock, the newest bright and the ones above it dimmed. It is the only
+		 * arrangement that survives two people talking over each other, which is what happens the
+		 * moment a game gets loud.
+		 *
+		 * This document draws. The queue behind it is the game's, and it is most of the feature:
+		 * see docs/subtitles.md for the contract this markup expects.
+		 *
+		 * Three things here are Folio-specific and each one is a bug the first time it is met:
+		 *
+		 *   A row taken out of a data array is destroyed on the spot, so a line cannot animate its own
+		 *   removal. The game holds it in the list with `bLeaving` set for as long as the exit runs.
+		 *
+		 *   Opacity cannot dim or fade a caption. It is inherited in RCSS and multiplied into
+		 *   premultiplied vertex colours rather than compositing the subtree, so a slab with type over
+		 *   it blows out to white halfway and is correct at both ends. Dim with colour, exit with a
+		 *   transform.
+		 *
+		 *   The speaker's colour is never the only thing that identifies them. The name is always
+		 *   written, because a palette that four people can tell apart is not one that everybody can.
+		 */
+
+		/*
+		 * Sized and positioned, both of which the panel below needs: an absolutely positioned child
+		 * resolves its percentages against the nearest positioned ancestor, and a body left to size
+		 * itself gives it a containing block the width of its own content.
+		 */
+		body {
+			position: relative;
+			width: 100%;
+			height: 100%;
+			background-color: transparent;
+			font-family: Inter;
+
+			/* A readout. Nothing here is clicked, navigated to, or allowed to take a press. */
+			pointer-events: none;
+			focus: none;
+		}
+
+		/*
+		 * Centred and stacked upward, so the newest line is always in the same place and the older ones
+		 * move away from it rather than the reverse. Nothing here has a fixed height: at 150% text
+		 * scale a row has to be able to grow, and a wrapped line is the ordinary case.
+		 */
+		/*
+		 * A stated width in dp rather than a fraction of the frame. A row is shrink-to-fit inside this,
+		 * and a percentage width here makes that circular: the rows size from the panel while the panel
+		 * sizes from the rows, and both settle on almost nothing.
+		 */
+		#subs {
+			position: absolute;
+			left: 50%;
+			margin-left: -360dp;
+			bottom: 140dp;
+			width: 720dp;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+
+		.sub {
+			position: relative;
+			display: block;
+			margin-top: 6dp;
+			padding: 6dp 16dp 7dp 20dp;
+			box-sizing: border-box;
+
+			/* Its own ground, because a caption sits over whatever the player happens to be looking at
+			   and nothing else on screen is going to provide one. */
+			background-color: #10101ae8;
+			animation: 0.18s cubic-out sub-in;
+		}
+
+		@keyframes sub-in {
+			from { transform: translateY(10dp); }
+			to   { transform: translateY(0dp); }
+		}
+
+		/*
+		 * Said a moment ago rather than now. A quieter ground and quieter type, never a lower opacity:
+		 * see the note at the top.
+		 */
+		.sub.old            { background-color: #10101ac0; }
+		.sub.old .said      { color: #9a9aa8; }
+
+		/*
+		 * Had its say, and going. The row is still in the array while this runs, because the game holds
+		 * it there - a row removed from a data array is destroyed at once and cannot animate.
+		 *
+		 * The end state is the rule's own value, because RmlUi's animation shorthand has no fill mode.
+		 */
+		.sub.out {
+			transform-origin: left;
+
+			/*
+			 * The collapsed state is declared here rather than left to a fill mode: RmlUi's animation
+			 * shorthand has no `forwards`, and a shorthand carrying one is not a shorthand it can parse,
+			 * so the whole rule is dropped and nothing animates at all. With the end state as the base
+			 * value there is nothing to snap back to when the animation finishes.
+			 */
+			transform: scaleX(0);
+			animation: 0.2s cubic-in sub-out;
+		}
+
+		@keyframes sub-out {
+			from { transform: scaleX(1); }
+			to   { transform: scaleX(0); }
+		}
+
+		/*
+		 * The speaker's colour, on the edge rather than in the words, so the line stays readable
+		 * whatever colour the voice happens to be.
+		 */
+		.tick {
+			position: absolute;
+			left: 0dp;
+			top: 0dp;
+			bottom: 0dp;
+			width: 5dp;
+			background-color: #f0b055;
+		}
+
+		.sub.v1 .tick { background-color: #7fd8ff; }
+		.sub.v2 .tick { background-color: #e8e8f0; }
+		.sub.v3 .tick { background-color: #a88ff0; }
+
+		/*
+		 * Who said it. Always written, and that is the point: colour tells four speakers apart quickly
+		 * for most players and not at all for some, so it reinforces the name rather than replacing it.
+		 * A game with more voices than colours wraps the palette and the names still separate them.
+		 */
+		.who {
+			display: inline-block;
+			font-weight: 600;
+			font-size: 0.85rem;
+			color: #f0b055;
+			margin-right: 8dp;
+		}
+
+		.sub.v1 .who { color: #7fd8ff; }
+		.sub.v2 .who { color: #e8e8f0; }
+		.sub.v3 .who { color: #a88ff0; }
+
+		.said {
+			display: inline-block;
+			font-size: 0.95rem;
+			line-height: 1.35;
+			color: #e8e8f0;
+		}
+
+		/*
+		 * A sound rather than speech, the way a closed caption distinguishes them: a door closing is
+		 * described, not quoted, so it is set apart and carries no speaker.
+		 */
+		.sub.cue .said { color: #b4b4c0; font-style: italic; }
+		.sub.cue .who  { display: none; }
+
+		@media (theme: high-contrast)
+		{
+			.sub, .sub.old   { background-color: #000000; }
+			.said            { color: #ffffff; }
+			.sub.old .said   { color: #ffffff; }
+			.sub.cue .said   { color: #ffffff; }
+
+			/* Stated apart: the tick is a shape and takes a fill, the name is text and takes a colour.
+			   Grouping them gives the name the tick's background and it reads at 1:1 against itself. */
+			.who          { color: #ffc9a0; }
+			.sub.v1 .who  { color: #a0d8ff; }
+			.sub.v2 .who  { color: #ffffff; }
+			.sub.v3 .who  { color: #d8c0ff; }
+
+			.tick         { background-color: #ffc9a0; }
+			.sub.v1 .tick { background-color: #a0d8ff; }
+			.sub.v2 .tick { background-color: #ffffff; }
+			.sub.v3 .tick { background-color: #d8c0ff; }
+		}
+	</style>
+</head>
+
+<!--
+	Nothing here is markup the game wrote, so nothing here needs a `text` element: a caption is a line
+	somebody said, not a line somebody typed with emphasis in it.
+
+	`Offset` moves the whole stack up the frame. A player who has put something else along the bottom
+	of the screen has put it where the captions were, and one of the two has to give.
+-->
+<body data-model="subtitles">
+	<div id="subs" data-if="bAny" data-style-margin-bottom="Offset * 100 + 'vh'">
+		<div class="sub" data-for="line : Lines"
+			data-class-old="!line.bFresh"
+			data-class-out="line.bLeaving"
+			data-class-cue="line.bCue"
+			data-class-v1="line.Voice == 1"
+			data-class-v2="line.Voice == 2"
+			data-class-v3="line.Voice == 3">
+
+			<div class="tick" folio-hidden/>
+
+			<span class="who" data-if="line.bHasSpeaker" data-noloc>{{ line.Speaker }}</span><span
+				class="said">{{ line.Text }}</span>
+		</div>
+	</div>
+</body>
+</rml>

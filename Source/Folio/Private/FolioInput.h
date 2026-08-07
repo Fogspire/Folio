@@ -27,4 +27,12 @@ namespace Folio
 
 	/** RmlUi's button index, or -1 for a button it does not model. */
 	int32 ToRmlMouseButton(const FKey& Key);
+
+	/**
+	 * Whether the viewport console is open.
+	 *
+	 * It reads the keyboard through the game viewport widget and takes focus for itself, so a document
+	 * that answers a key or takes focus back while it is up is a console nothing can be typed into.
+	 */
+	bool IsConsoleOpen();
 }

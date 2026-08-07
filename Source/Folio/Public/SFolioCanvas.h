@@ -330,6 +330,9 @@ public:
 	 */
 	void ClaimKey(const FKey& Key) { GameKeys.Add(Key); }
 
+	/** Hands a claimed key back to the document, for a screen that only wants it some of the time. */
+	void ReleaseKey(const FKey& Key) { GameKeys.Remove(Key); }
+
 private:
 
 	FFolioDocumentHost Host;

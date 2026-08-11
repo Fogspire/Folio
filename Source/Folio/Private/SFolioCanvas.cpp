@@ -927,7 +927,12 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 		bool bTookBack = false;
 		if (Key == Rml::Input::KI_ESCAPE)
 		{
-			if (bConsumed)
+			/*
+			 * A focused text field stops every key it has no use for, escape among them, so being
+			 * consumed there says nothing about whether anything acted on it. Taken at its word, a
+			 * screen that opens with the caret in a field can never be left.
+			 */
+			if (bConsumed && !IsTakingText())
 			{
 				// Something in the document closed itself, which is the only back this side of the
 				// boundary knows the outcome of. The rest is the game's to report.
@@ -1203,7 +1208,8 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 	// itself has consumed it and this does not fire.
 	if (Key == Rml::Input::KI_ESCAPE)
 	{
-		if (bConsumed)
+		// A field being typed into consumes it without acting on it, so its answer is not one
+		if (bConsumed && !IsTakingText())
 		{
 			Folio::OnUiSound().Broadcast(Folio::EUiSound::Back);
 		}

@@ -1,5 +1,6 @@
 #include "FolioModule.h"
 
+#include "FolioInputDevice.h"
 #include "FolioInsights.h"
 
 #include "FolioCore/FolioDecorators.h"
@@ -330,6 +331,20 @@ void FFolioModule::SetInputDevice(const Folio::EInputDevice Device)
 	InputDevice = Device;
 	UE_LOG(LogFolio, Verbose, TEXT("input device is now %s"), Folio::DescribeDevice(Device));
 	InputDeviceDelegate.Broadcast(Device);
+}
+
+bool Folio::IsGamepadInput()
+{
+	return FFolioModule::IsAvailable()
+		&& FFolioModule::Get().GetInputDevice() == EInputDevice::Gamepad;
+}
+
+void Folio::SetGamepadInput(const bool bGamepad)
+{
+	if (FFolioModule::IsAvailable() && bGamepad != IsGamepadInput())
+	{
+		FFolioModule::Get().SetInputDevice(bGamepad ? EInputDevice::Gamepad : EInputDevice::Keyboard);
+	}
 }
 
 Folio::EConfirmButton FFolioModule::GetConfirmButton() const

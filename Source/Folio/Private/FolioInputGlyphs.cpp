@@ -64,9 +64,11 @@ namespace
 	/**
 	 * CommonInput's art for a key, registered as a Folio texture so a document can name it.
 	 *
-	 * Registered under the key's own name, so the same key asked for twice is the same texture and
-	 * the cache does the work. Empty when CommonInput has nothing, which is the ordinary case for a
-	 * project that has not shipped controller art.
+	 * Registered under the key and the device, so the same key asked for twice is the same texture and
+	 * the cache does the work. The device is part of the name because a face button has one picture per
+	 * pad: under the key alone, picking up a second pad would hand every document the new art under the
+	 * old name. Empty when CommonInput has nothing, which is the ordinary case for a project that has
+	 * not shipped controller art.
 	 */
 	FString ImageFor(const FKey& Key, const ULocalPlayer* LocalPlayer)
 	{
@@ -77,9 +79,11 @@ namespace
 			return FString();
 		}
 
+		const ECommonInputType Device = Input->GetCurrentInputType();
+		const FName Gamepad = Input->GetCurrentGamepadName();
+
 		FSlateBrush Brush;
-		if (!Settings->TryGetInputBrush(Brush, Key, Input->GetCurrentInputType(),
-			Input->GetCurrentGamepadName()))
+		if (!Settings->TryGetInputBrush(Brush, Key, Device, Gamepad))
 		{
 			return FString();
 		}
@@ -90,7 +94,9 @@ namespace
 			return FString();
 		}
 
-		const FName Name(*FString::Printf(TEXT("key/%s"), *Key.ToString()));
+		const FName Name(*FString::Printf(TEXT("key/%s/%s"),
+			Device == ECommonInputType::Gamepad ? *Gamepad.ToString() : TEXT("kbm"),
+			*Key.ToString()));
 		Folio::RegisterTexture(Name, Texture);
 
 		return FString::Printf(TEXT("%s%s"), Folio::TextureScheme, *Name.ToString());

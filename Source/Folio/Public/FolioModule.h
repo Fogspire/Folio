@@ -121,7 +121,7 @@ public:
 	FOnTextRevealed& OnTextRevealed() { return TextRevealedDelegate; }
 
 	/**
-	 * Reads every `UI/terms/*.terms`, replacing whatever was loaded before.
+	 * Reads every `.terms` file under `UI/terms`, replacing whatever was loaded before.
 	 *
 	 * Called at startup and again when one of those files changes. A term's text is resolved
 	 * through the `Folio.Terms` namespace, so a translated name arrives here rather than at each

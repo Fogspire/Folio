@@ -89,6 +89,15 @@ FString FFolioFileInterface::ResolveInPackage(const Rml::String& Path) const
 		return FPaths::Combine(ContentRoot, Relative.RightChop(1));
 	}
 
+	// A path reaching up out of the binary directory is already anchored there, the form
+	// FPaths::ProjectDir and friends hand out. Joining it to the content root as well produces a
+	// path that walks above the root, which a desktop filesystem quietly resolves and a console's
+	// read-only mount does not.
+	if (Relative.StartsWith(TEXT("../")))
+	{
+		return Relative;
+	}
+
 	// RmlUi has already joined a relative reference against its document's directory, so an
 	// absolute path at this point is a real one.
 	if (FPaths::IsRelative(Relative))

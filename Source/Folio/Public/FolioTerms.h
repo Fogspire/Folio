@@ -7,7 +7,7 @@ namespace Folio
 	/**
 	 * The names a game shares across its whole script: places, people, items, quests.
 	 *
-	 * Terms live in `UI/terms/*.terms` and are reached from markup as `{tag:Lookup.Place.X}`.
+	 * Terms live in `.terms` files under `UI/terms` and are reached from markup as `{tag:Lookup.Place.X}`.
 	 * The files are what the preview tool reads, so a screen resolves its names with no engine
 	 * running. See docs/rich_text.md.
 	 *

@@ -259,7 +259,7 @@ bool FFolioDataModel::Mount(Rml::Context* Context, const FString& ModelName, con
 		return false;
 	}
 
-	for (const TPair<FString, TSharedPtr<FJsonValue>>& Entry : Parsed->Values)
+	for (const auto& Entry : Parsed->Values)
 	{
 		if (!Entry.Value.IsValid())
 		{
@@ -267,8 +267,8 @@ bool FFolioDataModel::Mount(Rml::Context* Context, const FString& ModelName, con
 		}
 
 		// Held before binding: RmlUi keeps the address, so the value has to outlive this loop.
-		Slots.Add(Entry.Key, Entry.Value);
-		Constructor.BindCustomDataVariable(Folio::ToRmlString(Entry.Key), Definitions->For(Entry.Value.Get()));
+		Slots.Add(FString(Entry.Key), Entry.Value);
+		Constructor.BindCustomDataVariable(Folio::ToRmlString(*Entry.Key), Definitions->For(Entry.Value.Get()));
 	}
 
 	Handle = Constructor.GetModelHandle();

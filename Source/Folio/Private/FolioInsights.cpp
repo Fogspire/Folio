@@ -102,22 +102,22 @@ namespace FolioInsights
 			return Counters()[int32(Spec.HostId) - 1];
 		}
 
-		void SetCounter(Folio::Trace::FCounterSpec& Spec, int64 Value)
+		void SetCounter(Folio::Trace::FCounterSpec& Spec, std::int64_t Value)
 		{
 			FCounter& Counter = Resolve(Spec);
 			Counter.Value = Value;
 			FCountersTrace::OutputSetValue(Counter.Id, Counter.Value);
 		}
 
-		void AddCounter(Folio::Trace::FCounterSpec& Spec, int64 Delta)
+		void AddCounter(Folio::Trace::FCounterSpec& Spec, std::int64_t Delta)
 		{
 			FCounter& Counter = Resolve(Spec);
 			Counter.Value += Delta;
 			FCountersTrace::OutputSetValue(Counter.Id, Counter.Value);
 		}
 #else
-		void SetCounter(Folio::Trace::FCounterSpec&, int64) {}
-		void AddCounter(Folio::Trace::FCounterSpec&, int64) {}
+		void SetCounter(Folio::Trace::FCounterSpec&, std::int64_t) {}
+		void AddCounter(Folio::Trace::FCounterSpec&, std::int64_t) {}
 #endif
 	}
 

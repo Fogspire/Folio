@@ -137,6 +137,8 @@ bool FFolioDocumentOptionsTest::RunTest(const FString&)
 	return true;
 }
 
+#if WITH_EDITOR
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioDocumentValidationTest, "Folio.Document.Validation",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -179,5 +181,7 @@ bool FFolioDocumentValidationTest::RunTest(const FString&)
 
 	return true;
 }
+
+#endif
 
 #endif

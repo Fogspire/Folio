@@ -216,7 +216,7 @@ public:
 	 * document's bindings resolve against whatever is bound when it loads.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
-	bool BindViewModel(FName ModelName, UObject* Source, bool bPollEveryFrame = true);
+	bool BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
 
 	/** Says the document changed, for game code that reaches into it directly. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
@@ -409,7 +409,7 @@ private:
 	/** One requested binding, kept so it survives a re-register the way the widget's do. */
 	struct FPendingBinding
 	{
-		FName ModelName;
+		FString ModelName;
 		TWeakObjectPtr<UObject> Source;
 		bool bPollEveryFrame = true;
 	};

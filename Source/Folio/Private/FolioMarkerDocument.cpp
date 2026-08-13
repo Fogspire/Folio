@@ -321,9 +321,9 @@ void UFolioMarkerDocument::LoadDocument(const FString& InDocumentPath)
 	}
 }
 
-void UFolioMarkerDocument::BindViewModel(const FName ModelName, UObject* Source, const bool bPollEveryFrame)
+void UFolioMarkerDocument::BindViewModel(const FString& ModelName, UObject* Source, const bool bPollEveryFrame)
 {
-	if (ModelName.IsNone() || !Source)
+	if (ModelName.IsEmpty() || !Source)
 	{
 		return;
 	}
@@ -346,9 +346,9 @@ void UFolioMarkerDocument::ApplyBindings()
 	for (const FBinding& Binding : Bindings)
 	{
 		UObject* Source = Binding.Source.Get();
-		if (Source && !Host->HasObjectModel(Binding.ModelName.ToString()))
+		if (Source && !Host->HasObjectModel(Binding.ModelName))
 		{
-			Host->BindObjectModel(Binding.ModelName.ToString(), Source, Binding.bPollEveryFrame);
+			Host->BindObjectModel(Binding.ModelName, Source, Binding.bPollEveryFrame);
 		}
 	}
 }

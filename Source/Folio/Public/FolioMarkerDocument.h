@@ -229,7 +229,7 @@ public:
 	 * call this and then LoadDocument.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
-	void BindViewModel(FName ModelName, UObject* Source, bool bPollEveryFrame = true);
+	void BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
 
 	/** Says the document has changed and must be updated and repainted. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
@@ -293,7 +293,7 @@ private:
 
 	struct FBinding
 	{
-		FName ModelName;
+		FString ModelName;
 		TWeakObjectPtr<UObject> Source;
 		bool bPollEveryFrame = true;
 	};

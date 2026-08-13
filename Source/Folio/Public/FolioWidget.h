@@ -24,7 +24,7 @@ struct FFolioViewModelBinding
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FName ModelName;
+	FString ModelName;
 
 	/** Strong: a view model handed to a widget and referenced nowhere else must not be collected. */
 	UPROPERTY()
@@ -145,7 +145,7 @@ public:
 	 * rebuilds the document if one is already up.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
-	FOLIO_API bool BindViewModel(FName ModelName, UObject* Source, bool bPollEveryFrame = true);
+	FOLIO_API bool BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
 
 	/**
 	 * Writes one inline property on an element, by id, and marks the document dirty.

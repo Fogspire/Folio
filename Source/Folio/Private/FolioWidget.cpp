@@ -66,9 +66,9 @@ void UFolioWidget::ApplyBindings()
 
 	for (const FFolioViewModelBinding& Binding : Bindings)
 	{
-		if (Binding.Source && !Canvas->HasObjectModel(Binding.ModelName.ToString()))
+		if (Binding.Source && !Canvas->HasObjectModel(Binding.ModelName))
 		{
-			Canvas->BindObjectModel(Binding.ModelName.ToString(), Binding.Source, Binding.bPollEveryFrame);
+			Canvas->BindObjectModel(Binding.ModelName, Binding.Source, Binding.bPollEveryFrame);
 		}
 	}
 }
@@ -121,9 +121,9 @@ void UFolioWidget::LoadDocument(const FString& InDocumentPath)
 	}
 }
 
-bool UFolioWidget::BindViewModel(const FName ModelName, UObject* Source, const bool bPollEveryFrame)
+bool UFolioWidget::BindViewModel(const FString& ModelName, UObject* Source, const bool bPollEveryFrame)
 {
-	if (ModelName.IsNone() || !Source)
+	if (ModelName.IsEmpty() || !Source)
 	{
 		return false;
 	}
@@ -131,7 +131,7 @@ bool UFolioWidget::BindViewModel(const FName ModelName, UObject* Source, const b
 	// Recorded rather than only applied, so a rebuild - which a designer preview, a re-add to the
 	// viewport or a hot reload all cause - puts the same models back.
 	const int32 Existing = Bindings.IndexOfByPredicate(
-		[ModelName](const FFolioViewModelBinding& Binding) { return Binding.ModelName == ModelName; });
+		[&ModelName](const FFolioViewModelBinding& Binding) { return Binding.ModelName.Equals(ModelName, ESearchCase::CaseSensitive); });
 
 	FFolioViewModelBinding Binding;
 	Binding.ModelName = ModelName;
@@ -165,7 +165,7 @@ bool UFolioWidget::BindViewModel(const FName ModelName, UObject* Source, const b
 		UE_LOG(LogFolio, Log,
 			TEXT("BindViewModel('%s') arrived after '%s' had loaded, so the document is being rebuilt. ")
 			TEXT("Bind before the document loads to avoid it."),
-			*ModelName.ToString(), *DocumentPath);
+			*ModelName, *DocumentPath);
 
 		Canvas->ReloadDocument();
 	}

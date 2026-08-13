@@ -966,9 +966,9 @@ void UFolioWorldDocument::LoadDocument(const FString& InDocumentPath)
 	}
 }
 
-bool UFolioWorldDocument::BindViewModel(const FName ModelName, UObject* Source, const bool bPollEveryFrame)
+bool UFolioWorldDocument::BindViewModel(const FString& ModelName, UObject* Source, const bool bPollEveryFrame)
 {
-	if (ModelName.IsNone() || !Source)
+	if (ModelName.IsEmpty() || !Source)
 	{
 		return false;
 	}
@@ -976,7 +976,7 @@ bool UFolioWorldDocument::BindViewModel(const FName ModelName, UObject* Source, 
 	// Recorded rather than only applied, so a re-register - which moving the component in the editor
 	// causes - puts the same models back.
 	const int32 Existing = Bindings.IndexOfByPredicate(
-		[ModelName](const FPendingBinding& Binding) { return Binding.ModelName == ModelName; });
+		[&ModelName](const FPendingBinding& Binding) { return Binding.ModelName.Equals(ModelName, ESearchCase::CaseSensitive); });
 
 	FPendingBinding Binding;
 	Binding.ModelName = ModelName;
@@ -1010,7 +1010,7 @@ bool UFolioWorldDocument::BindViewModel(const FName ModelName, UObject* Source, 
 		UE_LOG(LogFolio, Log,
 			TEXT("BindViewModel('%s') arrived after '%s' had loaded, so the document is being rebuilt. ")
 			TEXT("Bind before the document loads to avoid it."),
-			*ModelName.ToString(), *DocumentPath);
+			*ModelName, *DocumentPath);
 
 		Host->ReloadDocument();
 	}
@@ -1028,9 +1028,9 @@ void UFolioWorldDocument::ApplyBindings()
 	for (const FPendingBinding& Binding : Bindings)
 	{
 		UObject* Source = Binding.Source.Get();
-		if (Source && !Host->HasObjectModel(Binding.ModelName.ToString()))
+		if (Source && !Host->HasObjectModel(Binding.ModelName))
 		{
-			Host->BindObjectModel(Binding.ModelName.ToString(), Source, Binding.bPollEveryFrame);
+			Host->BindObjectModel(Binding.ModelName, Source, Binding.bPollEveryFrame);
 		}
 	}
 }

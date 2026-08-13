@@ -102,6 +102,8 @@ function(folio_add_skia)
 	# Slate's out entirely and only this one remains.
 	if(MSVC)
 		target_compile_options(skia PRIVATE /w)
+	else()
+		target_compile_options(skia PRIVATE -w)
 	endif()
 endfunction()
 

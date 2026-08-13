@@ -8,31 +8,48 @@ using UnrealBuildTool;
 /// </summary>
 public class MsdfgenLibrary : ModuleRules
 {
+	/// <summary>Subdirectory of lib/ holding the build for the target platform.</summary>
+	protected virtual string LibraryPlatform => "Win64";
+
+	/// <summary>
+	/// Directory the static libraries are read from. A platform whose libraries are not
+	/// distributed with the plugin overrides this to point outside it.
+	/// </summary>
+	protected virtual string LibraryDirectory => Path.Combine(ModuleDirectory, "lib", LibraryPlatform);
+
+	/// <summary>File name of a static library, which is not spelled the same way on every platform.</summary>
+	protected virtual string StaticLibrary(string BaseName) => BaseName + ".lib";
+
+	/// <summary>How to produce the libraries, quoted back when the build is missing.</summary>
+	protected virtual string BuildInstructions =>
+		"Run: Plugins/Folio/scripts/build_ue_libs.sh\n" +
+		"It builds RmlUi and msdfgen together.";
+
 	public MsdfgenLibrary(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
 
 		string IncludePath = Path.Combine(ModuleDirectory, "include");
-		string LibraryPath = Path.Combine(ModuleDirectory, "lib", "Win64");
+		string LibraryPath = LibraryDirectory;
 
-		if (!Directory.Exists(IncludePath) || !File.Exists(Path.Combine(LibraryPath, "msdfgen-core.lib")))
+		if (!Directory.Exists(IncludePath) || !File.Exists(Path.Combine(LibraryPath, StaticLibrary("msdfgen-core"))))
 		{
 			throw new BuildException(
-				"msdfgen has not been built for Unreal.\n" +
-				"Run: Plugins\\Folio\\scripts/\build_ue_libs.sh\n" +
-				"It builds RmlUi and msdfgen together.");
+				"msdfgen has not been built for " + LibraryPlatform + ".\n" +
+				"Expected: " + LibraryPath + "\n" +
+				BuildInstructions);
 		}
 
 		PublicSystemIncludePaths.Add(IncludePath);
 
-		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "msdfgen-core.lib"));
-		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "msdfgen-ext.lib"));
+		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, StaticLibrary("msdfgen-core")));
+		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, StaticLibrary("msdfgen-ext")));
 
 		// Skia's path operations, vendored as a single-file amalgam under
 		// Source/ThirdParty/SkiaSimplify. msdfgen's resolveShapeGeometry lives in the extensions
 		// library but its implementation is here, and without it every heavy font weight renders
 		// with broken stems.
-		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "skia.lib"));
+		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, StaticLibrary("skia")));
 
 		// These are PUBLIC definitions on the CMake targets, so a consumer that disagrees with
 		// the library gets a different declaration of the same function: an ODR violation, not a

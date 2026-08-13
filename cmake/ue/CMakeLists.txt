@@ -40,7 +40,19 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 # consumer that disagree are an ODR violation.
 set(RMLUI_CUSTOM_RTTI ON CACHE BOOL "" FORCE)
 
-add_compile_options(/GR- /EHsc)
+# Which lib/ subdirectory the staged libraries land in, and the name the .Build.cs files look
+# under. A cross build supplies its own along with a toolchain file.
+set(FOLIO_UE_PLATFORM "Win64" CACHE STRING "Staging subdirectory under Source/ThirdParty/*/lib")
+
+# Where the staged tree is written. A platform whose libraries are not distributed with the
+# plugin points this outside it.
+set(FOLIO_STAGE_ROOT "${FOLIO_ROOT}/Source/ThirdParty" CACHE PATH "Root the libraries stage into")
+
+if(MSVC)
+	add_compile_options(/GR- /EHsc)
+else()
+	add_compile_options(-fno-rtti -fexceptions)
+endif()
 
 #
 # FreeType: the engine's copy, not our own.
@@ -58,7 +70,11 @@ add_compile_options(/GR- /EHsc)
 set(FOLIO_FREETYPE_VERSION "FreeType2-2.14.1" CACHE STRING "Engine FreeType directory name")
 set(FOLIO_FREETYPE_ROOT "${FOLIO_ENGINE_DIR}/Source/ThirdParty/FreeType2/${FOLIO_FREETYPE_VERSION}")
 set(FOLIO_FREETYPE_INCLUDE "${FOLIO_FREETYPE_ROOT}/include")
-set(FOLIO_FREETYPE_LIB "${FOLIO_FREETYPE_ROOT}/lib/Win64/x64/Release/freetype.lib")
+
+# The headers are the engine's for every platform, but the library is wherever that platform's
+# build of the engine put it, so a cross build overrides only this.
+set(FOLIO_FREETYPE_LIB "${FOLIO_FREETYPE_ROOT}/lib/Win64/x64/Release/freetype.lib"
+	CACHE FILEPATH "Engine FreeType static library to link against")
 
 if(NOT EXISTS "${FOLIO_FREETYPE_LIB}")
 	message(FATAL_ERROR
@@ -102,14 +118,14 @@ FetchContent_MakeAvailable(RmlUi msdfgen)
 #
 # Stage the result where the .Build.cs files expect it.
 #
-set(FOLIO_STAGE "${FOLIO_ROOT}/Source/ThirdParty/RmlUiLibrary")
+set(FOLIO_STAGE "${FOLIO_STAGE_ROOT}/RmlUiLibrary")
 
 add_custom_target(folio_stage ALL
 	COMMAND ${CMAKE_COMMAND} -E rm -rf "${FOLIO_STAGE}/include"
 	COMMAND ${CMAKE_COMMAND} -E copy_directory "${rmlui_SOURCE_DIR}/Include" "${FOLIO_STAGE}/include"
-	COMMAND ${CMAKE_COMMAND} -E make_directory "${FOLIO_STAGE}/lib/Win64"
+	COMMAND ${CMAKE_COMMAND} -E make_directory "${FOLIO_STAGE}/lib/${FOLIO_UE_PLATFORM}"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
-		"$<TARGET_FILE:rmlui_core>" "$<TARGET_FILE:rmlui_debugger>" "${FOLIO_STAGE}/lib/Win64/"
+		"$<TARGET_FILE:rmlui_core>" "$<TARGET_FILE:rmlui_debugger>" "${FOLIO_STAGE}/lib/${FOLIO_UE_PLATFORM}/"
 	DEPENDS rmlui_core rmlui_debugger
 	COMMENT "Staging RmlUi into Source/ThirdParty/RmlUiLibrary"
 	VERBATIM
@@ -117,19 +133,19 @@ add_custom_target(folio_stage ALL
 
 # msdfgen's include interface is its source root, and msdfgen.h reaches core/ and ext/ relatively,
 # so the staged tree has to keep that shape.
-set(FOLIO_MSDF_STAGE "${FOLIO_ROOT}/Source/ThirdParty/MsdfgenLibrary")
+set(FOLIO_MSDF_STAGE "${FOLIO_STAGE_ROOT}/MsdfgenLibrary")
 file(GLOB FOLIO_MSDF_CORE_HEADERS "${msdfgen_SOURCE_DIR}/core/*.h" "${msdfgen_SOURCE_DIR}/core/*.hpp")
 file(GLOB FOLIO_MSDF_EXT_HEADERS  "${msdfgen_SOURCE_DIR}/ext/*.h")
 
 add_custom_target(folio_stage_msdfgen ALL
 	COMMAND ${CMAKE_COMMAND} -E rm -rf "${FOLIO_MSDF_STAGE}/include"
-	COMMAND ${CMAKE_COMMAND} -E make_directory "${FOLIO_MSDF_STAGE}/include/core" "${FOLIO_MSDF_STAGE}/include/ext" "${FOLIO_MSDF_STAGE}/lib/Win64"
+	COMMAND ${CMAKE_COMMAND} -E make_directory "${FOLIO_MSDF_STAGE}/include/core" "${FOLIO_MSDF_STAGE}/include/ext" "${FOLIO_MSDF_STAGE}/lib/${FOLIO_UE_PLATFORM}"
 	COMMAND ${CMAKE_COMMAND} -E copy
 		"${msdfgen_SOURCE_DIR}/msdfgen.h" "${msdfgen_SOURCE_DIR}/msdfgen-ext.h" "${FOLIO_MSDF_STAGE}/include/"
 	COMMAND ${CMAKE_COMMAND} -E copy ${FOLIO_MSDF_CORE_HEADERS} "${FOLIO_MSDF_STAGE}/include/core/"
 	COMMAND ${CMAKE_COMMAND} -E copy ${FOLIO_MSDF_EXT_HEADERS}  "${FOLIO_MSDF_STAGE}/include/ext/"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
-		"$<TARGET_FILE:msdfgen-core>" "$<TARGET_FILE:msdfgen-ext>" "$<TARGET_FILE:skia>" "${FOLIO_MSDF_STAGE}/lib/Win64/"
+		"$<TARGET_FILE:msdfgen-core>" "$<TARGET_FILE:msdfgen-ext>" "$<TARGET_FILE:skia>" "${FOLIO_MSDF_STAGE}/lib/${FOLIO_UE_PLATFORM}/"
 	DEPENDS msdfgen-core msdfgen-ext skia
 	COMMENT "Staging msdfgen into Source/ThirdParty/MsdfgenLibrary"
 	VERBATIM

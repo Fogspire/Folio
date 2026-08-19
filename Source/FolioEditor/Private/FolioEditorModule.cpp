@@ -85,10 +85,8 @@ public:
 			LOCTEXT("FolioToolbarTip", "Folio tools for this level."),
 			FSlateIcon(FFolioEditorStyle::GetStyleSetName(), FFolioEditorStyle::GetToolbarIconName()));
 
-		// The style that gives a toolbar button its label beside the icon, and the position that puts
-		// it next to the other plugin menus rather than in among the play controls.
+		// The style that gives a toolbar button its label beside the icon.
 		Entry.StyleNameOverride = TEXT("CalloutToolbar");
-		Entry.InsertPosition = FToolMenuInsert(TEXT("MCPMenu"), EToolMenuInsertType::After);
 
 		ToolBar->FindOrAddSection(TEXT("Play")).AddEntry(Entry);
 	}

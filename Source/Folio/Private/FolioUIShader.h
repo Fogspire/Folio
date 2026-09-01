@@ -31,6 +31,14 @@ BEGIN_SHADER_PARAMETER_STRUCT(FFolioUIParameters, )
 	SHADER_PARAMETER(FVector4f, MsdfField)
 	/** x: effect mode. y: offset. z: softness. */
 	SHADER_PARAMETER(FVector4f, MsdfEffect)
+	/**
+	 * x: 1 when the bound texture's alpha is straight and the sample has to be premultiplied here.
+	 *
+	 * Everything Folio decodes is premultiplied on the way in, and the blend state is premultiplied
+	 * to match. A texture the game registers is an engine UTexture that nobody premultiplied, and
+	 * added rather than blended its transparent pixels wash whatever is behind the element.
+	 */
+	SHADER_PARAMETER(FVector4f, UIOptions)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 

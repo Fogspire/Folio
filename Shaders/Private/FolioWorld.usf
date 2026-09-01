@@ -29,6 +29,9 @@ float4 MsdfField;
 // x: effect mode. y: offset. z: softness.
 float4 MsdfEffect;
 
+// x: 1 when the sample is straight alpha and has to be premultiplied before it is blended.
+float4 UIOptions;
+
 Texture2D FolioSceneDepth;
 
 // This target's view rect: xy the origin in pixels, zw one over its size. Needed because SV_Position is
@@ -132,7 +135,9 @@ float4 WorldPS(
 		discard;
 	}
 
-	return UITexture.Sample(UISampler, UV) * Color;
+	float4 Texel = UITexture.Sample(UISampler, UV);
+	Texel.rgb = lerp(Texel.rgb, Texel.rgb * Texel.a, UIOptions.x);
+	return Texel * Color;
 }
 
 // Text and vector art, which is where drawing after the tonemapper pays for itself: with no temporal

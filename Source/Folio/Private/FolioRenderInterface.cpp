@@ -394,7 +394,8 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
 
 		DrawList->AddTriangles(Vertices, Compiled.Indices, Recorded,
-			Offset, /*bMasked*/ false, /*bMaskInverted*/ false, Compiled.bTiles);
+			Offset, /*bMasked*/ false, /*bMaskInverted*/ false, Compiled.bTiles,
+			Bound && Bound->bStraightAlpha);
 		return;
 	}
 
@@ -413,7 +414,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		FlushCoveredFields(BoundsOf(Vertices, Offset));
 
 		Layers.DrawTriangles(Vertices, Compiled.Indices, LayerTexture, Offset - LayerOrigin,
-			Compiled.bTiles);
+			Compiled.bTiles, Bound && Bound->bStraightAlpha);
 		return;
 	}
 
@@ -421,12 +422,12 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 
 	ApplyClipping();
 	DrawGeometry(Compiled, Translation, Resource, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ false,
-		Compiled.bTiles);
+		Compiled.bTiles, Bound && Bound->bStraightAlpha);
 }
 
 void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, const Rml::Vector2f Translation,
 	const FSlateResourceHandle& Resource, const FVector2f UvScale, const bool bStraightAlpha,
-	const bool bTiles)
+	const bool bTiles, const bool bTextureStraightAlpha)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_DrawGeometry);
 	SCOPE_CYCLE_COUNTER(STAT_FolioDrawGeometry);
@@ -478,7 +479,7 @@ void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, cons
 		// the product to a power rather than the straight colour, so the two stop agreeing and
 		// every partially covered pixel comes out too dark - a dark rim around every glyph. The
 		// colour is handed over straight instead and the material multiplies it back.
-		if (bStraightAlpha && Out.Color.A != 0 && Out.Color.A != 255)
+		if ((bStraightAlpha || bTextureStraightAlpha) && Out.Color.A != 0 && Out.Color.A != 255)
 		{
 			const float Alpha = float(Out.Color.A) / 255.0f;
 			Out.Color.R = uint8(FMath::Clamp(FMath::RoundToInt(float(Out.Color.R) / Alpha), 0, 255));
@@ -513,7 +514,9 @@ void FFolioRenderInterface::DrawGeometry(const FCompiledGeometry& Compiled, cons
 		ScratchVertices,
 		Compiled.Indices,
 		nullptr, 0, 0,
-		ESlateDrawEffect::PreMultipliedAlpha,
+		// A texture the game registered is straight alpha, so it takes Slate's straight blend and
+		// the vertex colour above was handed over straight to match.
+		bTextureStraightAlpha ? ESlateDrawEffect::None : ESlateDrawEffect::PreMultipliedAlpha,
 		BatchFlags);
 
 	MaxLayerId = FMath::Max(MaxLayerId, LayerId);
@@ -888,6 +891,11 @@ Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, con
 	Entry->Brush.SetResourceObject(Texture);
 	Entry->Brush.ImageSize = FVector2f(Size.X, Size.Y);
 	Entry->Brush.DrawAs = ESlateBrushDrawType::Image;
+
+	// An engine texture as the game imported it. Nothing here premultiplied it, and an icon drawn
+	// as though it were adds the colour its transparent pixels happen to hold over whatever is
+	// behind the element - which reads as a wash the size of the element box.
+	Entry->bStraightAlpha = true;
 
 	if (FSlateApplication::IsInitialized())
 	{

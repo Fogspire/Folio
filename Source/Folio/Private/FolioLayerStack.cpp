@@ -241,7 +241,7 @@ void FFolioLayerStack::AddDraw(FFolioDraw&& Draw)
 }
 
 void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-	UTexture* Texture, const FVector2f Offset, const bool bTiles)
+	UTexture* Texture, const FVector2f Offset, const bool bTiles, const bool bStraightAlpha)
 {
 	if (Stack.IsEmpty() || Indices.Num() < 3 || !Texture)
 	{
@@ -250,7 +250,7 @@ void FFolioLayerStack::DrawTriangles(const TArray<FSlateVertex>& Vertices, const
 
 	FLayer& Layer = Stack.Last();
 	Layer.Draws.AddTriangles(Vertices, Indices, Texture, Offset,
-		Layer.bClipMaskEnabled, Layer.bClipMaskInverted, bTiles);
+		Layer.bClipMaskEnabled, Layer.bClipMaskInverted, bTiles, bStraightAlpha);
 }
 
 void FFolioLayerStack::DrawField(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
@@ -706,6 +706,8 @@ void FFolioLayerStack::Resolve(FLayer& Layer)
 							FFolioUIParameters PassParameters = *Parameters;
 							PassParameters.MsdfField = Draw.Field;
 							PassParameters.MsdfEffect = Draw.Effect;
+							PassParameters.UIOptions =
+								FVector4f(Draw.bStraightAlpha ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
 							if (Draw.bTiles)
 							{
 								PassParameters.UISampler =

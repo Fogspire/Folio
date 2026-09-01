@@ -267,6 +267,15 @@ private:
 		FSlateResourceHandle Handle;
 		/** Set instead of Texture for pixels we generated; owns its Slate resource. */
 		TSharedPtr<struct FSlateDynamicImageBrush> DynamicBrush;
+
+		/**
+		 * The pixels are straight alpha rather than premultiplied.
+		 *
+		 * True only for a texture the game registered, which is an engine UTexture nobody
+		 * premultiplied. Everything decoded or generated here is premultiplied on the way in,
+		 * because that is what every blend state downstream expects.
+		 */
+		bool bStraightAlpha = false;
 	};
 
 	FTexture* FindTexture(Rml::TextureHandle Handle);
@@ -361,7 +370,7 @@ private:
 
 	void DrawGeometry(const FCompiledGeometry& Compiled, Rml::Vector2f Translation,
 		const FSlateResourceHandle& Resource, const FVector2f UvScale, bool bStraightAlpha = false,
-		bool bTiles = false);
+		bool bTiles = false, bool bTextureStraightAlpha = false);
 
 	/** The texture for a gradient at this size, generated on first use and cached. */
 	/** The baked gradient for a box size. Returns the record rather than the Slate handle alone, because

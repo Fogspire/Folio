@@ -30,6 +30,14 @@ struct FFolioDraw
 	/** Sample wrapped rather than clamped, for the one decorator that runs its coordinates past 1. */
 	bool bTiles = false;
 
+	/**
+	 * The texture's alpha is straight, so the shader premultiplies the sample before it is blended.
+	 *
+	 * True only for a texture the game registered. Everything Folio decodes or generates is
+	 * premultiplied on the way in, which is what the blend state expects.
+	 */
+	bool bStraightAlpha = false;
+
 	/** The shader's MsdfField and MsdfEffect, packed by whoever recorded it. */
 	FVector4f Field = FVector4f::Zero();
 	FVector4f Effect = FVector4f::Zero();
@@ -62,7 +70,8 @@ class FFolioDrawList
 public:
 	/** Records a triangle list. Positions are in the recording's own 2D space. */
 	void AddTriangles(const TArray<FSlateVertex>& Vertices, const TArray<SlateIndex>& Indices,
-		UTexture* Texture, FVector2f Offset, bool bMasked, bool bMaskInverted, bool bTiles = false);
+		UTexture* Texture, FVector2f Offset, bool bMasked, bool bMaskInverted, bool bTiles = false,
+		bool bStraightAlpha = false);
 
 	/** The scissor applied to everything recorded from now on. An empty rect clears it. */
 	void SetScissor(const FIntRect& InScissor) { Scissor = InScissor; }

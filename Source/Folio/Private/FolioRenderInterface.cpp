@@ -879,7 +879,8 @@ Rml::TextureHandle FFolioRenderInterface::RegisterPixels(const void* Bgra, const
 	return Handle;
 }
 
-Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, const FIntPoint Size)
+Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, const FIntPoint Size,
+	const bool bStraightAlpha)
 {
 	if (!Texture)
 	{
@@ -891,11 +892,7 @@ Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, con
 	Entry->Brush.SetResourceObject(Texture);
 	Entry->Brush.ImageSize = FVector2f(Size.X, Size.Y);
 	Entry->Brush.DrawAs = ESlateBrushDrawType::Image;
-
-	// An engine texture as the game imported it. Nothing here premultiplied it, and an icon drawn
-	// as though it were adds the colour its transparent pixels happen to hold over whatever is
-	// behind the element - which reads as a wash the size of the element box.
-	Entry->bStraightAlpha = true;
+	Entry->bStraightAlpha = bStraightAlpha;
 
 	if (FSlateApplication::IsInitialized())
 	{
@@ -932,7 +929,11 @@ Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensio
 			FMath::Max(1, int32(Texture->GetSurfaceHeight())));
 
 		OutDimensions = Rml::Vector2i(Size.X, Size.Y);
-		return RegisterTexture(Texture, Size);
+
+		// An engine texture as the game imported it. Nothing here premultiplied it, and an icon drawn
+		// as though it were adds the colour its transparent pixels happen to hold over whatever is
+		// behind the element, which reads as a wash the size of the element box.
+		return RegisterTexture(Texture, Size, /*bStraightAlpha*/ true);
 	}
 
 	Rml::FileInterface* Files = Rml::GetFileInterface();

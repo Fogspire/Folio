@@ -279,7 +279,14 @@ private:
 	};
 
 	FTexture* FindTexture(Rml::TextureHandle Handle);
-	Rml::TextureHandle RegisterTexture(UTexture* Texture, FIntPoint Size);
+	/**
+	 * Wraps an engine texture as a Folio texture.
+	 *
+	 * bStraightAlpha says whose pixels these are. A layer Folio rendered into is premultiplied like
+	 * everything else it makes; a texture the game handed over is whatever the importer produced,
+	 * which is straight.
+	 */
+	Rml::TextureHandle RegisterTexture(UTexture* Texture, FIntPoint Size, bool bStraightAlpha = false);
 
 	/** Builds a brush over a Slate dynamic image resource, avoiding the UTexture path entirely. */
 	static TSharedPtr<struct FSlateDynamicImageBrush> MakeDynamicBrush(const FString& Name, const void* Bgra,

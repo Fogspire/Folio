@@ -1,10 +1,11 @@
-#include "FolioWorldDocument.h"
+﻿#include "FolioWorldDocument.h"
 
 #include "FolioDocumentHost.h"
 #include "FolioDocumentPath.h"
 #include "FolioInput.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
+#include "FolioRmlUi.h"
 #include "FolioSettings.h"
 #include "SFolioWorldFocus.h"
 
@@ -746,6 +747,29 @@ void UFolioWorldDocument::TickPlayerPointer()
 	{
 		ReleasePointer(PointerKey);
 	}
+}
+
+bool UFolioWorldDocument::FocusElement(const FString& ElementId, const bool bShowRing)
+{
+	Rml::ElementDocument* Document = Host.IsValid() ? Host->GetDocument() : nullptr;
+	if (!Document)
+	{
+		return false;
+	}
+
+	Rml::Element* Element = Document->GetElementById(Folio::ToRmlString(ElementId));
+	return Element && Element->Focus(bShowRing);
+}
+
+FString UFolioWorldDocument::GetElementValue(const FString& ElementId) const
+{
+	Rml::ElementDocument* Document = Host.IsValid() ? Host->GetDocument() : nullptr;
+	Rml::Element* Element = Document ? Document->GetElementById(Folio::ToRmlString(ElementId)) : nullptr;
+	if (const Rml::ElementFormControl* Control = rmlui_dynamic_cast<Rml::ElementFormControl*>(Element))
+	{
+		return Folio::ToFString(Control->GetValue());
+	}
+	return FString();
 }
 
 void UFolioWorldDocument::UpdateKeyboardFocus()

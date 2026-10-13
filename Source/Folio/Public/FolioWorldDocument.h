@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Components/SceneComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -302,6 +302,29 @@ public:
 	/** Gives input back to the game, and blurs whatever the document had focused. */
 	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
 	void ReleaseFocus();
+
+	/**
+	 * Puts the focus ring on one named element.
+	 *
+	 * Focusing the document hands it directional input, but RmlUi navigates from whatever element is focused
+	 * inside it, and a document that has never focused one has nothing to navigate from. A list has to say which
+	 * row it starts on, and has to say it again every time the rows are replaced.
+	 *
+	 * Returns false if the id names nothing, or names something that cannot take focus.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	bool FocusElement(const FString& ElementId, bool bShowRing = true);
+
+	/**
+	 * What a form control in the document is currently set to, as it would be submitted.
+	 *
+	 * For a control the game drives rather than binds: a data binding into an array is mirrored, so a control
+	 * standing for one row of a list cannot write back through one.
+	 *
+	 * Empty if the id names nothing, or names something that is not a form control.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio|Input")
+	FString GetElementValue(const FString& ElementId) const;
 
 	/** Rebuilds from disk, putting focus and scroll back. What a markup change needs. */
 	void ReloadDocument();

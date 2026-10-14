@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0.0",
 	"FriendlyName": "Folio",
-	"Description": "Build game UI in HTML/CSS-like markup, without unreal engine dependency. Text and vector art stays sharp at any size or DPI. Avoid TAA/TSR blurring and motion blur. Project UI onto surfaces. Spatial navigation.",
+	"Description": "HTML/CSS-style UI for Unreal Engine 5. Build using markup, without unreal engine dependency. Text and vector art stays sharp at any size or DPI. Avoid TAA/TSR blurring and motion blur for crisp in-world UI. Project UI onto surfaces. Spatial navigation.",
 	"Category": "UI",
 	"CreatedBy": "Fogspire",
 	"CanContainContent": true,

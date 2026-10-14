@@ -152,6 +152,15 @@ expect(document.querySelectorAll('.dialog .field-row').length === 4 && document.
 key(document.body, { key: 'Escape' });
 expect(await host.testMenuChecked(['Help', 'Folio on GitHub']) !== null, 'Help links to the repository');
 
+// Whatever playing did to the document is gone on the way back to editing.
+session.setMode('play');
+engine.setInlineProperty(quitId, 'margin-left', '80dp');
+session.refresh();
+const playedRect = find('id', 'quit').rect[0];
+session.setMode('edit');
+await wait(300);
+expect(find('id', 'quit').rect[0] !== playedRect && !('margin-left' in engine.inspect(quitId).inline), 'leaving Play puts the document back as the source has it');
+
 // The terminal is a real shell in the project's folder.
 let heard = '';
 const stopHearing = host.onTerminalData((_id, data) => { heard += data; });

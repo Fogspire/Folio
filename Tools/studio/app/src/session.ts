@@ -425,7 +425,10 @@ export function isLibraryDocument(path: string | null): boolean {
 }
 
 export function setMode(mode: 'edit' | 'play') {
+	const played = store.get().mode === 'play' && mode === 'edit';
 	store.set({ mode, hover: null });
+	// Playing moves things the source knows nothing about, so editing starts again from the source.
+	if (played) reopen();
 	pushMenuState();
 }
 

@@ -8,8 +8,7 @@ Three effects RCSS has no syntax for, reached through one decorator:
 .sheen { decorator: shader("sweep #ffffffb0 0.35 0.3 15"), image(panel); }
 ```
 
-**The set is fixed.** A name Folio does not know warns once and draws nothing. This is not a shader
-language.
+**The set is fixed.** A name Folio does not know warns once and draws nothing. This is not a shader language.
 
 | | |
 |---|---|
@@ -19,11 +18,9 @@ language.
 
 ## Additive blending, which is the point
 
-`additive` and `sweep` **add** rather than cover, and that is the whole reason this exists — RCSS has
-no blend modes and no other route to it.
+`additive` and `sweep` **add** rather than cover, and that is the whole reason this exists: RCSS has no blend modes and no other route to it.
 
-There is no blend state involved. RmlUi composites premultiplied, so a colour written with **zero
-alpha** adds to whatever is under it:
+There is no blend state involved. RmlUi composites premultiplied, so a colour written with **zero alpha** adds to whatever is under it:
 
 ```css
 /* Adds a red wash without darkening anything. */
@@ -34,11 +31,9 @@ That works identically in both renderers, which a real blend state would not.
 
 ## Order matters, and it is backwards from what you expect
 
-**Multiple decorators paint in reverse source order — the first named is on top**, exactly like CSS
-`background-image` layers.
+**Multiple decorators paint in reverse source order: the first named is on top**, exactly like CSS `background-image` layers.
 
-Written the intuitive way round, an effect listed *after* an opaque background is painted underneath
-it and appears to do nothing:
+Written the intuitive way round, an effect listed *after* an opaque background is painted underneath it and appears to do nothing:
 
 ```css
 /* Wrong. The sheen is under the base and invisible. */
@@ -54,17 +49,13 @@ This is the single most common reason a shader decorator "does nothing".
 
 Each effect is evaluated into a small texture rather than run as a fragment shader.
 
-Slate has no seam for a custom fragment shader through `MakeCustomVerts`, and none of these three
-needs one — they are all a function of position within a box. Baking them keeps both renderers on the
-same code and means a document using one is not a document that only works in the engine.
+Slate has no seam for a custom fragment shader through `MakeCustomVerts`, and none of these three needs one: they are all a function of position within a box. Baking them keeps both renderers on the same code and means a document using one is not a document that only works in the engine.
 
-The consequence is that you cannot add a fourth from a stylesheet. If you need one, it is a change to
-`FolioRenderInterface::CompileShader` and its preview counterpart, and it has to be written twice.
+The consequence is that you cannot add a fourth from a stylesheet. If you need one, it is a change to `FolioRenderInterface::CompileShader` and its preview counterpart, and it has to be written twice.
 
 ## Animating one
 
-The decorator's arguments are not animatable — there is no interpolation between two `shader()`
-strings. Animate the *element* instead:
+The decorator's arguments are not animatable: there is no interpolation between two `shader()` strings. Animate the *element* instead:
 
 ```css
 @keyframes flash {
@@ -80,14 +71,12 @@ strings. Animate the *element* instead:
 }
 ```
 
-An overlay element with `pointer-events: none` is the usual shape: it can be added, animated and
-removed without touching the element it decorates.
+An overlay element with `pointer-events: none` is the usual shape: it can be added, animated and removed without touching the element it decorates.
 
-For a sweep that travels, animate a `transform: translateX` on an overlay wider than its container,
-rather than trying to move the band within the shader.
+For a sweep that travels, animate a `transform: translateX` on an overlay wider than its container, rather than trying to move the band within the shader.
 
 ## Where to go next
 
-- **[Images and sprites](images.md)** — the rest of the decorator vocabulary, and the ordering rule again.
-- **[Animation](animation.md)** — what is cheap to animate.
-- **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** §5 — the complete effect list.
+- **[Images and sprites](images.md)**: the rest of the decorator vocabulary, and the ordering rule again.
+- **[Animation](animation.md)**: what is cheap to animate.
+- **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** §5: the complete effect list.

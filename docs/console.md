@@ -1,8 +1,6 @@
 # Console commands
 
-Everything Folio adds to the console. All of it is compiled out of Shipping — the commands put a
-document on screen, drive it or reload it, which is development tooling, and leaving it in retail
-would let a player open a test document over the game.
+Everything Folio adds to the console. All of it is compiled out of Shipping: the commands put a document on screen, drive it or reload it, which is development tooling, and leaving it in retail would let a player open a test document over the game.
 
 Type `folio.` in the console and Unreal will complete the rest.
 
@@ -41,8 +39,7 @@ Type `folio.` in the console and Unreal will complete the rest.
 | `folio.Nav.ResetBindings` | Back to the built-in schemes. |
 | `folio.NavTest [document\|off]` | Opens a boxed document with keyboard focus, so arrows, WASD, IJKL and the pad can be tried by hand. |
 
-A binding wins over the built-in schemes and ignores the `folio.Nav.*` switches — a project that
-bound a key meant it. See **[input and navigation](input_and_navigation.md)**.
+A binding wins over the built-in schemes and ignores the `folio.Nav.*` switches: a project that bound a key meant it. See **[input and navigation](input_and_navigation.md)**.
 
 ## Documents in the world
 
@@ -91,8 +88,7 @@ See **[accessibility](accessibility.md)**.
 
 ## Producing files
 
-These are the engine's answer to `uipreview`'s flags, and exist so the two renderers can be asked the
-same question without a person watching.
+These are the engine's answer to `uipreview`'s flags, and exist so the two renderers can be asked the same question without a person watching.
 
 | | |
 |---|---|
@@ -108,5 +104,5 @@ same question without a person watching.
 
 ## Where to go next
 
-- **[Testing a document](testing_a_document.md)** — the preview-side equivalents.
-- **[Performance and profiling](performance_profiling.md)** — what the numbers mean.
+- **[Testing a document](testing_a_document.md)**: the preview-side equivalents.
+- **[Performance and profiling](performance_profiling.md)**: what the numbers mean.

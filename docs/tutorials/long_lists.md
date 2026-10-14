@@ -1,11 +1,8 @@
 # A list of ten thousand items
 
-A quest log, a chat scrollback, a crafting catalogue, a leaderboard. The naive version -
-`data-for` over the whole array - builds one element per item, and at ten thousand items it will
-build ten thousand elements and then throw most of them away every time the list changes.
+A quest log, a chat scrollback, a crafting catalogue, a leaderboard. The naive version - `data-for` over the whole array - builds one element per item, and at ten thousand items it will build ten thousand elements and then throw most of them away every time the list changes.
 
-There is a version that does no allocation at all after the first frame. It is a model-side pattern
-rather than a Folio API, which is why it needs a page: nothing in the markup gives it away.
+There is a version that does no allocation at all after the first frame. It is a model-side pattern rather than a Folio API, which is why it needs a page: nothing in the markup gives it away.
 
 Read **[the inventory](inventory.md)** first. This is the same `data-for`, bound differently.
 
@@ -15,16 +12,11 @@ Read **[the inventory](inventory.md)** first. This is the same `data-for`, bound
 
 Two things, and they are why the naive version is survivable at all.
 
-**Per-element state is pooled.** An element's event dispatcher, style, background and border,
-effects, scroll state and computed values are all taken from a pool rather than allocated. Creating
-an element is cheap because most of what an element *is* was already sitting there.
+**Per-element state is pooled.** An element's event dispatcher, style, background and border, effects, scroll state and computed values are all taken from a pool rather than allocated. Creating an element is cheap because most of what an element *is* was already sitting there.
 
-**An idle document does no work.** The invalidation path skips updating anything that has not
-changed, so a list that is merely on screen costs a repaint from geometry that is already compiled -
-not a layout.
+**An idle document does no work.** The invalidation path skips updating anything that has not changed, so a list that is merely on screen costs a repaint from geometry that is already compiled - not a layout.
 
-Together those mean a few hundred rows are fine. It is the *churn* that hurts: rebuilding the array
-tears down every element and builds it again, and that is the cost this page removes.
+Together those mean a few hundred rows are fine. It is the *churn* that hurts: rebuilding the array tears down every element and builds it again, and that is the cost this page removes.
 
 ---
 
@@ -32,9 +24,7 @@ tears down every element and builds it again, and that is the cost this page rem
 
 The idea in one sentence: **expose a fixed-size view whose contents shift as you scroll.**
 
-`data-for` takes its row count from the bound variable's size. If the bound variable is always
-twenty long, the document has twenty rows forever. Scrolling does not create or destroy anything -
-it changes what those twenty rows *say*.
+`data-for` takes its row count from the bound variable's size. If the bound variable is always twenty long, the document has twenty rows forever. Scrolling does not create or destroy anything - it changes what those twenty rows *say*.
 
 ```cpp
 UCLASS()
@@ -86,8 +76,7 @@ The markup is ordinary:
 <p class="t-caption c-dim">{{ First + 1 }} - {{ First + Window.size }} of {{ Total }}</p>
 ```
 
-Nothing here knows the list is windowed. That is the point: it is the same markup you would write for
-a short list, and swapping between the two is a change to the model alone.
+Nothing here knows the list is windowed. That is the point: it is the same markup you would write for a short list, and swapping between the two is a change to the model alone.
 
 ---
 
@@ -111,20 +100,15 @@ void UQuestLogModel::ScrollBy(int32 Rows)
 }
 ```
 
-Drive it from wherever the input is - a mouse wheel event, the navigation keys, a scrollbar you
-render yourself. The document reacts because the bound values changed, not because anything told it
-to.
+Drive it from wherever the input is - a mouse wheel event, the navigation keys, a scrollbar you render yourself. The document reacts because the bound values changed, not because anything told it to.
 
-**Keep `Window.Num()` a little larger than what fits**, by two or three rows. A window sized exactly
-to the visible area pops at the boundary; a couple of spare rows scrolled under the clip make the
-motion continuous.
+**Keep `Window.Num()` a little larger than what fits**, by two or three rows. A window sized exactly to the visible area pops at the boundary; a couple of spare rows scrolled under the clip make the motion continuous.
 
 ---
 
 ## Rows that are always the same height
 
-The window only works if a row's height does not depend on its content. Otherwise the scroll offset
-and the pixel position disagree, and the list drifts as you move through it.
+The window only works if a row's height does not depend on its content. Otherwise the scroll offset and the pixel position disagree, and the list drifts as you move through it.
 
 ```css
 .row {
@@ -136,18 +120,15 @@ and the pixel position disagree, and the list drifts as you move through it.
 }
 ```
 
-`text-overflow` takes `clip`, `ellipsis`, **or a string** - so a truncated quest name can end in
-`…` or in anything else you prefer.
+`text-overflow` takes `clip`, `ellipsis`, **or a string** - so a truncated quest name can end in `…` or in anything else you prefer.
 
-If rows genuinely must vary in height, this technique does not apply directly and you need a
-measured-offset scheme, which is a great deal more work. Prefer fixed rows.
+If rows genuinely must vary in height, this technique does not apply directly and you need a measured-offset scheme, which is a great deal more work. Prefer fixed rows.
 
 ---
 
 ## Navigation
 
-The rows are recycled, so **focus cannot live on a row** - it would jump to a different item as soon
-as you scrolled.
+The rows are recycled, so **focus cannot live on a row** - it would jump to a different item as soon as you scrolled.
 
 Track the selection in the model and move the window to follow it:
 
@@ -176,15 +157,13 @@ The list itself is one focusable element, and up and down are its own:
 .row.selected { background-color: #2b2b36; }
 ```
 
-That also gets you gamepad support for free, and it is *more* correct than focusing rows: a screen
-reader would rather be told "item 23 of 10,000" than be walked through twenty recycled boxes.
+That also gets you gamepad support for free, and it is *more* correct than focusing rows: a screen reader would rather be told "item 23 of 10,000" than be walked through twenty recycled boxes.
 
 ---
 
 ## Filtering and sorting
 
-Both are operations on `All`, not on the window. Filter into an index array, and let the window read
-through it:
+Both are operations on `All`, not on the window. Filter into an index array, and let the window read through it:
 
 ```cpp
 void UQuestLogModel::SetFilter(const FString& Text)
@@ -201,24 +180,20 @@ void UQuestLogModel::SetFilter(const FString& Text)
 }
 ```
 
-A filter that removes 9,000 of 10,000 items costs one pass over the source and twenty row writes. The
-document does not lay anything out that was not already on screen.
+A filter that removes 9,000 of 10,000 items costs one pass over the source and twenty row writes. The document does not lay anything out that was not already on screen.
 
 ---
 
 ## When not to bother
 
-Under a few hundred rows, `data-for` over the whole array is simpler and fast enough, and simpler
-wins. The pooling is doing its job.
+Under a few hundred rows, `data-for` over the whole array is simpler and fast enough, and simpler wins. The pooling is doing its job.
 
 Reach for the window when either is true:
 
 - the list can be **thousands** of items
 - the list **churns** - a chat log, a combat feed, anything appending several times a second
 
-The second is the one people miss. A hundred-row list that rebuilds ten times a second is a thousand
-elements a second built and destroyed, and it will show up in a profile long before a static
-ten-thousand-row list does.
+The second is the one people miss. A hundred-row list that rebuilds ten times a second is a thousand elements a second built and destroyed, and it will show up in a profile long before a static ten-thousand-row list does.
 
 ---
 
@@ -228,12 +203,9 @@ ten-thousand-row list does.
 ./bin/win64/uipreview.exe UI/screens/questlog.rml --root . --data UI/mock/questlog.json --strict
 ```
 
-In the engine, `stat Folio` is the measurement that matters, and the number to watch is elements
-created per frame. With a window it should be zero after the first frame - scrolling changes values,
-and values do not allocate.
+In the engine, `stat Folio` is the measurement that matters, and the number to watch is elements created per frame. With a window it should be zero after the first frame - scrolling changes values, and values do not allocate.
 
-`folio.Invalidation.Trace` tells you *why* a document is not idling, which is how you find the one
-binding that is dirtying itself every frame and defeating all of this.
+`folio.Invalidation.Trace` tells you *why* a document is not idling, which is how you find the one binding that is dirtying itself every frame and defeating all of this.
 
 See **[performance and profiling](../performance_profiling.md)**.
 
@@ -250,6 +222,6 @@ See **[performance and profiling](../performance_profiling.md)**.
 
 ## Where to go next
 
-- **[An inventory screen](inventory.md)** — the short-list version, with drag and drop.
-- **[Data binding](../data_binding.md)** — the binding vocabulary in full.
-- **[Performance and profiling](../performance_profiling.md)** — measuring rather than guessing.
+- **[An inventory screen](inventory.md)**: the short-list version, with drag and drop.
+- **[Data binding](../data_binding.md)**: the binding vocabulary in full.
+- **[Performance and profiling](../performance_profiling.md)**: measuring rather than guessing.

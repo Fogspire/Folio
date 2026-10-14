@@ -1,17 +1,14 @@
 # An inventory screen
 
-A grid of slots, items you can drag between them, a detail pane that follows the selection, and full
-gamepad navigation. Built from a data model, so the markup never knows what an item is.
+A grid of slots, items you can drag between them, a detail pane that follows the selection, and full gamepad navigation. Built from a data model, so the markup never knows what an item is.
 
-This is the second tutorial. It assumes you have read
-**[the CRT terminal](crt_terminal.md)** or already know the drag vocabulary.
+This is the second tutorial. It assumes you have read **[the CRT terminal](crt_terminal.md)** or already know the drag vocabulary.
 
 ---
 
 ## 1. The model first
 
-An inventory is a list, and a list means `data-for`. Decide the shape before writing markup, because
-the markup is a direct expression of it:
+An inventory is a list, and a list means `data-for`. Decide the shape before writing markup, because the markup is a direct expression of it:
 
 ```cpp
 UCLASS()
@@ -37,16 +34,14 @@ struct FInventoryEntry
 };
 ```
 
-Bind it before the document loads - RmlUi resolves a document's bindings as it loads and offers no
-way to attach a model afterwards:
+Bind it before the document loads - RmlUi resolves a document's bindings as it loads and offers no way to attach a model afterwards:
 
 ```cpp
 Document->BindViewModel(TEXT("inventory"), Model);
 Document->LoadDocument(TEXT("UI/screens/inventory.rml"));
 ```
 
-For previewing, put the same shape in `UI/mock/inventory.json` and the preview picks it up
-automatically. Build the whole screen against the mock before any of the C++ exists.
+For previewing, put the same shape in `UI/mock/inventory.json` and the preview picks it up automatically. Build the whole screen against the mock before any of the C++ exists.
 
 See **[data binding](../data_binding.md)**.
 
@@ -69,11 +64,9 @@ See **[data binding](../data_binding.md)**.
 
 Three things worth pointing at:
 
-**`data-attr-sprite`, not `sprite="{{ }}"`.** Interpolation is text-only and only inside an element's
-text content. Attributes need `data-attr-*`.
+**`data-attr-sprite`, not `sprite="{{ }}"`.** Interpolation is text-only and only inside an element's text content. Attributes need `data-attr-*`.
 
-**`it_index` is free inside a `data-for`** and is the zero-based index. It is how a repeated element
-knows which one it is.
+**`it_index` is free inside a `data-for`** and is the zero-based index. It is how a repeated element knows which one it is.
 
 **`&gt;` inside an attribute.** It is XML - a bare `>` in an attribute value is a parse error.
 
@@ -105,9 +98,7 @@ The grid itself is flexbox with wrapping, because there is no `display: grid`:
 
 ## 3. Navigation
 
-A wrapping grid is exactly the case RmlUi's spatial navigation is good at - it finds the nearest
-element in the direction pressed, which is what a grid wants and what an index-based scheme gets
-wrong at the row ends.
+A wrapping grid is exactly the case RmlUi's spatial navigation is good at - it finds the nearest element in the direction pressed, which is what a grid wants and what an index-based scheme gets wrong at the row ends.
 
 ```css
 .slot { tab-index: auto; nav: auto; }
@@ -116,13 +107,9 @@ body  { nav: auto; }
 
 `nav: auto` rather than `vertical`, because a grid navigates in all four directions.
 
-**`nav` goes on the slot, not on the grid.** A container's `nav` is never consulted. This is the
-single most common reason a menu moves one step and freezes. See
-**[input and navigation](../input_and_navigation.md)**.
+**`nav` goes on the slot, not on the grid.** A container's `nav` is never consulted. This is the single most common reason a menu moves one step and freezes. See **[input and navigation](../input_and_navigation.md)**.
 
-**Watch `overflow` on the scroll container.** If the grid scrolls, the spatial search is confined to
-the nearest scroll container - which is what you want here, and worth knowing so it does not surprise
-you when focus refuses to leave.
+**Watch `overflow` on the scroll container.** If the grid scrolls, the spatial search is confined to the nearest scroll container - which is what you want here, and worth knowing so it does not surprise you when focus refuses to leave.
 
 Style the focus separately from the selection, because they are different things:
 
@@ -148,9 +135,7 @@ Style the focus separately from the selection, because they are different things
 
 **There is no `data-else`.** Write the complementary `data-if`.
 
-`data-if` adds and removes the element; `data-visible` only toggles `visibility` and keeps the box.
-Use `data-if` when the empty state should not reserve space, `data-visible` when the layout should
-not jump.
+`data-if` adds and removes the element; `data-visible` only toggles `visibility` and keeps the box. Use `data-if` when the empty state should not reserve space, `data-visible` when the layout should not jump.
 
 `{{ Slots.size }}` gives the array's length, which is what an "empty inventory" message tests:
 
@@ -166,9 +151,7 @@ not jump.
 <div class="slot focusable" data-for="entry : Slots" drag="drag-drop" folio-drop="accept">
 ```
 
-Two attributes and the gesture works. But **an inventory move is a game decision** - swapping two
-stacks, rejecting a drop onto a locked slot, splitting a stack - so this is where Folio's built-in
-actions stop and yours start:
+Two attributes and the gesture works. But **an inventory move is a game decision** - swapping two stacks, rejecting a drop onto a locked slot, splitting a stack - so this is where Folio's built-in actions stop and yours start:
 
 ```html
 <div class="slot" ... data-event-dragdrop="MoveItem(it_index)"></div>
@@ -180,17 +163,14 @@ or in C++:
 Slot->AddEventListener("dragdrop", Listener);
 ```
 
-`folio-drop="accept"` does nothing itself but still gets the `folio-dragover` class, which is what
-you want here: the styling is Folio's, the decision is yours.
+`folio-drop="accept"` does nothing itself but still gets the `folio-dragover` class, which is what you want here: the styling is Folio's, the decision is yours.
 
 ```css
 .slot.folio-dragover { border-color: #f0c674; background-color: #f0c6741a; }
 .slot.folio-dragging { opacity: 0.55; }
 ```
 
-**A controller cannot drag.** If the inventory has to work on a pad, give it a second path - confirm
-to pick up, direction to move, confirm to place - driven from the same `MoveItem`. The drag is an
-affordance for mouse users, not the only route.
+**A controller cannot drag.** If the inventory has to work on a pad, give it a second path - confirm to pick up, direction to move, confirm to place - driven from the same `MoveItem`. The drag is an affordance for mouse users, not the only route.
 
 ---
 
@@ -212,9 +192,7 @@ An encumbrance bar is a width from an expression:
 </div>
 ```
 
-The result needs units, hence `+ '%'`. And `data-style-*` writes an **inline style**, which a
-stylesheet-only hot reload will not touch - fine for a value, wrong for anything you might want to
-retheme. Colour it with `data-class-*` instead:
+The result needs units, hence `+ '%'`. And `data-style-*` writes an **inline style**, which a stylesheet-only hot reload will not touch - fine for a value, wrong for anything you might want to retheme. Colour it with `data-class-*` instead:
 
 ```css
 .bar-fill      { transition: width 0.15s cubic-out, background-color 0.3s cubic-out; }
@@ -231,8 +209,7 @@ retheme. Colour it with `data-class-*` instead:
 <div class="slot focusable" folio-label="Inventory slot" ...>
 ```
 
-`data-loc` on everything the player reads, `data-noloc` on numerals and names, `folio-label` on the
-slots - which have no text of their own and would otherwise be nameless.
+`data-loc` on everything the player reads, `data-noloc` on numerals and names, `folio-label` on the slots - which have no text of their own and would otherwise be nameless.
 
 Item names come from the model and were already `FText` in C++, so they need neither.
 
@@ -246,11 +223,9 @@ Item names come from the model and were already `FText` in C++, so they need nei
 ./bin/win64/uipreview.exe UI/screens/inventory.rml --root . --keys "right,right,down,enter" --shot-each out/
 ```
 
-The pseudo run is the one that catches an inventory laid out for English. Translated strings run
-about 40% longer, and a slot count or an item name that fits at 72dp will not at 100.
+The pseudo run is the one that catches an inventory laid out for English. Translated strings run about 40% longer, and a slot count or an item name that fits at 72dp will not at 100.
 
-The `--keys` run is how you prove the grid navigates without picking up a controller - and it is
-worth doing, because a grid that navigates *almost* right is very hard to spot by looking.
+The `--keys` run is how you prove the grid navigates without picking up a controller - and it is worth doing, because a grid that navigates *almost* right is very hard to spot by looking.
 
 ---
 
@@ -266,7 +241,7 @@ worth doing, because a grid that navigates *almost* right is very hard to spot b
 
 ## Where to go next
 
-- **[Data binding](../data_binding.md)** — the model side in full.
-- **[Generating a view model](../view_models.md)** — when reflection is not enough.
-- **[A list of ten thousand items](long_lists.md)** — when the list is too long for this approach.
-- **[Drag, drop and resize](../drag_and_resize.md)** — the complete vocabulary.
+- **[Data binding](../data_binding.md)**: the model side in full.
+- **[Generating a view model](../view_models.md)**: when reflection is not enough.
+- **[A list of ten thousand items](long_lists.md)**: when the list is too long for this approach.
+- **[Drag, drop and resize](../drag_and_resize.md)**: the complete vocabulary.

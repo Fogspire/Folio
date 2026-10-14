@@ -243,5 +243,5 @@ It is built to run on macOS and Linux and is not regularly run on either, the te
 
 ## Where to go next
 
-- **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** — the complete list of what works.
-- **[Testing a document](testing_a_document.md)** — the checks that catch most of what is catchable.
+- **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)**: the complete list of what works.
+- **[Testing a document](testing_a_document.md)**: the checks that catch most of what is catchable.

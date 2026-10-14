@@ -4,8 +4,7 @@ Renders the open `.rml` beside it, and re-renders on save.
 
 ## Installing
 
-No build step and no dependencies — the extension is one JavaScript file. Symlink or copy this
-directory into your VSCode extensions folder and reload the window:
+No build step and no dependencies: the extension is one JavaScript file. Symlink or copy this directory into your VSCode extensions folder and reload the window:
 
 ```bash
 # Windows
@@ -15,78 +14,49 @@ mklink /D "%USERPROFILE%\.vscode\extensions\folio-preview" "<repo>\Plugins\Folio
 ln -s <repo>/Plugins/Folio/Tools/vscode-folio ~/.vscode/extensions/folio-preview
 ```
 
-Then open a document and click the preview icon in the editor's title bar, or press `ctrl+shift+v`.
-The icon shows only on `.rml` files.
+Then open a document and click the preview icon in the editor's title bar, or press `ctrl+shift+v`. The icon shows only on `.rml` files.
 
-It finds `uipreview` under `Plugins/Folio/bin/` in the workspace. Build it first with
-`./scripts/build.sh`, or point `folio.uipreviewPath` at it.
+It finds `uipreview` under `Plugins/Folio/bin/` in the workspace. Build it first with `./scripts/build.sh`, or point `folio.uipreviewPath` at it.
 
 ## What it is, and what it is worth trusting
 
-A webview over `uipreview`. The renderer already exists, already watches files and already
-screenshots; a second renderer in a webview would be a second thing to keep honest, and the whole
-value of a preview is that it shows what the game will show.
+A webview over `uipreview`. The renderer already exists, already watches files and already screenshots; a second renderer in a webview would be a second thing to keep honest, and the whole value of a preview is that it shows what the game will show.
 
-**Layout is proven to match the engine.** `./scripts/compare_renderers.sh` renders every document
-through both renderers and compares where each text line landed. It passes exactly - not within a
-tolerance - across the documents the game ships.
+**Layout is proven to match the engine.** `./scripts/compare_renderers.sh` renders every document through both renderers and compares where each text line landed. It passes exactly - not within a tolerance - across the documents the game ships.
 
-**The appearance of layer effects is not.** `box-shadow`, `filter`, `backdrop-filter` and
-`mask-image` are drawn in OpenGL here and replayed through RHI in the engine, and nothing compares
-those pixels. A document using them gets a note in the panel saying so. Layout under an effect is
-still exact; a shadow's colour or blur radius is not something this can promise.
+**The appearance of layer effects is not.** `box-shadow`, `filter`, `backdrop-filter` and `mask-image` are drawn in OpenGL here and replayed through RHI in the engine, and nothing compares those pixels. A document using them gets a note in the panel saying so. Layout under an effect is still exact; a shadow's colour or blur radius is not something this can promise.
 
-**Colour will differ from a screenshot of the game**, always. The preview does no sRGB conversion
-where Slate linearises vertex colour and applies display gamma. Judge colour in the engine.
+**Colour will differ from a screenshot of the game**, always. The preview does no sRGB conversion where Slate linearises vertex colour and applies display gamma. Judge colour in the engine.
 
 ## Zooming
 
 `Ctrl` and the wheel, the toolbar buttons, or `Ctrl` with `+`, `-` and `0`.
 
-**Zooming re-renders.** It scales the dp ratio rather than magnifying the image, which is what a
-browser's zoom does: the viewport stays the size you configured and the content within it grows, so
-you see less of the document at more detail. Text and vector art get *sharper* as they grow, because
-they are distance fields - which is the only way a preview can tell you whether the real thing is
-crisp. Scaling a screenshot would show you the scaler's work instead.
+**Zooming re-renders.** It scales the dp ratio rather than magnifying the image, which is what a browser's zoom does: the viewport stays the size you configured and the content within it grows, so you see less of the document at more detail. Text and vector art get *sharper* as they grow, because they are distance fields - which is the only way a preview can tell you whether the real thing is crisp. Scaling a screenshot would show you the scaler's work instead.
 
 ## The timeline
 
-The `timeline` button renders a frame per step from the document's first and gives you a scrubber, a
-play button and arrow keys to step by one, which is the only way to see an entry animation here - a
-render otherwise shows what the document settles into, and the animation is over by then.
+The `timeline` button renders a frame per step from the document's first and gives you a scrubber, a play button and arrow keys to step by one, which is the only way to see an entry animation here - a render otherwise shows what the document settles into, and the animation is over by then.
 
-The strip comes out of the same `uipreview` run as the still, so the still *is* its last frame. That
-is also why elements can only be picked there: provenance describes one instant, and a box over any
-other frame is in the wrong place.
+The strip comes out of the same `uipreview` run as the still, so the still *is* its last frame. That is also why elements can only be picked there: provenance describes one instant, and a box over any other frame is in the wrong place.
 
 It costs a render per frame, on every save while it is open. Off by default.
 
 ## Editing
 
-Hover to see what a click would take: the element is outlined and labelled with its tag, id, classes
-and size. Click to select it, and the bar lists every rule that reaches it - click one to open it.
-Click past everything, or press `Escape`, to deselect.
-Drag a selection to move it, and pick which rule the move should edit: `.btn` moves every button,
-`#continue` moves one.
+Hover to see what a click would take: the element is outlined and labelled with its tag, id, classes and size. Click to select it, and the bar lists every rule that reaches it - click one to open it. Click past everything, or press `Escape`, to deselect. Drag a selection to move it, and pick which rule the move should edit: `.btn` moves every button, `#continue` moves one.
 
-Edits are a protocol rather than a rewrite: one property, one rule, applied in place with every
-comment and indent preserved, through the editor's undo stack. `rcss.js` does that work and
-`rcss.test.js` covers it; run `npm test`, or `node rcss.test.js`.
+Edits are a protocol rather than a rewrite: one property, one rule, applied in place with every comment and indent preserved, through the editor's undo stack. `rcss.js` does that work and `rcss.test.js` covers it; run `npm test`, or `node rcss.test.js`.
 
 Put the caret in a rule in an `.rcss` and the elements it reaches light up in the preview.
 
 ## Syntax highlighting
 
-`.rml` and `.rcss` get highlighted on install. Both reuse VSCode's built-in grammars - XML for markup,
-CSS for stylesheets - rather than shipping two grammars to keep in step with them.
+`.rml` and `.rcss` get highlighted on install. Both reuse VSCode's built-in grammars - XML for markup, CSS for stylesheets - rather than shipping two grammars to keep in step with them.
 
-They are contributed as their own language ids rather than as extra extensions on `xml` and `css`,
-which matters: VSCode's CSS validator is bound to the `css` language, and RCSS has properties it does
-not know - `decorator`, `nav`, `font-effect`, `drag` - and `dp` units it would flag. Registering
-`.rcss` as CSS would put a red squiggle under most of a correct stylesheet.
+They are contributed as their own language ids rather than as extra extensions on `xml` and `css`, which matters: VSCode's CSS validator is bound to the `css` language, and RCSS has properties it does not know - `decorator`, `nav`, `font-effect`, `drag` - and `dp` units it would flag. Registering `.rcss` as CSS would put a red squiggle under most of a correct stylesheet.
 
-A `<style>` block inside a document is highlighted as RCSS rather than as markup, since that is the
-one file where both languages meet.
+A `<style>` block inside a document is highlighted as RCSS rather than as markup, since that is the one file where both languages meet.
 
 ## Settings
 

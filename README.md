@@ -9,6 +9,7 @@ UE5.8+
 > [!WARNING]
 > Fully ready to be used, however not yet fully released
 > <br>Improved documentation and showcase images, as well as documentation images are pending
+> <br>Changes are still reasonably frequent and not yet documented via changelog - expect to `git fetch` regularly
 
 ## Showcase
 
@@ -18,7 +19,7 @@ _Coming Soon_
 
 ### Fully Text Based
 
-Build your entire UI in **[Folio Studio](docs/studio.md)**, a cross-platform WYSIWYG editor that draws with the same renderer the game does - or even Notepad! - without needing your designer to install Unreal.
+Build your entire UI in **[Folio Studio](docs/studio.md)**, a cross-platform WYSIWYG editor that draws with the same renderer the game does, without your designer needing to install Unreal.
 
 A minute of markup results in polished animated menus. The same thing in UMG or Slate is days or weeks in the clunky Unreal Engine editor.
 
@@ -115,8 +116,7 @@ A short prompt can come back as a finished working screen. Hand it [AGENTS.md](A
 - **Plain text in source control.** A screen is not a binary `.uasset`. It diffs, merges and reviews like code, two people can work on one screen without locking it, and plain git is enough. A visual edit in Studio changes only the lines it has to.
 - **Keyboard, mouse and gamepad from one stylesheet.** Spatial navigation, focus, modals and input prompts that swap when the player picks up a pad, with no focus code to write.
 - **Driven by your game.** Bind any `UObject` by reflection: `{{ Health }}` in text, lists from arrays, commands back to C++ or Blueprint. No JavaScript, and no binding code.
-- **Quick to prototype with an AI agent, if you use one.** A screen is plain text, and the checker and screenshot tool tell an agent what it got wrong without a person in the loop, so a short prompt can come back as a finished, working screen. Hand it [AGENTS.md](AGENTS.md). May benefit from also handing it a concept image if available.
--->
+- **Quick to prototype with an AI agent, if you use one.** A screen is plain text, and the checker and screenshot tool tell an agent what it got wrong without a person in the loop, so a short prompt can come back as a finished, working screen. Hand it [AGENTS.md](AGENTS.md). May benefit from also handing it a concept image if available. -->
 
 ## Production Features
 
@@ -230,77 +230,13 @@ Folio is developed on Windows. The aim is for it to work as well everywhere else
 
 ---
 
-The rest of this file is about the repository itself.
-
-## Layout
-
-| Path | What |
-|---|---|
-| `Source/Folio/` | The UE module: renderer, input, document lifecycle |
-| `Source/FolioCore/` | Portable core shared by both renderers: font engine, distance fields, atlases |
-| `Source/FolioEditor/` | Details-panel customisations: the document picker and the density button |
-| `Tools/uipreview/` | The renderer as a command-line tool: checks, screenshots and baking, for a build or an agent (C++20, CMake, GLFW + OpenGL 3.3) |
-| `Tools/msdfbake/` | Bakes font atlases and vector sprite sheets offline |
-| `Tools/vscode-folio/` | The VSCode extension: highlighting, and a preview deprecated in favour of Studio |
-| `Tools/studio/` | Folio Studio, the visual editor |
-| `Shaders/` | The distance field shader, shared by the material and the layer path |
-| `rcss/` | `folio.rcss`, the component library, the default theme, and the recipes |
-| `fonts/` | The variable typefaces Folio ships as defaults |
-| `examples/` | Documents to look at and copy |
-| `docs/` | The manual. `docs/README.md` is the index |
-| `scripts/build.sh` | The supported build entry point |
-| `scripts/verify.sh` | The verification harness |
-
-## Building
-
-Requires **Visual Studio 2022** with the C++ desktop workload. Nothing else needs installing: `build.sh` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be on `PATH`.
-
-```bash
-./scripts/build.sh                        # RelWithDebInfo, default
-./scripts/build.sh --config Debug
-./scripts/build.sh --clean                 # wipes the build tree, re-fetches dependencies
-./scripts/build.sh --asan                  # AddressSanitizer, into its own build tree
-```
-
-Output lands at `bin/win64`.
-
-The first build clones the dependencies and takes several minutes. Later builds reuse them.
-
-`build.sh` runs `check_shader_parity.sh` before compiling, which fails if the HLSL and GLSL distance field shaders have drifted apart. `--skip-shader-parity` to bypass it while editing one side.
-
-Every configuration writes to the same `bin/win64`, so an `--asan` build replaces the normal binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH for the sanitizer runtime.
-
-## Verification
-
-```bash
-./scripts/verify.sh --out build\verify-before
-# ...change something...
-./scripts/verify.sh --baseline build\verify-before
-```
-
-Runs every document in `Tools/uipreview/tests/` under `--strict` at two dp ratios, writes a text metrics report for each, diffs them against the baseline if given, and takes the screenshots that have to be judged by eye.
-
-The metrics diff is the point. Advances here are unhinted and scaled from design units, so a change to the text engine shifts them slightly and moves line breaks; the diff reports lines that wrapped somewhere new. That is the regression this system is most likely to cause and the least likely to be noticed by looking.
-
-The other harnesses, each answering a different question:
-
-| | |
-|---|---|
-| `scripts/compare_renderers.sh` | Renders every document through both renderers and compares where each text line landed. This is what backs the claim that the preview lays out exactly as the engine does |
-| `scripts/check_world_path.sh` | Catches a property the world-space path silently drops |
-| `scripts/check_a11y.sh` | Contrast, hit targets, control names and focus visibility over a directory |
-| `scripts/check_doc_samples.sh` | Whether the C++ samples in `docs/` are still in step with the file the build compiles |
-| `scripts/check_invalidation.sh` | Proves an idle document stops doing work |
-
-Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is still intact, so they survive for weeks and then fail on someone else's machine.
-
-`docs/testing_a_document.md` covers the same tools from the point of view of someone authoring a screen rather than changing the renderer.
+To build Folio's tools or work on Folio itself, see [Building Folio](docs/building.md).
 
 ## Backend and dependency choices
 
 **Backend: GLFW + OpenGL 3.3**, which is what upstream documents first. `RmlUi_Renderer_GL3` is the only shipped renderer implementing the full 6.x feature set (render layers, filters, clip masks, shaders); GL2 and the SDL renderer silently drop box-shadow, filters and gradients. GLFW additionally allows a hidden window, which is how screenshots are captured without a visible one.
 
-**Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests. vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi port tracks whatever its baseline pins rather than the exact release we want, and its triplets fix the CRT and toolset, which fights the UE build where RmlUi has to use the same toolset as Unreal. FetchContent builds from source with whatever toolset we set, pinned to a commit hash in this file, with nothing installed globally.
+**Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests. vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi port tracks whatever its baseline pins rather than the exact release we want, and its triplets fix the CRT and toolset, which fights the UE build where RmlUi has to use the same toolset as Unreal. FetchContent builds from source with whatever toolset we set, pinned to a commit hash in `cmake/Pins.cmake`, with nothing installed globally.
 
 Local fixes to a dependency go in `patches/<dependency>/*.patch` and are applied at fetch time. See `patches/README.md`.
 
@@ -319,21 +255,9 @@ Fetched by CMake at configure time, each pinned to an exact commit. No package m
 | [msdfgen](https://github.com/Chlumsky/msdfgen) | 1.12 |
 | [nanosvg](https://github.com/memononen/nanosvg) | pinned commit, vector baking only |
 
-Skia's path operations are vendored in `Source/ThirdParty/SkiaSimplify/` rather than fetched. msdfgen needs them to union a glyph's overlapping contours before generating a field — without that, a stem and a bowl that intersect produce an inconsistent field, and the median reconstructs a false edge through the middle of a solid stroke.
+Skia's path operations are vendored in `Source/ThirdParty/SkiaSimplify/` rather than fetched. msdfgen needs them to union a glyph's overlapping contours before generating a field: without that, a stem and a bowl that intersect produce an inconsistent field, and the median reconstructs a false edge through the middle of a solid stroke.
 
-**RmlUi is pinned to 6.2 and that pin is deliberate.** The docs site at
-<https://mikke89.github.io/RmlUiDoc/> is built from RmlUi's `master` branch and carries no
-version banner, so it documents features that are not in any release. `docs/internals.md` records the specific ones that bite.
-
-## Diagnostics
-
-`uipreview` writes program output to stdout and diagnostics to stderr as `path:line:col: severity: [CODE] message`, which matches what editors and `grep` expect. Paths are relative to the content root, so output is identical across machines.
-
-Exit codes: `0` ok, `1` document errors, `2` usage, `3` init failure, `4` runtime failure, `5` warnings present under `--strict`.
-
-**Use `--strict` in CI.** Nearly every RCSS problem is a warning rather than an error in RmlUi, so a validity check that only looks at errors will pass a thoroughly broken stylesheet.
-
-`uipreview --help` lists every flag.
+**RmlUi is pinned to 6.2 and that pin is deliberate.** The docs site at <https://mikke89.github.io/RmlUiDoc/> is built from RmlUi's `master` branch and carries no version banner, so it documents features that are not in any release. `docs/internals.md` records the specific ones that bite.
 
 ## License
 

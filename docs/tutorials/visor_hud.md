@@ -1,19 +1,15 @@
 # A helmet HUD that responds to the player
 
-Build a first-person visor: a helmet frame around the view, a curved energy ribbon, a radar disc, a
-compass, a wireframe map, an ammo readout and a reticle - all of which trail the camera when the
-player turns and bob with their stride.
+Build a first-person visor: a helmet frame around the view, a curved energy ribbon, a radar disc, a compass, a wireframe map, an ammo readout and a reticle - all of which trail the camera when the player turns and bob with their stride.
 
-**No textures, no sprites, no vectors.** Every shape here is a box, a border, a gradient or a
-transform, which means the whole thing is text you can edit and reload while the game runs.
+**No textures, no sprites, no vectors.** Every shape here is a box, a border, a gradient or a transform, which means the whole thing is text you can edit and reload while the game runs.
 
 The parts worth reading for themselves:
 
 - **A helmet is one element.** A rounded rectangle whose *border* is the helmet mass.
 - **Curvature without 3D transforms**, which RCSS does not have.
 - **Motion is a component, not a transition**, and there are two of them driving different elements.
-- **A HUD is not a screen**, which is one property and the difference between a game that works
-  after an alt-tab and one that does not.
+- **A HUD is not a screen**, which is one property and the difference between a game that works after an alt-tab and one that does not.
 
 ```bash
 ./bin/win64/uipreview.exe UI/screens/visor.rml --root . --size 1920x1080 --strict
@@ -29,13 +25,9 @@ Do this before anything else, because the failure it prevents does not look like
 Document->bInteractive = false;
 ```
 
-A HUD is a readout drawn over a game that is still being played. Leave it interactive and the canvas
-is a focus target; Slate restores focus to a focusable widget when the window is reactivated, so the
-player alt-tabs away, comes back, and **can no longer move or turn**. Nothing is logged. Nothing
-about the HUD looks wrong.
+A HUD is a readout drawn over a game that is still being played. Leave it interactive and the canvas is a focus target; Slate restores focus to a focusable widget when the window is reactivated, so the player alt-tabs away, comes back, and **can no longer move or turn**. Nothing is logged. Nothing about the HUD looks wrong.
 
-Off makes the canvas unfocusable *and* hit-test invisible, so the keyboard and the mouse both reach
-the game. Painting, motion, data binding and hot reload are unaffected.
+Off makes the canvas unfocusable *and* hit-test invisible, so the keyboard and the mouse both reach the game. Painting, motion, data binding and hot reload are unaffected.
 
 The other half of the same problem: the document must not paint over the world.
 
@@ -47,10 +39,7 @@ body {
 }
 ```
 
-`background-color` on `body` is an opaque full-screen fill sitting under everything you drew. It is
-invisible in the preview - which composites onto black anyway - and covers the entire game in
-engine. `folio.Surface.Shot` renders a document onto a transparent ground, so it is the quickest way
-to prove a HUD is see-through:
+`background-color` on `body` is an opaque full-screen fill sitting under everything you drew. It is invisible in the preview - which composites onto black anyway - and covers the entire game in engine. `folio.Surface.Shot` renders a document onto a transparent ground, so it is the quickest way to prove a HUD is see-through:
 
 ```
 folio.Surface.Shot UI/screens/visor.rml C:/tmp/visor.png 1920 1080
@@ -60,8 +49,7 @@ Alpha inside the opening should be near zero. If it is 255, something is paintin
 
 ## 2. The helmet is a border
 
-The visor opening is a rounded rectangle. The helmet is what surrounds it. Rather than assembling
-that from four masses, make it **one element whose border is the mass**:
+The visor opening is a rounded rectangle. The helmet is what surrounds it. Rather than assembling that from four masses, make it **one element whose border is the mass**:
 
 ```css
 #aperture {
@@ -73,19 +61,13 @@ that from four masses, make it **one element whose border is the mass**:
 }
 ```
 
-The inner corner radius of a border is the outer radius **less the border width**, so `640 - 400`
-gives a 240dp opening radius. Choosing the pair is the whole trick: pick the opening radius you want,
-add the border width, and that is the `border-radius`.
+The inner corner radius of a border is the outer radius **less the border width**, so `640 - 400` gives a 240dp opening radius. Choosing the pair is the whole trick: pick the opening radius you want, add the border width, and that is the `border-radius`.
 
 Two things about this that catch people out.
 
-**`left` and `top` position the border box, not the content box.** With a 400dp border, an element at
-`left: 0` puts its border 400dp *off* the left of its parent and its opening starts at 0. That is
-standard CSS and it is still surprising at this scale - it is why every inset here is `-400dp`.
+**`left` and `top` position the border box, not the content box.** With a 400dp border, an element at `left: 0` puts its border 400dp *off* the left of its parent and its opening starts at 0. That is standard CSS and it is still surprising at this scale - it is why every inset here is `-400dp`.
 
-**Percentage insets, not dp.** A dp scales with resolution and DPI, so a helmet defined in dp swallows
-the screen on a small window. Put the ring inside a box that is a *fraction* of the view and it
-covers the same share of the screen everywhere:
+**Percentage insets, not dp.** A dp scales with resolution and DPI, so a helmet defined in dp swallows the screen on a small window. Put the ring inside a box that is a *fraction* of the view and it covers the same share of the screen everywhere:
 
 ```css
 .aperture-box {
@@ -94,9 +76,7 @@ covers the same share of the screen everywhere:
 }
 ```
 
-The ring hangs off that box by its own border width in every direction, so the mass always reaches
-past the edge of the screen no matter how large the view gets. A keyline and a bevel go in a second
-copy of the same box, painted after the readouts, so they sit on top:
+The ring hangs off that box by its own border width in every direction, so the mass always reaches past the edge of the screen no matter how large the view gets. A keyline and a bevel go in a second copy of the same box, painted after the readouts, so they sit on top:
 
 ```css
 #aperture-key {
@@ -110,13 +90,11 @@ copy of the same box, painted after the readouts, so they sit on top:
 }
 ```
 
-Note `box-sizing: border-box` on the keyline and not on the ring. The keyline wants to sit *on* the
-opening edge; the ring wants its border to grow outward from it.
+Note `box-sizing: border-box` on the keyline and not on the ring. The keyline wants to sit *on* the opening edge; the ring wants its border to grow outward from it.
 
 ## 3. Anchor to the edge you belong to
 
-A HUD is read at 16:9, at 21:9 and at 4:3. Anything positioned with `left` and a fixed width is wrong
-on two of those.
+A HUD is read at 16:9, at 21:9 and at 4:3. Anything positioned with `left` and a fixed width is wrong on two of those.
 
 | Where it lives | How it is positioned |
 |---|---|
@@ -125,8 +103,7 @@ on two of those.
 | Centred | `left: 50%` with a negative `margin-left` of half its width |
 | Spanning | `left` **and** `right`, no width |
 
-RCSS resolves `left` and `right` together on an absolutely positioned element, so a bar across the
-bottom of the helmet is `left: 380dp; right: 380dp` and no width at all.
+RCSS resolves `left` and `right` together on an absolutely positioned element, so a bar across the bottom of the helmet is `left: 380dp; right: 380dp` and no width at all.
 
 For the centred pieces, use percentages on both sides so the proportion holds:
 
@@ -140,17 +117,13 @@ For the centred pieces, use percentages on both sides so the proportion holds:
 }
 ```
 
-There is no `calc()` and there are no custom properties, so the two numbers have to agree by hand.
-Getting one wrong is a screen that drifts off-centre as the window widens, which is why it is worth
-rendering at 2560x1080 before believing any of it.
+There is no `calc()` and there are no custom properties, so the two numbers have to agree by hand. Getting one wrong is a screen that drifts off-centre as the window widens, which is why it is worth rendering at 2560x1080 before believing any of it.
 
 ## 4. Curvature, without 3D
 
-**3D transforms do not exist.** No `perspective`, no `rotateX`, no `rotateY` - they parse and do
-nothing. A curved visor has to be faked in two dimensions.
+**3D transforms do not exist.** No `perspective`, no `rotateX`, no `rotateY` - they parse and do nothing. A curved visor has to be faked in two dimensions.
 
-The energy ribbon is a flex row of 41 ticks. Each tick is pushed down and rotated by an amount that
-grows with its distance from the middle, which is a parabola standing in for an arc:
+The energy ribbon is a flex row of 41 ticks. Each tick is pushed down and rotated by an amount that grows with its distance from the middle, which is a parabola standing in for an arc:
 
 ```css
 .ribbon {
@@ -167,21 +140,16 @@ grows with its distance from the middle, which is a parabola standing in for an 
 .ribbon u:nth-child(1),  .ribbon u:nth-child(41) { transform: translateY(22dp) rotate(14deg); }
 ```
 
-Pairs share a rule because the curve is symmetric; the left half then restates its own rules with the
-rotation negated, since the tangent leans the other way. It is verbose and it is worth it - the bow is
-what sells a visor rather than a sticker.
+Pairs share a rule because the curve is symmetric; the left half then restates its own rules with the rotation negated, since the tangent leans the other way. It is verbose and it is worth it - the bow is what sells a visor rather than a sticker.
 
-Everything else gets a small `rotate()` toward the centre of the screen, so the corner clusters read
-as though they are sitting on a dome:
+Everything else gets a small `rotate()` toward the centre of the screen, so the corner clusters read as though they are sitting on a dome:
 
 ```css
 #radar  { transform: rotate(-5deg) scale(1, 0.78); transform-origin: 0dp 0dp; }
 #visors { transform: rotate(5deg); }
 ```
 
-`scale(1, 0.78)` is how you get an ellipse. `border-radius` takes lengths, not percentages, so a
-circle is a square element with a radius larger than it needs - radii too large for their edge are
-shrunk to fit - and an ellipse is that circle squashed on one axis.
+`scale(1, 0.78)` is how you get an ellipse. `border-radius` takes lengths, not percentages, so a circle is a square element with a radius larger than it needs - radii too large for their edge are shrunk to fit - and an ellipse is that circle squashed on one axis.
 
 ## 5. Instruments out of gradients
 
@@ -198,8 +166,7 @@ The radar is five stacked discs, and none of them is art.
 }
 ```
 
-**A sweep** is a conic gradient that is transparent for most of its turn, animated on the element
-rather than in the decorator - decorator arguments are not animatable:
+**A sweep** is a conic gradient that is transparent for most of its turn, animated on the element rather than in the decorator - decorator arguments are not animatable:
 
 ```css
 .disc-sweep {
@@ -211,25 +178,20 @@ rather than in the decorator - decorator arguments are not animatable:
 @keyframes radar-sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 ```
 
-**A triangle** does not exist either. Half of a rotated square, clipped by an in-flow parent, is an
-arrowhead:
+**A triangle** does not exist either. Half of a rotated square, clipped by an in-flow parent, is an arrowhead:
 
 ```css
 .self   { width: 46dp; height: 46dp; overflow: hidden; }
 .self i { width: 24dp; height: 24dp; margin-left: 9dp; margin-top: 10dp; transform: rotate(45deg); }
 ```
 
-**In-flow** matters: `overflow: hidden` does not clip an absolutely positioned child, so the inner
-square has to be a normal block for the parent to cut it in half.
+**In-flow** matters: `overflow: hidden` does not clip an absolutely positioned child, so the inner square has to be a normal block for the parent to cut it in half.
 
-**An arc** is a circle with two of its four border colours set to transparent, then rotated to taste.
-Per-edge `border-color` is supported even though `border-style` is not.
+**An arc** is a circle with two of its four border colours set to transparent, then rotated to taste. Per-edge `border-color` is supported even though `border-style` is not.
 
 ## 6. Motion is a component
 
-A **transition** fires on a state change and runs a fixed curve to completion. A HUD trailing a
-camera is responding continuously to a signal that never settles and gets kicked again before it
-arrives, which needs velocity carried between frames. A stylesheet has nowhere to put velocity.
+A **transition** fires on a state change and runs a fixed curve to completion. A HUD trailing a camera is responding continuously to a signal that never settles and gets kicked again before it arrives, which needs velocity carried between frames. A stylesheet has nowhere to put velocity.
 
 So it is `UFolioHudMotion`, and the only interesting decision is how the layers disagree:
 
@@ -241,15 +203,11 @@ So it is `UFolioHudMotion`, and the only interesting decision is how the layers 
 | `m_energy` (floating readout) | -26, -18 | 1.7 | 0.62 |
 | `m_reticle` | -14, -10 | 2.8 | 0.75 |
 
-Things further from the eye move more and settle slower. Three layers on identical springs is one
-layer with extra steps. Negative weights trail the motion, which is what a physical object does;
-positive leads it and reads as the HUD being eager.
+Things further from the eye move more and settle slower. Three layers on identical springs is one layer with extra steps. Negative weights trail the motion, which is what a physical object does; positive leads it and reads as the HUD being eager.
 
-The helmet barely moves and damps hardest, because it is bolted to the player's head. The reticle
-takes `Camera Turn` only - a strafe should not slide the aim mark sideways.
+The helmet barely moves and damps hardest, because it is bolted to the player's head. The reticle takes `Camera Turn` only - a strafe should not slide the aim mark sideways.
 
-**A screen-space HUD has to be named**, since a `UFolioWidget` lives in a widget tree rather than on
-an actor and there is nothing to search:
+**A screen-space HUD has to be named**, since a `UFolioWidget` lives in a widget tree rather than on an actor and there is nothing to search:
 
 ```cpp
 Motion->SetDocumentSource(Document);
@@ -257,9 +215,7 @@ Motion->SetDocumentSource(Document);
 
 ## 7. Footsteps are a second component
 
-Camera turn and view-space velocity are what the motion component reads. A footstep cadence is
-neither: it is periodic, and a landing is an impulse. Both are a few lines of your own, and the
-important part is that **they must drive different elements**.
+Camera turn and view-space velocity are what the motion component reads. A footstep cadence is neither: it is periodic, and a landing is an impulse. Both are a few lines of your own, and the important part is that **they must drive different elements**.
 
 ```
 #hud
@@ -268,12 +224,9 @@ important part is that **they must drive different elements**.
   #bob_sight  -> #m_reticle
 ```
 
-Two writers on one element's `transform` fight; nested elements compose for free. The motion
-component writes `m_*`, the bob writes `bob_*`, and the browser - RmlUi, here - multiplies the
-matrices on the way down.
+Two writers on one element's `transform` fight; nested elements compose for free. The motion component writes `m_*`, the bob writes `bob_*`, and the browser - RmlUi, here - multiplies the matrices on the way down.
 
-The bob itself is a phase advanced by ground speed, sideways once per stride and vertically twice,
-which is what a walk does:
+The bob itself is a phase advanced by ground speed, sideways once per stride and vertically twice, which is what a walk does:
 
 ```cpp
 StridePhase += DeltaTime * StrideRate * SpeedRatio * UE_TWO_PI;
@@ -282,11 +235,9 @@ const float SwayX =  FMath::Sin(StridePhase) * StrideBlend;
 const float SwayY = -FMath::Cos(StridePhase * 2.f) * StrideBlend;
 ```
 
-`StrideBlend` ramps toward the speed ratio while grounded and toward zero in the air, so the bob
-fades rather than stopping dead when the player jumps.
+`StrideBlend` ramps toward the speed ratio while grounded and toward zero in the air, so the bob fades rather than stopping dead when the player jumps.
 
-A landing is an impulse into the spring's velocity rather than a target to chase, scaled by how hard
-the impact was:
+A landing is an impulse into the spring's velocity rather than a target to chase, scaled by how hard the impact was:
 
 ```cpp
 const float Impact = FMath::Clamp(-LastVerticalSpeed / ReferenceImpact, 0.f, 1.5f);
@@ -296,17 +247,13 @@ for (FLayer& Layer : Layers)
 }
 ```
 
-`FFolioSpring` is public and does the integration - semi-implicit, substepped, so a hitch settles
-instead of throwing the HUD off screen. The vertical speed has to be remembered from the previous
-frame, because by the time a landing is detectable the velocity has already been zeroed.
+`FFolioSpring` is public and does the integration - semi-implicit, substepped, so a hitch settles instead of throwing the HUD off screen. The vertical speed has to be remembered from the previous frame, because by the time a landing is detectable the velocity has already been zeroed.
 
-Both components write `transform` and nothing else, and both stop writing once a layer has settled.
-That is what lets a standing player's HUD go idle and cost nothing.
+Both components write `transform` and nothing else, and both stop writing once a layer has settled. That is what lets a standing player's HUD go idle and cost nothing.
 
 ## 8. Putting it on the screen
 
-The HUD actor is the natural owner: it exists per player, it already has a lifetime that matches the
-game, and components on it tick without any extra wiring.
+The HUD actor is the natural owner: it exists per player, it already has a lifetime that matches the game, and components on it tick without any extra wiring.
 
 ```cpp
 Widget = NewObject<UFolioWidget>(this);
@@ -324,15 +271,11 @@ Bob->SetDocument(Widget);
 FSlateApplication::Get().SetAllUserFocusToGameViewport();
 ```
 
-Keep the components' tick disabled until the HUD is up, and disable it again when it comes down;
-there is no reason to run two springs against a document that does not exist.
+Keep the components' tick disabled until the HUD is up, and disable it again when it comes down; there is no reason to run two springs against a document that does not exist.
 
 ## 9. Bake the glow
 
-The helmet's aperture is `#aperture-key`: a keyline and a 26dp glow over the whole opening. That glow
-is a **layer effect on an element covering most of the viewport**, which is a full-screen render
-target - allocated, cleared, drawn and composited. On a HUD, which never idles because something is
-always animating, that is one every frame.
+The helmet's aperture is `#aperture-key`: a keyline and a 26dp glow over the whole opening. That glow is a **layer effect on an element covering most of the viewport**, which is a full-screen render target - allocated, cleared, drawn and composited. On a HUD, which never idles because something is always animating, that is one every frame.
 
 `uipreview` says so:
 
@@ -341,11 +284,9 @@ warning: [W-PERF-FULLSCREENLAYER] #aperture-key: box-shadow on an element coveri
 viewport costs a full-screen render target, every frame the document draws.
 ```
 
-It applies to the radar's `mask-image` too if the disc grows large enough, and to any `filter` used
-the same way. Nothing about it is visible - that is the point of the warning.
+It applies to the radar's `mask-image` too if the disc grows large enough, and to any `filter` used the same way. Nothing about it is visible - that is the point of the warning.
 
-**Nothing about the glow changes at runtime, so it should be a texture.** Split the document in two:
-the one that describes the effect, and the one that draws the result.
+**Nothing about the glow changes at runtime, so it should be a texture.** Split the document in two: the one that describes the effect, and the one that draws the result.
 
 ```html
 <!-- UI/screens/visor_baker.rml -->
@@ -354,19 +295,13 @@ the one that describes the effect, and the one that draws the result.
 </body>
 ```
 
-`folio-bake-source` on the `body` says this document exists to be baked, so the warning leaves it
-alone, and it carries no state classes - a running animation drives its own property and cancelling
-one for a bake is not reliable, so a layer caught mid-animation bakes empty. Then produce the art,
-from the editor console:
+`folio-bake-source` on the `body` says this document exists to be baked, so the warning leaves it alone, and it carries no state classes - a running animation drives its own property and cancelling one for a bake is not reliable, so a layer caught mid-animation bakes empty. Then produce the art, from the editor console:
 
 ```
 folio.Bake UI/screens/visor_baker.rml #aperture-key UI/art/visor_aperture.png 1920 1080
 ```
 
-**The engine, not `uipreview`.** The two renderers do not draw `box-shadow`, `filter`,
-`backdrop-filter` or `mask-image` identically, so a layer effect baked in the preview is faint and
-the wrong shape in the game. `uipreview --bake` refuses those four and prints the line above instead;
-for anything else it is the quicker route.
+**The engine, not `uipreview`.** The two renderers do not draw `box-shadow`, `filter`, `backdrop-filter` or `mask-image` identically, so a layer effect baked in the preview is faint and the wrong shape in the game. `uipreview --bake` refuses those four and prints the line above instead; for anything else it is the quicker route.
 
 And draw it, dropping the property and the radius it came from:
 
@@ -378,23 +313,15 @@ And draw it, dropping the property and the radius it came from:
 }
 ```
 
-The border and the radius are in the texture now. Everything that *moves* still works untouched,
-because none of it was ever the shadow: section 6's sway is a `transform` and section 5's sweep is a
-rotation, and both are free.
+The border and the radius are in the texture now. Everything that *moves* still works untouched, because none of it was ever the shadow: section 6's sway is a `transform` and section 5's sweep is a rotation, and both are free.
 
-In VSCode the warning carries the `folio.Bake` line for the element it flagged, with a button to copy
-it.
+In VSCode the warning carries the `folio.Bake` line for the element it flagged, with a button to copy it.
 
-**Keep the baker.** It is the only readable description of the glow, and it is what you edit when the
-blue is too strong - change it, re-bake, done. Delete it and you have a PNG nobody can adjust.
+**Keep the baker.** It is the only readable description of the glow, and it is what you edit when the blue is too strong - change it, re-bake, done. Delete it and you have a PNG nobody can adjust.
 
-What cannot be baked is anything whose shape depends on what is behind it. A `backdrop-filter`
-blurring the live scene through the visor is the real example: it is expensive because it reads the
-frame underneath, and a texture cannot.
+What cannot be baked is anything whose shape depends on what is behind it. A `backdrop-filter` blurring the live scene through the visor is the real example: it is expensive because it reads the frame underneath, and a texture cannot.
 
-See **[performance and profiling](../performance_profiling.md)** for `--bake` in full, and
-**[the coloured screen edge](screen_edge.md)** for the same workflow on a document made entirely of
-washes.
+See **[performance and profiling](../performance_profiling.md)** for `--bake` in full, and **[the coloured screen edge](screen_edge.md)** for the same workflow on a document made entirely of washes.
 
 ## 10. Before you believe it
 
@@ -406,14 +333,12 @@ uipreview.exe UI/screens/visor.rml --root . --size 1600x1200 --strict
 
 Three aspect ratios, because anchoring mistakes are invisible at the one you authored against.
 
-Then look at it **in engine**, not only in the preview. The two renderers implement the same
-vocabulary but not identically, and a HUD is drawn over a live scene where transparency, blending and
-draw order all matter in ways a preview on black cannot show you.
+Then look at it **in engine**, not only in the preview. The two renderers implement the same vocabulary but not identically, and a HUD is drawn over a live scene where transparency, blending and draw order all matter in ways a preview on black cannot show you.
 
 ## Where to go next
 
-- **[HUD motion](../hud_motion.md)** — every property on the component, and how to tune a spring.
-- **[Performance and profiling](../performance_profiling.md)** — what the layer passes cost, and `--bake`.
-- **[Hosting a document](../hosting.md)** — `Interactive`, focus, and CommonUI.
-- **[Layout](../layout.md)** — flexbox, and the traps.
-- **[UI_CONVENTIONS.md](../../UI_CONVENTIONS.md)** — what exists. Read it before inventing a property.
+- **[HUD motion](../hud_motion.md)**: every property on the component, and how to tune a spring.
+- **[Performance and profiling](../performance_profiling.md)**: what the layer passes cost, and `--bake`.
+- **[Hosting a document](../hosting.md)**: `Interactive`, focus, and CommonUI.
+- **[Layout](../layout.md)**: flexbox, and the traps.
+- **[UI_CONVENTIONS.md](../../UI_CONVENTIONS.md)**: what exists. Read it before inventing a property.

@@ -15,7 +15,7 @@ cd <YourProject>/Plugins/Folio
 
 ## 1. Install the extension
 
-It has no build step and no dependencies — one JavaScript file — so installing it is copying a directory. Either copy or link `Plugins/Folio/Tools/vscode-folio` into VSCode's extensions folder:
+It has no build step and no dependencies (one JavaScript file), so installing it is copying a directory. Either copy or link `Plugins/Folio/Tools/vscode-folio` into VSCode's extensions folder:
 
 ```bash
 # Windows, from a shell with permission to make links. Copying the directory works just as well.
@@ -27,7 +27,7 @@ ln -s <YourProject>/Plugins/Folio/Tools/vscode-folio ~/.vscode/extensions/folio-
 
 A link is worth preferring: the extension then updates with the plugin rather than going stale.
 
-Then **reload the window** — `Ctrl+Shift+P`, `Developer: Reload Window`. VSCode only scans that folder at startup, so nothing happens until you do.
+Then **reload the window**: `Ctrl+Shift+P`, `Developer: Reload Window`. VSCode only scans that folder at startup, so nothing happens until you do.
 
 ## 2. Open the project, not the plugin
 
@@ -51,7 +51,7 @@ It re-renders whenever any `.rml`, `.rcss`, `.json`, or font in the workspace ch
 
 It re-renders whenever you save an `.rml` **or** an `.rcss`, because a document links several stylesheets and a change to one matters as much as a change to the markup. It follows the active editor, so switching documents previews the one you are looking at.
 
-Warnings appear beside the render rather than instead of it — `--strict` is on by default, so a missing sprite or a property that parses but does nothing is reported rather than quietly rendered past. `UI/examples/button.rml` has one, if you want to see what that looks like.
+Warnings appear beside the render rather than instead of it: `--strict` is on by default, so a missing sprite or a property that parses but does nothing is reported rather than quietly rendered past. `UI/examples/button.rml` has one, if you want to see what that looks like.
 
 ## Zooming
 
@@ -67,15 +67,15 @@ A zoom is a render, so it takes as long as a save does.
 
 ## The timeline
 
-A render shows what a document settles into, which is the wrong question about motion: an entry animation has already finished by the time the picture is taken. The **timeline** button above the preview — or **Folio: Toggle Timeline** in the title bar — renders a frame per step from the document's first update and puts a transport under the render.
+A render shows what a document settles into, which is the wrong question about motion: an entry animation has already finished by the time the picture is taken. The **timeline** button above the preview (or **Folio: Toggle Timeline** in the title bar) renders a frame per step from the document's first update and puts a transport under the render.
 
 **Play** runs it from the start, looping. **Drag the scrubber** to any instant. **Left and right arrows step one frame**, which is how you find the frame where a curve is wrong. Space is already the pan gesture, so play is the button rather than a key.
 
-Two seconds at 30fps by default — `folio.timelineDuration` and `folio.timelineFps` change that. Both are simulated: the strip is rendered at a fixed step, so it is reproducible and identical every time, and `folio.timelineFps` is the interval it samples at rather than a claim about the rate the game will run at.
+Two seconds at 30fps by default: `folio.timelineDuration` and `folio.timelineFps` change that. Both are simulated: the strip is rendered at a fixed step, so it is reproducible and identical every time, and `folio.timelineFps` is the interval it samples at rather than a claim about the rate the game will run at.
 
 **It costs a render per frame.** A still is a fraction of a second and a strip is a few, on every save while it is open, which is why it is off by default and worth closing when you go back to layout.
 
-**Elements can only be picked at the end of the strip.** The rules that reach an element are reported for one instant, and boxes drawn over a different frame would be in the wrong place — mid-animation the elements are where the animation has them. Scrub back to the end and hovering, selecting and dragging come back.
+**Elements can only be picked at the end of the strip.** The rules that reach an element are reported for one instant, and boxes drawn over a different frame would be in the wrong place: mid-animation the elements are where the animation has them. Scrub back to the end and hovering, selecting and dragging come back.
 
 The standalone renderer is still the better tool for anything with to *run*: real input, the debugger, an animation you want to watch at the real frame rate rather than a sampled one.
 
@@ -107,7 +107,7 @@ It edits properties on rules. It does not add rules, move elements between paren
 
 This is the whole reason the tool exists, so it is worth being precise about.
 
-**Layout matches the engine exactly.** Not within a tolerance — exactly. `./scripts/compare_renderers.sh` renders every document through both renderers and compares where each text line landed, and it passes across the documents the game ships. If a box is in the right place here, it is in the right place in the game.
+**Layout matches the engine exactly.** Not within a tolerance: exactly. `./scripts/compare_renderers.sh` renders every document through both renderers and compares where each text line landed, and it passes across the documents the game ships. If a box is in the right place here, it is in the right place in the game.
 
 **The appearance of layer effects is not compared.** `box-shadow`, `filter`, `backdrop-filter` and `mask-image` are drawn in OpenGL here and replayed through RHI in the engine. Layout under an effect is still exact; a shadow's colour or blur radius is not something the preview can promise. A document using one says so in the panel rather than leaving you to wonder.
 
@@ -115,7 +115,7 @@ This is the whole reason the tool exists, so it is worth being precise about.
 
 ## Highlighting
 
-`.rml` and `.rcss` highlight as soon as the extension is installed. Both reuse VSCode's built-in grammars — XML for markup, CSS for stylesheets — so there is nothing to keep in step as those improve. A `<style>` block inside a document is highlighted as RCSS rather than as markup.
+`.rml` and `.rcss` highlight as soon as the extension is installed. Both reuse VSCode's built-in grammars (XML for markup, CSS for stylesheets) so there is nothing to keep in step as those improve. A `<style>` block inside a document is highlighted as RCSS rather than as markup.
 
 **RCSS is registered as its own language rather than as CSS**, deliberately. VSCode's CSS validator is bound to the `css` language and does not know `decorator`, `nav`, `font-effect`, `drag` or `dp` units, so registering `.rcss` as CSS would put a red squiggle under most of a correct stylesheet. The cost is that you get no CSS completions, which is the right way round: a completion list offering `grid-template-columns` and `var()` would be actively misleading, since RCSS has neither.
 
@@ -128,7 +128,7 @@ All under `folio.` in settings:
 | `uipreviewPath` | Path to the binary. Empty searches the workspace. |
 | `root` | Passed as `--root`. Empty uses the workspace folder. |
 | `size` | Render size, default `1280x720`. |
-| `dpRatio` | Pinned dp ratio, default `1`. **Set this to whatever your game uses**, or every length in the preview differs from the game's — which reads as a layout bug rather than a setting. |
+| `dpRatio` | Pinned dp ratio, default `1`. **Set this to whatever your game uses**, or every length in the preview differs from the game's, which reads as a layout bug rather than a setting. |
 | `timelineDuration` | Seconds of simulated time the timeline covers, default `2`. |
 | `timelineFps` | Frames per second it samples at, default `30`. Longer or finer costs proportionally more to render. |
 | `strict` | Report warnings rather than rendering past them. On by default. |
@@ -144,5 +144,5 @@ All under `folio.` in settings:
 
 ## Where to go next
 
-- **[Hello world](hello_world.md)** — the project setup this assumes.
-- **[What RCSS actually supports](../UI_CONVENTIONS.md)** — read it before authoring anything real. RmlUi is close enough to CSS to mislead, and the preview will not warn you about a property that parses and does nothing unless `--strict` is on.
+- **[Hello world](hello_world.md)**: the project setup this assumes.
+- **[What RCSS actually supports](../UI_CONVENTIONS.md)**: read it before authoring anything real. RmlUi is close enough to CSS to mislead, and the preview will not warn you about a property that parses and does nothing unless `--strict` is on.

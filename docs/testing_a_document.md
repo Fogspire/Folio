@@ -2,10 +2,7 @@
 
 The single most important habit in Folio: **run with `--strict`**.
 
-Nearly every RCSS mistake is a warning rather than an error in RmlUi. A misspelled property, a
-decorator that does not exist, a `120ms` duration, a sprite that was never packed - all of them parse
-cleanly and produce nothing. A check that only looks at errors will pass a thoroughly broken
-stylesheet and you will find out in the engine, days later.
+Nearly every RCSS mistake is a warning rather than an error in RmlUi. A misspelled property, a decorator that does not exist, a `120ms` duration, a sprite that was never packed - all of them parse cleanly and produce nothing. A check that only looks at errors will pass a thoroughly broken stylesheet and you will find out in the engine, days later.
 
 ```bash
 ./bin/win64/uipreview.exe UI/screens/settings.rml --root . --strict
@@ -15,8 +12,7 @@ Non-zero exit means the document is not right. That is the whole contract.
 
 ## The tool
 
-`uipreview` is the same layout engine the game runs, in a window you can open in half a second. It
-watches the files it loaded and re-renders on save, so it is a live preview by default.
+`uipreview` is the same layout engine the game runs, in a window you can open in half a second. It watches the files it loaded and re-renders on save, so it is a live preview by default.
 
 ```bash
 # Look at it.
@@ -32,16 +28,13 @@ watches the files it loaded and re-renders on save, so it is a live preview by d
 ./bin/win64/uipreview.exe UI/screens/settings.rml --root . --filmstrip out/ --filmstrip-frames 30
 ```
 
-`--root` is the project directory, and it is what makes `/UI/...` and `/folio/...` resolve. Getting it
-wrong is the most common reason nothing appears.
+`--root` is the project directory, and it is what makes `/UI/...` and `/folio/...` resolve. Getting it wrong is the most common reason nothing appears.
 
-Most of the time you will not type any of this - the **[VSCode extension](vscode.md)** runs it beside
-the document and adds click-to-find-the-rule on top.
+Most of the time you will not type any of this - the **[VSCode extension](vscode.md)** runs it beside the document and adds click-to-find-the-rule on top.
 
 ## The checks
 
-Each is a separate flag because each answers a different question, and running all of them on every
-save would be slow for no gain.
+Each is a separate flag because each answers a different question, and running all of them on every save would be slow for no gain.
 
 | | |
 |---|---|
@@ -71,28 +64,31 @@ Run the two that matter together before committing a screen:
 
 For anything a person should not have to eyeball.
 
-**`--json-report`** — every diagnostic, machine readable, for CI.
+**`--json-report`**: every diagnostic, machine readable, for CI.
 
-**`--metrics-report`** — where every text element and every wrapped line landed. This is what makes a
-change to the text engine reviewable: run it before and after and diff the numbers. Lines that broke
-somewhere new are the regression most likely to happen and least likely to be spotted by eye. Compare
-like for like - same size, same dp ratio.
+**`--metrics-report`**: where every text element and every wrapped line landed. This is what makes a change to the text engine reviewable: run it before and after and diff the numbers. Lines that broke somewhere new are the regression most likely to happen and least likely to be spotted by eye. Compare like for like - same size, same dp ratio.
 
-**`--provenance-report`** — every element, its box, and every rule that reached it with the file and
-line. This is what the VSCode extension uses to answer "which rule did this".
+**`--provenance-report`**: every element, its box, and every rule that reached it with the file and line. This is what the VSCode extension uses to answer "which rule did this".
 
-**`--a11y-report`** — the accessibility findings with the numbers rather than the prose.
+**`--a11y-report`**: the accessibility findings with the numbers rather than the prose.
 
-**`--a11y-tree-report`** — the screen reader tree with bounds, ranges and element paths. What a test
-diffs: `verify.sh` compares `tests/a11y_tree.rml` against a committed transcript, so a change in what
-a document reads as fails a test rather than being noticed by ear.
+**`--a11y-tree-report`**: the screen reader tree with bounds, ranges and element paths. What a test diffs: `verify.sh` compares `tests/a11y_tree.rml` against a committed transcript, so a change in what a document reads as fails a test rather than being noticed by ear.
+
+## Output and exit codes
+
+`uipreview` writes program output to stdout and diagnostics to stderr as `path:line:col: severity: [CODE] message`, which matches what editors and `grep` expect. Paths are relative to the content root, so output is identical across machines.
+
+Exit codes: `0` ok, `1` document errors, `2` usage, `3` init failure, `4` runtime failure, `5` warnings present under `--strict`.
+
+**Use `--strict` in CI.** Nearly every RCSS problem is a warning rather than an error in RmlUi, so a validity check that only looks at errors will pass a thoroughly broken stylesheet.
+
+`uipreview --help` lists every flag.
 
 ## The harnesses
 
 Three scripts, for three different questions.
 
-**`./scripts/verify.sh`** — every document in `Tools/uipreview/tests/` under `--strict` at two dp
-ratios, with metrics reports and screenshots. Diff a run against a previous one:
+**`./scripts/verify.sh`**: every document in `Tools/uipreview/tests/` under `--strict` at two dp ratios, with metrics reports and screenshots. Diff a run against a previous one:
 
 ```bash
 ./scripts/verify.sh --out build/verify-before
@@ -100,50 +96,29 @@ ratios, with metrics reports and screenshots. Diff a run against a previous one:
 ./scripts/verify.sh --baseline build/verify-before
 ```
 
-**`./scripts/compare_renderers.sh`** — renders every document through *both* renderers and compares
-where each text line landed. This is what backs the claim that the preview lays out identically to
-the engine: not within a tolerance, exactly. Run it after touching anything in the text or layout
-path.
+**`./scripts/compare_renderers.sh`**: renders every document through *both* renderers and compares where each text line landed. This is what backs the claim that the preview lays out identically to the engine: not within a tolerance, exactly. Run it after touching anything in the text or layout path.
 
-**`./scripts/check_a11y.sh <dir>`** — every `.rml` under a directory, accessibility only, non-zero if
-anything is found.
+**`./scripts/check_a11y.sh <dir>`**: every `.rml` under a directory, accessibility only, non-zero if anything is found.
 
-`./scripts/check_world_path.sh` is for anyone changing the renderer rather than a document - it
-catches a property that the world-space path silently drops.
+`./scripts/check_world_path.sh` is for anyone changing the renderer rather than a document - it catches a property that the world-space path silently drops.
 
-**`./scripts/compare_images.sh <a.png> <b.png>`** compares two shots numerically, which is the only
-way anyone is going to notice that a shadow moved by two pixels.
+**`./scripts/compare_images.sh <a.png> <b.png>`** compares two shots numerically, which is the only way anyone is going to notice that a shadow moved by two pixels.
 
 ```bash
 ./scripts/compare_images.sh before.png after.png --gate rgba --out diff.png
 ```
 
-It reports max and mean difference for colour and for alpha **separately**, how many pixels are past
-the tolerance, and the box containing them. `--out` writes a heat map: black where the two agree,
-rising through red to white where they do not, which answers *where* rather than *how much*.
+It reports max and mean difference for colour and for alpha **separately**, how many pixels are past the tolerance, and the box containing them. `--out` writes a heat map: black where the two agree, rising through red to white where they do not, which answers *where* rather than *how much*.
 
-Alpha and colour are split because they mean different things here. **Across renderers, RGB will
-never match** — the preview does no sRGB conversion where Slate linearises vertex colour and applies
-display gamma — so gating on it produces a check nobody can keep green. Coverage is different: where
-a glyph, a shadow or a mask puts its alpha is geometry, and geometry must match. `--gate rgba` is for
-two shots from the *same* renderer, where any difference is a regression.
+Alpha and colour are split because they mean different things here. **Across renderers, RGB will never match** (the preview does no sRGB conversion where Slate linearises vertex colour and applies display gamma) so gating on it produces a check nobody can keep green. Coverage is different: where a glyph, a shadow or a mask puts its alpha is geometry, and geometry must match. `--gate rgba` is for two shots from the *same* renderer, where any difference is a regression.
 
-**One trap it warns about rather than hides:** a document with an opaque background has the same alpha
-in every pixel, so `--gate alpha` compares nothing and passes whatever it is given. Compare on a
-transparent ground, or gate on `rgb`.
+**One trap it warns about rather than hides:** a document with an opaque background has the same alpha in every pixel, so `--gate alpha` compares nothing and passes whatever it is given. Compare on a transparent ground, or gate on `rgb`.
 
-`./scripts/check_recipes.sh` runs every shipped recipe under `--strict --a11y` four times: as
-authored, under the high-contrast theme at 7:1, at 150% text scale, and simulating deuteranopia. They
-are what people copy to start a screen, so a finding in one is inherited by everyone who uses it, and
-a starting point that only works at the defaults teaches the defaults.
+`./scripts/check_recipes.sh` runs every shipped recipe under `--strict --a11y` four times: as authored, under the high-contrast theme at 7:1, at 150% text scale, and simulating deuteranopia. They are what people copy to start a screen, so a finding in one is inherited by everyone who uses it, and a starting point that only works at the defaults teaches the defaults.
 
-`./scripts/check_headers.sh` catches a public header that includes a private one. The build cannot:
-a module's own sources have `Private` on their include path, so it compiles here and fails only for
-whoever consumes the plugin, naming the public header that looked fine.
+`./scripts/check_headers.sh` catches a public header that includes a private one. The build cannot: a module's own sources have `Private` on their include path, so it compiles here and fails only for whoever consumes the plugin, naming the public header that looked fine.
 
-**`./scripts/check_tests.sh`** runs the engine-side automation tests headlessly, which is everything
-that needs a real UObject and so cannot live in the preview: today that is the view model bridge.
-It finds the editor from the `.uproject`'s engine association, or `UE_ROOT` if you set one.
+**`./scripts/check_tests.sh`** runs the engine-side automation tests headlessly, which is everything that needs a real UObject and so cannot live in the preview: today that is the view model bridge. It finds the editor from the `.uproject`'s engine association, or `UE_ROOT` if you set one.
 
 ```bash
 ./scripts/check_tests.sh                        # everything under Folio.
@@ -154,15 +129,11 @@ It finds the editor from the `.uproject`'s engine association, or `UE_ROOT` if y
 
 Worth being precise about, because the whole value of a preview is knowing where it lies.
 
-**Layout matches the engine exactly.** `compare_renderers.sh` proves it across every document the
-project ships. If a box is in the right place here, it is in the right place in the game.
+**Layout matches the engine exactly.** `compare_renderers.sh` proves it across every document the project ships. If a box is in the right place here, it is in the right place in the game.
 
-**Colour will differ from a screenshot of the game, always.** The preview does no sRGB conversion
-where Slate linearises vertex colour and applies display gamma. Judge colour in the engine.
+**Colour will differ from a screenshot of the game, always.** The preview does no sRGB conversion where Slate linearises vertex colour and applies display gamma. Judge colour in the engine.
 
-**The appearance of layer effects is not compared.** `box-shadow`, `filter`, `backdrop-filter` and
-`mask-image` are drawn in OpenGL here and replayed through RHI in the engine. Layout under an effect
-is still exact; a shadow's blur radius is not something the preview can promise yet.
+**The appearance of layer effects is not compared.** `box-shadow`, `filter`, `backdrop-filter` and `mask-image` are drawn in OpenGL here and replayed through RHI in the engine. Layout under an effect is still exact; a shadow's blur radius is not something the preview can promise yet.
 
 ## In the engine
 
@@ -180,18 +151,14 @@ The preview does not replace looking at it in the game, it replaces looking at i
 
 In this order:
 
-1. **Look it up in [UI_CONVENTIONS.md](../UI_CONVENTIONS.md).** It is usually on the banned list.
-   `display: grid`, `var()`, `background-image`, `text-shadow`, `outline`, `calc()`, `::before`.
+1. **Look it up in [UI_CONVENTIONS.md](../UI_CONVENTIONS.md).** It is usually on the banned list. `display: grid`, `var()`, `background-image`, `text-shadow`, `outline`, `calc()`, `::before`.
 2. **Run with `--strict`.** Most of the rest warns.
-3. **Check the units.** `120ms` is not a duration - times are seconds. `rgba(0,0,0,0.5)` is fully
-   transparent - alpha is 0-255. A bare number where a length is expected is a warning, not `px`.
-4. **Check the easing name.** They are RmlUi's, not CSS's: `cubic-out`, not `ease-out`. A misspelled
-   one is read as a property name and the transition silently never fires.
-5. **Click it in the [VSCode preview](vscode.md)** and read the rules that actually reached it. Often
-   the answer is that a rule you did not expect won.
+3. **Check the units.** `120ms` is not a duration - times are seconds. `rgba(0,0,0,0.5)` is fully transparent - alpha is 0-255. A bare number where a length is expected is a warning, not `px`.
+4. **Check the easing name.** They are RmlUi's, not CSS's: `cubic-out`, not `ease-out`. A misspelled one is read as a property name and the transition silently never fires.
+5. **Click it in the [VSCode preview](vscode.md)** and read the rules that actually reached it. Often the answer is that a rule you did not expect won.
 
 ## Where to go next
 
-- **[Setting up VSCode](vscode.md)** — the same tool, without the command line.
-- **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** — what exists, what does not.
-- **[Performance and profiling](performance_profiling.md)** — when it works but is slow.
+- **[Setting up VSCode](vscode.md)**: the same tool, without the command line.
+- **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)**: what exists, what does not.
+- **[Performance and profiling](performance_profiling.md)**: when it works but is slow.

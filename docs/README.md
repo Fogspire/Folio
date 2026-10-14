@@ -1,7 +1,6 @@
 # Folio documentation
 
-RmlUi-based UI for Unreal. Markup and stylesheets instead of widget graphs, distance-field text and
-vector art that stay sharp at any size, and a preview tool that lays out identically to the engine.
+RmlUi-based UI for Unreal. Markup and stylesheets instead of widget graphs, distance-field text and vector art that stay sharp at any size, and a preview tool that lays out identically to the engine.
 
 Read in order if you are new. Everything after **Getting started** stands alone.
 
@@ -85,16 +84,13 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[AGENTS.md](../AGENTS.md)** | The cold-start brief. What to hand an agent asked to build UI in a project it has not seen. |
 | **[What Folio does not do yet](known_gaps.md)** | Every known limit, in one place. Read it before designing around something. |
 | **[Internals](internals.md)** | Build and engine-integration hazards. Not for authoring. |
+| **[Building Folio](building.md)** | Building the tools, the verification harness, and where everything is in the repository. For changing Folio itself. |
 
 ## The one thing to know first
 
-RmlUi is **not a browser** and RCSS is **not CSS**. It is close enough that valid-looking CSS parses
-and then does nothing at all - `display: grid`, `var()`, `background-image`, `text-shadow`,
-`calc()`, `120ms`, `rgba(0,0,0,0.5)`. None of those warn.
+RmlUi is **not a browser** and RCSS is **not CSS**. It is close enough that valid-looking CSS parses and then does nothing at all - `display: grid`, `var()`, `background-image`, `text-shadow`, `calc()`, `120ms`, `rgba(0,0,0,0.5)`. None of those warn.
 
 Two habits make that a non-issue:
 
-- Run with `--strict`. Nearly every RCSS mistake is a warning rather than an error, and a check that
-  only looks at errors will pass a thoroughly broken stylesheet.
-- When something does nothing, look it up in **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** before
-  debugging it. It is usually on the banned list.
+- Run with `--strict`. Nearly every RCSS mistake is a warning rather than an error, and a check that only looks at errors will pass a thoroughly broken stylesheet.
+- When something does nothing, look it up in **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** before debugging it. It is usually on the banned list.

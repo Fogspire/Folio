@@ -273,3 +273,8 @@ Skia's path operations are vendored in `Source/ThirdParty/SkiaSimplify/` rather 
 For a commercial license, open an issue or ask the author.
 
 Contributions are accepted only with the right for the author to relicense them, so a commercial license can cover the whole of Folio.
+
+## Changelog
+
+### 1.0.0
+* Initial release to the general public

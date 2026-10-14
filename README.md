@@ -4,6 +4,10 @@
 
 Folio is free, source included, and built to be the UI layer of a shipping game, from a solo project to a full production.
 
+## Showcase
+
+_Coming Soon_
+
 ## Why Folio
 
 - **Absolutely rapid, and outside Unreal.** Everything is a text file. Edit it in **[Folio Studio](docs/studio.md)**, a WYSIWYG editor that draws with the same renderer the game does. The UI designer does not need Unreal installed. A polished, animated menu is minutes of markup, where the same thing in UMG or Slate is days of widget wrangling.
@@ -17,7 +21,7 @@ Folio is free, source included, and built to be the UI layer of a shipping game,
 - **Plain text in source control.** A screen is not a binary `.uasset`. It diffs, merges and reviews like code, two people can work on one screen without locking it, and plain git is enough. A visual edit in Studio changes only the lines it has to.
 - **Keyboard, mouse and gamepad from one stylesheet.** Spatial navigation, focus, modals and input prompts that swap when the player picks up a pad, with no focus code to write.
 - **Driven by your game.** Bind any `UObject` by reflection: `{{ Health }}` in text, lists from arrays, commands back to C++ or Blueprint. No JavaScript, and no binding code.
-- **Quick to prototype with an AI agent, if you use one.** A screen is plain text, and the checker and screenshot tool tell an agent what it got wrong without a person in the loop, so a short prompt can come back as a finished, working screen. Hand it [AGENTS.md](AGENTS.md).
+- **Quick to prototype with an AI agent, if you use one.** A screen is plain text, and the checker and screenshot tool tell an agent what it got wrong without a person in the loop, so a short prompt can come back as a finished, working screen. Hand it [AGENTS.md](AGENTS.md). May benefit from also handing it a concept image if available.
 
 ## In the box
 

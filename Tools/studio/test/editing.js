@@ -79,7 +79,7 @@ await wait(100);
 const overlay = document.querySelector('.overlay');
 const bounds = overlay.getBoundingClientRect();
 const scale = bounds.width / store.get().width;
-const at = (x, y) => ({ clientX: bounds.left + x * scale, clientY: bounds.top + y * scale, button: 0, bubbles: true });
+const at = (x, y) => ({ clientX: bounds.left + x * scale, clientY: bounds.top + y * scale, button: 0, buttons: 1, bubbles: true });
 const cx = build.rect[0] + build.rect[2] / 2;
 const cy = build.rect[1] + build.rect[3] / 2;
 overlay.dispatchEvent(new MouseEvent('mousedown', at(cx, cy)));
@@ -98,6 +98,80 @@ expect(Math.abs(right - 124) <= 2 && Math.abs(bottom - 70) <= 2, 'drag moved rig
 expect(!/left:|top:/.test(rule), 'and did not pin the element from a second side');
 const moved = byAttribute('class', 'build');
 expect(Math.abs(moved.rect[0] - (build.rect[0] - 100)) <= 2.5 && Math.abs(moved.rect[1] - (build.rect[1] - 50)) <= 2.5, 'the element is where it was dropped');
+
+// A resize writes each side where it is set: the width in its rule, the height in the style attribute.
+const shell = idOf('class', 'menu-shell');
+await edit.setStyle(shell, 'height', '400dp', { kind: 'inline' });
+session.select(idOf('class', 'menu-shell'));
+await wait(150);
+const corner = document.querySelector('.handle-se').getBoundingClientRect();
+const grab = (x, y) => ({ clientX: x, clientY: y, button: 0, buttons: 1, bubbles: true });
+const [hx, hy] = [corner.left + corner.width / 2, corner.top + corner.height / 2];
+document.querySelector('.handle-se').dispatchEvent(new MouseEvent('mousedown', grab(hx, hy)));
+window.dispatchEvent(new MouseEvent('mousemove', grab(hx + 20 * scale, hy + 30 * scale)));
+window.dispatchEvent(new MouseEvent('mouseup', grab(hx + 20 * scale, hy + 30 * scale)));
+await wait(400);
+expect(/\.menu-shell \{ width: 5(3[7-9]|4[0-3])dp; \}/.test(text()), 'resized width stays in the rule that sets it: ' + /\.menu-shell \{[^}]*\}/.exec(text())[0]);
+expect(/class="menu-shell" style="height: 4(2[7-9]|3[0-3])dp;"/.test(text()), 'resized height lands in the style attribute that sets it: ' + /<div class="menu-shell"[^>]*>/.exec(text())[0]);
+
+// Shift writes the size to this element alone, leaving the rule it shares untouched.
+const ruleBefore = /\.menu-shell \{[^}]*\}/.exec(text())[0];
+const corner2 = document.querySelector('.handle-se').getBoundingClientRect();
+const [sx, sy] = [corner2.left + corner2.width / 2, corner2.top + corner2.height / 2];
+document.querySelector('.handle-se').dispatchEvent(new MouseEvent('mousedown', { ...grab(sx, sy), shiftKey: true }));
+window.dispatchEvent(new MouseEvent('mousemove', { ...grab(sx + 20 * scale, sy), shiftKey: true }));
+window.dispatchEvent(new MouseEvent('mouseup', grab(sx + 20 * scale, sy)));
+await wait(400);
+expect(/\.menu-shell \{[^}]*\}/.exec(text())[0] === ruleBefore, 'a Shift resize leaves the shared rule alone');
+expect(/class="menu-shell" style="height: 4(2[7-9]|3[0-3])dp; width: 5(5[6-9]|6[0-4])dp;"/.test(text()), 'and writes the width to the element: ' + /<div class="menu-shell"[^>]*>/.exec(text())[0]);
+
+// With the preference off, Shift is ignored and the size goes to the rule as usual.
+studio.session.updateSettings({ shiftResize: false });
+await edit.setStyle(shell, 'width', null, { kind: 'inline' });
+session.select(idOf('class', 'menu-shell'));
+await wait(150);
+const corner3 = document.querySelector('.handle-se').getBoundingClientRect();
+const [tx, ty] = [corner3.left + corner3.width / 2, corner3.top + corner3.height / 2];
+document.querySelector('.handle-se').dispatchEvent(new MouseEvent('mousedown', { ...grab(tx, ty), shiftKey: true }));
+window.dispatchEvent(new MouseEvent('mousemove', { ...grab(tx + 20 * scale, ty), shiftKey: true }));
+window.dispatchEvent(new MouseEvent('mouseup', grab(tx + 20 * scale, ty)));
+await wait(400);
+expect(/\.menu-shell \{ width: 5(5[6-9]|6[0-4])dp; \}/.test(text()) && !/class="menu-shell" style="[^"]*width/.test(text()), 'with Shift resizing turned off, Shift resizes through the rule as usual: ' + /\.menu-shell \{[^}]*\}/.exec(text())[0]);
+studio.session.updateSettings({ shiftResize: true });
+
+// A resize that lands in a rule other elements share says how many it changed.
+await edit.setStyle(idOf('id', 'new_game'), 'height', '48dp', { kind: 'new-rule', selector: '.btn-wide' });
+session.select(idOf('id', 'new_game'));
+await wait(150);
+const corner4 = document.querySelector('.handle-s').getBoundingClientRect();
+const [ux, uy] = [corner4.left + corner4.width / 2, corner4.top + corner4.height / 2];
+document.querySelector('.handle-s').dispatchEvent(new MouseEvent('mousedown', grab(ux, uy)));
+window.dispatchEvent(new MouseEvent('mousemove', grab(ux, uy + 10 * scale)));
+window.dispatchEvent(new MouseEvent('mouseup', grab(ux, uy + 10 * scale)));
+await wait(600);
+expect(/\.btn-wide \{ height: 5[789]dp; \}/.test(text()), 'the shared rule took the new height');
+expect(store.get().status.startsWith('Resized 5 elements that share .btn-wide'), 'and the status bar says what else changed: ' + store.get().status);
+
+// Shift-resizing one of them says it has left the shared rule.
+const corner5 = document.querySelector('.handle-s').getBoundingClientRect();
+const [vx, vy] = [corner5.left + corner5.width / 2, corner5.top + corner5.height / 2];
+document.querySelector('.handle-s').dispatchEvent(new MouseEvent('mousedown', { ...grab(vx, vy), shiftKey: true }));
+window.dispatchEvent(new MouseEvent('mousemove', { ...grab(vx, vy + 10 * scale), shiftKey: true }));
+window.dispatchEvent(new MouseEvent('mouseup', grab(vx, vy + 10 * scale)));
+await wait(600);
+expect(store.get().status === 'Resized this element alone: its height no longer follows .btn-wide, which 4 other elements still share', 'a Shift resize says which shared rule it left: ' + store.get().status);
+
+// A move with the button no longer held ends the gesture rather than dragging on.
+session.select(idOf('class', 'build'));
+await wait(150);
+const before = text();
+const label = byAttribute('class', 'build');
+overlay.dispatchEvent(new MouseEvent('mousedown', at(label.rect[0] + 4, label.rect[1] + 4)));
+window.dispatchEvent(new MouseEvent('mousemove', { ...at(label.rect[0] - 60, label.rect[1] - 60), buttons: 0 }));
+window.dispatchEvent(new MouseEvent('mousemove', at(label.rect[0] - 90, label.rect[1] - 90)));
+window.dispatchEvent(new MouseEvent('mouseup', at(label.rect[0] - 90, label.rect[1] - 90)));
+await wait(300);
+expect(text() === before, 'a lost release does not leave the element following the pointer');
 
 session.select(idOf('id', 'settings'));
 await wait(150);

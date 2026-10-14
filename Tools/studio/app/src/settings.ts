@@ -9,6 +9,8 @@ export interface Settings {
 	updateCheck: boolean;
 	/** Whether a start reopens the panels as they were left. */
 	restoreLayout: boolean;
+	/** Whether Shift on a resize handle writes the size to that element alone rather than the rule it shares. */
+	shiftResize: boolean;
 	/** How long the timeline runs, in seconds. */
 	timelineDuration: number;
 	/** Samples each way a bake is drawn with before it is averaged down to its size. */
@@ -28,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	codeFontSize: 13,
 	updateCheck: true,
 	restoreLayout: true,
+	shiftResize: true,
 	timelineDuration: 2,
 	bakeSamples: 2,
 	bakeBackground: 'none',

@@ -21,7 +21,7 @@ Run from a plugin inside a project, it opens that project. To open another, pass
 - **Ctrl+T** goes to a file by name. Type any part of it, such as `alti` for `altitude.rml`, pick from the list with Up and Down, and press Enter. Tab completes the chosen name.
 - Every document you open stays open as a tab over the canvas and in **Code**. Click a tab to bring that document to the canvas. Middle-click closes a tab, and right-click closes the others or those to one side.
 - **Click** an element to select it. **Alt-click** steps out to its parent. **Double-click** text to edit it in place.
-- **Drag** a positioned element to move it, or any other element to reorder it among its siblings. Drag the handles to resize.
+- **Drag** a positioned element to move it, or any other element to reorder it among its siblings. Drag the handles to resize. A size set by a rule changes in that rule, so every element sharing it resizes; hold Shift to resize only this one. **File > Preferences** turns that off.
 - **Properties** edits styles, classes, attributes and text. Each value shows the rule it comes from; click the rule to open it in **Code**.
 - **Library** has elements to drag onto the canvas, and recipes to start a new screen from. Click a recipe to preview it, then **Use** to copy it into `UI/screens/` and open the copy.
 - **Right-click** an element on the canvas or in **Outline** for cut, copy, paste, duplicate, delete and wrap.
@@ -31,6 +31,7 @@ Run from a plugin inside a project, it opens that project. To open another, pass
 - **Right-click > Bake to PNG** renders an element alone to an image, so a costly effect or a slanted edge can ship as a texture. Samples draws it at two or four times the pixels and averages them down, which smooths an angled edge at the same size. Background puts it over white, black, 50% grey or a colour you pick instead of leaving it transparent. Right-click an `.rml` in Files to bake the whole document.
 - **Revert** in the top bar, File > Revert Unsaved Changes, or a tab's right-click menu puts unsaved files back as they are on disk. Undo brings the changes back. A layer effect (`box-shadow`, `filter`, `backdrop-filter`, `mask-image`) is refused, because the engine draws those differently; bake those in the editor with `folio.Bake`.
 - **Terminal** is a shell in the project's folder, for git or anything else you run from a command line. Copy is Ctrl+Shift+C, paste is Ctrl+V.
+- The bar along the bottom explains whatever is under the pointer. **Messages** there, or **View > Messages**, lists every message the top bar has shown this session; the top bar clears its message on your next click or key, or after a few seconds.
 - **Ctrl+S** saves. Until then your edits are previewed but not on disk, so the running game does not see them.
 
 Every edit is a change to the `.rml` or `.rcss` text, and nothing else in the file moves. You can keep editing by hand in **Code**, in VSCode, or anywhere else; Studio picks up changes from disk.

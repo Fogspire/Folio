@@ -318,10 +318,11 @@ export function candidateTargets(inspection: Inspection): Target[] {
 /**
  * Where a property is written when nothing has been chosen.
  *
- * The rule that already sets it, since changing a value where it is written is never a surprise.
- * Otherwise the element's own id rule, then any rule of its own, then its style attribute.
+ * The rule or style attribute that already sets it, since changing a value where it is written is never a
+ * surprise. Otherwise the element's own id rule, then any rule of its own, then its style attribute.
  */
 export function defaultTarget(inspection: Inspection, property: string): Target {
+	if (property in inspection.inline) return { kind: 'inline' };
 	const setter = inspection.rules.find((entry) => entry.name === property && !entry.inherited && isProjectFile(entry.file));
 	if (setter) return { kind: 'rule', rule: setter.rule, file: setter.file, line: setter.line };
 
@@ -402,6 +403,38 @@ export async function setStyles(id: string, properties: [string, string | null][
 	const edit = { from: start, to: endOld, text: text.slice(start, endNew) };
 	await commit(path, [edit], found ? shiftOffset([edit], found.element.start) : null);
 	if (!found) select(id);
+}
+
+/** How many elements on the canvas a rule reaches, so an edit to it can say what else it changed. */
+export function elementsReachedBy(target: Target): number {
+	if (target.kind !== 'rule') return 1;
+	let count = 0;
+	const visit = (node: { id: string; children: { id: string }[] }) => {
+		if (engine.inspect(node.id)?.rules.some((entry) => !entry.inherited && sameRule(entry, target))) count++;
+		node.children.forEach((child) => visit(child as typeof node));
+	};
+	const tree = store.get().tree;
+	if (tree) visit(tree);
+	return count;
+}
+
+/**
+ * Sets each property where `defaultTarget` puts it, so a value set by one rule is not written into another that loses to it.
+ * Returns the rules written that reach other elements too, with how many they reach.
+ */
+export async function setStylesWhereWritten(id: string, properties: [string, string][], inspection: Inspection): Promise<{ rule: string; count: number }[]> {
+	const groups = new Map<string, { target: Target; properties: [string, string][] }>();
+	for (const entry of properties) {
+		const target = defaultTarget(inspection, entry[0]);
+		const key = JSON.stringify(target);
+		if (!groups.has(key)) groups.set(key, { target, properties: [] });
+		groups.get(key)!.properties.push(entry);
+	}
+	const shared = [...groups.values()]
+		.map(({ target }) => ({ rule: target.kind === 'rule' ? target.rule : '', count: elementsReachedBy(target) }))
+		.filter((entry) => entry.count > 1);
+	for (const group of groups.values()) await setStyles(id, group.properties, group.target);
+	return shared;
 }
 
 export function setStyle(id: string, property: string, value: string | null, target: Target) {

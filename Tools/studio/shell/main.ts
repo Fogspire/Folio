@@ -287,7 +287,9 @@ function buildMenu() {
 			submenu: [
 				...['Canvas', 'Code', 'Files', 'Library', 'Outline', 'Properties', 'Data', 'Problems', 'Docs', 'Terminal']
 					.map((label) => item(label, 'panel:' + (label === 'Properties' ? 'inspector' : label.toLowerCase()))),
-					separator,
+				separator,
+				item('Messages', 'show-messages'),
+				separator,
 				{
 					label: 'Layout',
 					submenu: [

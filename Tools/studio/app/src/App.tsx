@@ -62,7 +62,7 @@ function TopBar() {
 				<button className={mode === 'edit' ? 'active' : ''} onClick={() => setMode('edit')} title="Select and edit elements">Edit</button>
 				<button className={mode === 'play' ? 'active' : ''} onClick={() => setMode('play')} title="Interact with the document as a player would">Play</button>
 			</div>
-			<span className="status">{status}</span>
+			<span className="status" title="Click for every message this session (View > Messages)" onClick={() => store.set({ dialog: { kind: 'messages' } })}>{status}</span>
 			<span className="spacer" />
 			{update?.available && (
 				<span className="update" title={'Update with: git pull, then scripts/studio.sh run'}>
@@ -77,6 +77,19 @@ function TopBar() {
 				{hostState ? 'v' + hostState.version : ''}
 			</button>
 		</header>
+	);
+}
+
+function HintBar() {
+	const hint = store.use((state) => state.hint);
+	const count = store.use((state) => state.messages.length);
+	return (
+		<footer className="hintbar">
+			<span className="hint">{hint}</span>
+			<button className="link" title="Every status message this session" onClick={() => store.set({ dialog: { kind: 'messages' } })}>
+				Messages{count ? ` (${count})` : ''}
+			</button>
+		</footer>
 	);
 }
 
@@ -122,11 +135,30 @@ export function App() {
 			event.preventDefault();
 			if (event.type === 'auxclick') tab.querySelector<HTMLElement>('.dv-default-tab-action')?.click();
 		};
+		// The bar along the bottom shows the title of whatever is under the pointer, so the explanation
+		// is there to read without waiting for a tooltip.
+		const onOver = (event: MouseEvent) => {
+			const titled = event.target instanceof Element ? event.target.closest('[title]') : null;
+			const hint = titled?.getAttribute('title') ?? '';
+			if (hint !== store.get().hint) store.set({ hint });
+		};
+		// The next thing the person does clears the last message, so it is never read as that action's result.
+		const onAction = (event: Event) => {
+			if (event instanceof KeyboardEvent && ['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return;
+			const { status } = store.get();
+			if (status && !status.endsWith('…')) store.set({ status: '' });
+		};
+		window.addEventListener('mousedown', onAction, true);
+		window.addEventListener('keydown', onAction, true);
+		window.addEventListener('mouseover', onOver);
 		window.addEventListener('keydown', onKey);
 		window.addEventListener('mousedown', onMiddle);
 		window.addEventListener('auxclick', onMiddle);
 		host.onMenu(runCommand);
 		return () => {
+			window.removeEventListener('mousedown', onAction, true);
+			window.removeEventListener('keydown', onAction, true);
+			window.removeEventListener('mouseover', onOver);
 			window.removeEventListener('keydown', onKey);
 			window.removeEventListener('mousedown', onMiddle);
 			window.removeEventListener('auxclick', onMiddle);
@@ -141,6 +173,7 @@ export function App() {
 				{!project && <Welcome />}
 				<Dialogs />
 			</main>
+			<HintBar />
 		</div>
 	);
 }

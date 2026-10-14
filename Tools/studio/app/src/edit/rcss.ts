@@ -221,7 +221,9 @@ function bodyIndent(text: string, bodyStart: number, bodyEnd: number): string {
  */
 export function findRule(text: string, selector: string, line?: number, range?: Range): Rule | null {
 	const wanted = normalise(selector);
-	const rules = findRules(text, range).filter((rule) => normalise(rule.selector) === wanted || normalise(rule.bareSelector) === wanted);
+	// The renderer names one selector of a list such as `.glyph, .shape`, so each of the list's selectors is a match.
+	const names = (rule: Rule) => [rule.selector, rule.bareSelector, ...normalise(rule.bareSelector).split(', ')].map(normalise);
+	const rules = findRules(text, range).filter((rule) => names(rule).includes(wanted));
 	if (!rules.length) return null;
 	if (line !== undefined) {
 		const exact = rules.find((rule) => rule.line === line);

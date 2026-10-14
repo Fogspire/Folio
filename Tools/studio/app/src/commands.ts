@@ -160,6 +160,7 @@ export function runCommand(command: string, argument?: string) {
 		case 'select-next': return selectNeighbour(1);
 		case 'preferences': return store.set({ dialog: { kind: 'preferences' } });
 		case 'keybindings': return store.set({ dialog: { kind: 'keys' } });
+		case 'show-messages': return store.set({ dialog: { kind: 'messages' } });
 		case 'assign-key': return void (argument && store.set({ dialog: { kind: 'assign', command: argument } }));
 		case 'bake': return void (selection !== null && askBake(selection));
 		case 'revert-all': return void revertAll();

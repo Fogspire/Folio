@@ -4,8 +4,8 @@ import { elementMenu, revealInCode } from '../commands';
 import { MARKUP_MIME } from '../dnd';
 import { FileTabs } from '../FileTabs';
 import {
-	clearPreview, defaultTarget, deleteElement, dpRatio, duplicate, elementText, insertInto, isEditable, LEAF_TAGS, moveInto, previewStyle,
-	setElementText, setStyles, shiftLength, sourceElement, wrapElement,
+	clearPreview, defaultTarget, deleteElement, dpRatio, elementsReachedBy, duplicate, elementText, insertInto, isEditable, LEAF_TAGS, moveInto, previewStyle,
+	setElementText, setStyles, setStylesWhereWritten, shiftLength, sourceElement, wrapElement,
 } from '../edit/commands';
 import { Inspection, Rect, TreeNode } from '../engine';
 import { basename, extension, stem } from '../paths';
@@ -60,7 +60,8 @@ type Gesture =
 	| { kind: 'press'; id: string; x: number; y: number; through: string | null }
 	| { kind: 'move'; id: string; x: number; y: number; horizontal: Axis; vertical: Axis; values: [string, string][] }
 	| { kind: 'reorder'; id: string; drop: Drop | null }
-	| { kind: 'resize'; id: string; x: number; y: number; handle: Handle; width: Axis; height: Axis; values: [string, string][] };
+	/** `own` writes the size to the element's style attribute rather than the rule that sets it, which other elements may share. */
+	| { kind: 'resize'; id: string; x: number; y: number; handle: Handle; width: Axis; height: Axis; values: [string, string][]; own: boolean };
 
 function boxStyle(rect: Rect, scale: number) {
 	return { left: rect[0] * scale, top: rect[1] * scale, width: rect[2] * scale, height: rect[3] * scale };
@@ -194,6 +195,34 @@ function shift(axis: Axis, delta: number): [string, string] {
 	return [axis.property, shiftLength(axis.written, delta * axis.sign, axis.basis, axis.fallback)];
 }
 
+/** Says so when an edit on the canvas landed in a rule other elements share, since they changed with it. */
+function reportShared(verb: string, shared: { rule: string; count: number }[]) {
+	if (!shared.length) return;
+	const { count } = shared.reduce((most, entry) => (entry.count > most.count ? entry : most));
+	const rules = shared.map((entry) => entry.rule).join(' and ');
+	const hint = verb === 'Resized' && store.get().settings.shiftResize ? '. Shift-drag a handle to resize only this one' : '';
+	store.set({ status: `${verb} ${count} elements that share ${rules}${hint}` });
+}
+
+/** The shared rules that set these properties, which writing them to the element itself leaves behind. */
+function sharedRulesLeft(inspection: Inspection, names: string[]): { rule: string; count: number; names: string[] }[] {
+	const left = new Map<string, { rule: string; count: number; names: string[] }>();
+	for (const name of names) {
+		const target = defaultTarget(inspection, name);
+		if (target.kind !== 'rule') continue;
+		const key = JSON.stringify(target);
+		if (!left.has(key)) left.set(key, { rule: target.rule, count: elementsReachedBy(target), names: [] });
+		left.get(key)!.names.push(name);
+	}
+	return [...left.values()].filter((entry) => entry.count > 1);
+}
+
+function reportDeparted(departed: { rule: string; count: number; names: string[] }[]) {
+	if (!departed.length) return;
+	const parts = departed.map((entry) => `its ${entry.names.join(' and ')} no longer ${entry.names.length > 1 ? 'follow' : 'follows'} ${entry.rule}, which ${entry.count - 1} other elements still share`);
+	store.set({ status: `Resized this element alone: ${parts.join('; ')}` });
+}
+
 function inspectParent(id: string): Inspection | null {
 	const parent = parentOf(id);
 	return parent !== null ? engine.inspect(parent) : null;
@@ -267,6 +296,7 @@ function Overlay({ scale }: { scale: number }) {
 	/** How far the selection box has been dragged or stretched, before the document catches up. */
 	const [offset, setOffset] = useState<[number, number, number, number]>([0, 0, 0, 0]);
 	const editing = store.use((state) => state.editing);
+	const shiftResize = store.use((state) => state.settings.shiftResize);
 
 	useEffect(() => setOffset([0, 0, 0, 0]), [selection]);
 
@@ -284,6 +314,8 @@ function Overlay({ scale }: { scale: number }) {
 	handlers.current.move = (event: MouseEvent) => {
 		const active = gesture.current;
 		if (!active) return;
+		// The release happened somewhere that kept it from the window, such as a native menu.
+		if (!(event.buttons & 1)) return handlers.current.up();
 		const [x, y] = point(event);
 
 		if (active.kind === 'press') {
@@ -314,6 +346,7 @@ function Overlay({ scale }: { scale: number }) {
 			active.values = [shift(active.horizontal, dx), shift(active.vertical, dy)];
 			setOffset([dx, dy, 0, 0]);
 		} else {
+			active.own = event.shiftKey && store.get().settings.shiftResize;
 			active.values = [];
 			if (active.handle !== 's') active.values.push(shift(active.width, dx));
 			if (active.handle !== 'e') active.values.push(shift(active.height, dy));
@@ -339,7 +372,12 @@ function Overlay({ scale }: { scale: number }) {
 		} else {
 			clearPreview(active.id, active.values.map(([name]) => name));
 			const current = store.get().inspection;
-			if (current && active.values.length) setStyles(active.id, active.values, defaultTarget(current, active.values[0][0]));
+			if (!current || !active.values.length) return;
+			if (active.kind === 'resize' && active.own) {
+				const departed = sharedRulesLeft(current, active.values.map(([name]) => name));
+				setStyles(active.id, active.values, { kind: 'inline' }).then(() => reportDeparted(departed));
+			}
+			else setStylesWhereWritten(active.id, active.values, current).then((shared) => reportShared(active.kind === 'resize' ? 'Resized' : 'Moved', shared));
 		}
 	};
 
@@ -355,12 +393,13 @@ function Overlay({ scale }: { scale: number }) {
 	if (mode !== 'edit') return null;
 
 	const startResize = (event: React.MouseEvent, handle: Handle) => {
+		if (event.button !== 0) return;
 		event.stopPropagation();
 		event.preventDefault();
 		if (!inspection) return;
 		const parent = inspectParent(inspection.id);
 		const [x, y] = point(event);
-		begin({ kind: 'resize', id: inspection.id, x, y, handle, width: sizeAxis(inspection, parent, true), height: sizeAxis(inspection, parent, false), values: [] });
+		begin({ kind: 'resize', id: inspection.id, x, y, handle, width: sizeAxis(inspection, parent, true), height: sizeAxis(inspection, parent, false), values: [], own: event.shiftKey && store.get().settings.shiftResize });
 	};
 
 	const nudge = (dx: number, dy: number) => {
@@ -369,7 +408,7 @@ function Overlay({ scale }: { scale: number }) {
 		const values: [string, string][] = [];
 		if (dx) values.push(shift(moveAxis(inspection, parent, true), dx));
 		if (dy) values.push(shift(moveAxis(inspection, parent, false), dy));
-		setStyles(inspection.id, values, defaultTarget(inspection, values[0][0]));
+		setStylesWhereWritten(inspection.id, values, inspection);
 	};
 
 	const hoverNode: TreeNode | null = hover !== null && hover !== selection && !gesture.current ? findNode(tree, hover) : null;
@@ -489,7 +528,7 @@ function Overlay({ scale }: { scale: number }) {
 							)}
 						</span>
 						{editable && inspection.id !== '' && (['e', 's', 'se'] as Handle[]).map((handle) => (
-							<span key={handle} className={'handle handle-' + handle} onMouseDown={(event) => startResize(event, handle)} />
+							<span key={handle} className={'handle handle-' + handle} title={shiftResize ? 'Drag to resize. Hold Shift to resize only this element.' : 'Drag to resize'} onMouseDown={(event) => startResize(event, handle)} />
 						))}
 					</div>
 				</>

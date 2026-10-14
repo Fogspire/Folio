@@ -13,6 +13,7 @@ export type Dialog =
 	| { kind: 'assign'; command: string }
 	| { kind: 'bake'; id: string; name: string }
 	| { kind: 'go-to-file' }
+	| { kind: 'messages' }
 	| { kind: 'notice'; title: string; detail: string; buttons: string[]; default: string };
 
 function close() {
@@ -68,6 +69,12 @@ function Preferences() {
 
 				<h3>Code</h3>
 				<label className="field-row"><span>Font size</span>{size('codeFontSize')}</label>
+
+				<h3>Canvas</h3>
+				<label className="check-row">
+					<input type="checkbox" checked={settings.shiftResize} onChange={(event) => updateSettings({ shiftResize: event.target.checked })} />
+					Shift-drag a resize handle to resize only that element
+				</label>
 
 				<h3>Startup</h3>
 				<label className="check-row">
@@ -154,6 +161,32 @@ function Keys() {
 			</div>
 			<footer>
 				<button className="button" disabled={!Object.keys(overrides).length} onClick={() => updateSettings({ keys: {} })}>Restore All Defaults</button>
+			</footer>
+		</Frame>
+	);
+}
+
+function Messages() {
+	const messages = store.use((state) => state.messages);
+	const time = (value: number) => new Date(value).toLocaleTimeString();
+	const all = () => messages.map((entry) => `${time(entry.time)}  ${entry.text}`).join('\n');
+	return (
+		<Frame title="Messages" wide>
+			<div className="dialog-body messages">
+				{messages.length ? (
+					<ul>
+						{[...messages].reverse().map((entry, index) => (
+							<li key={messages.length - index}>
+								<span className="dim">{time(entry.time)}</span>
+								<span>{entry.text}</span>
+							</li>
+						))}
+					</ul>
+				) : <p className="dim">Nothing yet. Messages from the bar at the top collect here as they appear.</p>}
+			</div>
+			<footer>
+				<button className="button" disabled={!messages.length} onClick={() => navigator.clipboard.writeText(all())}>Copy All</button>
+				<button className="button" disabled={!messages.length} onClick={() => store.set({ messages: [] })}>Clear</button>
 			</footer>
 		</Frame>
 	);
@@ -350,6 +383,7 @@ export function Dialogs() {
 	if (dialog.kind === 'preferences') return <Preferences />;
 	if (dialog.kind === 'keys') return <Keys />;
 	if (dialog.kind === 'go-to-file') return <GoToFile />;
+	if (dialog.kind === 'messages') return <Messages />;
 	if (dialog.kind === 'bake') return <Bake id={dialog.id} name={dialog.name} />;
 	if (dialog.kind === 'notice') return <Notice title={dialog.title} detail={dialog.detail} buttons={dialog.buttons} preferred={dialog.default} />;
 	return <Assign command={dialog.command} />;

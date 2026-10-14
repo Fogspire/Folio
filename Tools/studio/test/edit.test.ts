@@ -45,6 +45,15 @@ describe('rcss', () => {
 		expect(findRule(sheet, '.missing')).toBeNull();
 	});
 
+	it('finds a rule by any one of its selector list', () => {
+		const text = '.ring { top: 1dp; }\n\n.glyph, .shape,\n.pointer { width: 112dp; }';
+		const rule = findRule(text, '.shape', 3)!;
+		expect(applyEdits(text, [setDeclaration(text, rule, 'width', '120dp')])).toBe('.ring { top: 1dp; }\n\n.glyph, .shape,\n.pointer { width: 120dp; }');
+		expect(findRule(text, '.pointer')!.line).toBe(3);
+		expect(findRule(text, '.glyph, .shape, .pointer')!.line).toBe(3);
+		expect(findRule(text, '.sha')).toBeNull();
+	});
+
 	it('does not read a comment as part of a declaration', () => {
 		const rule = findRule(sheet, '.panel')!;
 		expect(findDeclarations(sheet, rule.bodyStart, rule.bodyEnd).map((declaration) => declaration.name)).toEqual(['display', 'left']);

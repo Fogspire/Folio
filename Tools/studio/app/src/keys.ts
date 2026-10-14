@@ -57,6 +57,7 @@ export const COMMANDS: CommandInfo[] = [
 	command('View', 'panel:problems', 'Show Problems', 'app'),
 	command('View', 'panel:docs', 'Show Docs', 'app', 'F1'),
 	command('View', 'panel:terminal', 'Show Terminal', 'app'),
+	command('View', 'show-messages', 'Messages', 'app'),
 	command('View', 'save-layout', 'Save Layout As', 'app'),
 	command('View', 'load-layout', 'Load Layout', 'app'),
 	command('View', 'reset-layout', 'Reset Layout', 'app', 'F10'),

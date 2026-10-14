@@ -199,6 +199,45 @@ select {
 	white-space: nowrap;
 }
 
+.status {
+	cursor: pointer;
+}
+
+.hintbar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	height: 22px;
+	padding: 0 8px;
+	border-top: 1px solid var(--line);
+	color: var(--text-dim);
+	font-size: 12px;
+	flex: none;
+}
+
+.hintbar .hint {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dialog-body.messages ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	max-height: 60vh;
+	overflow-y: auto;
+	user-select: text;
+}
+
+.dialog-body.messages li {
+	display: flex;
+	gap: 12px;
+	padding: 3px 0;
+	border-bottom: 1px solid var(--line);
+}
+
 .update {
 	color: var(--text);
 	background: var(--bg-raised);

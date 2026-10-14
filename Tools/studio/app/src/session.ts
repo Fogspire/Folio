@@ -53,6 +53,10 @@ export interface State {
 	culture: string;
 	update: UpdateStatus | null;
 	status: string;
+	/** Every status message shown this session, oldest first, so one that was replaced can still be read. */
+	messages: { time: number; text: string }[];
+	/** What the control under the pointer does, from its title, for the bar along the bottom. */
+	hint: string;
 	reveal: Reveal | null;
 	/** Bumps whenever the engine's document was reloaded, for views that read it directly. */
 	revision: number;
@@ -94,6 +98,8 @@ export const store = createStore<State>({
 	culture: '',
 	update: null,
 	status: '',
+	messages: [],
+	hint: '',
 	reveal: null,
 	revision: 0,
 	editing: null,
@@ -101,6 +107,22 @@ export const store = createStore<State>({
 	settings: loadSettings(),
 	timeline: null,
 	dialog: null,
+});
+
+const MESSAGE_LIMIT = 500;
+/** How long a message stays in the top bar. It stays in Messages for the session. */
+const STATUS_SECONDS = 8;
+let loggedStatus = '';
+let statusTimer = 0;
+store.subscribe(() => {
+	const { status, messages } = store.get();
+	if (status === loggedStatus) return;
+	loggedStatus = status;
+	window.clearTimeout(statusTimer);
+	if (!status) return;
+	store.set({ messages: [...messages.slice(1 - MESSAGE_LIMIT), { time: Date.now(), text: status }] });
+	// Work still in progress, such as "Opening project…", stays until whatever finishes it replaces it.
+	if (!status.endsWith('…')) statusTimer = window.setTimeout(() => store.get().status === status && store.set({ status: '' }), STATUS_SECONDS * 1000);
 });
 
 /** The scale the canvas is drawn at right now, which is what "fit" currently comes to. */

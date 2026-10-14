@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { showPanel } from './dock';
+import { fuzzyMatch } from './fuzzy';
 import { host } from './host';
 import { assignKey, COMMANDS, commandInfo, comboOf, displayKey, keysFor, resetKey } from './keys';
-import { answerDialog, bakeElement, store, updateSettings } from './session';
+import { extension, relativeTo } from './paths';
+import { answerDialog, bakeElement, openDocument, openFile, store, updateSettings } from './session';
 import { DEFAULT_SETTINGS } from './settings';
 
 export type Dialog =
@@ -9,6 +12,7 @@ export type Dialog =
 	| { kind: 'keys' }
 	| { kind: 'assign'; command: string }
 	| { kind: 'bake'; id: string; name: string }
+	| { kind: 'go-to-file' }
 	| { kind: 'notice'; title: string; detail: string; buttons: string[]; default: string };
 
 function close() {
@@ -255,11 +259,97 @@ function Bake({ id, name }: { id: string; name: string }) {
 	);
 }
 
+/** Text with the characters at the given indices marked. */
+function Highlighted({ text, indices, offset }: { text: string; indices: number[]; offset: number }) {
+	const marked = new Set(indices.map((index) => index - offset));
+	return <>{[...text].map((character, index) => (marked.has(index) ? <b key={index}>{character}</b> : character))}</>;
+}
+
+const SHOWN = 60;
+
+/** Type part of a file's name, pick it from the list, and Enter opens it. */
+function GoToFile() {
+	const root = store.use((state) => state.project?.root ?? '');
+	const files = store.use((state) => state.projectFiles);
+	const [query, setQuery] = useState('');
+	const [chosen, setChosen] = useState(0);
+	const list = useRef<HTMLDivElement>(null);
+
+	const matches = useMemo(() => files
+		.map((file) => {
+			const path = relativeTo(root, file);
+			return { file, path, match: fuzzyMatch(query, path) };
+		})
+		.filter((entry) => entry.match !== null)
+		.sort((a, b) => b.match!.score - a.match!.score || a.path.localeCompare(b.path))
+		.slice(0, SHOWN), [files, root, query]);
+
+	useEffect(() => setChosen(0), [query]);
+	useEffect(() => { list.current?.children[chosen]?.scrollIntoView({ block: 'nearest' }); }, [chosen]);
+
+	const open = (file: string) => {
+		answerDialog(null);
+		if (extension(file) === '.rml') {
+			openDocument(file);
+			showPanel('canvas');
+		} else {
+			openFile(file);
+			showPanel('code');
+		}
+	};
+
+	return (
+		<div className="dialog-scrim top" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+			<div className="dialog go-to-file" role="dialog" aria-label="Go to File">
+				<input
+					autoFocus
+					value={query}
+					placeholder="Go to a file by name"
+					spellCheck={false}
+					onChange={(event) => setQuery(event.target.value)}
+					onKeyDown={(event) => {
+						const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+						if (step && matches.length) {
+							event.preventDefault();
+							setChosen((chosen + step + matches.length) % matches.length);
+						} else if (event.key === 'Enter' && matches[chosen]) {
+							event.preventDefault();
+							open(matches[chosen].file);
+						} else if (event.key === 'Tab' && matches[chosen]) {
+							// Completes to the chosen file's name, which narrows the list to it.
+							event.preventDefault();
+							setQuery(matches[chosen].path.split('/').pop()!);
+						}
+					}}
+				/>
+				<div className="go-to-file-list" ref={list}>
+					{matches.map(({ file, path, match }, index) => {
+						const slash = path.lastIndexOf('/') + 1;
+						return (
+							<div
+								key={file}
+								className={'go-to-file-row' + (index === chosen ? ' selected' : '')}
+								onMouseMove={() => setChosen(index)}
+								onClick={() => open(file)}
+							>
+								<span className="name"><Highlighted text={path.slice(slash)} indices={match!.indices} offset={slash} /></span>
+								<span className="dim"><Highlighted text={path.slice(0, slash)} indices={match!.indices} offset={0} /></span>
+							</div>
+						);
+					})}
+					{!matches.length && <div className="go-to-file-row dim">No file matches.</div>}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export function Dialogs() {
 	const dialog = store.use((state) => state.dialog);
 	if (!dialog) return null;
 	if (dialog.kind === 'preferences') return <Preferences />;
 	if (dialog.kind === 'keys') return <Keys />;
+	if (dialog.kind === 'go-to-file') return <GoToFile />;
 	if (dialog.kind === 'bake') return <Bake id={dialog.id} name={dialog.name} />;
 	if (dialog.kind === 'notice') return <Notice title={dialog.title} detail={dialog.detail} buttons={dialog.buttons} preferred={dialog.default} />;
 	return <Assign command={dialog.command} />;

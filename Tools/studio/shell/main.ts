@@ -239,6 +239,7 @@ function buildMenu() {
 			label: 'File',
 			submenu: [
 				item('Open Project…', 'open-project'),
+				item('Go to File…', 'go-to-file'),
 				{
 					label: 'Open Recent',
 					enabled: recent.length > 0,

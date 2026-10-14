@@ -234,7 +234,7 @@ function Toolbar({ scale }: { scale: number }) {
 				</select>
 			</label>
 			<span className="spacer" />
-			<button className={'button' + (timelineOpen ? ' active' : '')} title="Hold the document's clock, and play or scrub it from the first frame (Ctrl+T)" onClick={toggleTimeline}>
+			<button className={'button' + (timelineOpen ? ' active' : '')} title="Hold the document's clock, and play or scrub it from the first frame (Ctrl+Shift+T)" onClick={toggleTimeline}>
 				Timeline
 			</button>
 			<label>
@@ -603,6 +603,8 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 	const surface = useRef<HTMLDivElement>(null);
 	const [available, setAvailable] = useState<[number, number]>([0, 0]);
 	const [visible, setVisible] = useState(props.api.isVisible);
+	const pan = store.use((state) => state.pan);
+	const [panning, setPanning] = useState(false);
 
 	// The panel is kept rendered so its canvas survives a tab switch, which means hiding it is on us.
 	useEffect(() => {
@@ -680,14 +682,44 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 		viewport.current!.scrollTop += bounds.top + held.y * scale - held.clientY;
 	}, [scale]);
 
+	useEffect(() => store.set({ pan: { x: 0, y: 0 } }), [documentPath]);
+
+	/** Middle drag moves the document: by scrolling while there is room to, and by offsetting it past that. */
+	const startPan = (event: React.MouseEvent) => {
+		if (event.button !== 1) return;
+		// Otherwise the middle button starts the browser's own autoscroll.
+		event.preventDefault();
+		let last = { x: event.clientX, y: event.clientY };
+		setPanning(true);
+		const move = (moved: MouseEvent) => {
+			const element = viewport.current!;
+			const dx = moved.clientX - last.x;
+			const dy = moved.clientY - last.y;
+			last = { x: moved.clientX, y: moved.clientY };
+			const before = { x: element.scrollLeft, y: element.scrollTop };
+			element.scrollLeft -= dx;
+			element.scrollTop -= dy;
+			const { pan: current } = store.get();
+			store.set({ pan: { x: current.x + dx - (before.x - element.scrollLeft), y: current.y + dy - (before.y - element.scrollTop) } });
+		};
+		const up = (released: MouseEvent) => {
+			if (released.button !== 1) return;
+			window.removeEventListener('mousemove', move);
+			window.removeEventListener('mouseup', up);
+			setPanning(false);
+		};
+		window.addEventListener('mousemove', move);
+		window.addEventListener('mouseup', up);
+	};
+
 	return (
 		<div className="panel canvas-panel" style={{ display: visible ? undefined : 'none' }}>
 			{documents.length > 0 && <FileTabs files={documents} active={documentPath} />}
 			<Toolbar scale={scale} />
 			<TimelineBar />
 			{documentPath && isLibraryDocument(documentPath) && <LibraryBanner path={documentPath} />}
-			<div className="canvas-viewport" ref={viewport}>
-				<div className="canvas-stage" ref={stage} style={{ width: width * scale, height: height * scale, visibility: documentOpen ? 'visible' : 'hidden' }}>
+			<div className={'canvas-viewport' + (panning ? ' panning' : '')} ref={viewport} onMouseDownCapture={startPan} onAuxClick={(event) => event.preventDefault()}>
+				<div className="canvas-stage" ref={stage} style={{ width: width * scale, height: height * scale, transform: pan.x || pan.y ? `translate(${pan.x}px, ${pan.y}px)` : undefined, visibility: documentOpen ? 'visible' : 'hidden' }}>
 					<div
 						className={'canvas-surface' + (mode === 'play' ? ' playing' : '')}
 						ref={surface}

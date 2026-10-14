@@ -113,6 +113,7 @@ export function runCommand(command: string, argument?: string) {
 
 	switch (command) {
 		case 'open-project': return void pickProject();
+		case 'go-to-file': return void (store.get().project && store.set({ dialog: { kind: 'go-to-file' } }));
 		case 'open-recent': return void (argument && openProject(argument));
 		case 'new-from-recipe':
 			showPanel('library');

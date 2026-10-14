@@ -206,9 +206,9 @@ const wholeData = await host.readFile(wholeTarget);
 expect(!!wholeData && ((wholeData[16] << 24) | (wholeData[17] << 16) | (wholeData[18] << 8) | wholeData[19]) === store.get().width, 'a whole document bakes at its size');
 const fadeId = find('id', 'fade').id;
 const opacity = () => Number(engine.inspect(fadeId, ['opacity']).computed.opacity);
-commands.runCommand('toggle-timeline');
+key(document.body, { key: 'T', code: 'KeyT', ctrlKey: true, shiftKey: true });
 await wait(100);
-expect(!!store.get().timeline && !!document.querySelector('.timeline .timeline-scrub'), 'Timeline opens a scrub bar');
+expect(!!store.get().timeline && !!document.querySelector('.timeline .timeline-scrub'), 'Ctrl+Shift+T opens the timeline');
 session.setTimelinePlaying(false);
 session.seekTimeline(0.5);
 expect(Math.abs(opacity() - 0.5) < 0.02, 'scrubbing forward shows the animation at that moment: ' + opacity().toFixed(2));
@@ -223,8 +223,42 @@ expect(!store.get().timeline.playing && store.get().timeline.time === store.get(
 commands.runCommand('toggle-timeline');
 expect(store.get().timeline === null, 'Timeline again closes it');
 await session.openDocument(path);
+
+// Ctrl+T finds a file from part of its name, and Enter opens the one chosen.
+key(document.body, { key: 't', code: 'KeyT', ctrlKey: true });
+await wait(100);
+const goTo = document.querySelector('.go-to-file input');
+expect(store.get().dialog?.kind === 'go-to-file' && document.activeElement === goTo, 'Ctrl+T opens Go to File with the caret in it');
+Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(goTo, 'fad');
+goTo.dispatchEvent(new Event('input', { bubbles: true }));
+await wait(100);
+const goToRows = [...document.querySelectorAll('.go-to-file-row')];
+expect(goToRows[0]?.classList.contains('selected') && goToRows[0].querySelector('.name').textContent === 'fade.rml', 'typing part of a name puts that file first');
+key(goTo, { key: 'ArrowDown' });
+key(goTo, { key: 'ArrowUp' });
+await wait(50);
+expect(document.querySelector('.go-to-file-row.selected') === document.querySelector('.go-to-file-row'), 'the arrows move the choice and come back');
+key(goTo, { key: 'Enter' });
+await wait(500);
+expect(store.get().dialog === null && store.get().document === fadePath, 'Enter opens it');
+await session.openDocument(path);
 session.closeFiles([fadePath]);
 await wait(300);
+
+// Middle drag moves the document, even when it fits and there is nothing to scroll.
+commands.runCommand('zoom-fit');
+await wait(100);
+const canvasViewport = document.querySelector('.canvas-viewport');
+const stageBefore = document.querySelector('.canvas-stage').getBoundingClientRect();
+canvasViewport.dispatchEvent(new MouseEvent('mousedown', { button: 1, buttons: 4, clientX: 100, clientY: 100, bubbles: true, cancelable: true }));
+window.dispatchEvent(new MouseEvent('mousemove', { buttons: 4, clientX: 140, clientY: 125, bubbles: true }));
+window.dispatchEvent(new MouseEvent('mouseup', { button: 1, clientX: 140, clientY: 125, bubbles: true }));
+await wait(100);
+const stageAfter = document.querySelector('.canvas-stage').getBoundingClientRect();
+expect(Math.round(stageAfter.left - stageBefore.left) === 40 && Math.round(stageAfter.top - stageBefore.top) === 25, 'middle drag pans the canvas');
+commands.runCommand('zoom-fit');
+await wait(100);
+expect(Math.round(document.querySelector('.canvas-stage').getBoundingClientRect().left) === Math.round(stageBefore.left), 'Zoom to Fit puts it back');
 
 // Revert puts unsaved files back as they are on disk, and undo brings the changes back.
 const onDisk = new TextDecoder().decode(await host.readFile(path));

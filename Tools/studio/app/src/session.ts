@@ -46,6 +46,8 @@ export interface State {
 	/** Null derives the ratio from the height against 1080, as the game does. */
 	dpRatio: number | null;
 	zoom: number | 'fit';
+	/** How far the document has been dragged past where scrolling can take it, in screen pixels. */
+	pan: { x: number; y: number };
 	mode: 'edit' | 'play';
 	themes: string[];
 	culture: string;
@@ -86,6 +88,7 @@ export const store = createStore<State>({
 	height: 1080,
 	dpRatio: null,
 	zoom: 'fit',
+	pan: { x: 0, y: 0 },
 	mode: 'edit',
 	themes: [],
 	culture: '',
@@ -434,7 +437,8 @@ export function setViewport(width: number, height: number, dpRatio: number | nul
 }
 
 export function setZoom(zoom: number | 'fit') {
-	store.set({ zoom: zoom === 'fit' ? zoom : Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)) });
+	if (zoom === 'fit') store.set({ zoom, pan: { x: 0, y: 0 } });
+	else store.set({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)) });
 }
 
 /** The most canvas pixels the renderer is asked for, since every effect layer is a target that size. */

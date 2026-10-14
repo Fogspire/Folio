@@ -21,6 +21,7 @@ const command = (group: string, id: string, label: string, scope: Scope, ...keys
 /** Every command a key can be given to, in the order the shortcuts dialog lists them. */
 export const COMMANDS: CommandInfo[] = [
 	command('File', 'open-project', 'Open Project', 'app', 'Ctrl+O'),
+	command('File', 'go-to-file', 'Go to File', 'app', 'Ctrl+T'),
 	command('File', 'new-from-recipe', 'New Document from Recipe', 'app', 'Ctrl+N'),
 	command('File', 'save-all', 'Save All', 'app', 'Ctrl+S'),
 	command('File', 'revert-all', 'Revert Unsaved Changes', 'app'),
@@ -63,7 +64,7 @@ export const COMMANDS: CommandInfo[] = [
 	command('View', 'zoom-out', 'Zoom Out', 'app', 'Ctrl+-'),
 	command('View', 'zoom-fit', 'Zoom to Fit', 'app', 'Ctrl+0'),
 	command('View', 'zoom-100', 'Actual Size', 'app', 'Ctrl+1'),
-	command('View', 'toggle-timeline', 'Timeline', 'app', 'Ctrl+T'),
+	command('View', 'toggle-timeline', 'Timeline', 'app', 'Ctrl+Shift+T'),
 	command('View', 'mode-edit', 'Edit Mode', 'app'),
 	command('View', 'mode-play', 'Play Mode', 'app'),
 

@@ -18,6 +18,7 @@ To start it without a terminal from then on, choose **File > Create Shortcuts**,
 Run from a plugin inside a project, it opens that project. To open another, pass the folder that contains `UI/` (`./scripts/studio.sh run <folder>`) or use **File > Open Project**. Studio opens the first document it finds:
 
 - **Files** lists the project's documents. Click an `.rml` to put it on the canvas, or an image or font to look at it. Right-click a folder for a new document, a new document from a recipe, or a new stylesheet, and a file to delete it.
+- **Ctrl+T** goes to a file by name. Type any part of it, such as `alti` for `altitude.rml`, pick from the list with Up and Down, and press Enter. Tab completes the chosen name.
 - Every document you open stays open as a tab over the canvas and in **Code**. Click a tab to bring that document to the canvas. Middle-click closes a tab, and right-click closes the others or those to one side.
 - **Click** an element to select it. **Alt-click** steps out to its parent. **Double-click** text to edit it in place.
 - **Drag** a positioned element to move it, or any other element to reorder it among its siblings. Drag the handles to resize.
@@ -25,8 +26,8 @@ Run from a plugin inside a project, it opens that project. To open another, pass
 - **Library** has elements to drag onto the canvas, and recipes to start a new screen from. Click a recipe to preview it, then **Use** to copy it into `UI/screens/` and open the copy.
 - **Right-click** an element on the canvas or in **Outline** for cut, copy, paste, duplicate, delete and wrap.
 - **Alt+Up** selects the parent of the selected element, **Alt+Down** its first child, and **Alt+Left** and **Alt+Right** its siblings.
-- **Ctrl+wheel** zooms the canvas. **Ctrl+Z** undoes the last edit from anywhere outside a text editor.
-- **Timeline** (Ctrl+T) holds the document's clock. Play it from the first frame, or drag to any moment, to see an entry animation that has otherwise finished before you look.
+- **Ctrl+wheel** zooms the canvas, and **middle-drag** pans it. **Ctrl+0** fits it back in view. **Ctrl+Z** undoes the last edit from anywhere outside a text editor.
+- **Timeline** (Ctrl+Shift+T) holds the document's clock. Play it from the first frame, or drag to any moment, to see an entry animation that has otherwise finished before you look.
 - **Right-click > Bake to PNG** renders an element alone to an image, so a costly effect or a slanted edge can ship as a texture. Samples draws it at two or four times the pixels and averages them down, which smooths an angled edge at the same size. Background puts it over white, black, 50% grey or a colour you pick instead of leaving it transparent. Right-click an `.rml` in Files to bake the whole document.
 - **Revert** in the top bar, File > Revert Unsaved Changes, or a tab's right-click menu puts unsaved files back as they are on disk. Undo brings the changes back. A layer effect (`box-shadow`, `filter`, `backdrop-filter`, `mask-image`) is refused, because the engine draws those differently; bake those in the editor with `folio.Bake`.
 - **Terminal** is a shell in the project's folder, for git or anything else you run from a command line. Copy is Ctrl+Shift+C, paste is Ctrl+V.

@@ -452,8 +452,15 @@ select {
 	flex: 1;
 	min-height: 0;
 	overflow: auto;
+	/* A pan that pushes the document past an edge brings a scrollbar, which must not move it again. */
+	scrollbar-gutter: stable both-edges;
 	display: flex;
 	background: var(--bg-canvas);
+}
+
+.canvas-viewport.panning,
+.canvas-viewport.panning * {
+	cursor: grabbing !important;
 }
 
 .canvas-stage {
@@ -717,6 +724,52 @@ select {
 	align-items: center;
 	justify-content: center;
 	background: #000000a0;
+}
+
+.dialog-scrim.top {
+	align-items: flex-start;
+	padding-top: 60px;
+	background: #00000060;
+}
+
+.dialog.go-to-file {
+	width: 560px;
+	padding: 6px;
+}
+
+.go-to-file input {
+	width: 100%;
+	margin-bottom: 4px;
+}
+
+.go-to-file-list {
+	overflow: auto;
+	max-height: 400px;
+}
+
+.go-to-file-row {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 3px 8px;
+	border-radius: 3px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.go-to-file-row.selected {
+	background: var(--bg-selected);
+	color: #f0f0f0;
+}
+
+.go-to-file-row .dim {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.go-to-file-row b {
+	color: var(--accent);
+	font-weight: 600;
 }
 
 .dialog {

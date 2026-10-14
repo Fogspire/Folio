@@ -52,6 +52,9 @@ if(MSVC)
 	add_compile_options(/GR- /EHsc)
 else()
 	add_compile_options(-fno-rtti -fexceptions)
+	# An editor build on Mac and Linux links modules as shared libraries, which a static library
+	# without position-independent code cannot go into.
+	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
 #
@@ -73,7 +76,18 @@ set(FOLIO_FREETYPE_INCLUDE "${FOLIO_FREETYPE_ROOT}/include")
 
 # The headers are the engine's for every platform, but the library is wherever that platform's
 # build of the engine put it, so a cross build overrides only this.
-set(FOLIO_FREETYPE_LIB "${FOLIO_FREETYPE_ROOT}/lib/Win64/x64/Release/freetype.lib"
+if(FOLIO_UE_PLATFORM STREQUAL "Mac")
+	set(FOLIO_FREETYPE_DEFAULT "${FOLIO_FREETYPE_ROOT}/lib/Mac/Release/libfreetype.a")
+elseif(FOLIO_UE_PLATFORM STREQUAL "Linux")
+	if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+		set(FOLIO_FREETYPE_DEFAULT "${FOLIO_FREETYPE_ROOT}/lib/Unix/aarch64-unknown-linux-gnueabi/Release/libfreetype.a")
+	else()
+		set(FOLIO_FREETYPE_DEFAULT "${FOLIO_FREETYPE_ROOT}/lib/Unix/x86_64-unknown-linux-gnu/Release/libfreetype.a")
+	endif()
+else()
+	set(FOLIO_FREETYPE_DEFAULT "${FOLIO_FREETYPE_ROOT}/lib/Win64/x64/Release/freetype.lib")
+endif()
+set(FOLIO_FREETYPE_LIB "${FOLIO_FREETYPE_DEFAULT}"
 	CACHE FILEPATH "Engine FreeType static library to link against")
 
 if(NOT EXISTS "${FOLIO_FREETYPE_LIB}")

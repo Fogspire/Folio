@@ -9,7 +9,10 @@ using UnrealBuildTool;
 public class MsdfgenLibrary : ModuleRules
 {
 	/// <summary>Subdirectory of lib/ holding the build for the target platform.</summary>
-	protected virtual string LibraryPlatform => "Win64";
+	protected virtual string LibraryPlatform =>
+		Target.Platform == UnrealTargetPlatform.Mac ? "Mac"
+		: Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ? "Linux"
+		: "Win64";
 
 	/// <summary>
 	/// Directory the static libraries are read from. A platform whose libraries are not
@@ -18,7 +21,8 @@ public class MsdfgenLibrary : ModuleRules
 	protected virtual string LibraryDirectory => Path.Combine(ModuleDirectory, "lib", LibraryPlatform);
 
 	/// <summary>File name of a static library, which is not spelled the same way on every platform.</summary>
-	protected virtual string StaticLibrary(string BaseName) => BaseName + ".lib";
+	protected virtual string StaticLibrary(string BaseName) =>
+		Target.IsInPlatformGroup(UnrealPlatformGroup.Windows) ? BaseName + ".lib" : "lib" + BaseName + ".a";
 
 	/// <summary>How to produce the libraries, quoted back when the build is missing.</summary>
 	protected virtual string BuildInstructions =>

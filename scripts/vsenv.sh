@@ -157,6 +157,20 @@ folio_import_msvc() {
 }
 
 #
+# Finds cmake and ninja on PATH, which is where a Mac or Linux developer keeps them. Sets FOLIO_CMAKE
+# and FOLIO_NINJA, as folio_import_msvc does on Windows.
+folio_import_unix_tools() {
+	FOLIO_CMAKE="$(command -v cmake || true)"
+	FOLIO_NINJA="$(command -v ninja || true)"
+	[[ -n "$FOLIO_CMAKE" ]] || folio_die "cmake was not found. Install it with Homebrew or your package manager."
+	[[ -n "$FOLIO_NINJA" ]] || folio_die "ninja was not found. Install it with Homebrew or your package manager."
+}
+
+# A path as the tools on this host want it: mixed-style on Windows, unchanged everywhere else.
+folio_tool_path() {
+	if folio_is_windows; then cygpath -m "$1"; else echo "$1"; fi
+}
+
 # Resolves the Unreal engine directory for the project this plugin sits in.
 #
 # Reads EngineAssociation from the .uproject and looks it up in the registry, which is where source
@@ -207,7 +221,13 @@ folio_resolve_engine() {
 		fi
 	else
 		local install="${XDG_CONFIG_HOME:-$HOME/.config}/Epic/UnrealEngine/Install.ini"
+		[[ "$(uname -s)" == Darwin ]] && install="$HOME/Library/Application Support/Epic/UnrealEngine/Install.ini"
 		[[ -f "$install" ]] && root="$(sed -n "s|^${association}=||p" "$install" | head -1)"
+
+		# A launcher install on a Mac associates by version and lives in a fixed place.
+		if [[ -z "$root" && "$association" =~ ^[0-9]+\.[0-9]+$ && -d "/Users/Shared/Epic Games/UE_$association" ]]; then
+			root="/Users/Shared/Epic Games/UE_$association"
+		fi
 	fi
 
 	[[ -n "$root" ]] || folio_die "could not resolve engine '$association'. Pass --engine-dir explicitly."

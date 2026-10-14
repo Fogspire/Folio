@@ -13,6 +13,11 @@
 #   ./scripts/build_ue_libs.sh --engine-dir "Z:/Epic Games/Src/5.8/Engine"
 #   ./scripts/build_ue_libs.sh --clean
 #
+# On a Mac it needs Xcode, CMake and Ninja, and builds a universal library for both architectures. On
+# Linux it needs CMake, Ninja and the engine's own toolchain, found through LINUX_MULTIARCH_ROOT or
+# under the engine's Extras, because the engine links libc++ and a library built against anything else
+# does not link with it.
+#
 # A platform other than the host needs a CMake toolchain file, and stages under its own lib/
 # directory. Anything else the toolchain needs is passed straight through as -D:
 #
@@ -31,7 +36,11 @@ config=RelWithDebInfo
 toolset=latest
 engine_dir=""
 clean=0
-platform=Win64
+case "$(uname -s)" in
+	Darwin) platform=Mac ;;
+	Linux) platform=Linux ;;
+	*) platform=Win64 ;;
+esac
 toolchain=""
 extra_defines=()
 
@@ -50,7 +59,7 @@ while [[ $# -gt 0 ]]; do
 		--toolchain)  toolchain="$2"; shift 2 ;;
 		-D*)          extra_defines+=("$1"); shift ;;
 		--clean)      clean=1; shift ;;
-		-h|--help)    sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		-h|--help)    sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		*) folio_die "unknown argument: $1" ;;
 	esac
 done
@@ -63,11 +72,31 @@ if [[ -z "$engine_dir" ]]; then
 fi
 echo "Engine: $engine_dir"
 
-# Visual Studio is where cmake and ninja come from even when it is not the compiler. A toolchain
-# file names its own, so the MSVC search paths are dropped or its headers win over the sysroot's.
-folio_import_msvc "$toolset"
-if [[ -n "$toolchain" ]]; then
-	unset INCLUDE LIB LIBPATH
+host_defines=()
+if folio_is_windows; then
+	# Visual Studio is where cmake and ninja come from even when it is not the compiler. A toolchain
+	# file names its own, so the MSVC search paths are dropped or its headers win over the sysroot's.
+	folio_import_msvc "$toolset"
+	if [[ -n "$toolchain" ]]; then
+		unset INCLUDE LIB LIBPATH
+	fi
+else
+	folio_import_unix_tools
+	if [[ -z "$toolchain" && "$platform" == Mac ]]; then
+		host_defines+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" "-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0")
+	elif [[ -z "$toolchain" && "$platform" == Linux ]]; then
+		triple=x86_64-unknown-linux-gnu
+		[[ "$(uname -m)" == aarch64 ]] && triple=aarch64-unknown-linux-gnueabi
+		sdk="${LINUX_MULTIARCH_ROOT:-}"
+		if [[ -z "$sdk" ]]; then
+			sdk="$(ls -d "$engine_dir/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64"/*/ 2>/dev/null | sort -V | tail -1)"
+		fi
+		sdk="${sdk%/}/$triple"
+		[[ -x "$sdk/bin/clang++" ]] || folio_die "the engine's Linux toolchain was not found at '$sdk'. Run the engine's Setup.sh, or set LINUX_MULTIARCH_ROOT."
+		export CC="$sdk/bin/clang" CXX="$sdk/bin/clang++"
+		export CFLAGS="--sysroot=$sdk" CXXFLAGS="--sysroot=$sdk -stdlib=libc++"
+		echo "Toolchain: $sdk"
+	fi
 fi
 
 if [[ $clean -eq 1 && -d "$build_dir" ]]; then
@@ -76,25 +105,26 @@ if [[ $clean -eq 1 && -d "$build_dir" ]]; then
 fi
 
 configure_args=(
-	"-DCMAKE_MAKE_PROGRAM=$(cygpath -m "$FOLIO_NINJA")"
+	"-DCMAKE_MAKE_PROGRAM=$(folio_tool_path "$FOLIO_NINJA")"
 	"-DCMAKE_BUILD_TYPE=$config"
-	"-DFOLIO_ENGINE_DIR=$(cygpath -m "$engine_dir")"
+	"-DFOLIO_ENGINE_DIR=$(folio_tool_path "$engine_dir")"
 	"-DFOLIO_UE_PLATFORM=$platform"
 )
 if [[ -n "$toolchain" ]]; then
-	configure_args+=("-DCMAKE_TOOLCHAIN_FILE=$(cygpath -m "$toolchain")")
+	configure_args+=("-DCMAKE_TOOLCHAIN_FILE=$(folio_tool_path "$toolchain")")
 fi
+configure_args+=("${host_defines[@]+"${host_defines[@]}"}")
 configure_args+=("${extra_defines[@]+"${extra_defines[@]}"}")
 
 echo "Configuring ($platform, $config)..."
 "$FOLIO_CMAKE" -G Ninja \
 	"${configure_args[@]}" \
-	-S "$(cygpath -m "$source_dir")" \
-	-B "$(cygpath -m "$build_dir")" \
+	-S "$(folio_tool_path "$source_dir")" \
+	-B "$(folio_tool_path "$build_dir")" \
 	|| folio_die "CMake configure failed."
 
 echo "Building ($platform, $config)..."
-"$FOLIO_CMAKE" --build "$(cygpath -m "$build_dir")" --parallel || folio_die "build failed."
+"$FOLIO_CMAKE" --build "$(folio_tool_path "$build_dir")" --parallel || folio_die "build failed."
 
 for define in ${extra_defines[@]+"${extra_defines[@]}"}; do
 	case "$define" in

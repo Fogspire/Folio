@@ -11,7 +11,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 |---|---|
 | **[Hello world](hello_world.md)** | Install the plugin, get a document on screen, cook and ship it. |
 | **[Folio Studio](studio.md)** | A visual editor on Windows, macOS and Linux: select, drag, resize and restyle on the real renderer, with every edit written back as text. |
-| **[Setting up VSCode](vscode.md)** | Highlighting, a live preview beside the document, click-to-find-the-rule. Five minutes, and it is where the authoring time goes. |
+| **[Setting up VSCode](vscode.md)** | Highlighting for `.rml` and `.rcss`, if you write markup in VSCode. Its preview is deprecated in favour of Studio. |
 | **[Testing a document](testing_a_document.md)** | `uipreview`, `--strict`, screenshots, and the checks that stop a broken stylesheet shipping. |
 | **[Assigning a document](assigning_documents.md)** | The editor picker, portable paths, and why a wrong one now says so. |
 
@@ -50,7 +50,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Documents in the world](world_documents.md)** | A monitor on a desk, a sign on a wall. The three draw modes and the surface setup. |
 | **[Input prompts](input_prompts.md)** | Showing the key a player actually bound, drawn rather than authored, and swapping when they pick up a pad. |
 | **[Nameplates and markers](markers.md)** | Screen-space documents that follow a world location. |
-| **[Subtitles and closed captions](subtitles.md)** | A stack of spoken lines, each on its own clock. Why the sound does not decide how long one holds, and why a line has to be held in the list to animate away. |
+| **[Subtitles and closed captions](subtitles.md)** | Stacked captions in the classic shooter style: several speakers at once, each line on its own clock, a name and colour per speaker, sounds set apart from speech. Why the sound does not decide how long one holds, and why a line has to be held in the list to animate away. |
 | **[A HUD that responds to the camera](hud_motion.md)** | Springs, so a visor lags a turn and settles. What transitions cannot express. |
 
 ## Shipping

@@ -16,17 +16,21 @@ The complete list of what *does* work is **[UI_CONVENTIONS.md](../UI_CONVENTIONS
 
 A document using one gets a note in the VSCode preview saying so. Judge those in the engine.
 
-### Layer effects need a layer, which a world-space document has none of
+### Layer effects need a layer, which only Surface mode has in the world
 
-`box-shadow`, `filter`, `backdrop-filter` and `mask-image` are all built on drawing into an offscreen target and reading it back. A `UFolioWorldDocument` in Draw List mode records its geometry and replays it into scene colour after the tonemapper, and there is nothing offscreen to read.
+`box-shadow`, `filter`, `backdrop-filter` and `mask-image` are all built on drawing into an offscreen target and reading it back. A `UFolioWorldDocument` in `After Tonemap` or `In Scene` mode records its geometry and replays it into the scene, and there is nothing offscreen to read.
 
-So on that path they are **skipped, with one warning naming the four properties**. The element still draws, unfiltered and unmasked - the lesser wrong, since dropping it would hide the element itself.
+So in those two modes they are **skipped, with one warning naming the four properties**. The element still draws, unfiltered and unmasked - the lesser wrong, since dropping it would hide the element itself.
 
-`UI/examples/mask_image.rml` is the document to judge them by. Put it on a **render-target surface**, where the whole layer stack is available and all four work. Seeing an unfiltered element in the world with the mask painted over it means Draw List mode, not a broken effect.
+`examples/mask_image.rml` is the document to judge them by. Put it on a document in **Surface** mode, where the whole layer stack is available and all four work. Seeing an unfiltered element in the world with the mask painted over it means one of the other two modes, not a broken effect.
 
 ### A layer costs about 3/255 of brightness
 
 A surface drawn through a layer lands about `3/255` darker than the same colour drawn directly, from the 8-bit sRGB round trip through the render target. Visible only side by side, and not worth a wider target format.
+
+### A slanted edge steps
+
+A background antialiases its edge across one pixel, as a browser does. On a shallow diagonal, such as a skewed panel, the steps between pixels stay visible however exact the blend. Draw such shapes as art, a vector sprite or a PNG baked with more than one sample; see [supersampling](supersampling.md#reach-for-art-first), which is the last resort rather than the fix.
 
 ### Colour will never match a screenshot of the game
 
@@ -40,7 +44,7 @@ The preview does no sRGB conversion where Slate linearises vertex colour and app
 
 Text is shaped with HarfBuzz, so ligatures, contextual forms, mark attachment and GPOS kerning all work, and a right-to-left string is laid out right to left. What is missing is the Unicode bidirectional algorithm: a paragraph that *mixes* directions, such as an Arabic sentence quoting a Latin product name, puts the runs in the wrong order. Each run is individually correct.
 
-Bidi is a layer above a shaper and would have to sit between RmlUi's line breaking and the font engine. Nothing is stopping it; it has not been needed.
+Bidi is a layer above a shaper and would have to sit between RmlUi's line breaking and the font engine. Nothing is stopping it, and it will be added when a game needs it. If yours does, [open an issue](https://github.com/Fogspire/Folio/issues) saying so, and expect to be asked to test it in your game's languages before it ships.
 
 ### Script runs are split by character, not by itemization
 
@@ -172,6 +176,18 @@ See **[accessibility](accessibility.md)**.
 
 ## Engine integration
 
+### macOS and Linux are beta, and `uipreview` is Windows only
+
+The plugin is developed and tested on Windows. It is enabled for macOS and Linux and the library build script supports both, but neither is tested by the author, so expect rough edges and report them. `uipreview` is not ported; [Folio Studio](studio.md) runs on all three.
+
+### Stereo has not been run on a headset
+
+World documents draw correctly in both views under plain and instanced stereo, verified with `-emulatestereo`. Nobody has looked at one through a headset.
+
+### Mock data does not hot reload in the engine
+
+A change to `UI/mock/<model>.json` is not picked up by a running game; reopen the document. Studio and `uipreview` do reload it.
+
 ### Surface mode is softer than the other draw modes
 
 Not a bug and not fixable: Surface mode renders into an offscreen target that a material samples, so the distance fields resolve at the *target's* resolution rather than the screen's and everything after that is filtering. The other two modes evaluate them at final pixels, which is the whole point of using fields.
@@ -213,7 +229,15 @@ Tied to visibility rather than attachment so that hiding it is enough; a game th
 
 Studio draws with the same renderer as `uipreview`, compiled to WebAssembly, and `scripts/studio.sh parity` holds the two to within two colour levels on every recipe and example. The exception is a blur that samples past the edge of the viewport, such as a full-screen inset `box-shadow`: desktop OpenGL reads nothing there and WebGL, which cannot clamp a texture to a transparent border, reads the edge pixel. The difference is a few percent of pixels along the screen edge, at most 14 levels out of 255. Layout is unaffected.
 
-The VSCode preview is unchanged: it moves an element by editing one property on one rule, and that is the whole of it.
+### Studio's zoom draws at another resolution
+
+Zoomed in, Studio draws the document with more pixels and a dp ratio raised to match, the way the game draws it on a larger screen. Lengths in `dp` and `rem` scale and lengths in `px` do not, so a layout that leans on `px` moves while zoomed. Judge such a layout at 100%.
+
+The drawn size is capped at sixteen million pixels, about 2.8x for a 1920x1080 document. Past that the canvas is stretched and softens.
+
+### Studio is developed on Windows
+
+It is built to run on macOS and Linux and is not regularly run on either, the terminal panel included. Treat it as beta there.
 
 ---
 

@@ -3,9 +3,13 @@
 Getting Folio into a project and a document on screen. About fifteen minutes, most of it waiting on
 the first build.
 
-You need **Visual Studio 2022** with the C++ desktop workload, and an Unreal 5.8 project that
-already builds. Nothing else has to be installed — Folio finds the CMake and Ninja that ship with
-Visual Studio.
+You need an Unreal 5.8 project that already builds, and:
+
+- **Windows:** Visual Studio 2022 with the C++ desktop workload. Folio finds the CMake and Ninja that ship with it.
+- **macOS:** Xcode, plus CMake and Ninja (`brew install cmake ninja`).
+- **Linux:** the engine's own toolchain, which the engine's `Setup.sh` installs, plus CMake and Ninja.
+
+macOS and Linux are beta; see [platform support](../README.md#platform-support).
 
 ## 1. Put the plugin in the project
 
@@ -115,7 +119,9 @@ document. That is deliberate: focus is a decision a game makes, and
 
 ## 6. Iterate without the editor
 
-There is a standalone renderer that draws the same markup with no Unreal involved. Build it once:
+**[Folio Studio](studio.md)** is the place to do this: the document on a canvas drawn by Folio's own renderer, edited visually or as text, on any desktop and with no Unreal running. Run `./scripts/studio.sh` from the plugin.
+
+The same renderer is also a command-line tool, `uipreview`, which is what checks a document and takes screenshots of it in a build or for an agent. Build it once:
 
 ```bash
 ./scripts/build.sh
@@ -140,10 +146,7 @@ itself, so check it first when a file you can see will not load.
 It watches the file and reloads on save, so the loop is edit, save, look — no compiling and no
 editor restart.
 
-**[Setting up VSCode](vscode.md)** is where that loop belongs. The extension drives this same binary
-into a panel beside the document, and adds highlighting for `.rml` and `.rcss`; it is worth doing
-before you write anything real. Reach for the standalone window when you want a real one — a resizable
-viewport, or a live document rather than a rendered image.
+If you write markup in VSCode, **[its extension](vscode.md)** adds highlighting for `.rml` and `.rcss`.
 
 Two flags worth knowing on day one:
 

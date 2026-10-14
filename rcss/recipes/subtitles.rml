@@ -5,7 +5,7 @@
 		/*
 		 * Close captions: a stack of spoken lines at the foot of the frame, newest at the bottom.
 		 *
-		 * The shape has not changed since Half-Life and there is a reason for that. A few lines at a
+		 * The shape is a long-standing one in shooters, and there is a reason for that. A few lines at a
 		 * time, each on its own clock, the newest bright and the ones above it dimmed. It is the only
 		 * arrangement that survives two people talking over each other, which is what happens the
 		 * moment a game gets loud.

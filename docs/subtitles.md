@@ -2,7 +2,7 @@
 
 A stack of spoken lines at the foot of the frame, newest at the bottom, each on its own clock.
 
-The shape has not changed since Half-Life and there is a reason for that: it is the only arrangement
+The shape is a long-standing one in shooters, and there is a reason for that: it is the only arrangement
 that survives two people talking over each other, which is what happens the moment a game gets loud.
 A few lines at a time, the newest bright and the ones above it dimmed, and each one leaving when it
 has had its say rather than when the next one arrives.

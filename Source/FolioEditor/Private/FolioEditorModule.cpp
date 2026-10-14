@@ -4,6 +4,7 @@
 #include "FolioDocumentPath.h"
 #include "FolioEditorStyle.h"
 #include "FolioLevelActions.h"
+#include "FolioSchemaExport.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Misc/CoreDelegates.h"
@@ -123,6 +124,16 @@ public:
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::SetCommonUiConsoleVariables),
 				FCanExecuteAction::CreateStatic(&FolioLevelActions::HasCommonUI)));
+
+		Menu.AddMenuEntry(
+			LOCTEXT("ExportSchemas", "Export View Model Schemas"),
+			LOCTEXT("ExportSchemasTip",
+				"Writes UI/schema/<model>.json from every class bound as a view model since the editor "
+				"started, so Folio Studio can complete and check bindings against the real classes. Play "
+				"the screens once first: a model is only known once something has bound it."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(&FolioSchemaExport::ExportViewModelSchemas),
+				FCanExecuteAction::CreateStatic(&FolioSchemaExport::HasBoundViewModels)));
 		Menu.EndSection();
 
 		return Menu.MakeWidget();

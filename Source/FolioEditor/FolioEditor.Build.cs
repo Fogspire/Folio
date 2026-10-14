@@ -31,6 +31,8 @@ public class FolioEditor : ModuleRules
 			"SourceControl",
 			// The toolbar entry, which is a ToolMenus extension rather than a Slate widget.
 			"ToolMenus",
+			// The view model schemas written out for Folio Studio.
+			"Json",
 			"Projects",
 			"Folio",
 			// FolioModule.h reaches RmlUi types through FolioRmlUi.h, so anything including it needs

@@ -399,6 +399,10 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 	Source = InSource;
 	ModelName = InModelName;
 
+#if WITH_EDITOR
+	FFolioModule::Get().RecordViewModel(InModelName, InSource->GetClass());
+#endif
+
 	INotifyFieldValueChanged* Notifier = Cast<INotifyFieldValueChanged>(InSource);
 	int32 Skipped = 0;
 

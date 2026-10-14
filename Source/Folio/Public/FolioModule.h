@@ -54,6 +54,17 @@ public:
 	/** Absolute path to the plugin, which is where Folio's own stylesheets and fonts live. */
 	const FString& GetPluginRoot() const { return PluginRoot; }
 
+#if WITH_EDITOR
+	/**
+	 * Every class bound as a view model this session, by the name it was bound under.
+	 *
+	 * The name a document binds a model by exists only at the call that binds it, so this is the one
+	 * place the pairing is ever written down. The editor's schema export reads it.
+	 */
+	const TMap<FString, TWeakObjectPtr<UClass>>& GetBoundViewModels() const { return BoundViewModels; }
+	void RecordViewModel(const FString& ModelName, UClass* Class) { BoundViewModels.Add(ModelName, Class); }
+#endif
+
 	/**
 	 * The content root's UI tree, holding fonts, mock data, localisation and the documents.
 	 *
@@ -187,5 +198,8 @@ private:
 	FString ContentRoot;
 	FString PluginRoot;
 	FString FontCacheDir;
+#if WITH_EDITOR
+	TMap<FString, TWeakObjectPtr<UClass>> BoundViewModels;
+#endif
 	bool bRmlInitialised = false;
 };

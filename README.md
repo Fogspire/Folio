@@ -1,13 +1,10 @@
 # Folio
 
-An RmlUi-based UI system for Unreal Engine 5, replacing UMG as the authoring layer.
-Markup is plain text (`.rml` / `.rcss`), not hand-assembled widget hierarchies.
+An RmlUi-based UI system for Unreal Engine 5, replacing UMG as the authoring layer. Markup is plain text (`.rml` / `.rcss`), not hand-assembled widget hierarchies.
 
-Two renderers draw the same markup: `uipreview`, a standalone tool with no Unreal dependency,
-and the UE plugin under `Source/`. Anything authored in one renders in the other.
+Two renderers draw the same markup: `uipreview`, a standalone tool with no Unreal dependency, and the UE plugin under `Source/`. Anything authored in one renders in the other.
 
-Text and vector art are distance fields, so a screen stays sharp at any size, transform scale or DPI.
-The same document runs diegetically in the world, readable and interactive from across the room.
+Text and vector art are distance fields, so a screen stays sharp at any size, transform scale or DPI. The same document runs diegetically in the world, readable and interactive from across the room.
 
 ---
 
@@ -42,9 +39,7 @@ The same document runs diegetically in the world, readable and interactive from 
 
 ## Building
 
-Requires **Visual Studio 2022** with the C++ desktop workload. Nothing else needs installing:
-`build.sh` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be
-on `PATH`.
+Requires **Visual Studio 2022** with the C++ desktop workload. Nothing else needs installing: `build.sh` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be on `PATH`.
 
 ```bash
 ./scripts/build.sh                        # RelWithDebInfo, default
@@ -57,13 +52,9 @@ Output lands at `bin/win64`.
 
 The first build clones the dependencies and takes several minutes. Later builds reuse them.
 
-`build.sh` runs `check_shader_parity.sh` before compiling, which fails if the HLSL and GLSL
-distance field shaders have drifted apart. `--skip-shader-parity` to bypass it while editing one
-side.
+`build.sh` runs `check_shader_parity.sh` before compiling, which fails if the HLSL and GLSL distance field shaders have drifted apart. `--skip-shader-parity` to bypass it while editing one side.
 
-Every configuration writes to the same `bin/win64`, so an `--asan` build replaces the normal
-binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH
-for the sanitizer runtime.
+Every configuration writes to the same `bin/win64`, so an `--asan` build replaces the normal binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH for the sanitizer runtime.
 
 ## Verification
 
@@ -73,14 +64,9 @@ for the sanitizer runtime.
 ./scripts/verify.sh --baseline build\verify-before
 ```
 
-Runs every document in `Tools/uipreview/tests/` under `--strict` at two dp ratios, writes a text
-metrics report for each, diffs them against the baseline if given, and takes the screenshots
-that have to be judged by eye.
+Runs every document in `Tools/uipreview/tests/` under `--strict` at two dp ratios, writes a text metrics report for each, diffs them against the baseline if given, and takes the screenshots that have to be judged by eye.
 
-The metrics diff is the point. Advances here are unhinted and scaled from design units, so a
-change to the text engine shifts them slightly and moves line breaks; the diff reports lines
-that wrapped somewhere new. That is the regression this system is most likely to cause and the
-least likely to be noticed by looking.
+The metrics diff is the point. Advances here are unhinted and scaled from design units, so a change to the text engine shifts them slightly and moves line breaks; the diff reports lines that wrapped somewhere new. That is the regression this system is most likely to cause and the least likely to be noticed by looking.
 
 The other harnesses, each answering a different question:
 
@@ -92,34 +78,21 @@ The other harnesses, each answering a different question:
 | `scripts/check_doc_samples.sh` | Whether the C++ samples in `docs/` are still in step with the file the build compiles |
 | `scripts/check_invalidation.sh` | Proves an idle document stops doing work |
 
-Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is
-still intact, so they survive for weeks and then fail on someone else's machine.
+Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is still intact, so they survive for weeks and then fail on someone else's machine.
 
-`docs/testing_a_document.md` covers the same tools from the point of view of someone authoring a
-screen rather than changing the renderer.
+`docs/testing_a_document.md` covers the same tools from the point of view of someone authoring a screen rather than changing the renderer.
 
 ## Backend and dependency choices
 
-**Backend: GLFW + OpenGL 3.3**, which is what upstream documents first. `RmlUi_Renderer_GL3`
-is the only shipped renderer implementing the full 6.x feature set (render layers, filters,
-clip masks, shaders); GL2 and the SDL renderer silently drop box-shadow, filters and gradients.
-GLFW additionally allows a hidden window, which is how screenshots are captured without a
-visible one.
+**Backend: GLFW + OpenGL 3.3**, which is what upstream documents first. `RmlUi_Renderer_GL3` is the only shipped renderer implementing the full 6.x feature set (render layers, filters, clip masks, shaders); GL2 and the SDL renderer silently drop box-shadow, filters and gradients. GLFW additionally allows a hidden window, which is how screenshots are captured without a visible one.
 
-**Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests.
-vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi
-port tracks whatever its baseline pins rather than the exact release we want, and its triplets
-fix the CRT and toolset, which fights the UE build where RmlUi has to use the same toolset as
-Unreal. FetchContent builds from source with whatever toolset we set, pinned to a commit hash in
-this file, with nothing installed globally.
+**Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests. vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi port tracks whatever its baseline pins rather than the exact release we want, and its triplets fix the CRT and toolset, which fights the UE build where RmlUi has to use the same toolset as Unreal. FetchContent builds from source with whatever toolset we set, pinned to a commit hash in this file, with nothing installed globally.
 
-Local fixes to a dependency go in `patches/<dependency>/*.patch` and are applied at fetch time.
-See `patches/README.md`.
+Local fixes to a dependency go in `patches/<dependency>/*.patch` and are applied at fetch time. See `patches/README.md`.
 
 ### Dependencies
 
-Fetched by CMake at configure time, each pinned to an exact commit. No package manager, no
-submodules, nothing installed globally.
+Fetched by CMake at configure time, each pinned to an exact commit. No package manager, no submodules, nothing installed globally.
 
 | Dependency | Version |
 |---|---|
@@ -132,26 +105,33 @@ submodules, nothing installed globally.
 | [msdfgen](https://github.com/Chlumsky/msdfgen) | 1.12 |
 | [nanosvg](https://github.com/memononen/nanosvg) | pinned commit, vector baking only |
 
-Skia's path operations are vendored in `Source/ThirdParty/SkiaSimplify/` rather than fetched.
-msdfgen needs them to union a glyph's overlapping contours before generating a field — without
-that, a stem and a bowl that intersect produce an inconsistent field, and the median
-reconstructs a false edge through the middle of a solid stroke.
+Skia's path operations are vendored in `Source/ThirdParty/SkiaSimplify/` rather than fetched. msdfgen needs them to union a glyph's overlapping contours before generating a field — without that, a stem and a bowl that intersect produce an inconsistent field, and the median reconstructs a false edge through the middle of a solid stroke.
 
 **RmlUi is pinned to 6.2 and that pin is deliberate.** The docs site at
 <https://mikke89.github.io/RmlUiDoc/> is built from RmlUi's `master` branch and carries no
-version banner, so it documents features that are not in any release. `docs/internals.md` records the
-specific ones that bite.
+version banner, so it documents features that are not in any release. `docs/internals.md` records the specific ones that bite.
 
 ## Diagnostics
 
-`uipreview` writes program output to stdout and diagnostics to stderr as
-`path:line:col: severity: [CODE] message`, which matches what editors and `grep` expect. Paths
-are relative to the content root, so output is identical across machines.
+`uipreview` writes program output to stdout and diagnostics to stderr as `path:line:col: severity: [CODE] message`, which matches what editors and `grep` expect. Paths are relative to the content root, so output is identical across machines.
 
-Exit codes: `0` ok, `1` document errors, `2` usage, `3` init failure, `4` runtime failure,
-`5` warnings present under `--strict`.
+Exit codes: `0` ok, `1` document errors, `2` usage, `3` init failure, `4` runtime failure, `5` warnings present under `--strict`.
 
-**Use `--strict` in CI.** Nearly every RCSS problem is a warning rather than an error in RmlUi, so a
-validity check that only looks at errors will pass a thoroughly broken stylesheet.
+**Use `--strict` in CI.** Nearly every RCSS problem is a warning rather than an error in RmlUi, so a validity check that only looks at errors will pass a thoroughly broken stylesheet.
 
 `uipreview --help` lists every flag.
+
+## License
+
+[MIT with the Commons Clause](LICENSE). In short:
+
+| You may | |
+|---|---|
+| Use Folio in any game, commercial or not | Yes |
+| Change it for your game | Yes |
+| Publish your fork | Yes, under the same license |
+| Sell Folio, or a product or service whose value is mostly Folio | No |
+
+For a commercial license, open an issue or ask the author.
+
+Contributions are accepted only with the right for the author to relicense them, so a commercial license can cover the whole of Folio.

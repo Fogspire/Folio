@@ -4,7 +4,7 @@
   "description": "Renders the open RML document with uipreview and re-renders it on save.",
   "version": "0.1.0",
   "publisher": "folio",
-  "license": "MIT",
+  "license": "SEE LICENSE IN ../../LICENSE",
   "engines": {
     "vscode": "^1.75.0"
   },

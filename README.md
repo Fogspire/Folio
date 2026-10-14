@@ -15,6 +15,8 @@ UE5.8+
 
 _Coming Soon_
 
+_Released a game using Folio? Get in touch and it may appear here_
+
 ## Why Folio
 
 ### Fully Text Based

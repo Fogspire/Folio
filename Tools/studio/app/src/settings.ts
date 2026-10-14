@@ -9,6 +9,14 @@ export interface Settings {
 	updateCheck: boolean;
 	/** Whether a start reopens the panels as they were left. */
 	restoreLayout: boolean;
+	/** How long the timeline runs, in seconds. */
+	timelineDuration: number;
+	/** Samples each way a bake is drawn with before it is averaged down to its size. */
+	bakeSamples: number;
+	/** What a bake is drawn over: 'none' for transparent, or a colour as #rrggbb. */
+	bakeBackground: string;
+	/** The colour last picked as Custom, kept while another background is chosen. */
+	bakeCustomColour: string;
 	/** Keys the person has chosen, by command. A command not listed keeps its defaults. */
 	keys: Record<string, string[]>;
 }
@@ -20,6 +28,10 @@ export const DEFAULT_SETTINGS: Settings = {
 	codeFontSize: 13,
 	updateCheck: true,
 	restoreLayout: true,
+	timelineDuration: 2,
+	bakeSamples: 2,
+	bakeBackground: 'none',
+	bakeCustomColour: '#3c78b4',
 	keys: {},
 };
 

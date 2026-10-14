@@ -117,6 +117,8 @@ struct Options {
 	int frames = 30;
 	/** Simulated milliseconds per pumped frame. Zero freezes time. */
 	double dt_ms = 16.67;
+	/** The clock's reading when the document loads, so a host driving its own clock starts animations on it. */
+	double start_time = 0.0;
 
 	bool debug = false;
 	/** A host owns the loop and the tooling: it calls App::StepLive each frame, reports changed

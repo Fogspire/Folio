@@ -1,8 +1,10 @@
 # Setting up VSCode
 
-Highlighting for `.rml` and `.rcss`, and a live preview beside the document. Five minutes, and it is where most of your authoring time will be spent.
+Highlighting for `.rml` and `.rcss`, and a live preview beside the document.
 
-This is Windows only, because `uipreview` is. On macOS and Linux, or for editing on a canvas, use [Folio Studio](studio.md).
+**The preview is deprecated.** [Folio Studio](studio.md) does everything it does, including baking an element and the animation timeline, on Windows, macOS and Linux. The preview will be removed in a later release; the highlighting stays.
+
+The preview is Windows only, because `uipreview` is.
 
 You need `uipreview` built:
 

@@ -45,6 +45,8 @@ public:
 	void PumpFrames(int count);
 	/** One frame at a wall-clock time, without swapping. What the interactive loop runs each pass. */
 	void StepLive(double time_seconds);
+	/** Moves the document's clock and updates it without drawing, for stepping through time to a later frame. */
+	void Advance(double time_seconds);
 	/** Reloads whatever the changed files call for. Paths are absolute, lowercased, forward slashed. */
 	void HandleFileChanges(const std::vector<std::string>& changed);
 	/** Resizes the context and rescales it to match, which is what makes a resized window behave

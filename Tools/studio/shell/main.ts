@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createShortcuts } from './shortcuts';
 import { checkForUpdates } from './updates';
 import type { IPty } from '@lydell/node-pty';
 
@@ -143,6 +144,8 @@ function savedLayouts(): string[] {
 }
 
 const terminals = new Map<number, IPty>();
+/** Files written where the person chose in a save dialog, which may be outside the project. */
+const savedFiles = new Set<string>();
 let nextTerminal = 1;
 
 /** The shell a terminal runs: FOLIO_STUDIO_SHELL, else Git Bash on Windows when it is installed, else the system's own. */
@@ -245,7 +248,9 @@ function buildMenu() {
 				item('New Document from Recipe…', 'new-from-recipe'),
 				separator,
 				item('Save All', 'save-all'),
+				item('Revert Unsaved Changes', 'revert-all'),
 				separator,
+				item('Create Shortcuts', 'create-shortcuts'),
 				item('Preferences…', 'preferences'),
 				item('Keyboard Shortcuts…', 'keybindings'),
 				separator,
@@ -267,6 +272,7 @@ function buildMenu() {
 				item('Wrap in a Div', 'wrap'),
 				item('Edit Text', 'edit-text'),
 				item('Show in Code', 'show-in-code'),
+				item('Bake to PNG…', 'bake'),
 				separator,
 				item('Select Parent', 'select-parent'),
 				item('Select First Child', 'select-first-child'),
@@ -297,6 +303,8 @@ function buildMenu() {
 				item('Zoom Out', 'zoom-out'),
 				item('Zoom to Fit', 'zoom-fit'),
 				item('Actual Size', 'zoom-100'),
+				separator,
+				item('Timeline', 'toggle-timeline'),
 				separator,
 				{ ...item('Edit Mode', 'mode-edit'), type: 'radio', checked: menuState.mode === 'edit' },
 				{ ...item('Play Mode', 'mode-play'), type: 'radio', checked: menuState.mode === 'play' },
@@ -422,6 +430,54 @@ function registerIpc() {
 	});
 
 	// Resolves with the terminal's id, or with the reason there is not one.
+	// On the desktop and in the start menu, or wherever the platform keeps programs.
+	ipcMain.handle('create-shortcuts', (_event, into?: string) => {
+		try {
+			return createShortcuts({
+				program: process.execPath,
+				argument: app.isPackaged ? null : studioDir,
+				icon: path.join(bundledFolio, 'Resources', 'Icon256.png'),
+				scratch: path.join(app.getPath('userData'), 'shortcut'),
+				into: testing ? into : undefined,
+			});
+		} catch (error) {
+			return 'Could not create shortcuts: ' + (error instanceof Error ? error.message : String(error));
+		}
+	});
+
+	// Asks where, then writes there. Anywhere the person picks, since they picked it: a texture can
+	// belong to another project or an art folder outside this one.
+	ipcMain.handle('save-file', async (_event, title: string, defaultPath: string, extension: string, data: Uint8Array) => {
+		fs.mkdirSync(path.dirname(defaultPath), { recursive: true });
+		const result = await dialog.showSaveDialog(window!, {
+			title,
+			defaultPath,
+			filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
+		});
+		if (result.canceled || !result.filePath) return null;
+		const target = path.extname(result.filePath) ? result.filePath : result.filePath + '.' + extension;
+		try {
+			fs.writeFileSync(target, data);
+			savedFiles.add(path.resolve(target));
+			return { path: forward(target) };
+		} catch (error) {
+			return { error: error instanceof Error ? error.message : String(error) };
+		}
+	});
+
+	// Opens a file in whatever the system opens that kind with, or shows it in its folder. Only files in
+	// the project or ones this session saved: a saved one can be outside the project, and the page
+	// should open nothing else.
+	ipcMain.handle('open-saved', async (_event, target: string, how: 'open' | 'reveal') => {
+		const resolved = path.resolve(target);
+		if (!savedFiles.has(resolved) && !(project && isInside(project.root, resolved))) return 'not a file Studio saved';
+		if (how === 'reveal') {
+			shell.showItemInFolder(resolved);
+			return '';
+		}
+		return shell.openPath(resolved);
+	});
+
 	ipcMain.handle('default-shell', () => {
 		const { file, args } = terminalShell();
 		return [file, ...args].join(' ');
@@ -430,17 +486,6 @@ function registerIpc() {
 	// To the system's trash, so a file deleted by mistake can be put back.
 	ipcMain.handle('trash', async (_event, target: string) => {
 		const resolved = assertAllowed(target);
-		if (!testing) {
-			const answer = await dialog.showMessageBox(window!, {
-				type: 'question',
-				message: 'Delete ' + path.basename(resolved) + '?',
-				detail: 'It is moved to the trash.',
-				buttons: ['Delete', 'Cancel'],
-				defaultId: 0,
-				cancelId: 1,
-			});
-			if (answer.response !== 0) return false;
-		}
 		try {
 			await shell.trashItem(resolved);
 			return true;

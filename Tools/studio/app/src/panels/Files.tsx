@@ -3,7 +3,7 @@ import { popup } from '../commands';
 import { showPanel } from '../dock';
 import { host } from '../host';
 import { basename, extension, join, relativeTo, stem } from '../paths';
-import { copyLibraryDocument, createFile, deleteFile, openDocument, openFile, store } from '../session';
+import { askBake, copyLibraryDocument, createFile, deleteFile, openDocument, openFile, store } from '../session';
 
 /** A file about to be made, waiting for its name. */
 interface Creating {
@@ -145,6 +145,7 @@ function FolderRows({ folder, depth, collapsed, toggle, begin }: RowProps) {
 							const chosen = await popup([
 								{ id: 'canvas', label: 'Show on the Canvas', enabled: isDocument },
 								{ id: 'code', label: 'Open in Code' },
+								{ id: 'bake', label: 'Bake to PNG…', enabled: isDocument },
 								{ separator: true },
 								{ id: 'reveal', label: 'Show in the File Manager' },
 								{ id: 'path', label: 'Copy Path' },
@@ -152,6 +153,11 @@ function FolderRows({ folder, depth, collapsed, toggle, begin }: RowProps) {
 								{ id: 'delete', label: 'Delete' },
 							]);
 							if (chosen === 'delete') deleteFile(file);
+							else if (chosen === 'bake') {
+								// The whole document, as it lays out at the canvas size.
+								if (store.get().document !== file) await openDocument(file);
+								askBake('');
+							}
 							else if (chosen === 'canvas') {
 								openDocument(file);
 								showPanel('canvas');

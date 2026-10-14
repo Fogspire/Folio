@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import { host } from './host';
 import { assignKey, COMMANDS, commandInfo, comboOf, displayKey, keysFor, resetKey } from './keys';
-import { store, updateSettings } from './session';
+import { answerDialog, bakeElement, store, updateSettings } from './session';
 import { DEFAULT_SETTINGS } from './settings';
 
-export type Dialog = { kind: 'preferences' } | { kind: 'keys' } | { kind: 'assign'; command: string };
+export type Dialog =
+	| { kind: 'preferences' }
+	| { kind: 'keys' }
+	| { kind: 'assign'; command: string }
+	| { kind: 'bake'; id: string; name: string }
+	| { kind: 'notice'; title: string; detail: string; buttons: string[]; default: string };
 
 function close() {
-	store.set({ dialog: null });
+	answerDialog(null);
 }
 
 function Frame({ title, wide, children }: { title: string; wide?: boolean; children: React.ReactNode }) {
@@ -183,10 +188,79 @@ function Assign({ command }: { command: string }) {
 	);
 }
 
+/** A message with a choice of buttons, which is what the app asks instead of a system message box. */
+function Notice({ title, detail, buttons, preferred }: { title: string; detail: string; buttons: string[]; preferred: string }) {
+	return (
+		<Frame title={title}>
+			<div className="dialog-body message">{detail}</div>
+			<footer>
+				<span />
+				<span className="row">
+					{buttons.map((label) => (
+						<button key={label} className={'button' + (label === preferred ? ' primary' : '')} autoFocus={label === preferred} onClick={() => answerDialog(label)}>
+							{label}
+						</button>
+					))}
+				</span>
+			</footer>
+		</Frame>
+	);
+}
+
+const SAMPLES = [1, 2, 4];
+const BACKGROUNDS: [string, string][] = [['none', 'None (transparent)'], ['#ffffff', 'White'], ['#000000', 'Black'], ['#808080', '50% grey'], ['custom', 'Custom']];
+
+/** Choices for a bake, before asking where to save it. */
+function Bake({ id, name }: { id: string; name: string }) {
+	const samples = store.use((state) => state.settings.bakeSamples);
+	const background = store.use((state) => state.settings.bakeBackground);
+	const custom = store.use((state) => state.settings.bakeCustomColour);
+	const isCustom = background !== 'none' && !BACKGROUNDS.some(([value]) => value === background);
+	const colour = background === 'none' ? null : background;
+	return (
+		<Frame title={'Bake ' + name + ' to PNG'}>
+			<div className="dialog-body">
+				<label className="field-row">
+					<span>Samples</span>
+					<select value={samples} onChange={(event) => updateSettings({ bakeSamples: Number(event.target.value) })}>
+						{SAMPLES.map((count) => <option key={count} value={count}>{count === 1 ? '1 (as drawn)' : count + ' each way'}</option>)}
+					</select>
+				</label>
+				<label className="field-row">
+					<span>Background</span>
+					<select
+						value={isCustom ? 'custom' : background}
+						onChange={(event) => updateSettings({ bakeBackground: event.target.value === 'custom' ? custom : event.target.value })}
+					>
+						{BACKGROUNDS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+					</select>
+					{isCustom && (
+						<input
+							type="color"
+							value={background}
+							onChange={(event) => updateSettings({ bakeBackground: event.target.value, bakeCustomColour: event.target.value })}
+						/>
+					)}
+				</label>
+				<p className="dim">More samples draw the element at that many times the pixels and average them back down, so a slanted or curved edge comes out smooth at the same size. Lengths in px do not grow while it draws, so check a layout that leans on them.</p>
+			</div>
+			<footer>
+				<span />
+				<span className="row">
+					<button className="button" onClick={close}>Cancel</button>
+					<button className="button primary" autoFocus onClick={() => { answerDialog(null); bakeElement(id, undefined, samples, colour); }}>Bake…</button>
+				</span>
+			</footer>
+		</Frame>
+	);
+}
+
 export function Dialogs() {
 	const dialog = store.use((state) => state.dialog);
 	if (!dialog) return null;
 	if (dialog.kind === 'preferences') return <Preferences />;
 	if (dialog.kind === 'keys') return <Keys />;
+	if (dialog.kind === 'bake') return <Bake id={dialog.id} name={dialog.name} />;
+	if (dialog.kind === 'notice') return <Notice title={dialog.title} detail={dialog.detail} buttons={dialog.buttons} preferred={dialog.default} />;
 	return <Assign command={dialog.command} />;
 }

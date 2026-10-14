@@ -427,6 +427,26 @@ select {
 	height: 22px;
 }
 
+.toolbar .button.active {
+	border-color: var(--accent);
+}
+
+.timeline .timeline-scrub {
+	flex: 1;
+	min-width: 80px;
+}
+
+.timeline .timeline-time {
+	width: 56px;
+	font-family: var(--mono);
+	color: var(--text-dim);
+	text-align: right;
+}
+
+.timeline input[type='number'] {
+	width: 56px;
+}
+
 .canvas-viewport {
 	position: relative;
 	flex: 1;
@@ -776,6 +796,13 @@ select {
 	min-width: 0;
 }
 
+.dialog .field-row input[type='color'] {
+	flex: none;
+	width: 40px;
+	height: 22px;
+	padding: 0 2px;
+}
+
 .dialog .field-row input[type='number'] {
 	flex: none;
 	width: 70px;
@@ -786,6 +813,16 @@ select {
 	align-items: center;
 	gap: 8px;
 	margin-bottom: 6px;
+}
+
+.dialog .message {
+	white-space: pre-wrap;
+	line-height: 1.5;
+}
+
+.dialog footer .row {
+	display: flex;
+	gap: 8px;
 }
 
 .key-filter {

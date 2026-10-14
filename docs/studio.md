@@ -13,6 +13,8 @@ cd <YourProject>/Plugins/Folio
 
 The first run installs dependencies and takes a minute. After that it starts in seconds. On Windows run it from Git Bash.
 
+To start it without a terminal from then on, choose **File > Create Shortcuts**, or run `./scripts/studio.sh shortcut`. Either adds Folio Studio to the desktop and Start menu on Windows, the applications menu on Linux, and `~/Applications` on macOS. The shortcut opens the last build, so after a `git pull` run `./scripts/studio.sh build`.
+
 Run from a plugin inside a project, it opens that project. To open another, pass the folder that contains `UI/` (`./scripts/studio.sh run <folder>`) or use **File > Open Project**. Studio opens the first document it finds:
 
 - **Files** lists the project's documents. Click an `.rml` to put it on the canvas, or an image or font to look at it. Right-click a folder for a new document, a new document from a recipe, or a new stylesheet, and a file to delete it.
@@ -24,6 +26,9 @@ Run from a plugin inside a project, it opens that project. To open another, pass
 - **Right-click** an element on the canvas or in **Outline** for cut, copy, paste, duplicate, delete and wrap.
 - **Alt+Up** selects the parent of the selected element, **Alt+Down** its first child, and **Alt+Left** and **Alt+Right** its siblings.
 - **Ctrl+wheel** zooms the canvas. **Ctrl+Z** undoes the last edit from anywhere outside a text editor.
+- **Timeline** (Ctrl+T) holds the document's clock. Play it from the first frame, or drag to any moment, to see an entry animation that has otherwise finished before you look.
+- **Right-click > Bake to PNG** renders an element alone to an image, so a costly effect or a slanted edge can ship as a texture. Samples draws it at two or four times the pixels and averages them down, which smooths an angled edge at the same size. Background puts it over white, black, 50% grey or a colour you pick instead of leaving it transparent. Right-click an `.rml` in Files to bake the whole document.
+- **Revert** in the top bar, File > Revert Unsaved Changes, or a tab's right-click menu puts unsaved files back as they are on disk. Undo brings the changes back. A layer effect (`box-shadow`, `filter`, `backdrop-filter`, `mask-image`) is refused, because the engine draws those differently; bake those in the editor with `folio.Bake`.
 - **Terminal** is a shell in the project's folder, for git or anything else you run from a command line. Copy is Ctrl+Shift+C, paste is Ctrl+V.
 - **Ctrl+S** saves. Until then your edits are previewed but not on disk, so the running game does not see them.
 
@@ -45,7 +50,7 @@ If the game is running in the editor, saving in Studio hot-reloads the document 
 | A key does nothing, or does the wrong thing | **File > Keyboard Shortcuts** shows what each key runs. Restore All Defaults there undoes every change. |
 | A style change lands in a rule you did not expect | **Properties** shows where each value is written and "New properties go to" says where a new one will be. Change the target there. |
 | An edit to a property seems ignored | The value is set by a rule Folio ships, shown in italics. Studio never edits those; it writes an override to your own rule instead. Check the rule order in your stylesheet. |
-| A blur that reaches the edge of the screen looks slightly different from the game | A known difference in Studio's renderer. See [known gaps](known_gaps.md). Everything else matches `uipreview` to within one colour level. |
+| A blur that reaches the edge of the screen looks slightly different from the game | A known difference in Studio's renderer. See [known gaps](known_gaps.md). Everything else matches `uipreview` to within two colour levels. |
 | macOS says the packaged app cannot be opened | It is unsigned. Right-click it, choose Open, and confirm once. `studio.sh run` has no such step. |
 | No update notice ever appears | Releases are found by tag. Run `git ls-remote --tags origin` in the checkout: if that fails or lists nothing like `v1.2.3`, there is nothing to find. |
 

@@ -49,6 +49,8 @@ export interface OpenSettings {
 	culture?: string;
 	textScale?: number;
 	reducedMotion?: boolean;
+	/** The clock's reading as the document loads, which is when its animations start. */
+	time?: number;
 }
 
 interface NativeEngine {
@@ -65,6 +67,8 @@ interface NativeEngine {
 	setInlineProperty(id: string, name: string, value: string): boolean;
 	removeInlineProperty(id: string, name: string): void;
 	screenshot(path: string): boolean;
+	step(seconds: number): void;
+	bake(id: string, path: string, margin: number): boolean;
 }
 
 interface EngineModule {
@@ -278,6 +282,29 @@ export class EngineClient {
 
 	removeInlineProperty(id: string, name: string) {
 		this.native!.removeInlineProperty(id, name);
+	}
+
+	/** Updates the document at a time without drawing it. */
+	step(seconds: number) {
+		this.native!.step(seconds);
+	}
+
+	/**
+	 * One element alone, as a PNG with alpha, drawn at the document's own resolution times the samples
+	 * whatever the zoom.
+	 * Null when it could not be baked, and the diagnostics say why.
+	 */
+	bake(id: string, margin = 0, samples = 1): Uint8Array | null {
+		const scale = this.scale;
+		this.setRenderScale(samples);
+		const target = '/tmp/studio-bake.png';
+		this.removeFile(target);
+		const ok = this.native!.bake(id, target, margin);
+		this.setRenderScale(scale);
+		if (!ok || !this.module!.FS.analyzePath(target).exists) return null;
+		const data = this.readFile(target);
+		this.removeFile(target);
+		return data;
 	}
 
 	screenshot(): Uint8Array | null {

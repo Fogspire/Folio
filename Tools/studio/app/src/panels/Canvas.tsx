@@ -10,8 +10,8 @@ import {
 import { Inspection, Rect, TreeNode } from '../engine';
 import { basename, extension, stem } from '../paths';
 import {
-	canvasScale, copyLibraryDocument, engine, findNode, isLibraryDocument, MIN_ZOOM, select, setEditing, setHover, setRenderScale, setViewport, setZoom,
-	store,
+	advanceTimeline, canvasScale, copyLibraryDocument, engine, findNode, isLibraryDocument, MIN_ZOOM, seekTimeline, select, setEditing, setHover,
+	setRenderScale, setTimelinePlaying, setViewport, setZoom, store, toggleTimeline, updateSettings,
 } from '../session';
 
 const SIZES: [string, number, number][] = [
@@ -204,6 +204,7 @@ function Toolbar({ scale }: { scale: number }) {
 	const height = store.use((state) => state.height);
 	const ratio = store.use((state) => state.dpRatio);
 	const zoom = store.use((state) => state.zoom);
+	const timelineOpen = store.use((state) => state.timeline !== null);
 	const sizeKey = `${width}x${height}`;
 	const known = SIZES.some(([, w, h]) => w === width && h === height);
 
@@ -233,6 +234,9 @@ function Toolbar({ scale }: { scale: number }) {
 				</select>
 			</label>
 			<span className="spacer" />
+			<button className={'button' + (timelineOpen ? ' active' : '')} title="Hold the document's clock, and play or scrub it from the first frame (Ctrl+T)" onClick={toggleTimeline}>
+				Timeline
+			</button>
 			<label>
 				Zoom
 				<select value={String(zoom)} onChange={(event) => setZoom(event.target.value === 'fit' ? 'fit' : Number(event.target.value))}>
@@ -544,6 +548,46 @@ function LibraryBanner({ path }: { path: string }) {
 	);
 }
 
+function TimelineBar() {
+	const timeline = store.use((state) => state.timeline);
+	const duration = store.use((state) => state.settings.timelineDuration);
+	if (!timeline) return null;
+
+	return (
+		<div className="toolbar timeline">
+			<button className="button" title="Back to the first frame" onClick={() => { seekTimeline(0); setTimelinePlaying(true); }}>Restart</button>
+			<button className="button" onClick={() => setTimelinePlaying(!timeline.playing)}>{timeline.playing ? 'Pause' : 'Play'}</button>
+			<input
+				className="timeline-scrub"
+				type="range"
+				min={0}
+				max={duration}
+				step={1 / 60}
+				value={timeline.time}
+				onChange={(event) => {
+					setTimelinePlaying(false);
+					seekTimeline(Number(event.target.value));
+				}}
+			/>
+			<span className="timeline-time">{timeline.time.toFixed(2)} s</span>
+			<label>
+				Length
+				<input
+					type="number"
+					min={0.1}
+					max={30}
+					step={0.5}
+					value={duration}
+					onChange={(event) => {
+						const value = Number(event.target.value);
+						if (value >= 0.1 && value <= 30) updateSettings({ timelineDuration: value });
+					}}
+				/>
+			</label>
+		</div>
+	);
+}
+
 export function CanvasPanel(props: IDockviewPanelProps) {
 	const width = store.use((state) => state.width);
 	const height = store.use((state) => state.height);
@@ -579,9 +623,15 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 
 	useEffect(() => {
 		let handle = 0;
+		let last = 0;
 		const tick = (time: number) => {
 			handle = requestAnimationFrame(tick);
-			if (engine.isOpen && document.visibilityState === 'visible' && props.api.isVisible) engine.frame(time / 1000);
+			const elapsed = last ? (time - last) / 1000 : 0;
+			last = time;
+			if (!engine.isOpen || document.visibilityState !== 'visible' || !props.api.isVisible) return;
+			// The timeline owns the clock while it is open, and draws only when it moves.
+			if (store.get().timeline) advanceTimeline(elapsed);
+			else engine.frame(time / 1000);
 		};
 		handle = requestAnimationFrame(tick);
 		return () => cancelAnimationFrame(handle);
@@ -634,6 +684,7 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 		<div className="panel canvas-panel" style={{ display: visible ? undefined : 'none' }}>
 			{documents.length > 0 && <FileTabs files={documents} active={documentPath} />}
 			<Toolbar scale={scale} />
+			<TimelineBar />
 			{documentPath && isLibraryDocument(documentPath) && <LibraryBanner path={documentPath} />}
 			<div className="canvas-viewport" ref={viewport}>
 				<div className="canvas-stage" ref={stage} style={{ width: width * scale, height: height * scale, visibility: documentOpen ? 'visible' : 'hidden' }}>

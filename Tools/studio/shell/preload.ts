@@ -34,6 +34,11 @@ const host = {
 	loadLayout: (target?: string): Promise<string | null> => ipcRenderer.invoke('load-layout', target),
 	terminalOpen: (directory: string, cols: number, rows: number, shell = '', shellArguments = ''): Promise<number | string> =>
 		ipcRenderer.invoke('terminal-open', directory, cols, rows, shell, shellArguments),
+	createShortcuts: (into?: string): Promise<string[] | string> => ipcRenderer.invoke('create-shortcuts', into),
+	saveFile: (title: string, defaultPath: string, extension: string, data: Uint8Array): Promise<{ path?: string; error?: string } | null> =>
+		ipcRenderer.invoke('save-file', title, defaultPath, extension, data),
+	/** Resolves with an error message, or an empty string when it opened. */
+	openSaved: (target: string, how: 'open' | 'reveal'): Promise<string> => ipcRenderer.invoke('open-saved', target, how),
 	defaultShell: (): Promise<string> => ipcRenderer.invoke('default-shell'),
 	trash: (target: string): Promise<boolean> => ipcRenderer.invoke('trash', target),
 	terminalInput: (id: number, data: string) => ipcRenderer.send('terminal-input', id, data),

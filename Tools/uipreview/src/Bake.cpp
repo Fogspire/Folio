@@ -68,6 +68,9 @@ bool RunBakes(const Options& options, App& app, Diagnostics& diagnostics)
 		}
 
 		Rml::Element* element = document->QuerySelector(selector);
+		// The search starts below the document, so the document itself is matched by its id here.
+		if (!element && !document->GetId().empty() && selector == "#" + document->GetId())
+			element = document;
 		if (!element)
 		{
 			diagnostics.Report(Severity::Error, "E-BAKE-SELECTOR",

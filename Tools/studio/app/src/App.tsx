@@ -16,7 +16,7 @@ import { OutlinePanel } from './panels/Outline';
 import { ProblemsPanel } from './panels/Problems';
 import { TerminalPanel } from './panels/Terminal';
 import { basename } from './paths';
-import { checkForUpdatesNow, openProject, pickProject, saveAll, setMode, store, toggleUpdateCheck } from './session';
+import { checkForUpdatesNow, openProject, pickProject, revertAll, saveAll, setMode, store, toggleUpdateCheck } from './session';
 
 const components = {
 	canvas: CanvasPanel,
@@ -53,6 +53,11 @@ function TopBar() {
 			<button className="button" disabled={!dirtyCount} onClick={saveAll} title="Save all (Ctrl+S)">
 				{dirtyCount ? `Save ${dirtyCount}` : 'Saved'}
 			</button>
+			{dirtyCount > 0 && (
+				<button className="button" onClick={revertAll} title="Put every unsaved file back as it is on disk">
+					Revert
+				</button>
+			)}
 			<div className="segmented" role="group" aria-label="Canvas mode">
 				<button className={mode === 'edit' ? 'active' : ''} onClick={() => setMode('edit')} title="Select and edit elements">Edit</button>
 				<button className={mode === 'play' ? 'active' : ''} onClick={() => setMode('play')} title="Interact with the document as a player would">Play</button>

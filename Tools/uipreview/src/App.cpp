@@ -167,6 +167,7 @@ bool App::Initialise()
 		},
 		[this]() {
 			auto owned = Rml::MakeUnique<PreviewSystemInterface>(diagnostics);
+			owned->SetTime(options.start_time);
 			system_interface = owned.get();
 			return Rml::UniquePtr<SystemInterface_GLFW>(std::move(owned));
 		});
@@ -706,11 +707,16 @@ void App::RenderFrame()
 	Backend::EndFrame();
 }
 
-void App::StepLive(double time_seconds)
+void App::Advance(double time_seconds)
 {
 	system_interface->SetTime(time_seconds);
 	context->Update();
 	behaviours.UpdateScrollState();
+}
+
+void App::StepLive(double time_seconds)
+{
+	Advance(time_seconds);
 	Backend::BeginFrame();
 	context->Render();
 	Backend::EndFrame();

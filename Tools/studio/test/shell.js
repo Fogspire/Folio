@@ -151,6 +151,8 @@ await wait(300);
 expect(document.querySelectorAll('.dialog .field-row').length === 4 && document.querySelector('.dialog .field-row input').placeholder.length > 0, 'Preferences opens, and names the shell it would use');
 key(document.body, { key: 'Escape' });
 expect(await host.testMenuChecked(['Help', 'Folio on GitHub']) !== null, 'Help links to the repository');
+const made = await host.createShortcuts(studio.shots);
+expect(Array.isArray(made) && made.length === 1, 'File > Create Shortcuts makes one: ' + made);
 
 // Whatever playing did to the document is gone on the way back to editing.
 session.setMode('play');
@@ -160,6 +162,81 @@ const playedRect = find('id', 'quit').rect[0];
 session.setMode('edit');
 await wait(300);
 expect(find('id', 'quit').rect[0] !== playedRect && !('margin-left' in engine.inspect(quitId).inline), 'leaving Play puts the document back as the source has it');
+
+// A document without a declared size opens at its own last size, not the last document's.
+session.setViewport(1280, 720, null);
+const fadePath = store.get().project.root + '/UI/screens/fade.rml';
+await host.writeFile(fadePath, '<rml><head><style>@keyframes fade { from { opacity: 0; } to { opacity: 1; } } body { width: 100%; height: 100%; } #fade { width: 100dp; height: 100dp; background-color: #ffffff; animation: 1s linear fade; }</style></head><body><div id="fade"></div></body></rml>');
+await wait(1000);
+await session.openDocument(fadePath);
+await wait(300);
+expect(store.get().width === 1920 && store.get().height === 1080, 'a document with no size of its own opens at the default');
+await session.openDocument(path);
+expect(store.get().width === 1280 && store.get().height === 720, 'and one shown at another size before comes back at it');
+session.setViewport(1920, 1080, null);
+
+// Baking an element writes it alone to a PNG.
+const baked = store.get().project.root + '/UI/art/quit.png';
+await edit.insertNear('<div id="tile" style="width: 64dp; height: 32dp; background-color: #ff0000;"></div>');
+await session.bakeElement(find('id', 'tile').id, baked, 2);
+const bakedData = await host.readFile(baked);
+expect(!!bakedData && bakedData[1] === 0x50 && bakedData[2] === 0x4e && bakedData[3] === 0x47, 'Bake to PNG writes a PNG: ' + store.get().status);
+const bakedWidth = (bakedData[16] << 24) | (bakedData[17] << 16) | (bakedData[18] << 8) | bakedData[19];
+expect(bakedWidth === 64, 'cropped to the element, drawn at twice the pixels and averaged back to its size: ' + bakedWidth);
+commands.runCommand('undo');
+await edit.insertNear('<div id="shadowed" style="width: 64dp; height: 32dp; box-shadow: #000000 0 0 8dp;"></div>');
+const refused = store.get().project.root + '/UI/art/shadowed.png';
+await session.bakeElement(find('id', 'shadowed').id, refused);
+expect(!(await host.exists(refused)), 'a layer effect is refused rather than baked wrong');
+commands.runCommand('undo');
+
+// The timeline holds the clock, plays it, and goes back.
+await session.openDocument(fadePath);
+await wait(300);
+const backed = store.get().project.root + '/UI/art/backed.png';
+await session.bakeElement('', backed, 1, '#808080');
+const backedImage = await createImageBitmap(new Blob([await host.readFile(backed)], { type: 'image/png' }));
+const backedCanvas = new OffscreenCanvas(backedImage.width, backedImage.height);
+backedCanvas.getContext('2d').drawImage(backedImage, 0, 0);
+const corner = backedCanvas.getContext('2d').getImageData(1, 1, 1, 1).data;
+expect(corner[3] === 255 && Math.abs(corner[0] - 128) <= 1, 'a background fills what the element leaves transparent: ' + [...corner].join());
+const wholeTarget = store.get().project.root + '/UI/art/whole.png';
+await session.bakeElement('', wholeTarget);
+const wholeData = await host.readFile(wholeTarget);
+expect(!!wholeData && ((wholeData[16] << 24) | (wholeData[17] << 16) | (wholeData[18] << 8) | wholeData[19]) === store.get().width, 'a whole document bakes at its size');
+const fadeId = find('id', 'fade').id;
+const opacity = () => Number(engine.inspect(fadeId, ['opacity']).computed.opacity);
+commands.runCommand('toggle-timeline');
+await wait(100);
+expect(!!store.get().timeline && !!document.querySelector('.timeline .timeline-scrub'), 'Timeline opens a scrub bar');
+session.setTimelinePlaying(false);
+session.seekTimeline(0.5);
+expect(Math.abs(opacity() - 0.5) < 0.02, 'scrubbing forward shows the animation at that moment: ' + opacity().toFixed(2));
+session.seekTimeline(0.25);
+expect(Math.abs(opacity() - 0.25) < 0.02, 'and back: ' + opacity().toFixed(2));
+session.seekTimeline(0);
+session.setTimelinePlaying(true);
+await wait(700);
+expect(store.get().timeline.time > 0.3, 'Play runs it on: ' + store.get().timeline.time.toFixed(2));
+await wait(2000);
+expect(!store.get().timeline.playing && store.get().timeline.time === store.get().settings.timelineDuration && opacity() > 0.95, 'and it stops at the end');
+commands.runCommand('toggle-timeline');
+expect(store.get().timeline === null, 'Timeline again closes it');
+await session.openDocument(path);
+session.closeFiles([fadePath]);
+await wait(300);
+
+// Revert puts unsaved files back as they are on disk, and undo brings the changes back.
+const onDisk = new TextDecoder().decode(await host.readFile(path));
+await edit.insertNear('<div id="unsaved">Unsaved</div>');
+expect(!!store.get().dirty[path], 'an edit leaves the file unsaved');
+await session.revertAll();
+expect(model.getValue() === onDisk && !store.get().dirty[path], 'Revert puts it back as it is on disk');
+commands.runCommand('undo');
+await wait(200);
+expect(count('id="unsaved"') === 1 && !!store.get().dirty[path], 'and undo brings the change back');
+commands.runCommand('undo');
+await session.revertAll();
 
 // The terminal is a real shell in the project's folder.
 let heard = '';

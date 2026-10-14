@@ -4,7 +4,7 @@ import { Diagnostic, EngineClient, Inspection, TreeNode } from './engine';
 import { host, HostState, ProjectInfo, TreeFile, UpdateStatus } from './host';
 import { COMMANDS, keysFor, toAccelerator } from './keys';
 import { languageFor, monaco } from './monaco';
-import { basename, dirname, extension, isUnder, join, relativeTo } from './paths';
+import { basename, dirname, extension, isUnder, join, relativeTo, stem } from './paths';
 import { loadSettings, saveSettings, Settings } from './settings';
 import { createStore } from './store';
 
@@ -14,6 +14,12 @@ export interface Reveal {
 	column: number;
 	/** Changes on every request, so revealing the same place twice still scrolls. */
 	nonce: number;
+}
+
+export interface Timeline {
+	/** Seconds since the document opened. */
+	time: number;
+	playing: boolean;
 }
 
 export interface State {
@@ -53,6 +59,8 @@ export interface State {
 	/** Canvas pixels drawn per document pixel, which follows the zoom so a zoomed canvas is sharp. */
 	renderScale: number;
 	settings: Settings;
+	/** The document's clock held still or played from its first frame, for looking at motion. */
+	timeline: Timeline | null;
 	/** The dialog open over the app, if one is. */
 	dialog: Dialog | null;
 }
@@ -88,6 +96,7 @@ export const store = createStore<State>({
 	editing: null,
 	renderScale: 1,
 	settings: loadSettings(),
+	timeline: null,
 	dialog: null,
 });
 
@@ -97,6 +106,8 @@ export const MIN_ZOOM = 0.05;
 export const MAX_ZOOM = 8;
 
 export const engine = new EngineClient();
+const DEFAULT_WIDTH = 1920;
+const DEFAULT_HEIGHT = 1080;
 
 /** Properties the inspector resolves whether or not a rule set them. */
 export const INSPECTED_PROPERTIES = [
@@ -324,14 +335,32 @@ export async function openDocument(path: string) {
 
 	// A document that says what size it was designed for is shown at that size, as the engine's picker
 	// fills it in for whoever assigns the document.
+	// One that does not is shown as it last was, or at the default, never at the last document's size.
 	const declared = /<meta\s+name="folio-size"\s+content="(\d+)\s*x\s*(\d+)"/i.exec(peekModel(path)?.getValue() ?? '');
-	if (declared) store.set({ width: Number(declared[1]), height: Number(declared[2]) });
+	if (declared) store.set({ width: Number(declared[1]), height: Number(declared[2]), dpRatio: null });
+	else store.set(documentSizes.get(key(path)) ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT, dpRatio: null });
 	reopen();
 }
+
+/** The time the renderer is told it is: the wall clock, or the timeline's moment when that is open. */
+function engineTime(): number {
+	const { timeline } = store.get();
+	return timeline ? timelineBase + timeline.time : performance.now() / 1000;
+}
+
+/** What the timeline's zero is on the renderer's clock: the moment the document was last opened. */
+let timelineBase = 0;
+/** How finely the timeline steps through time to reach a moment. Animations sample at this rate. */
+const TIMELINE_STEP = 1 / 60;
 
 /** Rebuilds the renderer for the current document, which is what a change of size policy or theme needs. */
 export function reopen() {
 	const state = store.get();
+	// A document opened again starts its animations again, so the timeline starts again with it.
+	if (state.timeline) {
+		timelineBase = performance.now() / 1000;
+		store.set({ timeline: { ...state.timeline, time: 0 } });
+	}
 	const root = documentRoot();
 	if (!state.document || !root || !engine.ready) return;
 
@@ -346,6 +375,8 @@ export function reopen() {
 		dpRatio: state.dpRatio ?? undefined,
 		themes: state.themes,
 		culture: state.culture || undefined,
+		// Loaded a moment before its first frame: an animation updated with no time passed shows its last keyframe.
+		time: engineTime() - 0.001,
 	});
 	store.set({ documentOpen: opened });
 	refresh();
@@ -361,7 +392,7 @@ export function refresh() {
 	}
 
 	// One frame first: layout is what the boxes are read from, and a reload leaves it stale until drawn.
-	engine.frame(performance.now() / 1000);
+	engine.frame(engineTime());
 	const tree = engine.tree();
 	const inspection = state.selection !== null ? engine.inspect(state.selection, INSPECTED_PROPERTIES) : null;
 	store.set({
@@ -390,8 +421,13 @@ export function setHover(id: string | null) {
 	if (store.get().hover !== id) store.set({ hover: id });
 }
 
+/** The size each document was last shown at, for one that does not declare its own. */
+const documentSizes = new Map<string, { width: number; height: number; dpRatio: number | null }>();
+
 export function setViewport(width: number, height: number, dpRatio: number | null) {
 	store.set({ width, height, dpRatio });
+	const { document } = store.get();
+	if (document) documentSizes.set(key(document), { width, height, dpRatio });
 	if (!engine.isOpen) return;
 	engine.resize(width, height, dpRatio);
 	refresh();
@@ -412,6 +448,184 @@ export function setRenderScale(wanted: number) {
 	if (next === renderScale) return;
 	store.set({ renderScale: next });
 	if (engine.ready && engine.setRenderScale(next)) refresh();
+}
+
+export function toggleTimeline() {
+	if (store.get().timeline) {
+		store.set({ timeline: null });
+		return;
+	}
+	store.set({ timeline: { time: 0, playing: true } });
+	reopen();
+}
+
+export function setTimelinePlaying(playing: boolean) {
+	const { timeline, settings } = store.get();
+	if (!timeline) return;
+	// Play at the end means play again from the start.
+	if (playing && timeline.time >= settings.timelineDuration) {
+		seekTimeline(0);
+		store.set({ timeline: { time: 0, playing: true } });
+		return;
+	}
+	store.set({ timeline: { ...timeline, playing } });
+}
+
+/**
+ * Shows the document as it is a number of seconds after opening. Animations only run forwards, so
+ * going back opens the document again and steps from its start.
+ */
+export function seekTimeline(seconds: number) {
+	const { timeline, settings } = store.get();
+	if (!timeline || !engine.isOpen) return;
+	const target = Math.max(0, Math.min(settings.timelineDuration, seconds));
+	let from = timeline.time;
+	if (target < from) {
+		reopen();
+		from = 0;
+	}
+	for (let time = from + TIMELINE_STEP; time < target; time += TIMELINE_STEP) engine.step(timelineBase + time);
+	store.set({ timeline: { ...store.get().timeline!, time: target } });
+	refresh();
+}
+
+/** Moves a playing timeline on by the time since the last frame, and draws it. */
+export function advanceTimeline(seconds: number) {
+	const { timeline, settings } = store.get();
+	if (!timeline?.playing || !engine.isOpen) return;
+	const time = Math.min(settings.timelineDuration, timeline.time + seconds);
+	const finished = time >= settings.timelineDuration;
+	store.set({ timeline: { time, playing: !finished } });
+	if (finished) refresh();
+	else engine.frame(timelineBase + time);
+}
+
+/** Why a bake was refused, in terms of the element the person picked rather than the name it was baked under. */
+function bakeRefusal(code: string, message: string, id: string | null): string {
+	if (code === 'E-BAKE-NEEDSENGINE') {
+		const { project, document } = store.get();
+		const where = project && document && isUnder(project.root, document) ? relativeTo(project.root, document) : basename(document ?? '');
+		return 'It draws a layer effect (box-shadow, filter, backdrop-filter or mask-image), which Studio and the engine draw differently, so it has to be baked in the Unreal editor: '
+			+ (id ? `folio.Bake ${where} #${id} UI/art/${id}.png` : 'Give the element an id, then: folio.Bake ' + where + ' #<id> UI/art/<id>.png');
+	}
+	return message ? message.replace(/#folio-studio-bake/g, 'The element') : 'The renderer did not say why. Problems may have more.';
+}
+
+let answerPending: ((choice: string | null) => void) | null = null;
+
+/**
+ * Asks something in the app's own dialog and resolves with the button pressed, or null when it was
+ * dismissed. A scripted run has nobody to ask, so it takes the default.
+ */
+export function ask(title: string, detail: string, buttons: string[], preferred = buttons[buttons.length - 1]): Promise<string | null> {
+	if (host.testing) return Promise.resolve(preferred);
+	answerDialog(null);
+	return new Promise((resolve) => {
+		answerPending = resolve;
+		store.set({ dialog: { kind: 'notice', title, detail, buttons, default: preferred } });
+	});
+}
+
+/** Closes whatever dialog is open, answering it if it asked something. */
+export function answerDialog(choice: string | null) {
+	const pending = answerPending;
+	answerPending = null;
+	store.set({ dialog: null });
+	pending?.(choice);
+}
+
+function bakeName(id: string): string {
+	return findNode(store.get().tree, id)?.attributes.id || (id === '' ? stem(store.get().document ?? 'baked') : 'baked');
+}
+
+/** An element as a person would point at it: its id, or its tag and first class. */
+function describeElement(id: string): string {
+	const node = findNode(store.get().tree, id);
+	if (!node || id === '') return basename(store.get().document ?? 'the document');
+	if (node.attributes.id) return '#' + node.attributes.id;
+	const firstClass = (node.attributes.class ?? '').split(/\s+/).filter(Boolean)[0];
+	return node.tag + (firstClass ? '.' + firstClass : '');
+}
+
+/** Asks how to bake an element, then bakes it. */
+export function askBake(id: string) {
+	if (engine.isOpen) store.set({ dialog: { kind: 'bake', id, name: describeElement(id) } });
+}
+
+/**
+ * Brings a bake to its size and puts it over its background.
+ *
+ * Halves the image until it reaches the size asked for: each halving averages four pixels into one,
+ * so every sample drawn counts, which one large step down does not. The background goes under last,
+ * so the averaging is of the element's own edge and not of the edge against a colour.
+ */
+async function finishBake(png: Uint8Array, factor: number, background: string | null): Promise<Uint8Array> {
+	if (factor <= 1 && !background) return png;
+	const image = await createImageBitmap(new Blob([png.slice()], { type: 'image/png' }), { colorSpaceConversion: 'none', premultiplyAlpha: 'premultiply' });
+	const width = Math.max(1, Math.round(image.width / factor));
+	const height = Math.max(1, Math.round(image.height / factor));
+	let source: CanvasImageSource = image;
+	let current = { width: image.width, height: image.height };
+	while (current.width > width || current.height > height) {
+		const next = { width: Math.max(width, Math.round(current.width / 2)), height: Math.max(height, Math.round(current.height / 2)) };
+		const canvas = new OffscreenCanvas(next.width, next.height);
+		const context = canvas.getContext('2d')!;
+		context.imageSmoothingEnabled = true;
+		context.imageSmoothingQuality = 'high';
+		context.drawImage(source, 0, 0, next.width, next.height);
+		source = canvas;
+		current = next;
+	}
+
+	const result = new OffscreenCanvas(width, height);
+	const context = result.getContext('2d')!;
+	if (background) {
+		context.fillStyle = background;
+		context.fillRect(0, 0, width, height);
+	}
+	context.drawImage(source, 0, 0);
+	const blob = await result.convertToBlob({ type: 'image/png' });
+	return new Uint8Array(await blob.arrayBuffer());
+}
+
+/** Renders an element to a PNG the game can draw instead, which is how a costly effect becomes a texture. */
+export async function bakeElement(id: string, chosen?: string, samples = 1, background: string | null = null) {
+	const { project, tree } = store.get();
+	if (!project || !engine.isOpen) return;
+	const node = findNode(tree, id);
+	const name = bakeName(id);
+
+	// Baked before asking where, so an element that cannot be baked says why without a wasted dialog.
+	const drawn = engine.bake(id, 0, samples);
+	refresh();
+	if (!drawn) {
+		const reason = engine.diagnostics().filter((entry) => entry.code.startsWith('E-BAKE')).pop();
+		await ask('Nothing was baked', bakeRefusal(reason?.code ?? '', reason?.message ?? '', node?.attributes.id ?? null), ['OK']);
+		return;
+	}
+	const data = await finishBake(drawn, samples, background);
+
+	let target = chosen ?? null;
+	if (target) {
+		await host.writeFile(target, data);
+	} else {
+		const saved = await host.saveFile('Bake to PNG', join(project.root, 'UI', 'art', name + '.png'), 'png', data);
+		if (!saved) return;
+		if (saved.error || !saved.path) {
+			await ask('The PNG could not be written', saved.error ?? '', ['OK']);
+			return;
+		}
+		target = saved.path;
+	}
+	const relative = isUnder(project.root, target) ? relativeTo(project.root, target) : target;
+	const use = `Draw it with decorator: image(/${relative} fill), and drop what it replaces.`;
+	setStatus(`Baked to ${relative}. ${use}`);
+
+	const choice = await ask('Baked ' + basename(target), relative + '. ' + use, ['Open Image', 'Show in Folder', 'OK'], 'OK');
+	if (choice === 'Open Image' || choice === 'Show in Folder') {
+		const problem = await host.openSaved(target, choice === 'Open Image' ? 'open' : 'reveal');
+		if (problem) setStatus('Could not open ' + basename(target) + ': ' + problem);
+	}
 }
 
 export function setEditing(editing: string | null) {
@@ -606,7 +820,9 @@ export function closeFiles(paths: string[]) {
 /** Moves a file to the trash, and closes whatever was showing it. */
 export async function deleteFile(path: string): Promise<boolean> {
 	const { project } = store.get();
-	if (!project || !(await host.trash(path))) return false;
+	if (!project) return false;
+	if (await ask('Delete ' + basename(path) + '?', 'It is moved to the trash.', ['Cancel', 'Delete'], 'Delete') !== 'Delete') return false;
+	if (!(await host.trash(path))) return false;
 
 	closeFiles([path]);
 	models.get(key(path))?.dispose();
@@ -627,6 +843,32 @@ export async function save(path: string) {
 	await host.writeFile(path, model.getValue());
 	savedVersions.set(key(path), model.getAlternativeVersionId());
 	recomputeDirty(path, model);
+}
+
+/**
+ * Puts files back as they are on disk, after asking. Done as an edit, so Undo brings the changes back.
+ */
+export async function revertFiles(paths: string[]) {
+	const unsaved = paths.filter((path) => store.get().dirty[path]);
+	if (!unsaved.length) return;
+	const names = unsaved.length === 1 ? basename(unsaved[0]) : unsaved.length + ' files';
+	if (await ask('Revert ' + names + '?', 'Unsaved changes are replaced with what is on disk. Undo brings them back.', ['Cancel', 'Revert'], 'Revert') !== 'Revert') return;
+
+	for (const path of unsaved) {
+		const model = models.get(key(path));
+		const data: Uint8Array | null = await host.readFile(path);
+		if (!model || !data) continue;
+		model.pushStackElement();
+		model.pushEditOperations(null, [{ range: model.getFullModelRange(), text: new TextDecoder().decode(data) }], () => null);
+		model.pushStackElement();
+		savedVersions.set(key(path), model.getAlternativeVersionId());
+		recomputeDirty(path, model);
+	}
+	setStatus('Reverted ' + names);
+}
+
+export function revertAll() {
+	return revertFiles(Object.keys(store.get().dirty));
 }
 
 export async function saveAll() {

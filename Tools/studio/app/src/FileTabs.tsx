@@ -1,7 +1,7 @@
 import { popup } from './commands';
 import { host } from './host';
 import { basename } from './paths';
-import { activateFile, closeFiles, store } from './session';
+import { activateFile, closeFiles, revertFiles, store } from './session';
 
 /** A strip of open files. Middle-click closes one, and the context menu closes them in groups. */
 export function FileTabs({ files, active }: { files: string[]; active: string | null }) {
@@ -16,6 +16,8 @@ export function FileTabs({ files, active }: { files: string[]; active: string | 
 			{ id: 'right', label: 'Close All Tabs to the Right', enabled: index < files.length - 1 },
 			{ id: 'all', label: 'Close All Tabs' },
 			{ separator: true },
+			{ id: 'revert', label: 'Revert Unsaved Changes', enabled: !!dirty[file] },
+			{ separator: true },
 			{ id: 'reveal', label: 'Show in the File Manager' },
 			{ id: 'path', label: 'Copy Path' },
 		]);
@@ -24,6 +26,7 @@ export function FileTabs({ files, active }: { files: string[]; active: string | 
 		else if (chosen === 'left') closeFiles(files.slice(0, index));
 		else if (chosen === 'right') closeFiles(files.slice(index + 1));
 		else if (chosen === 'all') closeFiles(files);
+		else if (chosen === 'revert') revertFiles([file]);
 		else if (chosen === 'reveal') host.reveal(file);
 		else if (chosen === 'path') navigator.clipboard.writeText(file);
 	};

@@ -7,7 +7,7 @@ import { host } from './host';
 import { commandForKey, commandInfo, comboOf, keysFor, toAccelerator } from './keys';
 import { monaco } from './monaco';
 import {
-	canvasScale, checkForUpdatesNow, findNode, openFile, openProject, pickProject, saveAll, select, setEditing, setMode, setZoom, store, toggleUpdateCheck,
+	answerDialog, askBake, canvasScale, checkForUpdatesNow, findNode, openFile, openProject, pickProject, revertAll, saveAll, select, setEditing, setMode, setZoom, store, toggleTimeline, toggleUpdateCheck,
 } from './session';
 
 export interface MenuItem {
@@ -160,6 +160,12 @@ export function runCommand(command: string, argument?: string) {
 		case 'preferences': return store.set({ dialog: { kind: 'preferences' } });
 		case 'keybindings': return store.set({ dialog: { kind: 'keys' } });
 		case 'assign-key': return void (argument && store.set({ dialog: { kind: 'assign', command: argument } }));
+		case 'bake': return void (selection !== null && askBake(selection));
+		case 'revert-all': return void revertAll();
+		case 'toggle-timeline': return toggleTimeline();
+		case 'create-shortcuts':
+			host.createShortcuts().then((made) => store.set({ status: typeof made === 'string' ? made : made.length ? 'Created ' + made.join(', ') : 'Nowhere to put a shortcut' }));
+			return;
 		case 'open-repo': return void host.openExternal('https://github.com/Fogspire/Folio');
 		case 'select-parent': return void (selection !== null && parentOf(selection) !== null && select(parentOf(selection)));
 		case 'deselect': return select(null);
@@ -193,7 +199,7 @@ export function handleKey(event: KeyboardEvent): boolean {
 	const state = store.get();
 	if (state.dialog) {
 		if (event.key !== 'Escape') return false;
-		store.set({ dialog: null });
+		answerDialog(null);
 		return true;
 	}
 
@@ -239,6 +245,8 @@ export async function elementMenu(id: string) {
 		{ id: 'delete', label: 'Delete', accelerator: accelerator('delete'), enabled: editable },
 		{ separator: true },
 		{ id: 'wrap', label: 'Wrap in a Div', enabled: editable },
+		{ separator: true },
+		{ id: 'bake', label: 'Bake to PNG…' },
 	];
 	const chosen: string | null = await host.contextMenu(items);
 	if (chosen) runCommand(chosen);

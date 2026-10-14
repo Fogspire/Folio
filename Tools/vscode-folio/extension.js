@@ -1390,7 +1390,15 @@ async function moveElement(element, dx, dy) {
 	await applyEdit(picked, "top", `${top}px`);
 }
 
+/** Said once a session: the preview is on its way out, and Studio is where it went. */
+let deprecationShown = false;
+
 function openPreview() {
+	if (!deprecationShown) {
+		deprecationShown = true;
+		vscode.window.showInformationMessage("Folio: this preview is deprecated and will be removed. Folio Studio does all of it: ./scripts/studio.sh");
+	}
+
 	const editor = vscode.window.activeTextEditor;
 	if (editor && editor.document.fileName.endsWith(".rml")) {
 		currentDocument = editor.document.fileName;

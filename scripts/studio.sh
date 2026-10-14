@@ -8,6 +8,7 @@
 #   ./scripts/studio.sh                  build, then run
 #   ./scripts/studio.sh run [project]    the same, opening a project folder
 #   ./scripts/studio.sh build            build only
+#   ./scripts/studio.sh shortcut         build, then add Folio Studio to the desktop and the start menu
 #   ./scripts/studio.sh test             unit tests, then the scripted tests against the running app
 #   ./scripts/studio.sh package          a runnable copy for this machine, in Tools/studio/release
 #   ./scripts/studio.sh engine           rebuild the WebAssembly renderer. Only needed after changing
@@ -214,10 +215,14 @@ case "$command" in
 		fi
 		;;
 	build)   build ;;
+	shortcut)
+		build
+		(cd "$studio" && node out/shell/shortcuts.js) || folio_die "could not create the shortcut."
+		;;
 	test)    run_tests ;;
 	package) package ;;
 	engine)  build_engine ;;
 	parity)  parity ;;
-	-h|--help|help) sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
+	-h|--help|help) sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' ;;
 	*) folio_die "unknown command: $command. Try ./scripts/studio.sh --help" ;;
 esac

@@ -1,4 +1,5 @@
 #include "App.h"
+#include "Bake.h"
 #include "Diagnostics.h"
 #include "Options.h"
 #include "ProvenanceReport.h"
@@ -187,7 +188,7 @@ const char* SeverityName(uipreview::Severity severity)
 class Engine {
 public:
 	/** Opens a document. Settings are JSON: root, document, width, height, and the optional dpRatio,
-	    themes, culture, textScale, reducedMotion and data. */
+	    themes, culture, textScale, reducedMotion, data and time, the clock's reading as it loads. */
 	bool Open(const std::string& settings_text)
 	{
 		Close();
@@ -208,6 +209,7 @@ public:
 		options.data_path = settings.value("data", std::string());
 		options.text_scale = settings.value("textScale", 1.0f);
 		options.reduced_motion = settings.value("reducedMotion", false);
+		options.start_time = settings.value("time", 0.0);
 		if (settings.contains("dpRatio") && settings["dpRatio"].is_number())
 		{
 			options.dp_ratio = settings["dpRatio"].get<float>();
@@ -382,6 +384,36 @@ public:
 
 	bool Screenshot(const std::string& path) { return app && app->CaptureTo(path); }
 
+	/** Updates the document at a time without drawing it, so a later time can be reached in steps. */
+	void Step(double seconds)
+	{
+		if (app)
+			app->Advance(seconds);
+	}
+
+	/**
+	 * Renders one element alone to a PNG, as `uipreview --bake` does. The element is named by a
+	 * temporary id, since the bake finds it by selector and the page names elements by position.
+	 * Diagnostics say why when it returns false.
+	 */
+	bool Bake(const std::string& id, const std::string& path, int margin)
+	{
+		Rml::Element* element = app ? ResolveStructuralId(app->GetDocument(), id) : nullptr;
+		if (!element)
+			return false;
+
+		const std::string own_id = element->GetId();
+		element->SetId("folio-studio-bake");
+		options.bakes = {"#folio-studio-bake=" + path};
+		options.bake_margin = margin;
+		const bool ok = uipreview::RunBakes(options, *app, diagnostics);
+		options.bakes.clear();
+		element->SetId(own_id);
+		if (own_id.empty())
+			element->RemoveAttribute("id");
+		return ok;
+	}
+
 private:
 	uipreview::Options options;
 	/** Declared before the app, which holds a reference to it. */
@@ -414,5 +446,7 @@ EMSCRIPTEN_BINDINGS(folio_engine)
 		.function("diagnostics", &Engine::Diagnostics)
 		.function("setInlineProperty", &Engine::SetInlineProperty)
 		.function("removeInlineProperty", &Engine::RemoveInlineProperty)
-		.function("screenshot", &Engine::Screenshot);
+		.function("screenshot", &Engine::Screenshot)
+		.function("step", &Engine::Step)
+		.function("bake", &Engine::Bake);
 }

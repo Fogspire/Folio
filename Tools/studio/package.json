@@ -4,7 +4,7 @@
 	"private": true,
 	"description": "WYSIWYG editor for Folio documents",
 	"scripts": {
-		"build:shell": "esbuild shell/main.ts shell/preload.ts --bundle --platform=node --format=cjs --external:electron --external:@lydell/node-pty --outdir=out/shell --log-level=warning",
+		"build:shell": "esbuild shell/main.ts shell/preload.ts shell/shortcuts.ts --bundle --platform=node --format=cjs --external:electron --external:@lydell/node-pty --outdir=out/shell --log-level=warning",
 		"build:app": "vite build --logLevel warn",
 		"build": "npm run build:shell && npm run build:app",
 		"start": "electron .",

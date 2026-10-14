@@ -12,6 +12,13 @@ endif()
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
+# One exception model across every object, or a throw from nlohmann_json cannot unwind through
+# code that was compiled without it.
+if(EMSCRIPTEN)
+	add_compile_options(-fwasm-exceptions)
+	add_link_options(-fwasm-exceptions)
+endif()
+
 include(FetchContent)
 
 set(FOLIO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -97,7 +104,15 @@ if(NOT TARGET Freetype::Freetype)
 	add_library(Freetype::Freetype ALIAS freetype)
 endif()
 
-FetchContent_MakeAvailable(glfw RmlUi nlohmann_json lodepng msdfgen nanosvg harfbuzz)
+# Emscripten implements GLFW itself, in JavaScript against the canvas, so there is nothing to build.
+if(EMSCRIPTEN)
+	add_library(glfw INTERFACE)
+	target_link_options(glfw INTERFACE -sUSE_GLFW=3)
+else()
+	FetchContent_MakeAvailable(glfw)
+endif()
+
+FetchContent_MakeAvailable(RmlUi nlohmann_json lodepng msdfgen nanosvg harfbuzz)
 
 add_library(lodepng STATIC "${lodepng_SOURCE_DIR}/lodepng.cpp")
 target_include_directories(lodepng PUBLIC "${lodepng_SOURCE_DIR}")
@@ -124,4 +139,8 @@ target_compile_definitions(folio_core PRIVATE FOLIO_WITH_HARFBUZZ=1)
 target_compile_features(folio_core PUBLIC cxx_std_20)
 
 add_subdirectory(Tools/uipreview)
-add_subdirectory(Tools/msdfbake)
+if(EMSCRIPTEN)
+	add_subdirectory(Tools/studio/engine)
+else()
+	add_subdirectory(Tools/msdfbake)
+endif()

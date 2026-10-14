@@ -1,0 +1,28 @@
+<rml>
+<head>
+	<title>Pause</title>
+	<meta name="folio-size" content="960x640"/>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		body { justify-content: center; align-items: center; }
+		.panel { width: 420dp; }
+		.row { display: flex; }
+	</style>
+</head>
+<body class="screen" data-model="pause" data-class-closing="!bOpen">
+	<div class="screen-inner" data-if="bAlive">
+		<div class="panel">
+			<div class="title">Paused</div>
+			<div class="crumb" data-if="Page != 0">{{ Title }}</div>
+			<div class="row" data-for="r : Rows" data-class-off="!r.bEnabled" data-event-click="Take(it_index)">
+				<div class="name">{{ r.Label }}</div>
+				<div class="arrow less" data-event-click="Step(it_index, -1)">&lt;</div>
+				<div class="reading">{{ r.Value }}</div>
+				<div class="bar" data-if="r.bBar" data-event-change="Slid(it_index)">
+					<div class="fill" data-style-width="(r.Fraction * 100) + '%'"/>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</rml>

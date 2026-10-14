@@ -10,6 +10,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | | |
 |---|---|
 | **[Hello world](hello_world.md)** | Install the plugin, get a document on screen, cook and ship it. |
+| **[Folio Studio](studio.md)** | A visual editor on Windows, macOS and Linux: select, drag, resize and restyle on the real renderer, with every edit written back as text. |
 | **[Setting up VSCode](vscode.md)** | Highlighting, a live preview beside the document, click-to-find-the-rule. Five minutes, and it is where the authoring time goes. |
 | **[Testing a document](testing_a_document.md)** | `uipreview`, `--strict`, screenshots, and the checks that stop a broken stylesheet shipping. |
 | **[Assigning a document](assigning_documents.md)** | The editor picker, portable paths, and why a wrong one now says so. |

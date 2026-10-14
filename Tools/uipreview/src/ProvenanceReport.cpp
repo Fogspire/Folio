@@ -76,11 +76,10 @@ std::string OwnText(Rml::Element* element)
 	return {};
 }
 
-void Walk(Rml::Element* element, ordered_json& out_entries)
-{
-	if (!element)
-		return;
+} // namespace
 
+ordered_json DescribeRuleProperties(Rml::Element* element)
+{
 	ordered_json properties = ordered_json::array();
 
 	// Every registered property, filtered to those a rule actually set. Asking for all of them and
@@ -102,6 +101,16 @@ void Walk(Rml::Element* element, ordered_json& out_entries)
 		});
 	}
 
+	return properties;
+}
+
+namespace {
+
+void Walk(Rml::Element* element, ordered_json& out_entries)
+{
+	if (!element)
+		return;
+
 	// Every element, not only the styled ones. A tool selecting by clicking needs a box for anything
 	// clickable, and an element with no rule of its own is still something an author points at - it is
 	// exactly the case where the answer is "the rule you want belongs to an ancestor".
@@ -115,7 +124,7 @@ void Walk(Rml::Element* element, ordered_json& out_entries)
 			{"classes", element->GetClassNames()},
 			{"text", OwnText(element)},
 			{"rect", DescribeRect(element)},
-			{"properties", std::move(properties)},
+			{"properties", DescribeRuleProperties(element)},
 		});
 	}
 

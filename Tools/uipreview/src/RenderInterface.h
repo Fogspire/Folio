@@ -99,7 +99,8 @@ private:
 	std::map<Rml::CompiledGeometryHandle, ShadowGeometry> shadow_geometry;
 
 	std::map<Rml::TextureHandle, MsdfBinding> msdf_bindings;
-	Rml::TextureHandle next_msdf_handle = Rml::TextureHandle(1) << 48;
+	/** Three quarters of the way up the handle, which is bit 48 natively and bit 24 on wasm32. */
+	Rml::TextureHandle next_msdf_handle = Rml::TextureHandle(1) << (sizeof(Rml::TextureHandle) * 6);
 
 	/**
 	 * Field pages that came from a file rather than from the font engine.
@@ -136,8 +137,11 @@ private:
 	};
 
 	std::map<Rml::CompiledShaderHandle, ShaderEffect> shader_effects;
-	/** Well clear of the base class's handles, which are pointers into its own shader list. */
-	Rml::CompiledShaderHandle next_shader_effect = Rml::CompiledShaderHandle(1) << 48;
+	/**
+	 * Well clear of the base class's handles, which are pointers into its own shader list. Odd, and
+	 * stepped by two, because on wasm32 a pointer can be any value but is never odd.
+	 */
+	Rml::CompiledShaderHandle next_shader_effect = (Rml::CompiledShaderHandle(1) << (sizeof(Rml::CompiledShaderHandle) * 6)) | 1;
 
 	Rml::Rectanglei scissor = Rml::Rectanglei::MakeInvalid();
 	Rml::Vector2i viewport;

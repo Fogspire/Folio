@@ -119,6 +119,9 @@ struct Options {
 	double dt_ms = 16.67;
 
 	bool debug = false;
+	/** A host owns the loop and the tooling: it calls App::StepLive each frame, reports changed
+	    files itself and draws its own inspector, so nothing here watches, blocks or adds a debugger. */
+	bool host_driven = false;
 	bool strict = false;
 	bool watch = true;
 	bool verbose = false;

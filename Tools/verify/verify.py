@@ -144,6 +144,18 @@ def main() -> int:
         else:
             harness.ok("FolioMsdf.ush matches MsdfProgram.cpp")
 
+    # --- Studio's committed renderer ---------------------------------------------------------
+    #
+    # Built from the same sources as the tool under test, and committed. Nothing else notices when it
+    # falls behind them.
+    print("Studio renderer")
+    engine_hash = subprocess.run([sys.executable, str(repo / "Tools/studio/engine/source_hash.py"), "--check"],
+                                 capture_output=True, text=True)
+    if engine_hash.returncode != 0:
+        harness.fail("Folio Studio's WebAssembly renderer is older than its sources (run scripts/studio.sh engine)")
+    else:
+        harness.ok("built from the current sources")
+
     # --- Documents --------------------------------------------------------------------------
 
     print("Layout")

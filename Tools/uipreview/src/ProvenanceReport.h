@@ -1,6 +1,12 @@
 #pragma once
 
+#include <nlohmann/json.hpp>
+
 #include <string>
+
+namespace Rml {
+class Element;
+} // namespace Rml
 
 namespace uipreview {
 
@@ -21,6 +27,9 @@ struct Options;
  * property, and a dump of those is noise: the ones that came from a rule are the ones anyone can act
  * on, and the count drops from hundreds per element to a handful.
  */
+/** Every property a rule set on this one element, each with its value, rule, file and line. */
+nlohmann::ordered_json DescribeRuleProperties(Rml::Element* element);
+
 bool WriteProvenanceReport(const std::string& path, const Options& options, const App& app,
 	std::string& out_error);
 

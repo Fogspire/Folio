@@ -7,7 +7,7 @@
 #include "Diagnostics.h"
 #include "MissingAssets.h"
 
-#include "RmlUi_Include_GL3.h"
+#include "GL.h"
 
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/FileInterface.h>
@@ -614,7 +614,8 @@ Rml::CompiledShaderHandle PreviewRenderInterface::CompileShader(const Rml::Strin
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	const Rml::CompiledShaderHandle handle = next_shader_effect++;
+	const Rml::CompiledShaderHandle handle = next_shader_effect;
+	next_shader_effect += 2;
 	shader_effects[handle] = ShaderEffect{effect, texture};
 	return handle;
 }

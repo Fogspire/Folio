@@ -1,4 +1,4 @@
-#include "RmlUi_Include_GL3.h"
+#include "../GL.h"
 
 #include "UipreviewBackendGLFW.h"
 
@@ -237,8 +237,12 @@ bool Backend::ProcessEvents(Rml::Context* context, KeyDownCallback key_down_call
 	else
 		glfwPollEvents();
 
+	// A browser delivers input from its own event loop, between frames rather than inside the poll,
+	// so there the context has to stay set or every event arrives to nothing.
+#ifndef __EMSCRIPTEN__
 	data->context = nullptr;
 	data->key_down_callback = nullptr;
+#endif
 
 	const bool result = !glfwWindowShouldClose(data->window);
 	glfwSetWindowShouldClose(data->window, GLFW_FALSE);

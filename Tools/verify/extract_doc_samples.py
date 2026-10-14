@@ -61,6 +61,8 @@ MEMBER_OF_READERS_CLASS = {
     "docs/tutorials/visor_hud.md#2",
     "docs/tutorials/visor_hud.md#3",
     "docs/tutorials/visor_hud.md#4",
+    # Binds the class the block above it has the reader derive from a generated base.
+    "docs/view_models.md#1",
 }
 
 REFLECTED = re.compile(r"\b(UCLASS|USTRUCT|UPROPERTY|UFUNCTION|GENERATED_BODY)\b")

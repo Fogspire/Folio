@@ -6,7 +6,9 @@
 #include <filesystem>
 #include <fstream>
 
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -31,6 +33,7 @@ bool HasSlateFonts(const fs::path& engine_directory)
 /** Reads a registered engine location out of the registry, keyed by an association GUID. */
 std::string LookUpRegisteredEngine(const std::string& association)
 {
+#ifdef _WIN32
 	for (const HKEY root : {HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE})
 	{
 		HKEY key = nullptr;
@@ -46,6 +49,9 @@ std::string LookUpRegisteredEngine(const std::string& association)
 		if (status == ERROR_SUCCESS && type == REG_SZ)
 			return Forward(std::string(value, strnlen(value, sizeof value)));
 	}
+#else
+	(void)association;
+#endif
 	return {};
 }
 
@@ -129,6 +135,7 @@ std::string SearchUpwardsForEngine(fs::path directory)
 
 std::string ExecutableDirectory()
 {
+#ifdef _WIN32
 	wchar_t buffer[MAX_PATH * 4] = {};
 	const DWORD length = GetModuleFileNameW(nullptr, buffer, (DWORD)(sizeof buffer / sizeof buffer[0]));
 	if (length == 0)
@@ -136,6 +143,11 @@ std::string ExecutableDirectory()
 
 	const fs::path executable(std::wstring(buffer, length));
 	return Forward(executable.parent_path().string());
+#else
+	std::error_code ec;
+	const fs::path executable = fs::read_symlink("/proc/self/exe", ec);
+	return ec ? std::string() : Forward(executable.parent_path().string());
+#endif
 }
 
 std::string FolioRoot()

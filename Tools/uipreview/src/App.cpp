@@ -276,7 +276,7 @@ bool App::Initialise()
 
 	// Initialising the debugger adds its beacon element to the context, which shows up as a
 	// warning marker in captured images. Keep it out of an unattended capture entirely.
-	if (options.debug || !options.IsOneShot())
+	if (options.debug || (!options.IsOneShot() && !options.host_driven))
 	{
 		Rml::Debugger::Initialise(context);
 		Rml::Debugger::SetVisible(options.debug);
@@ -461,6 +461,10 @@ void App::MountDataModel()
 
 void App::LoadTerms()
 {
+	// The tables are process-wide, and a host that opens a second document would otherwise
+	// load every term twice and report each as a duplicate of itself.
+	Folio::FTermTables::Get().Clear();
+
 	const fs::path terms_dir = fs::path(UiDirectory(root)) / "terms";
 
 	std::vector<fs::path> found;
@@ -695,6 +699,16 @@ void App::WriteAssetsWanted()
 void App::RenderFrame()
 {
 	system_interface->AdvanceTime(options.dt_ms / 1000.0);
+	context->Update();
+	behaviours.UpdateScrollState();
+	Backend::BeginFrame();
+	context->Render();
+	Backend::EndFrame();
+}
+
+void App::StepLive(double time_seconds)
+{
+	system_interface->SetTime(time_seconds);
 	context->Update();
 	behaviours.UpdateScrollState();
 	Backend::BeginFrame();
@@ -1233,12 +1247,7 @@ int App::RunInteractive()
 		}
 
 		// Interactive mode follows wall time rather than the fixed capture step.
-		system_interface->SetTime(Backend::GetTime());
-		context->Update();
-		behaviours.UpdateScrollState();
-		Backend::BeginFrame();
-		context->Render();
-		Backend::EndFrame();
+		StepLive(Backend::GetTime());
 		Backend::SwapBuffers();
 	}
 	WriteAssetsWanted();

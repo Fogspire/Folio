@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <chrono>
 
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 namespace uipreview {
 
@@ -13,6 +15,8 @@ long long NowMs()
 {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
+
+#ifdef _WIN32
 
 std::string Normalise(std::wstring wide, const std::string& directory)
 {
@@ -28,7 +32,11 @@ std::string Normalise(std::wstring wide, const std::string& directory)
 	return full;
 }
 
+#endif
+
 } // namespace
+
+#ifdef _WIN32
 
 FileWatcher::~FileWatcher()
 {
@@ -132,6 +140,16 @@ void FileWatcher::Run()
 	CloseHandle(overlapped.hEvent);
 	CloseHandle(handle);
 }
+
+#else
+
+// No watcher off Windows: Start reports failure and the host reloads by other means.
+FileWatcher::~FileWatcher() = default;
+bool FileWatcher::Start(const std::string&) { return false; }
+void FileWatcher::Stop() {}
+void FileWatcher::Run() {}
+
+#endif
 
 std::vector<std::string> FileWatcher::Drain(int debounce_ms)
 {

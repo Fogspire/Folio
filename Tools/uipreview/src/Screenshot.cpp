@@ -1,6 +1,6 @@
 #include "Screenshot.h"
 
-#include "RmlUi_Include_GL3.h"
+#include "GL.h"
 #include "backend/UipreviewBackendGLFW.h"
 
 #include <lodepng.h>

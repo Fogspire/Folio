@@ -1,0 +1,12 @@
+{
+	"bAlive": true,
+	"bOpen": true,
+	"Page": 2,
+	"Title": "AUDIO",
+	"Rows": [
+		{ "Label": "OVERALL VOLUME", "Value": "80%", "bEnabled": true, "Fraction": 0.8, "bBar": true },
+		{ "Label": "MUSIC", "Value": "55%", "bEnabled": true, "Fraction": 0.55, "bBar": true },
+		{ "Label": "EFFECTS", "Value": "70%", "bEnabled": true, "Fraction": 0.7, "bBar": true },
+		{ "Label": "BACK", "Value": "", "bEnabled": true, "Fraction": 0, "bBar": false }
+	]
+}

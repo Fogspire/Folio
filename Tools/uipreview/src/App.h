@@ -43,6 +43,14 @@ public:
 	 */
 	void RenderFrame();
 	void PumpFrames(int count);
+	/** One frame at a wall-clock time, without swapping. What the interactive loop runs each pass. */
+	void StepLive(double time_seconds);
+	/** Reloads whatever the changed files call for. Paths are absolute, lowercased, forward slashed. */
+	void HandleFileChanges(const std::vector<std::string>& changed);
+	/** Resizes the context and rescales it to match, which is what makes a resized window behave
+	    like a resized game window. */
+	void ApplyViewportSize(int width, int height);
+	Diagnostics& GetDiagnostics() const { return diagnostics; }
 	/** Frames pumped after each scripted input, so focus animations settle. */
 	int FramesPerStep() const { return options.frames; }
 
@@ -90,7 +98,6 @@ private:
 	void MountInputModel();
 	/** Puts the folio-device-*, folio-input-* and folio-confirm-* classes on the document body. */
 	void ApplyInputClasses();
-	void HandleFileChanges(const std::vector<std::string>& changed);
 	void RebuildDocument();
 
 	int RunInteractive();
@@ -133,9 +140,6 @@ private:
 
 	/** Ratio Unreal would use for a viewport this size, unless --dp-ratio pinned one. */
 	float ComputeDpRatio(int width, int height) const;
-	/** Resizes the context and rescales it to match, which is what makes a resized window behave
-	    like a resized game window. */
-	void ApplyViewportSize(int width, int height);
 
 	int viewport_width = 0;
 	int viewport_height = 0;

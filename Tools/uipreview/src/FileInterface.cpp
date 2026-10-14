@@ -40,6 +40,14 @@ std::string RootedFileInterface::Resolve(const std::string& path) const
 	if (normalised.size() > 1 && normalised[1] == ':')
 		return normalised;
 
+	// A POSIX absolute path has no drive letter to tell it from a root-relative one, so it is
+	// absolute only when it already sits under one of the two roots.
+	for (const std::string* base : {&root, &folio_root})
+	{
+		if (!base->empty() && base->front() == '/' && normalised.rfind(*base + "/", 0) == 0)
+			return normalised;
+	}
+
 	while (!normalised.empty() && normalised.front() == '/')
 		normalised.erase(0, 1);
 

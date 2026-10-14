@@ -1,7 +1,10 @@
 #include "MsdfProgram.h"
 
-#include "RmlUi_Include_GL3.h"
+#include "GL.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -106,7 +109,13 @@ void main() {
 bool CompileStage(GLenum type, const char* source, GLuint& out_shader, std::string& error)
 {
 	out_shader = glCreateShader(type);
+#ifdef __EMSCRIPTEN__
+	// The same source under an ES header, which has to replace the desktop #version line.
+	const char* const sources[] = {"#version 300 es\nprecision highp float;\n", std::strchr(source, '\n') + 1};
+	glShaderSource(out_shader, 2, sources, nullptr);
+#else
 	glShaderSource(out_shader, 1, &source, nullptr);
+#endif
 	glCompileShader(out_shader);
 
 	GLint status = GL_FALSE;

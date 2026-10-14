@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.0.1",
+	"VersionName": "1.0.0",
 	"FriendlyName": "Folio",
 	"Description": "Build game UI in markup and stylesheets, with a live preview that lays out exactly as the engine does. Text and vector art are distance fields, so a screen stays sharp at any size or DPI. The same document runs diegetically in the world - drawn after tonemapping, as scene geometry, or onto a surface - readable and interactive from across the room.",
 	"Category": "UI",

@@ -31,6 +31,66 @@ public class RmlUiLibrary : ModuleRules
 		"It needs Visual Studio 2022 on Windows, Xcode, CMake and Ninja on a Mac, or the engine's\n" +
 		"Linux toolchain, CMake and Ninja on Linux, and takes a few minutes on a cold tree.";
 
+	/// <summary>The patches Folio applies to RmlUi, which the libraries must have been built with.</summary>
+	private string PatchDirectory => Path.Combine(ModuleDirectory, "..", "..", "..", "patches", "RmlUi");
+
+	/// <summary>
+	/// Names what differs between the patches the libraries were built with, recorded by build_ue_libs.sh
+	/// as RMLUI_PATCHES beside them, and the patches in the tree; null when they match. Only libraries
+	/// built inside the plugin are checked, since a platform that builds them elsewhere stamps them its own way.
+	/// </summary>
+	private string StalePatches(string LibraryPath)
+	{
+		if (!Path.GetFullPath(LibraryPath).StartsWith(Path.GetFullPath(ModuleDirectory)))
+		{
+			return null;
+		}
+
+		var Expected = new System.Collections.Generic.List<string>();
+		if (Directory.Exists(PatchDirectory))
+		{
+			string[] Patches = Directory.GetFiles(PatchDirectory, "*.patch");
+			System.Array.Sort(Patches, System.StringComparer.Ordinal);
+			foreach (string Patch in Patches)
+			{
+				using (var Sha = System.Security.Cryptography.SHA256.Create())
+				{
+					string Hash = System.BitConverter.ToString(Sha.ComputeHash(File.ReadAllBytes(Patch))).Replace("-", "").ToLowerInvariant();
+					Expected.Add(Path.GetFileName(Patch) + " " + Hash);
+				}
+			}
+		}
+
+		string StampPath = Path.Combine(LibraryPath, "RMLUI_PATCHES");
+		var Built = new System.Collections.Generic.List<string>();
+		if (File.Exists(StampPath))
+		{
+			foreach (string Line in File.ReadAllLines(StampPath))
+			{
+				if (Line.Trim().Length > 0)
+				{
+					Built.Add(Line.Trim());
+				}
+			}
+		}
+
+		foreach (string Line in Expected)
+		{
+			if (!Built.Contains(Line))
+			{
+				return "missing or changed: " + Line.Split(' ')[0];
+			}
+		}
+		foreach (string Line in Built)
+		{
+			if (!Expected.Contains(Line))
+			{
+				return "no longer in the tree: " + Line.Split(' ')[0];
+			}
+		}
+		return null;
+	}
+
 	public RmlUiLibrary(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
@@ -43,6 +103,22 @@ public class RmlUiLibrary : ModuleRules
 			throw new BuildException(
 				"RmlUi has not been built for " + LibraryPlatform + ".\n" +
 				"Expected: " + LibraryPath + "\n" +
+				BuildInstructions);
+		}
+
+		// So a pull that changes the patches re-runs these rules rather than reusing the cached makefile.
+		ExternalDependencies.Add(Path.Combine(LibraryPath, "RMLUI_PATCHES"));
+		if (Directory.Exists(PatchDirectory))
+		{
+			ExternalDependencies.Add(PatchDirectory);
+			ExternalDependencies.AddRange(Directory.GetFiles(PatchDirectory, "*.patch"));
+		}
+
+		string Stale = StalePatches(LibraryPath);
+		if (Stale != null)
+		{
+			throw new BuildException(
+				"RmlUi for " + LibraryPlatform + " was built without the patches now in Plugins/Folio/patches/RmlUi (" + Stale + ").\n" +
 				BuildInstructions);
 		}
 

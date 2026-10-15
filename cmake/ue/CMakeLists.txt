@@ -134,12 +134,25 @@ FetchContent_MakeAvailable(RmlUi msdfgen)
 #
 set(FOLIO_STAGE "${FOLIO_STAGE_ROOT}/RmlUiLibrary")
 
+# One line per patch the libraries were built with, which RmlUiLibrary.Build.cs compares against the
+# patches in the tree, so a pull that adds or changes one asks for a rebuild instead of failing to compile.
+file(GLOB FOLIO_RMLUI_PATCHES CONFIGURE_DEPENDS "${FOLIO_ROOT}/patches/RmlUi/*.patch")
+list(SORT FOLIO_RMLUI_PATCHES)
+set(FOLIO_RMLUI_PATCH_STAMP "")
+foreach(patch IN LISTS FOLIO_RMLUI_PATCHES)
+	get_filename_component(name "${patch}" NAME)
+	file(SHA256 "${patch}" hash)
+	string(APPEND FOLIO_RMLUI_PATCH_STAMP "${name} ${hash}\n")
+endforeach()
+file(WRITE "${CMAKE_BINARY_DIR}/RMLUI_PATCHES" "${FOLIO_RMLUI_PATCH_STAMP}")
+
 add_custom_target(folio_stage ALL
 	COMMAND ${CMAKE_COMMAND} -E rm -rf "${FOLIO_STAGE}/include"
 	COMMAND ${CMAKE_COMMAND} -E copy_directory "${rmlui_SOURCE_DIR}/Include" "${FOLIO_STAGE}/include"
 	COMMAND ${CMAKE_COMMAND} -E make_directory "${FOLIO_STAGE}/lib/${FOLIO_UE_PLATFORM}"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
 		"$<TARGET_FILE:rmlui_core>" "$<TARGET_FILE:rmlui_debugger>" "${FOLIO_STAGE}/lib/${FOLIO_UE_PLATFORM}/"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/RMLUI_PATCHES" "${FOLIO_STAGE}/lib/${FOLIO_UE_PLATFORM}/"
 	DEPENDS rmlui_core rmlui_debugger
 	COMMENT "Staging RmlUi into Source/ThirdParty/RmlUiLibrary"
 	VERBATIM

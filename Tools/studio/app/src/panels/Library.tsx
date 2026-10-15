@@ -6,10 +6,11 @@ import { insertNear } from '../edit/commands';
 import { basename, dirname, extension, stem } from '../paths';
 import { copyLibraryDocument, isLibraryDocument, openDocument, openFile, store } from '../session';
 
-const GROUPS: { title: string; directory: string; hint: string }[] = [
+/** A reference group only opens in Code: its `.rml` is a template, not a screen. */
+const GROUPS: { title: string; directory: string; hint: string; reference?: boolean }[] = [
 	{ title: 'Recipes', directory: 'rcss/recipes', hint: 'Complete screens to start from.' },
 	{ title: 'Examples', directory: 'examples', hint: 'Single techniques, shown working.' },
-	{ title: 'Component styles', directory: 'rcss/lib', hint: 'The classes every document gets from lib.rml.' },
+	{ title: 'Component styles', directory: 'rcss/lib', hint: 'The classes every document gets from lib.rml.', reference: true },
 ];
 
 function Palette() {
@@ -50,8 +51,8 @@ export function LibraryPanel() {
 	if (!project) return <div className="panel empty">No project open.</div>;
 
 	const previewing = documentPath && isLibraryDocument(documentPath) ? documentPath : null;
-	const preview = (file: string) => {
-		if (extension(file) === '.rml') {
+	const preview = (file: string, isDocument: boolean) => {
+		if (isDocument) {
 			openDocument(file);
 			showPanel('canvas');
 		} else {
@@ -88,22 +89,22 @@ export function LibraryPanel() {
 					<section key={group.title}>
 						<h3>{group.title}</h3>
 						<p className="dim">{group.hint}</p>
-						{entries.map((file) => (
+						{entries.map((file) => {
+							const isDocument = !group.reference && extension(file) === '.rml';
+							return (
 							<div
 								key={file}
 								className={'tree-row file' + (file === documentPath ? ' selected' : '')}
-								title={extension(file) === '.rml' ? 'Click to preview. Use copies it into your project.' : 'Open in Code'}
-								onClick={() => preview(file)}
+								title={isDocument ? 'Click to preview. Use copies it into your project.' : 'Open in Code'}
+								onClick={() => preview(file, isDocument)}
 								onContextMenu={async (event) => {
 									event.preventDefault();
-									const isDocument = extension(file) === '.rml';
 									const chosen = await popup([
-										{ id: 'use', label: 'Use as a New Document', enabled: isDocument },
-										{ id: 'preview', label: 'Preview on the Canvas', enabled: isDocument },
+										...(isDocument ? [{ id: 'use', label: 'Use as a New Document' }, { id: 'preview', label: 'Preview on the Canvas' }] : []),
 										{ id: 'code', label: 'Open in Code' },
 									]);
 									if (chosen === 'use') copyLibraryDocument(file, stem(file));
-									else if (chosen === 'preview') preview(file);
+									else if (chosen === 'preview') preview(file, true);
 									else if (chosen === 'code') {
 										openFile(file);
 										showPanel('code');
@@ -111,7 +112,7 @@ export function LibraryPanel() {
 								}}
 							>
 								<span className="grow">{stem(file)}</span>
-								{extension(file) === '.rml' && (
+								{isDocument && (
 									<button
 										className="row-action"
 										title={'Copy to UI/screens/' + basename(file) + ' and open it'}
@@ -124,7 +125,8 @@ export function LibraryPanel() {
 									</button>
 								)}
 							</div>
-						))}
+							);
+						})}
 					</section>
 				);
 			})}

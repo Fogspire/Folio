@@ -119,9 +119,16 @@ export function CodePanel() {
 			const id = element && source ? source.map.ids.get(element)?.[0] : undefined;
 			if (id !== undefined && id !== state.selection) select(id);
 		});
+		// Monaco measures character widths once, so a face that finishes loading afterwards draws text
+		// wider than the caret thinks it is.
+		const remeasure = () => monaco.editor.remeasureFonts();
+		document.fonts.addEventListener('loadingdone', remeasure);
 		marks.current = instance.createDecorationsCollection();
 		editor.current = instance;
-		return () => instance.dispose();
+		return () => {
+			document.fonts.removeEventListener('loadingdone', remeasure);
+			instance.dispose();
+		};
 	}, []);
 
 	useEffect(() => {

@@ -3,6 +3,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "FolioAccessibility.h"
+#include "FolioAccessibilityLibrary.h"
 #include "FolioAccessibilityReview.h"
 #include "FolioDocumentHost.h"
 #include "FolioModule.h"

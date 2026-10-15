@@ -253,6 +253,14 @@ select {
 	padding: 2px 9px;
 }
 
+.build-notice {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-right: 8px;
+	padding-right: 3px;
+}
+
 .version {
 	color: var(--text-faint);
 	font-family: var(--mono);

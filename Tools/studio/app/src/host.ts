@@ -27,6 +27,11 @@ export interface TreeFile {
 	size: number;
 }
 
+export interface BuildStatus {
+	libraries: string | null;
+	preview: string | null;
+}
+
 export interface UpdateStatus {
 	current: string;
 	latest: string | null;

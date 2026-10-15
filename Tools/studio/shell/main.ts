@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createShortcuts } from './shortcuts';
+import { BUILD_SCRIPTS, checkBuilds } from './builds';
 import { checkForUpdates } from './updates';
 import type { IPty } from '@lydell/node-pty';
 
@@ -158,12 +159,45 @@ function terminalShell(preferred = '', preferredArguments = ''): { file: string;
 	if (chosen) return { file: chosen, args: preferredArguments.split(/\s+/).filter(Boolean) };
 	if (process.platform !== 'win32') return { file: process.env.SHELL || '/bin/bash', args: ['-l'] };
 
+	const bash = gitBash();
+	if (bash) return { file: bash, args: ['--login', '-i'] };
+	return { file: 'powershell.exe', args: ['-NoLogo'] };
+}
+
+/** Git for Windows' bash, which Folio's scripts are written for. Null when it is not installed. */
+function gitBash(): string | null {
 	const roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs')];
 	for (const base of roots) {
 		const bash = base ? path.join(base, 'Git', 'bin', 'bash.exe') : '';
-		if (bash && fs.existsSync(bash)) return { file: bash, args: ['--login', '-i'] };
+		if (bash && fs.existsSync(bash)) return bash;
 	}
-	return { file: 'powershell.exe', args: ['-NoLogo'] };
+	return null;
+}
+
+/** Starts a process in a pseudo-terminal whose output and exit the page receives by id, or says why it could not. */
+function spawnTerminal(file: string, args: string[], directory: string, cols: number, rows: number): number | string {
+	try {
+		const pty: typeof import('@lydell/node-pty') = require('@lydell/node-pty');
+		const id = nextTerminal++;
+		const terminal = pty.spawn(file, args, {
+			name: 'xterm-256color',
+			cols: Math.max(2, cols),
+			rows: Math.max(2, rows),
+			cwd: fs.existsSync(directory) ? directory : app.getPath('home'),
+			env: process.env as Record<string, string>,
+		});
+		terminals.set(id, terminal);
+		terminal.onData((data) => {
+			if (window && !window.isDestroyed()) window.webContents.send('terminal-data', id, data);
+		});
+		terminal.onExit(() => {
+			terminals.delete(id);
+			if (window && !window.isDestroyed()) window.webContents.send('terminal-exit', id);
+		});
+		return id;
+	} catch (error) {
+		return 'The terminal could not start: ' + (error instanceof Error ? error.message : String(error));
+	}
 }
 
 function closeTerminals() {
@@ -509,30 +543,18 @@ function registerIpc() {
 	});
 
 	ipcMain.handle('terminal-open', (_event, directory: string, cols: number, rows: number, preferred?: string, preferredArguments?: string) => {
-		try {
-			const pty: typeof import('@lydell/node-pty') = require('@lydell/node-pty');
-			const { file, args } = terminalShell(preferred, preferredArguments);
-			const id = nextTerminal++;
-			const terminal = pty.spawn(file, args, {
-				name: 'xterm-256color',
-				cols: Math.max(2, cols),
-				rows: Math.max(2, rows),
-				cwd: fs.existsSync(directory) ? directory : app.getPath('home'),
-				env: process.env as Record<string, string>,
-			});
-			terminals.set(id, terminal);
-			terminal.onData((data) => {
-				if (window && !window.isDestroyed()) window.webContents.send('terminal-data', id, data);
-			});
-			terminal.onExit(() => {
-				terminals.delete(id);
-				if (window && !window.isDestroyed()) window.webContents.send('terminal-exit', id);
-			});
-			return id;
-		} catch (error) {
-			return 'The terminal could not start: ' + (error instanceof Error ? error.message : String(error));
-		}
+		const { file, args } = terminalShell(preferred, preferredArguments);
+		return spawnTerminal(file, args, directory, cols, rows);
 	});
+	// Only Folio's own build scripts, named rather than passed, so the page cannot run anything else this way.
+	ipcMain.handle('terminal-build', (_event, which: keyof typeof BUILD_SCRIPTS, cols: number, rows: number) => {
+		const script = project && BUILD_SCRIPTS[which];
+		if (!project || !script) return 'Nothing to build.';
+		const bash = process.platform === 'win32' ? gitBash() : '/bin/bash';
+		if (!bash) return `Git Bash was not found. Run ${script} from a bash shell in ${project.folioRoot}.`;
+		return spawnTerminal(bash, ['-c', `cd "${forward(project.folioRoot)}" && ./${script}`], project.folioRoot, cols, rows);
+	});
+	ipcMain.handle('check-builds', () => (project ? checkBuilds(project.folioRoot) : { libraries: null, preview: null }));
 	ipcMain.on('terminal-input', (_event, id: number, data: string) => terminals.get(id)?.write(data));
 	ipcMain.on('terminal-resize', (_event, id: number, cols: number, rows: number) => {
 		try {

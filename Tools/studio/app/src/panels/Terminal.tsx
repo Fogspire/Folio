@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useRef, useState } from 'react';
 import { host } from '../host';
-import { store } from '../session';
+import { checkBuilds, store } from '../session';
 
 /** A shell in the project's folder, for git, an agent, or anything else run from a command line. */
 export function TerminalPanel() {
@@ -15,6 +15,9 @@ export function TerminalPanel() {
 	const root = project?.root ?? null;
 	const fontSize = store.use((state) => state.settings.terminalFontSize);
 	const live = useRef<{ terminal: Terminal; fit: FitAddon } | null>(null);
+	const build = store.use((state) => state.terminalBuild);
+	/** Whether the running session is the requested build, so the request starts one session, not two. */
+	const building = useRef(false);
 
 	useEffect(() => {
 		if (!live.current) return;
@@ -56,7 +59,14 @@ export function TerminalPanel() {
 		const offExit = host.onTerminalExit((from) => {
 			if (from !== id) return;
 			id = null;
-			terminal.write('\r\n[the shell exited; press any key for a new one]\r\n');
+			if (building.current) {
+				building.current = false;
+				store.set({ terminalBuild: null });
+				checkBuilds();
+				terminal.write('\r\n[the build finished; press any key for a shell]\r\n');
+			} else {
+				terminal.write('\r\n[the shell exited; press any key for a new one]\r\n');
+			}
 		});
 		terminal.onData((data) => {
 			if (id !== null) host.terminalInput(id, data);
@@ -65,8 +75,19 @@ export function TerminalPanel() {
 		terminal.onResize(({ cols, rows }) => { if (id !== null) host.terminalResize(id, cols, rows); });
 
 		const { terminalShell, terminalArguments } = store.get().settings;
-		host.terminalOpen(root, terminal.cols, terminal.rows, terminalShell, terminalArguments).then((opened) => {
-			if (typeof opened === 'string') return setError(opened);
+		const requested = store.get().terminalBuild;
+		building.current = requested !== null;
+		const opening = requested
+			? host.terminalBuild(requested, terminal.cols, terminal.rows)
+			: host.terminalOpen(root, terminal.cols, terminal.rows, terminalShell, terminalArguments);
+		opening.then((opened) => {
+			if (typeof opened === 'string') {
+				if (building.current) {
+					building.current = false;
+					store.set({ terminalBuild: null });
+				}
+				return setError(opened);
+			}
 			if (closed) return host.terminalClose(opened);
 			id = opened;
 		});
@@ -87,6 +108,11 @@ export function TerminalPanel() {
 			terminal.dispose();
 		};
 	}, [root, session]);
+
+	// A build asked for while a shell is already open replaces it.
+	useEffect(() => {
+		if (build && !building.current) setSession((value) => value + 1);
+	}, [build]);
 
 	if (!root) return <div className="panel empty">No project open.</div>;
 	return (

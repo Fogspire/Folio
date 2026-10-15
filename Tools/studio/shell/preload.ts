@@ -23,6 +23,9 @@ const host = {
 	reveal: (target: string) => ipcRenderer.invoke('reveal', target),
 	openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 	checkUpdates: () => ipcRenderer.invoke('check-updates'),
+	checkBuilds: (): Promise<{ libraries: string | null; preview: string | null }> => ipcRenderer.invoke('check-builds'),
+	terminalBuild: (which: 'libraries' | 'preview', cols: number, rows: number): Promise<number | string> =>
+		ipcRenderer.invoke('terminal-build', which, cols, rows),
 	onFilesChanged: (callback: (paths: string[]) => void) => {
 		ipcRenderer.on('files-changed', (_event, paths: string[]) => callback(paths));
 	},

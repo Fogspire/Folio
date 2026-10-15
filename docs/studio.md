@@ -54,6 +54,7 @@ If the game is running in the editor, saving in Studio hot-reloads the document 
 | An edit to a property seems ignored | The value is set by a rule Folio ships, shown in italics. Studio never edits those; it writes an override to your own rule instead. Check the rule order in your stylesheet. |
 | A blur that reaches the edge of the screen looks slightly different from the game | A known difference in Studio's renderer. See [known gaps](known_gaps.md). Everything else matches `uipreview` to within two colour levels. |
 | macOS says the packaged app cannot be opened | It is unsigned. Right-click it, choose Open, and confirm once. `studio.sh run` has no such step. |
+| "Folio's Unreal libraries need rebuilding" or "uipreview needs rebuilding" | A pull changed what they are built from. Click **Rebuild**: it runs the build script in **Terminal**, and the notice clears when it succeeds. It needs Git Bash on Windows and the same tools as running `scripts/build_ue_libs.sh` or `scripts/build.sh` yourself. Close the Unreal editor before rebuilding the libraries. |
 | No update notice ever appears | Releases are found by tag. Run `git ls-remote --tags origin` in the checkout: if that fails or lists nothing like `v1.2.3`, there is nothing to find. |
 
 To see what the renderer printed while loading a document, start Studio from a terminal: its diagnostics go to **Problems**, and anything else to that terminal.

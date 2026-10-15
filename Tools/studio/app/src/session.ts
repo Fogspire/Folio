@@ -1,7 +1,7 @@
 import type { Dialog } from './Dialogs';
 import type { Target } from './edit/target';
 import { Diagnostic, EngineClient, Inspection, TreeNode } from './engine';
-import { host, HostState, ProjectInfo, TreeFile, UpdateStatus } from './host';
+import { BuildStatus, host, HostState, ProjectInfo, TreeFile, UpdateStatus } from './host';
 import { COMMANDS, keysFor, toAccelerator } from './keys';
 import { languageFor, monaco } from './monaco';
 import { basename, dirname, extension, isUnder, join, relativeTo, stem } from './paths';
@@ -52,6 +52,10 @@ export interface State {
 	themes: string[];
 	culture: string;
 	update: UpdateStatus | null;
+	/** Which of the Folio checkout's own builds are behind its sources, and why. */
+	builds: BuildStatus;
+	/** A build the Terminal panel is asked to run in place of a shell. */
+	terminalBuild: keyof BuildStatus | null;
 	status: string;
 	/** Every status message shown this session, oldest first, so one that was replaced can still be read. */
 	messages: { time: number; text: string }[];
@@ -97,6 +101,8 @@ export const store = createStore<State>({
 	themes: [],
 	culture: '',
 	update: null,
+	builds: { libraries: null, preview: null },
+	terminalBuild: null,
 	status: '',
 	messages: [],
 	hint: '',
@@ -218,6 +224,11 @@ async function mirror(hostDirectory: string, wasmDirectory: string): Promise<voi
 	host.watch(hostDirectory);
 }
 
+/** Looks again at whether the Folio checkout's builds are behind its sources. */
+export async function checkBuilds() {
+	store.set({ builds: await host.checkBuilds() });
+}
+
 function setStatus(status: string) {
 	store.set({ status });
 }
@@ -330,6 +341,7 @@ export async function openProject(root: string, initialDocument: string | null =
 	const [projectFiles, libraryFiles] = await Promise.all([listProjectFiles(project), listLibraryFiles(project)]);
 	store.set({ projectFiles, libraryFiles });
 	setStatus('');
+	checkBuilds();
 
 	const first = initialDocument
 		? (initialDocument.includes(':') || initialDocument.startsWith('/') ? initialDocument.replace(/\\/g, '/') : join(project.root, initialDocument))

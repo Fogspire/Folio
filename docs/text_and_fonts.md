@@ -72,6 +72,8 @@ Four, and they are the only way to get a text shadow - `text-shadow` does not ex
 
 All four are resolved from the field's true-distance channel rather than baked into extra glyph textures, so each costs one more quad per glyph and no atlas at all.
 
+Widths and offsets take `dp`, `px` or `em`. Write them in `dp` like everything else and they keep their proportion to the text at every UI scale; `px` stays the same number of pixels whatever the scale.
+
 **Their reach is bounded, and the bound is in em, not pixels** - currently 0.104em at the default atlas settings. `outline(2px)` is a twentieth of an em on 40dp text and well inside it; on 13dp text it is a sixth of an em and gets clamped, with a warning naming the limit.
 
 Clamping is a hard limit, not a soft one. An effect asked for at three times the cap looks identical to one asked for at the cap. **Size an effect against the text it decorates**, and check small text specifically. To go wider, raise `pxrange` when baking, at a quadratic cost in atlas area.

@@ -633,6 +633,12 @@ namespace Folio
 	Rml::FontEffectsHandle FFolioFontEngine::PrepareFontEffects(const Rml::FontFaceHandle FaceHandle,
 		const Rml::FontEffectList& FontEffects)
 	{
+		return PrepareFontEffects(FaceHandle, FontEffects, 1.0f);
+	}
+
+	Rml::FontEffectsHandle FFolioFontEngine::PrepareFontEffects(const Rml::FontFaceHandle FaceHandle,
+		const Rml::FontEffectList& FontEffects, const float DpRatio)
+	{
 		const FHandle* Resolved = ResolveHandle(FaceHandle);
 		if (Resolved == nullptr || FontEffects.empty())
 		{
@@ -642,6 +648,15 @@ namespace Folio
 		// Sizes are written against the font size and the field is indexed in em, so everything
 		// converts once, here, rather than at every glyph.
 		const float ToEm = Resolved->Size > 0 ? 1.0f / float(Resolved->Size) : 0.0f;
+		const auto ToPx = [&](const float Value, const Rml::Unit Unit)
+		{
+			switch (Unit)
+			{
+			case Rml::Unit::DP: return Value * DpRatio;
+			case Rml::Unit::EM: return Value * float(Resolved->Size);
+			default: return Value;
+			}
+		};
 
 		std::vector<FEffectLayer> Layers;
 
@@ -663,13 +678,13 @@ namespace Folio
 			// Effect colours are authored straight and the meshes want premultiplied, the same
 			// conversion RmlUi applies to a text colour before it reaches here.
 			Layer.Colour = Folio->GetColour().ToPremultiplied();
-			Layer.OffsetX = Folio->OffsetX;
-			Layer.OffsetY = Folio->OffsetY;
+			Layer.OffsetX = ToPx(Folio->OffsetX, Folio->OffsetXUnit);
+			Layer.OffsetY = ToPx(Folio->OffsetY, Folio->OffsetYUnit);
+			Layer.Params.FillSizePx = ToPx(Folio->Params.FillSizePx, Folio->FillSizeUnit);
 
-			// Widths arrive in the length units the stylesheet used, which resolve against the font
-			// size, so they become em first.
-			float OffsetEm = Folio->Params.OffsetEm * ToEm;
-			float SoftnessEm = Folio->Params.SoftnessEm * ToEm;
+			// Widths arrive in the units the stylesheet used and the field is indexed in em.
+			float OffsetEm = ToPx(Folio->Params.OffsetEm, Folio->OffsetUnit) * ToEm;
+			float SoftnessEm = ToPx(Folio->Params.SoftnessEm, Folio->SoftnessUnit) * ToEm;
 
 			// The field only describes distance out to half its range, and the last texel of that
 			// is needed for the effect's own edge to fade out in, so an effect cannot reach as far

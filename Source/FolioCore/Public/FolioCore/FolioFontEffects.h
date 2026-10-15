@@ -34,6 +34,14 @@ namespace Folio
 		/// when the string is generated.
 		float OffsetX = 0.0f;
 		float OffsetY = 0.0f;
+
+		/// The unit each length in Params and the offsets was written in. They are resolved when the
+		/// effect is prepared for a face, since only then are the font size and the dp ratio known.
+		Rml::Unit OffsetUnit = Rml::Unit::PX;
+		Rml::Unit SoftnessUnit = Rml::Unit::PX;
+		Rml::Unit OffsetXUnit = Rml::Unit::PX;
+		Rml::Unit OffsetYUnit = Rml::Unit::PX;
+		Rml::Unit FillSizeUnit = Rml::Unit::PX;
 	};
 
 	/// Recognises one of ours without RTTI, which Unreal's RmlUi does not have. The registry lives
@@ -69,6 +77,11 @@ namespace Folio
 			return Property != nullptr ? Property->Get<float>() : Fallback;
 		}
 
+		inline Rml::Unit UnitOf(const Rml::Property* Property)
+		{
+			return Property != nullptr ? Property->unit : Rml::Unit::PX;
+		}
+
 		/// Property specifications are copied from RmlUi's own instancers, so markup written
 		/// against the documented effects keeps parsing exactly as before. Only what the effect
 		/// does with the parsed values differs.
@@ -92,6 +105,7 @@ namespace Folio
 				// engine, which is what knows the size the handle was cut at.
 				Effect->Params.Effect = EMsdfEffect::Outline;
 				Effect->Params.OffsetEm = ToLength(Properties.GetProperty(IdWidth), 1.0f);
+				Effect->OffsetUnit = UnitOf(Properties.GetProperty(IdWidth));
 				Effect->Params.SoftnessEm = 0.0f;
 				ApplyColour(*Effect, Properties.GetProperty(IdColour));
 				return Effect;
@@ -127,10 +141,14 @@ namespace Folio
 
 				Effect->Params.Effect = EMsdfEffect::Glow;
 				Effect->Params.OffsetEm = Outline;
+				Effect->OffsetUnit = UnitOf(Properties.GetProperty(IdWidthOutline));
 				// A negative blur width means "the same as the outline", which is RmlUi's default.
 				Effect->Params.SoftnessEm = Blur < 0.0f ? Outline : Blur;
+				Effect->SoftnessUnit = Blur < 0.0f ? Effect->OffsetUnit : UnitOf(Properties.GetProperty(IdWidthBlur));
 				Effect->OffsetX = ToLength(Properties.GetProperty(IdOffsetX), 0.0f);
 				Effect->OffsetY = ToLength(Properties.GetProperty(IdOffsetY), 0.0f);
+				Effect->OffsetXUnit = UnitOf(Properties.GetProperty(IdOffsetX));
+				Effect->OffsetYUnit = UnitOf(Properties.GetProperty(IdOffsetY));
 				ApplyColour(*Effect, Properties.GetProperty(IdColour));
 				return Effect;
 			}
@@ -165,6 +183,8 @@ namespace Folio
 				Effect->Params.Effect = EMsdfEffect::Fill;
 				Effect->OffsetX = ToLength(Properties.GetProperty(IdOffsetX), 0.0f);
 				Effect->OffsetY = ToLength(Properties.GetProperty(IdOffsetY), 0.0f);
+				Effect->OffsetXUnit = UnitOf(Properties.GetProperty(IdOffsetX));
+				Effect->OffsetYUnit = UnitOf(Properties.GetProperty(IdOffsetY));
 				ApplyColour(*Effect, Properties.GetProperty(IdColour));
 				return Effect;
 			}
@@ -196,6 +216,7 @@ namespace Folio
 				Effect->Params.Effect = EMsdfEffect::Glow;
 				Effect->Params.OffsetEm = 0.0f;
 				Effect->Params.SoftnessEm = ToLength(Properties.GetProperty(IdWidth), 1.0f);
+				Effect->SoftnessUnit = UnitOf(Properties.GetProperty(IdWidth));
 				ApplyColour(*Effect, Properties.GetProperty(IdColour));
 				return Effect;
 			}
@@ -242,6 +263,7 @@ namespace Folio
 				Effect->Params.Effect = EMsdfEffect::Fill;
 				Effect->Params.FillImage = Image->Get<Rml::String>();
 				Effect->Params.FillSizePx = ToLength(Properties.GetProperty(IdSize), 8.0f);
+				Effect->FillSizeUnit = UnitOf(Properties.GetProperty(IdSize));
 				ApplyColour(*Effect, Properties.GetProperty(IdColour));
 				return Effect;
 			}

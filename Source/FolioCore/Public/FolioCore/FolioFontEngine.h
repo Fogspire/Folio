@@ -87,6 +87,10 @@ namespace Folio
 		Rml::FontEffectsHandle PrepareFontEffects(Rml::FontFaceHandle Handle,
 			const Rml::FontEffectList& FontEffects) override;
 
+		/// Resolves lengths written in dp against DpRatio, and in em against the face's size.
+		Rml::FontEffectsHandle PrepareFontEffects(Rml::FontFaceHandle Handle,
+			const Rml::FontEffectList& FontEffects, float DpRatio) override;
+
 		const Rml::FontMetrics& GetFontMetrics(Rml::FontFaceHandle Handle) override;
 
 		int GetStringWidth(Rml::FontFaceHandle Handle, Rml::StringView String,

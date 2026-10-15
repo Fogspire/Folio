@@ -388,6 +388,12 @@ namespace Folio::Text
 			bSegmentsDirty = true;
 		}
 
+		/// Font effects written in dp are resolved against the ratio when segments are built.
+		void OnDpRatioChange() override
+		{
+			bSegmentsDirty = true;
+		}
+
 		void OnPropertyChange(const Rml::PropertyIdSet& Changed) override
 		{
 			Rml::Element::OnPropertyChange(Changed);
@@ -790,7 +796,8 @@ namespace Folio::Text
 				}
 			}
 
-			return Rml::GetFontEngineInterface()->PrepareFontEffects(Face, *Effects);
+			const Rml::Context* Context = Text->GetContext();
+			return Rml::GetFontEngineInterface()->PrepareFontEffects(Face, *Effects, Context ? Context->GetDensityIndependentPixelRatio() : 1.0f);
 		}
 
 		Rml::String Markup;

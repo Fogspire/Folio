@@ -1,0 +1,91 @@
+From: Folio
+Subject: [PATCH] Font effects: give the font engine the context's dp ratio
+
+    Font effects are instanced when the stylesheet is parsed, with no element in
+    reach, so a width written as 3dp arrives at the font engine as a bare 3 and is
+    drawn as 3 pixels at every ratio. Text written in dp then carries a glow twice
+    as wide relative to itself at half the ratio, and half as wide at double.
+
+    Text elements now pass their context's ratio through a second PrepareFontEffects
+    overload, which defaults to the original so other font engines are unaffected,
+    and re-prepare their effects when the ratio changes, since an effect in dp on
+    text sized in px would otherwise keep the old resolution.
+
+    Removable if RmlUi resolves font effect lengths against the element itself.
+---
+diff --git a/Include/RmlUi/Core/ElementText.h b/Include/RmlUi/Core/ElementText.h
+index b3c7ea88..d574cbea 100644
+--- a/Include/RmlUi/Core/ElementText.h
++++ b/Include/RmlUi/Core/ElementText.h
+@@ -62,6 +62,8 @@ protected:
+ 	void OnRender() override;
+ 
+ 	void OnPropertyChange(const PropertyIdSet& properties) override;
++	/// Font effects can be written in dp, which the font engine resolves against the context's ratio.
++	void OnDpRatioChange() override;
+ 
+ 	void GetRML(String& content) override;
+ 
+diff --git a/Include/RmlUi/Core/FontEngineInterface.h b/Include/RmlUi/Core/FontEngineInterface.h
+index ba3af6a3..d137ca37 100644
+--- a/Include/RmlUi/Core/FontEngineInterface.h
++++ b/Include/RmlUi/Core/FontEngineInterface.h
+@@ -61,6 +61,14 @@ public:
+ 	/// @return A handle to the prepared font effects which will be used when generating geometry for a string.
+ 	virtual FontEffectsHandle PrepareFontEffects(FontFaceHandle handle, const FontEffectList& font_effects);
+ 
++	/// Called by text elements in place of the overload above, with the density-independent pixel ratio of the
++	/// context the text is in, so effects written in dp can be resolved. Defaults to the overload above.
++	/// @param[in] handle The font handle.
++	/// @param[in] font_effects The list of font effects to generate the configuration for.
++	/// @param[in] dp_ratio The context's density-independent pixel ratio.
++	/// @return A handle to the prepared font effects which will be used when generating geometry for a string.
++	virtual FontEffectsHandle PrepareFontEffects(FontFaceHandle handle, const FontEffectList& font_effects, float dp_ratio);
++
+ 	/// Should return the font metrics of the given font face.
+ 	/// @param[in] handle The font handle.
+ 	/// @return The face's metrics.
+diff --git a/Source/Core/ElementText.cpp b/Source/Core/ElementText.cpp
+index 51c52889..c000fbf7 100644
+--- a/Source/Core/ElementText.cpp
++++ b/Source/Core/ElementText.cpp
+@@ -356,6 +356,12 @@ void ElementText::SuppressAutoLayout()
+ 	dirty_layout_on_change = false;
+ }
+ 
++void ElementText::OnDpRatioChange()
++{
++	font_effects_dirty = true;
++	geometry_dirty = true;
++}
++
+ void ElementText::OnPropertyChange(const PropertyIdSet& changed_properties)
+ {
+ 	RMLUI_ZoneScoped;
+@@ -467,7 +473,9 @@ bool ElementText::UpdateFontEffects()
+ 
+ 	// Request a font layer configuration to match this set of effects. If this is different from
+ 	// our old configuration, then return true to indicate we'll need to regenerate geometry.
+-	FontEffectsHandle new_font_effects_handle = GetFontEngineInterface()->PrepareFontEffects(GetFontFaceHandle(), *font_effects);
++	Context* context = GetContext();
++	const float dp_ratio = context ? context->GetDensityIndependentPixelRatio() : 1.f;
++	FontEffectsHandle new_font_effects_handle = GetFontEngineInterface()->PrepareFontEffects(GetFontFaceHandle(), *font_effects, dp_ratio);
+ 	if (new_font_effects_handle != font_effects_handle)
+ 	{
+ 		font_effects_handle = new_font_effects_handle;
+diff --git a/Source/Core/FontEngineInterface.cpp b/Source/Core/FontEngineInterface.cpp
+index 7fe1758b..1f945dc9 100644
+--- a/Source/Core/FontEngineInterface.cpp
++++ b/Source/Core/FontEngineInterface.cpp
+@@ -33,6 +33,11 @@ FontEffectsHandle FontEngineInterface::PrepareFontEffects(FontFaceHandle /*handl
+ 	return 0;
+ }
+ 
++FontEffectsHandle FontEngineInterface::PrepareFontEffects(FontFaceHandle handle, const FontEffectList& font_effects, float /*dp_ratio*/)
++{
++	return PrepareFontEffects(handle, font_effects);
++}
++
+ const FontMetrics& FontEngineInterface::GetFontMetrics(FontFaceHandle /*handle*/)
+ {
+ 	static const FontMetrics metrics = {};

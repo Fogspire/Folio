@@ -104,6 +104,8 @@ if [[ $clean -eq 1 && -d "$build_dir" ]]; then
 	rm -rf "$build_dir"
 fi
 
+folio_discard_moved_build "$build_dir"
+
 configure_args=(
 	"-DCMAKE_MAKE_PROGRAM=$(folio_tool_path "$FOLIO_NINJA")"
 	"-DCMAKE_BUILD_TYPE=$config"

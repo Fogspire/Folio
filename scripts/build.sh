@@ -71,6 +71,8 @@ if [[ $clean -eq 1 && -d "$build_dir" ]]; then
 	rm -rf "$build_dir"
 fi
 
+folio_discard_moved_build "$build_dir"
+
 configure_args=(
 	-G Ninja
 	"-DCMAKE_MAKE_PROGRAM=$(cygpath -m "$FOLIO_NINJA")"

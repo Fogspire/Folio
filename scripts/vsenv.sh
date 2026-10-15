@@ -171,6 +171,27 @@ folio_tool_path() {
 	if folio_is_windows; then cygpath -m "$1"; else echo "$1"; fi
 }
 
+# Removes a CMake build directory that was configured somewhere else, as one copied along with the
+# plugin from another project is. CMake refuses to reuse it, and nothing in it is worth keeping.
+folio_discard_moved_build() {
+	local cache="$1/CMakeCache.txt"
+	[[ -f "$cache" ]] || return 0
+	local made_in
+	made_in="$(sed -n 's/^CMAKE_CACHEFILE_DIR:INTERNAL=//p' "$cache" | tr -d '\r')"
+	local here
+	here="$(folio_tool_path "$1")"
+	local compared="$made_in"
+	# Windows paths differ in drive letter case alone, as x: and X: do.
+	if folio_is_windows; then
+		compared="$(echo "$made_in" | tr '[:upper:]' '[:lower:]')"
+		here="$(echo "$here" | tr '[:upper:]' '[:lower:]')"
+	fi
+	if [[ -n "$made_in" && "$compared" != "$here" ]]; then
+		echo "Removing $1, which was configured at $made_in"
+		rm -rf "$1"
+	fi
+}
+
 # Resolves the Unreal engine directory for the project this plugin sits in.
 #
 # Reads EngineAssociation from the .uproject and looks it up in the registry, which is where source

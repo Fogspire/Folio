@@ -106,6 +106,7 @@ build_engine() {
 	PATH="$(dirname "$FOLIO_CMAKE"):$(dirname "$FOLIO_NINJA"):$PATH"
 
 	local build_dir="$repo_root/build/wasm-Release"
+	folio_discard_moved_build "$build_dir"
 	echo "Configuring..."
 	"$FOLIO_CMAKE" -G Ninja \
 		"-DCMAKE_MAKE_PROGRAM=$(native_path "$FOLIO_NINJA")" \

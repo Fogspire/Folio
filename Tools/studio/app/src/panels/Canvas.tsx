@@ -9,6 +9,7 @@ import {
 } from '../edit/commands';
 import { Inspection, Rect, TreeNode } from '../engine';
 import { basename, extension, stem } from '../paths';
+import { BACKGROUNDS } from '../settings';
 import {
 	advanceTimeline, canvasScale, copyLibraryDocument, engine, findNode, isLibraryDocument, MIN_ZOOM, seekTimeline, select, setEditing, setHover,
 	setRenderScale, setTimelinePlaying, setViewport, setZoom, store, toggleTimeline, updateSettings,
@@ -266,6 +267,7 @@ function Toolbar({ scale }: { scale: number }) {
 			<button className={'button' + (timelineOpen ? ' active' : '')} title="Hold the document's clock, and play or scrub it from the first frame (Ctrl+Shift+T)" onClick={toggleTimeline}>
 				Timeline
 			</button>
+			<BackgroundPicker />
 			<label>
 				Zoom
 				<select value={String(zoom)} onChange={(event) => setZoom(event.target.value === 'fit' ? 'fit' : Number(event.target.value))}>
@@ -275,6 +277,31 @@ function Toolbar({ scale }: { scale: number }) {
 				</select>
 			</label>
 		</div>
+	);
+}
+
+/** What the canvas draws the document over, so a transparent document can be judged against light or dark. */
+function BackgroundPicker() {
+	const background = store.use((state) => state.settings.canvasBackground);
+	const custom = store.use((state) => state.settings.canvasCustomColour);
+	const isCustom = background !== 'none' && !BACKGROUNDS.some(([value]) => value === background);
+	return (
+		<label title="What the document is drawn over. None shows a checkerboard where it is transparent.">
+			Background
+			<select
+				value={isCustom ? 'custom' : background}
+				onChange={(event) => updateSettings({ canvasBackground: event.target.value === 'custom' ? custom : event.target.value })}
+			>
+				{BACKGROUNDS.map(([value, label]) => <option key={value} value={value}>{value === 'none' ? 'None' : label}</option>)}
+			</select>
+			{isCustom && (
+				<input
+					type="color"
+					value={background}
+					onChange={(event) => updateSettings({ canvasBackground: event.target.value, canvasCustomColour: event.target.value })}
+				/>
+			)}
+		</label>
 	);
 }
 
@@ -634,6 +661,7 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 	const mode = store.use((state) => state.mode);
 	const documentPath = store.use((state) => state.document);
 	const documentOpen = store.use((state) => state.documentOpen);
+	const background = store.use((state) => state.settings.canvasBackground);
 	const engineReady = store.use((state) => state.engineReady);
 	const renderScale = store.use((state) => state.renderScale);
 	const openFiles = store.use((state) => state.openFiles);
@@ -758,7 +786,7 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 			<TimelineBar />
 			{documentPath && isLibraryDocument(documentPath) && <LibraryBanner path={documentPath} />}
 			<div className={'canvas-viewport' + (panning ? ' panning' : '')} ref={viewport} onMouseDownCapture={startPan} onAuxClick={(event) => event.preventDefault()}>
-				<div className="canvas-stage" ref={stage} style={{ width: width * scale, height: height * scale, transform: pan.x || pan.y ? `translate(${pan.x}px, ${pan.y}px)` : undefined, visibility: documentOpen ? 'visible' : 'hidden' }}>
+				<div className={'canvas-stage' + (background === 'none' ? ' checker' : '')} ref={stage} style={{ background: background === 'none' ? undefined : background, width: width * scale, height: height * scale, transform: pan.x || pan.y ? `translate(${pan.x}px, ${pan.y}px)` : undefined, visibility: documentOpen ? 'visible' : 'hidden' }}>
 					<div
 						className={'canvas-surface' + (mode === 'play' ? ' playing' : '')}
 						ref={surface}

@@ -19,6 +19,9 @@ export interface Settings {
 	bakeBackground: string;
 	/** The colour last picked as Custom, kept while another background is chosen. */
 	bakeCustomColour: string;
+	/** What the canvas draws the document over: 'none' for a checkerboard showing transparency, or #rrggbb. */
+	canvasBackground: string;
+	canvasCustomColour: string;
 	/** Keys the person has chosen, by command. A command not listed keeps its defaults. */
 	keys: Record<string, string[]>;
 }
@@ -35,8 +38,13 @@ export const DEFAULT_SETTINGS: Settings = {
 	bakeSamples: 2,
 	bakeBackground: 'none',
 	bakeCustomColour: '#3c78b4',
+	canvasBackground: '#000000',
+	canvasCustomColour: '#3c78b4',
 	keys: {},
 };
+
+/** The backgrounds a bake or the canvas can be drawn over. 'custom' stands for a picked colour. */
+export const BACKGROUNDS: [string, string][] = [['none', 'None (transparent)'], ['#ffffff', 'White'], ['#000000', 'Black'], ['#808080', '50% grey'], ['custom', 'Custom']];
 
 const SETTINGS_KEY = 'folio.studio.settings';
 

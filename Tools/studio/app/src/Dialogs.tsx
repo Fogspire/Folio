@@ -5,7 +5,7 @@ import { host } from './host';
 import { assignKey, COMMANDS, commandInfo, comboOf, displayKey, keysFor, resetKey } from './keys';
 import { extension, isUnder, relativeTo } from './paths';
 import { answerDialog, bakeElement, bakeFolder, openDocument, openFile, store, updateSettings } from './session';
-import { DEFAULT_SETTINGS } from './settings';
+import { BACKGROUNDS, DEFAULT_SETTINGS } from './settings';
 
 export type Dialog =
 	| { kind: 'preferences' }
@@ -245,7 +245,6 @@ function Notice({ title, detail, buttons, preferred }: { title: string; detail: 
 }
 
 const SAMPLES = [1, 2, 4];
-const BACKGROUNDS: [string, string][] = [['none', 'None (transparent)'], ['#ffffff', 'White'], ['#000000', 'Black'], ['#808080', '50% grey'], ['custom', 'Custom']];
 
 /** Choices for a bake, before asking where to save it. */
 function Bake({ id, name, folder }: { id: string; name: string; folder?: string }) {

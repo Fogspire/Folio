@@ -906,6 +906,15 @@ export async function deleteFile(path: string): Promise<boolean> {
 	if (await ask('Delete ' + basename(path) + '?', 'It is moved to the trash.', ['Cancel', 'Delete'], 'Delete') !== 'Delete') return false;
 	if (!(await host.trash(path))) return false;
 
+	forgetFile(path);
+	for (const wasmPath of toWasm(path)) engine.removeFile(wasmPath);
+	store.set({ projectFiles: await listProjectFiles(project) });
+	setStatus('Moved ' + basename(path) + ' to the trash');
+	return true;
+}
+
+/** Closes a file that no longer exists and drops everything kept for it. */
+function forgetFile(path: string) {
 	closeFiles([path]);
 	models.get(key(path))?.dispose();
 	models.delete(key(path));
@@ -913,10 +922,7 @@ export async function deleteFile(path: string): Promise<boolean> {
 	pendingPush.delete(path);
 	const dirty = { ...store.get().dirty };
 	delete dirty[path];
-	for (const wasmPath of toWasm(path)) engine.removeFile(wasmPath);
-	store.set({ dirty, projectFiles: await listProjectFiles(project) });
-	setStatus('Moved ' + basename(path) + ' to the trash');
-	return true;
+	store.set({ dirty });
 }
 
 export async function save(path: string) {
@@ -985,7 +991,14 @@ async function onFilesChanged(paths: string[]) {
 
 		if (!data) {
 			// Deleted, or a directory. Either way the listing is what changed.
-			for (const wasmPath of wasmPaths) engine.removeFile(wasmPath);
+			if (!(await host.exists(path))) {
+				for (const wasmPath of wasmPaths) engine.removeFile(wasmPath);
+				// What was open from it closes, except a file with edits, which Save can put back.
+				const gone = store.get().openFiles.filter((file) => isUnder(path, file));
+				const edited = gone.filter((file) => store.get().dirty[file]);
+				for (const file of gone) if (!edited.includes(file)) forgetFile(file);
+				if (edited.length) setStatus(edited.map(basename).join(', ') + ' deleted on disk; Save writes your edits back');
+			}
 			relist = true;
 			continue;
 		}

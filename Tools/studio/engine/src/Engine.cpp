@@ -233,6 +233,8 @@ public:
 
 		// Latches the context into the backend's input callbacks, which the browser calls between frames.
 		Backend::ProcessEvents(app->GetContext());
+		// The backend is made by the app, so it starts with the default clear.
+		Backend::SetTransparentClear(transparent);
 		return true;
 	}
 
@@ -407,6 +409,8 @@ public:
 		options.bakes = {"#folio-studio-bake=" + path};
 		options.bake_margin = margin;
 		const bool ok = uipreview::RunBakes(options, *app, diagnostics);
+		// A bake turns the transparent clear off when it finishes, whatever the canvas had.
+		Backend::SetTransparentClear(transparent);
 		options.bakes.clear();
 		element->SetId(own_id);
 		if (own_id.empty())
@@ -414,7 +418,16 @@ public:
 		return ok;
 	}
 
+	/** Clears to nothing rather than black, so whatever is behind the canvas shows through. */
+	void SetTransparent(bool value)
+	{
+		transparent = value;
+		if (app)
+			Backend::SetTransparentClear(value);
+	}
+
 private:
+	bool transparent = false;
 	uipreview::Options options;
 	/** Declared before the app, which holds a reference to it. */
 	uipreview::Diagnostics diagnostics;
@@ -448,5 +461,6 @@ EMSCRIPTEN_BINDINGS(folio_engine)
 		.function("removeInlineProperty", &Engine::RemoveInlineProperty)
 		.function("screenshot", &Engine::Screenshot)
 		.function("step", &Engine::Step)
-		.function("bake", &Engine::Bake);
+		.function("bake", &Engine::Bake)
+		.function("setTransparent", &Engine::SetTransparent);
 }

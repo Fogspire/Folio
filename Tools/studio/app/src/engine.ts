@@ -69,6 +69,7 @@ interface NativeEngine {
 	screenshot(path: string): boolean;
 	step(seconds: number): void;
 	bake(id: string, path: string, margin: number): boolean;
+	setTransparent(value: boolean): void;
 }
 
 interface EngineModule {
@@ -77,7 +78,10 @@ interface EngineModule {
 		writeFile(path: string, data: Uint8Array | string): void;
 		readFile(path: string): Uint8Array;
 		unlink(path: string): void;
-		analyzePath(path: string): { exists: boolean };
+		rmdir(path: string): void;
+		readdir(path: string): string[];
+		isDir(mode: number): boolean;
+		analyzePath(path: string): { exists: boolean; object: { mode: number } | null };
 	};
 	Engine: new () => NativeEngine;
 	version(): string;
@@ -153,6 +157,8 @@ export class EngineClient {
 			preRun: [(module: { ENV: Record<string, string> }) => { module.ENV.FOLIO_ROOT = '/folio'; }],
 		});
 		this.native = new this.module.Engine();
+		// The canvas element's own background is what shows behind the document.
+		this.native.setTransparent(true);
 	}
 
 	private record(line: string) {
@@ -208,9 +214,14 @@ export class EngineClient {
 		fs.writeFile(path, data);
 	}
 
+	/** Removes a file, or a directory and everything in it. */
 	removeFile(path: string) {
 		const fs = this.module!.FS;
-		if (fs.analyzePath(path).exists) fs.unlink(path);
+		const found = fs.analyzePath(path);
+		if (!found.exists) return;
+		if (!found.object || !fs.isDir(found.object.mode)) return fs.unlink(path);
+		for (const entry of fs.readdir(path)) if (entry !== '.' && entry !== '..') this.removeFile(path + '/' + entry);
+		fs.rmdir(path);
 	}
 
 	readFile(path: string): Uint8Array {

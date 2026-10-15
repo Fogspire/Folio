@@ -359,10 +359,11 @@ export async function openDocument(path: string) {
 	if (token !== opening) return;
 
 	// A document that says what size it was designed for is shown at that size, as the engine's picker
-	// fills it in for whoever assigns the document.
+	// fills it in for whoever assigns the document, and at 1x: the size is in dp, and a surface or panel
+	// does not shrink with its own height the way a full-screen document follows the viewport.
 	// One that does not is shown as it last was, or at the default, never at the last document's size.
 	const declared = /<meta\s+name="folio-size"\s+content="(\d+)\s*x\s*(\d+)"/i.exec(peekModel(path)?.getValue() ?? '');
-	if (declared) store.set({ width: Number(declared[1]), height: Number(declared[2]), dpRatio: null });
+	if (declared) store.set({ width: Number(declared[1]), height: Number(declared[2]), dpRatio: 1 });
 	else store.set(documentSizes.get(key(path)) ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT, dpRatio: null });
 	reopen();
 }

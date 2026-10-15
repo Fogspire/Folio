@@ -2,8 +2,24 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useRef, useState } from 'react';
+import { popup } from '../commands';
 import { host } from '../host';
 import { checkBuilds, store } from '../session';
+
+/** Everything in the scrollback as plain text, with lines the terminal wrapped joined back up. */
+function bufferText(terminal: Terminal): string {
+	const buffer = terminal.buffer.active;
+	const lines: string[] = [];
+	for (let index = 0; index < buffer.length; index++) {
+		const line = buffer.getLine(index);
+		if (!line) continue;
+		const text = line.translateToString(true);
+		if (line.isWrapped && lines.length) lines[lines.length - 1] += text;
+		else lines.push(text);
+	}
+	while (lines.length && !lines[lines.length - 1]) lines.pop();
+	return lines.join('\n');
+}
 
 /** A shell in the project's folder, for git, an agent, or anything else run from a command line. */
 export function TerminalPanel() {
@@ -25,12 +41,16 @@ export function TerminalPanel() {
 		live.current.fit.fit();
 	}, [fontSize]);
 
+	/** The process the terminal is attached to, or null between one ending and Enter starting the next. */
+	const attached = useRef<number | null>(null);
+
 	useEffect(() => {
 		if (!root) return;
 		const terminal = new Terminal({
 			fontFamily: "'Roboto Mono', Consolas, Menlo, monospace",
 			fontSize: store.get().settings.terminalFontSize,
 			cursorBlink: true,
+			scrollback: 10000,
 			theme: { background: '#1c1c1c', foreground: '#d8d8d8', cursor: '#d8d8d8', selectionBackground: '#4a5560' },
 		});
 		const fit = new FitAddon();
@@ -38,10 +58,6 @@ export function TerminalPanel() {
 		terminal.open(container.current!);
 		fit.fit();
 		live.current = { terminal, fit };
-
-		let id: number | null = null;
-		let closed = false;
-		setError(null);
 
 		// Ctrl+C stays an interrupt, so copy is Ctrl+Shift+C. Paste is left to the browser, which hands it to the terminal.
 		terminal.attachCustomKeyEventHandler((event) => {
@@ -55,24 +71,46 @@ export function TerminalPanel() {
 			return key !== 'v';
 		});
 
-		const offData = host.onTerminalData((from, data) => { if (from === id) terminal.write(data); });
+		const offData = host.onTerminalData((from, data) => { if (from === attached.current) terminal.write(data); });
 		const offExit = host.onTerminalExit((from) => {
-			if (from !== id) return;
-			id = null;
+			if (from !== attached.current) return;
+			attached.current = null;
 			if (building.current) {
 				building.current = false;
 				store.set({ terminalBuild: null });
 				checkBuilds();
-				terminal.write('\r\n[the build finished; press any key for a shell]\r\n');
+				terminal.write('\r\n[the build finished; press Enter for a shell]\r\n');
 			} else {
-				terminal.write('\r\n[the shell exited; press any key for a new one]\r\n');
+				terminal.write('\r\n[the shell exited; press Enter for a new one]\r\n');
 			}
 		});
-		terminal.onData((data) => {
-			if (id !== null) host.terminalInput(id, data);
-			else if (!closed) setSession((value) => value + 1);
+		terminal.onData((data) => { if (attached.current !== null) host.terminalInput(attached.current, data); });
+		// Only Enter starts the next shell: focus and mouse reports arrive as data too, and would replace the output before it could be read.
+		terminal.onKey(({ domEvent }) => { if (attached.current === null && domEvent.key === 'Enter') setSession((value) => value + 1); });
+		terminal.onResize(({ cols, rows }) => { if (attached.current !== null) host.terminalResize(attached.current, cols, rows); });
+
+		const observer = new ResizeObserver(() => {
+			// A hidden panel has no size, and fitting to nothing would shrink the shell to one column.
+			if (container.current?.clientWidth) fit.fit();
 		});
-		terminal.onResize(({ cols, rows }) => { if (id !== null) host.terminalResize(id, cols, rows); });
+		observer.observe(container.current!);
+
+		return () => {
+			live.current = null;
+			observer.disconnect();
+			offData();
+			offExit();
+			terminal.dispose();
+		};
+	}, [root]);
+
+	useEffect(() => {
+		const terminal = live.current?.terminal;
+		if (!root || !terminal) return;
+		let closed = false;
+		setError(null);
+		// A new console clears the screen, so what the last one left on it is scrolled up out of the way first.
+		if (terminal.buffer.active.baseY + terminal.buffer.active.cursorY > 0) terminal.write('\r\n'.repeat(terminal.rows));
 
 		const { terminalShell, terminalArguments } = store.get().settings;
 		const requested = store.get().terminalBuild;
@@ -89,23 +127,14 @@ export function TerminalPanel() {
 				return setError(opened);
 			}
 			if (closed) return host.terminalClose(opened);
-			id = opened;
+			attached.current = opened;
 		});
-
-		const observer = new ResizeObserver(() => {
-			// A hidden panel has no size, and fitting to nothing would shrink the shell to one column.
-			if (container.current?.clientWidth) fit.fit();
-		});
-		observer.observe(container.current!);
 
 		return () => {
 			closed = true;
-			live.current = null;
-			observer.disconnect();
-			offData();
-			offExit();
-			if (id !== null) host.terminalClose(id);
-			terminal.dispose();
+			const running = attached.current;
+			attached.current = null;
+			if (running !== null) host.terminalClose(running);
 		};
 	}, [root, session]);
 
@@ -114,11 +143,30 @@ export function TerminalPanel() {
 		if (build && !building.current) setSession((value) => value + 1);
 	}, [build]);
 
+	const onMenu = async (event: React.MouseEvent) => {
+		event.preventDefault();
+		const terminal = live.current?.terminal;
+		if (!terminal) return;
+		const selected = terminal.getSelection();
+		const chosen = await popup([
+			{ id: 'copy', label: 'Copy', accelerator: 'Ctrl+Shift+C', enabled: !!selected },
+			{ id: 'all', label: 'Copy All Output' },
+			{ id: 'paste', label: 'Paste' },
+			{ separator: true },
+			{ id: 'clear', label: 'Clear' },
+		]);
+		if (chosen === 'copy') navigator.clipboard.writeText(selected);
+		else if (chosen === 'all') navigator.clipboard.writeText(bufferText(terminal));
+		else if (chosen === 'paste') terminal.paste(await navigator.clipboard.readText());
+		else if (chosen === 'clear') terminal.clear();
+		terminal.focus();
+	};
+
 	if (!root) return <div className="panel empty">No project open.</div>;
 	return (
 		<div className="panel terminal-panel">
 			{error && <div className="terminal-error">{error}</div>}
-			<div className="terminal-surface" ref={container} />
+			<div className="terminal-surface" ref={container} onContextMenu={onMenu} />
 		</div>
 	);
 }

@@ -1009,6 +1009,7 @@ select {
 .terminal-error {
 	padding: 8px 10px;
 	color: var(--text-dim);
+	user-select: text;
 }
 
 .asset-preview {

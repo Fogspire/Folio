@@ -578,7 +578,18 @@ function registerIpc() {
 	});
 
 	// Resolves with the id of the item chosen, or null when the menu was dismissed.
+	/** Set by a test script: the next context menu is answered with this id instead of being shown. */
+	let contextAnswer: { id: string; labels: (labels: string[]) => void } | null = null;
+	ipcMain.handle('test-context-menu', (_event, id: string) => new Promise<string[]>((labels) => { contextAnswer = { id, labels }; }));
+
 	ipcMain.handle('context-menu', (_event, items: ContextItem[]) => new Promise<string | null>((resolve) => {
+		if (contextAnswer) {
+			const flatten = (entries: ContextItem[]): string[] => entries.flatMap((entry) => [...(entry.label ? [entry.label] : []), ...flatten(entry.submenu ?? [])]);
+			contextAnswer.labels(flatten(items));
+			resolve(contextAnswer.id);
+			contextAnswer = null;
+			return;
+		}
 		let settled = false;
 		const settle = (id: string | null) => {
 			if (!settled) resolve(id);

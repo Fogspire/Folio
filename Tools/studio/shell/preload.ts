@@ -68,6 +68,7 @@ const host = {
 	testMenuChecked: (labels: string[]): Promise<boolean | null> => ipcRenderer.invoke('test-menu-checked', labels),
 	testMenu: (labels: string[], modifiers?: { ctrlKey?: boolean; shiftKey?: boolean }): Promise<boolean> => ipcRenderer.invoke('test-menu', labels, modifiers),
 	testMenuKey: (labels: string[]): Promise<string | null> => ipcRenderer.invoke('test-menu-key', labels),
+	testContextMenu: (id: string): Promise<string[]> => ipcRenderer.invoke('test-context-menu', id),
 	testLog: (line: string) => ipcRenderer.send('test-log', line),
 	quit: (code: number) => ipcRenderer.send('quit', code),
 };

@@ -1,8 +1,8 @@
 # Folio
 
-**Game UI for Unreal Engine 5, written as markup and stylesheets instead of widget graphs.** You author in HTML- and CSS-like text, see the real result outside the engine as you type, and ship it on screen or on any surface in the world, pin-sharp at every size.
+Custom UI Rendering Framework for Unreal Engine 5. HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. World-space UI unaffected by TAA/TSR. Surface projected UI. Lots of common game functionality out of the box.
 
-Folio is free, source included, and built to be the UI layer of a shipping game, from a solo project to a full production.
+Folio is free, source included, and built to be the UI layer of a shipping game, from a solo project to a full production, from indie to AAA.
 
 UE5.8+
 

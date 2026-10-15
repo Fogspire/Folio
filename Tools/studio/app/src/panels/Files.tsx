@@ -3,7 +3,7 @@ import { popup } from '../commands';
 import { showPanel } from '../dock';
 import { host } from '../host';
 import { basename, extension, join, relativeTo, stem } from '../paths';
-import { askBake, copyLibraryDocument, createFile, deleteFile, openDocument, openFile, store } from '../session';
+import { askBake, askBakeFolder, copyLibraryDocument, documentsIn, createFile, deleteFile, openDocument, openFile, store } from '../session';
 
 /** A file about to be made, waiting for its name. */
 interface Creating {
@@ -21,12 +21,15 @@ async function folderMenu(directory: string, begin: (creating: Creating) => void
 		{ label: 'New Document from Recipe', enabled: recipes.length > 0, submenu: recipes.map((file) => ({ id: 'recipe:' + file, label: stem(file) })) },
 		{ id: 'stylesheet', label: 'New Stylesheet…' },
 		{ separator: true },
+		{ id: 'bake', label: 'Bake Documents to PNG…', enabled: documentsIn(directory).length > 0 },
+		{ separator: true },
 		{ id: 'reveal', label: 'Show in the File Manager' },
 		{ id: 'path', label: 'Copy Path' },
 	]);
 	if (chosen === 'document') begin({ directory, kind: '.rml', recipe: null });
 	else if (chosen === 'stylesheet') begin({ directory, kind: '.rcss', recipe: null });
 	else if (chosen?.startsWith('recipe:')) begin({ directory, kind: '.rml', recipe: chosen.slice('recipe:'.length) });
+	else if (chosen === 'bake') askBakeFolder(directory);
 	else if (chosen === 'reveal') host.reveal(directory);
 	else if (chosen === 'path') navigator.clipboard.writeText(directory);
 }

@@ -50,11 +50,15 @@ function isInside(directory: string, target: string): boolean {
 	return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-/** Every file operation the page asks for is confined to the open project and the Folio it uses. */
+/** Folders the person picked in the system dialog this session, which the page may then write into. */
+const pickedFolders = new Set<string>();
+
+/** Every file operation the page asks for is confined to the open project, the Folio it uses, and folders the person picked. */
 function assertAllowed(target: string): string {
 	const resolved = path.resolve(target);
 	if (project && (isInside(project.root, resolved) || isInside(project.folioRoot, resolved))) return resolved;
 	if (isInside(bundledFolio, resolved)) return resolved;
+	for (const folder of pickedFolders) if (isInside(folder, resolved)) return resolved;
 	throw new Error('path is outside the open project: ' + target);
 }
 
@@ -357,6 +361,13 @@ function registerIpc() {
 			properties: ['openDirectory'],
 		});
 		return result.canceled ? null : result.filePaths[0];
+	});
+
+	ipcMain.handle('pick-folder', async (_event, title: string, start: string) => {
+		const result = await dialog.showOpenDialog(window!, { title, defaultPath: path.normalize(start), properties: ['openDirectory', 'createDirectory'] });
+		if (result.canceled) return null;
+		pickedFolders.add(path.resolve(result.filePaths[0]));
+		return forward(result.filePaths[0]);
 	});
 
 	ipcMain.handle('open-project', (_event, root: string) => {

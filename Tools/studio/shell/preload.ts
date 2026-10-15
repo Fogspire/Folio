@@ -12,6 +12,7 @@ interface ContextItem {
 const host = {
 	state: () => ipcRenderer.invoke('state'),
 	pickProject: () => ipcRenderer.invoke('pick-project'),
+	pickFolder: (title: string, start: string): Promise<string | null> => ipcRenderer.invoke('pick-folder', title, start),
 	openProject: (root: string) => ipcRenderer.invoke('open-project', root),
 	listTree: (directory: string) => ipcRenderer.invoke('list-tree', directory),
 	readTree: (directory: string) => ipcRenderer.invoke('read-tree', directory),

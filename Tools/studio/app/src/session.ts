@@ -655,6 +655,61 @@ export async function bakeElement(id: string, chosen?: string, samples = 1, back
 	}
 }
 
+/** The documents directly in a folder, not in the folders under it. */
+export function documentsIn(directory: string): string[] {
+	return store.get().projectFiles.filter((file) => extension(file) === '.rml' && key(dirname(file)) === key(directory));
+}
+
+/** Asks how to bake every document in a folder, then bakes them. */
+export function askBakeFolder(directory: string) {
+	const { project } = store.get();
+	const where = project && isUnder(project.root, directory) ? relativeTo(project.root, directory) : basename(directory);
+	store.set({ dialog: { kind: 'bake', id: '', name: 'every document in ' + where + '/', folder: directory } });
+}
+
+/** Bakes each document in a folder whole, at its own size, to a PNG of the same name in `into`. */
+export async function bakeFolder(directory: string, into: string, samples = 1, background: string | null = null) {
+	const { project, document: previous } = store.get();
+	if (!project) return;
+	const documents = documentsIn(directory);
+	const targets = new Map(documents.map((file) => [file, join(into, stem(file) + '.png')]));
+
+	const existing = new Set<string>();
+	for (const [file, target] of targets) if (await host.exists(target)) existing.add(file);
+	let skipped = 0;
+	if (existing.size) {
+		const names = [...existing].map((file) => basename(targets.get(file)!));
+		const title = (existing.size === 1 ? names[0] + ' exists' : existing.size + ' images exist') + ' already';
+		const choice = await ask(title, names.join(', '), ['Cancel', 'Skip Existing', 'Replace All']);
+		if (choice === 'Skip Existing') skipped = existing.size;
+		else if (choice !== 'Replace All') return;
+	}
+
+	const baked: string[] = [];
+	const refused: string[] = [];
+	for (const file of documents) {
+		if (skipped && existing.has(file)) continue;
+		setStatus(`Baking ${basename(file)}…`);
+		await openDocument(file);
+		const drawn = engine.isOpen ? engine.bake('', 0, samples) : null;
+		if (!drawn) {
+			const reason = engine.isOpen ? engine.diagnostics().filter((entry) => entry.code.startsWith('E-BAKE')).pop() : null;
+			refused.push(basename(file) + ': ' + (reason ? bakeRefusal(reason.code, reason.message, null) : 'it did not open. Problems may say why.'));
+			continue;
+		}
+		await host.writeFile(targets.get(file)!, await finishBake(drawn, samples, background));
+		baked.push(basename(targets.get(file)!));
+	}
+	if (previous) await openDocument(previous);
+
+	const where = isUnder(project.root, into) ? relativeTo(project.root, into) : into;
+	const summary = `Baked ${baked.length} of ${documents.length} into ${where}/` + (skipped ? `, skipped ${skipped} that existed.` : '.');
+	setStatus(summary);
+	const detail = [baked.join(', '), ...refused.map((line) => 'Not baked: ' + line)].filter(Boolean).join('\n\n');
+	const choice = await ask(summary, detail, ['Show in Folder', 'OK'], 'OK');
+	if (choice === 'Show in Folder') host.reveal(into);
+}
+
 export function setEditing(editing: string | null) {
 	if (store.get().editing !== editing) store.set({ editing });
 }

@@ -3,15 +3,15 @@ import { showPanel } from './dock';
 import { fuzzyMatch } from './fuzzy';
 import { host } from './host';
 import { assignKey, COMMANDS, commandInfo, comboOf, displayKey, keysFor, resetKey } from './keys';
-import { extension, relativeTo } from './paths';
-import { answerDialog, bakeElement, openDocument, openFile, store, updateSettings } from './session';
+import { extension, isUnder, relativeTo } from './paths';
+import { answerDialog, bakeElement, bakeFolder, openDocument, openFile, store, updateSettings } from './session';
 import { DEFAULT_SETTINGS } from './settings';
 
 export type Dialog =
 	| { kind: 'preferences' }
 	| { kind: 'keys' }
 	| { kind: 'assign'; command: string }
-	| { kind: 'bake'; id: string; name: string }
+	| { kind: 'bake'; id: string; name: string; folder?: string }
 	| { kind: 'go-to-file' }
 	| { kind: 'messages' }
 	| { kind: 'notice'; title: string; detail: string; buttons: string[]; default: string };
@@ -248,15 +248,32 @@ const SAMPLES = [1, 2, 4];
 const BACKGROUNDS: [string, string][] = [['none', 'None (transparent)'], ['#ffffff', 'White'], ['#000000', 'Black'], ['#808080', '50% grey'], ['custom', 'Custom']];
 
 /** Choices for a bake, before asking where to save it. */
-function Bake({ id, name }: { id: string; name: string }) {
+function Bake({ id, name, folder }: { id: string; name: string; folder?: string }) {
 	const samples = store.use((state) => state.settings.bakeSamples);
 	const background = store.use((state) => state.settings.bakeBackground);
 	const custom = store.use((state) => state.settings.bakeCustomColour);
 	const isCustom = background !== 'none' && !BACKGROUNDS.some(([value]) => value === background);
 	const colour = background === 'none' ? null : background;
+	const root = store.use((state) => state.project?.root ?? '');
+	const [into, setInto] = useState(folder ?? '');
 	return (
 		<Frame title={'Bake ' + name + ' to PNG'}>
 			<div className="dialog-body">
+				{folder && (
+					<div className="field-row">
+						<span>Save to</span>
+						<span className="path" title={into}>{isUnder(root, into) ? relativeTo(root, into) + '/' : into}</span>
+						<button
+							className="button"
+							onClick={async () => {
+								const picked = await host.pickFolder('Bake into', into);
+								if (picked) setInto(picked);
+							}}
+						>
+							Change…
+						</button>
+					</div>
+				)}
 				<label className="field-row">
 					<span>Samples</span>
 					<select value={samples} onChange={(event) => updateSettings({ bakeSamples: Number(event.target.value) })}>
@@ -279,13 +296,24 @@ function Bake({ id, name }: { id: string; name: string }) {
 						/>
 					)}
 				</label>
+				{folder && <p className="dim">Each document is baked whole at its declared size, or at the canvas size if it declares none, to a PNG of the same name.</p>}
 				<p className="dim">More samples draw the element at that many times the pixels and average them back down, so a slanted or curved edge comes out smooth at the same size. Lengths in px do not grow while it draws, so check a layout that leans on them.</p>
 			</div>
 			<footer>
 				<span />
 				<span className="row">
 					<button className="button" onClick={close}>Cancel</button>
-					<button className="button primary" autoFocus onClick={() => { answerDialog(null); bakeElement(id, undefined, samples, colour); }}>Bake…</button>
+					<button
+						className="button primary"
+						autoFocus
+						onClick={() => {
+							answerDialog(null);
+							if (folder) bakeFolder(folder, into, samples, colour);
+							else bakeElement(id, undefined, samples, colour);
+						}}
+					>
+						{folder ? 'Bake' : 'Bake…'}
+					</button>
 				</span>
 			</footer>
 		</Frame>
@@ -384,7 +412,7 @@ export function Dialogs() {
 	if (dialog.kind === 'keys') return <Keys />;
 	if (dialog.kind === 'go-to-file') return <GoToFile />;
 	if (dialog.kind === 'messages') return <Messages />;
-	if (dialog.kind === 'bake') return <Bake id={dialog.id} name={dialog.name} />;
+	if (dialog.kind === 'bake') return <Bake id={dialog.id} name={dialog.name} folder={dialog.folder} />;
 	if (dialog.kind === 'notice') return <Notice title={dialog.title} detail={dialog.detail} buttons={dialog.buttons} preferred={dialog.default} />;
 	return <Assign command={dialog.command} />;
 }

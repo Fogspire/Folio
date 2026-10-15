@@ -10,6 +10,7 @@
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/ElementDocument.h>
 
 namespace
 {
@@ -226,6 +227,57 @@ bool FFolioArrayModelTest::RunTest(const FString&)
 	TestTrue(TEXT("and its elements are mirrored"), Bridge.Tick());
 	TestFalse(TEXT("and settle"), Bridge.Tick());
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioNestedRowTest, "Folio.ViewModel.NestedRows",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFolioNestedRowTest::RunTest(const FString&)
+{
+	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
+	{
+		AddError(TEXT("RmlUi is not initialised, so no data model can be created."));
+		return false;
+	}
+
+	FScopedContext Scope("FolioTest.NestedRows");
+	if (!TestNotNull(TEXT("context"), Scope.Context))
+	{
+		return false;
+	}
+
+	TStrongObjectPtr<UFolioTestPlainModel> Plain(NewObject<UFolioTestPlainModel>());
+	Plain->Party.Add({ TEXT("Ripley"), 1.0f, { TEXT("LMB") } });
+
+	FFolioObjectModel Bridge;
+	if (!TestTrue(TEXT("mount"), Bridge.Mount(Scope.Context, TEXT("party"), Plain.Get(), true)))
+	{
+		return false;
+	}
+
+	Rml::ElementDocument* Document = Scope.Context->LoadDocumentFromMemory(
+		"<rml><body data-model=\"party\"><div data-for=\"p : Party\"><span class=\"cap\">{{ p.Glyph.Cap }}</span></div></body></rml>");
+	if (!TestNotNull(TEXT("document"), Document))
+	{
+		return false;
+	}
+
+	const auto CapText = [&Scope, Document]()
+	{
+		Scope.Context->Update();
+		Rml::ElementList Caps;
+		Document->GetElementsByClassName(Caps, "cap");
+		return Caps.empty() ? FString() : FString(Caps[0]->GetInnerRML().c_str());
+	};
+
+	TestEqual(TEXT("a struct inside a row is reachable by member"), CapText(), TEXT("LMB"));
+
+	Plain->Party[0].Glyph.Cap = TEXT("RT");
+	TestTrue(TEXT("a member of a nested struct is a change"), Bridge.Tick());
+	TestEqual(TEXT("and reaches the document"), CapText(), TEXT("RT"));
+
+	Document->Close();
 	return true;
 }
 

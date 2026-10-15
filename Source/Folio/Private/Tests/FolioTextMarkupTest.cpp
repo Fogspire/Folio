@@ -75,6 +75,17 @@ bool FFolioTextMarkupTest::RunTest(const FString&)
 	}
 
 	{
+		// A run of only a space lays out as nothing, so the space between two styles joins the first.
+		const FParsed Parsed = Parse("<em>red.</> {pause:0.3}<mutter>He said</>");
+		TestEqual(TEXT("a space between two styles is kept"), Joined(Parsed),
+			TEXT("[red. |em][He said|mutter]"));
+		if (TestEqual(TEXT("and counted"), Parsed.CharCount, 12))
+		{
+			TestEqual(TEXT("the pause waits on the space"), Parsed.Pauses[4], 0.3f);
+		}
+	}
+
+	{
 		const FParsed Parsed = Parse("one{br}two");
 		TestEqual(TEXT("a break is its own run"), Joined(Parsed), TEXT("[one|][<br>|][two|]"));
 	}

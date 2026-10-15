@@ -94,6 +94,12 @@ public:
 		FProperty* Property = nullptr;
 		Rml::String Name;
 		FValue Value;
+
+		/**
+		 * The members of a struct value, so `{{ Row.Glyph.Cap }}` reaches inside it. Empty for anything
+		 * else. The struct as a whole still reads as its exported text.
+		 */
+		TArray<TUniquePtr<FLeaf>> Members;
 	};
 
 	/** One element of a bound array: a bag of members, or a single value. */

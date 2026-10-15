@@ -77,7 +77,9 @@ namespace Folio::TextMarkup
 			/// Collapsed whitespace is held rather than written, which trims the ends of the line
 			/// for free and lets a document indent its markup. Emitted into the run that was open
 			/// when it arrived, so a space between two styles is not styled by the second.
-			void FlushSpace();
+			/// bStyleChanging is set when the next character opens a new run, so the space would
+			/// otherwise be a run of its own.
+			void FlushSpace(bool bStyleChanging = false);
 			void SetClasses();
 			void OpenRun();
 			void CloseRun();
@@ -152,12 +154,12 @@ namespace Folio::TextMarkup
 			}
 
 			// Before the run closes, so a space that arrived under the old styles stays with them.
-			FlushSpace();
+			FlushSpace(true);
 			CloseRun();
 			OpenClasses = Classes;
 		}
 
-		void FParser::FlushSpace()
+		void FParser::FlushSpace(const bool bStyleChanging)
 		{
 			if (!bSpacePending)
 			{
@@ -165,10 +167,23 @@ namespace Folio::TextMarkup
 			}
 
 			bSpacePending = false;
-			if (Out.CharCount > 0)
+			if (Out.CharCount == 0)
 			{
-				Append(" ", 1);
+				return;
 			}
+
+			// A run that is only a space lays out as nothing, so it goes on the end of the run before.
+			if (bStyleChanging && !bRunOpen && !Out.Runs.empty() && !Out.Runs.back().bBreak)
+			{
+				Open = Out.Runs.back();
+				Out.Runs.pop_back();
+				bRunOpen = true;
+				Append(" ", 1);
+				CloseRun();
+				return;
+			}
+
+			Append(" ", 1);
 		}
 
 		void FParser::Append(const char* Bytes, std::size_t Count)
@@ -326,7 +341,7 @@ namespace Folio::TextMarkup
 				const std::string Restore = OpenClasses;
 				if (!Entry->Class.empty())
 				{
-					FlushSpace();
+					FlushSpace(true);
 					CloseRun();
 					OpenClasses = OpenClasses.empty() ? Entry->Class : OpenClasses + " " + Entry->Class;
 				}
@@ -335,7 +350,7 @@ namespace Folio::TextMarkup
 
 				if (OpenClasses != Restore)
 				{
-					FlushSpace();
+					FlushSpace(true);
 					CloseRun();
 					OpenClasses = Restore;
 				}

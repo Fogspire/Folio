@@ -149,6 +149,53 @@ namespace
 		}
 	}
 
+	/** Deep enough for a prompt's glyph inside a row, shallow enough that a struct graph cannot run away. */
+	constexpr int32 MaxLeafDepth = 4;
+
+	/** A mirror for one member, with mirrors for its own members when it is a struct. */
+	TUniquePtr<FFolioObjectModel::FLeaf> MakeLeaf(FProperty* Property, const int32 Depth)
+	{
+		TUniquePtr<FFolioObjectModel::FLeaf> Leaf = MakeUnique<FFolioObjectModel::FLeaf>();
+		Leaf->Property = Property;
+		Leaf->Name = Folio::ToRmlString(Property->GetName());
+		Leaf->Value.Kind = KindFor(*Property);
+
+		const FStructProperty* Struct = CastField<FStructProperty>(Property);
+		if (Struct && Depth < MaxLeafDepth)
+		{
+			TArray<FProperty*> Members;
+			CollectMembers(*Struct->Struct, Members);
+			for (FProperty* Member : Members)
+			{
+				Leaf->Members.Add(MakeLeaf(Member, Depth + 1));
+			}
+		}
+
+		return Leaf;
+	}
+
+	/** Reads a member, and its members, out of the element or struct holding it. True when anything moved. */
+	bool ReadLeaf(FFolioObjectModel::FLeaf& Leaf, const void* Container, UObject* Parent)
+	{
+		const void* ValuePtr = Leaf.Property->ContainerPtrToValuePtr<void>(Container);
+		bool bMoved = ReadInto(Leaf.Value, *Leaf.Property, ValuePtr, Parent);
+		for (TUniquePtr<FFolioObjectModel::FLeaf>& Member : Leaf.Members)
+		{
+			bMoved |= ReadLeaf(*Member, ValuePtr, Parent);
+		}
+		return bMoved;
+	}
+
+	bool ResetLeaf(FFolioObjectModel::FLeaf& Leaf)
+	{
+		bool bMoved = ResetValue(Leaf.Value);
+		for (TUniquePtr<FFolioObjectModel::FLeaf>& Member : Leaf.Members)
+		{
+			bMoved |= ResetLeaf(*Member);
+		}
+		return bMoved;
+	}
+
 	/** Whether a data expression can supply this parameter at all. */
 	bool IsCallableParameter(const FProperty& Property)
 	{
@@ -293,20 +340,48 @@ struct FFolioObjectModel::FDefinitions
 
 		Rml::DataVariable Child(void* Ptr, const Rml::DataAddressEntry& Address) override
 		{
-			for (TUniquePtr<FLeaf>& Leaf : static_cast<FRow*>(Ptr)->Members)
-			{
-				if (Leaf->Name == Address.name)
-				{
-					return Rml::DataVariable(&Owner.Mirror, &Leaf->Value);
-				}
-			}
-
-			return Rml::DataVariable();
+			return Owner.FindMember(static_cast<FRow*>(Ptr)->Members, Address);
 		}
 
 	private:
 		FDefinitions& Owner;
 	};
+
+	/** A struct member inside a row: its exported text as a value, and its own members by name. */
+	class FNestedDefinition final : public Rml::VariableDefinition
+	{
+	public:
+		explicit FNestedDefinition(FDefinitions& InOwner)
+			: VariableDefinition(Rml::DataVariableType::Struct), Owner(InOwner) {}
+
+		bool Get(void* Ptr, Rml::Variant& Variant) override
+		{
+			return FFieldDefinition::Read(static_cast<FLeaf*>(Ptr)->Value, Variant);
+		}
+
+		Rml::DataVariable Child(void* Ptr, const Rml::DataAddressEntry& Address) override
+		{
+			return Owner.FindMember(static_cast<FLeaf*>(Ptr)->Members, Address);
+		}
+
+	private:
+		FDefinitions& Owner;
+	};
+
+	Rml::DataVariable FindMember(TArray<TUniquePtr<FLeaf>>& Members, const Rml::DataAddressEntry& Address)
+	{
+		for (TUniquePtr<FLeaf>& Leaf : Members)
+		{
+			if (Leaf->Name == Address.name)
+			{
+				return Leaf->Members.IsEmpty()
+					? Rml::DataVariable(&Mirror, &Leaf->Value)
+					: Rml::DataVariable(&Nested, Leaf.Get());
+			}
+		}
+
+		return Rml::DataVariable();
+	}
 
 	/**
 	 * How many elements an array has, as a scalar.
@@ -367,6 +442,7 @@ struct FFolioObjectModel::FDefinitions
 	FValueDefinition Mirror;
 	FCountDefinition Count;
 	FRowDefinition Element{ *this };
+	FNestedDefinition Nested{ *this };
 	FArrayDefinition List{ *this };
 	FVoidDefinition Gone;
 };
@@ -625,11 +701,7 @@ TUniquePtr<FFolioObjectModel::FRow> FFolioObjectModel::MakeRow(const FArrayField
 	Row->Members.Reserve(Field.MemberProperties.Num());
 	for (FProperty* Member : Field.MemberProperties)
 	{
-		TUniquePtr<FLeaf> Leaf = MakeUnique<FLeaf>();
-		Leaf->Property = Member;
-		Leaf->Name = Folio::ToRmlString(Member->GetName());
-		Leaf->Value.Kind = KindFor(*Member);
-		Row->Members.Add(MoveTemp(Leaf));
+		Row->Members.Add(MakeLeaf(Member, 1));
 	}
 
 	return Row;
@@ -808,10 +880,7 @@ bool FFolioObjectModel::Refresh(FArrayField& Field)
 		for (TUniquePtr<FLeaf>& Leaf : Row.Members)
 		{
 			// A null element still occupies a row, so it blanks rather than reading through nothing.
-			bMoved |= Element
-				? ReadInto(Leaf->Value, *Leaf->Property,
-					Leaf->Property->ContainerPtrToValuePtr<void>(Element), Object)
-				: ResetValue(Leaf->Value);
+			bMoved |= Element ? ReadLeaf(*Leaf, Element, Object) : ResetLeaf(*Leaf);
 		}
 	}
 

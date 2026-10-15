@@ -60,6 +60,16 @@ private:
 	UE::FieldNotification::FFieldMulticastDelegate Notifications;
 };
 
+/** A struct inside a row, for the test that reaches into one. */
+USTRUCT(BlueprintType)
+struct FFolioTestGlyph
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	FString Cap;
+};
+
 /** A row of a bound array, for the tests that iterate one. */
 USTRUCT(BlueprintType)
 struct FFolioTestRow
@@ -71,6 +81,9 @@ struct FFolioTestRow
 
 	UPROPERTY(BlueprintReadWrite, Category = "Folio")
 	float Health = 0.0f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Folio")
+	FFolioTestGlyph Glyph;
 };
 
 /**

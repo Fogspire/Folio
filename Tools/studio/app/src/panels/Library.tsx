@@ -9,7 +9,7 @@ import { copyLibraryDocument, isLibraryDocument, openDocument, openFile, store }
 const GROUPS: { title: string; directory: string; hint: string }[] = [
 	{ title: 'Recipes', directory: 'rcss/recipes', hint: 'Complete screens to start from.' },
 	{ title: 'Examples', directory: 'examples', hint: 'Single techniques, shown working.' },
-	{ title: 'Components', directory: 'rcss/lib', hint: 'The classes every document gets from lib.rml.' },
+	{ title: 'Component styles', directory: 'rcss/lib', hint: 'The classes every document gets from lib.rml.' },
 ];
 
 function Palette() {

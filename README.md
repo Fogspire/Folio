@@ -45,6 +45,8 @@ World UI in Unreal normally smears the moment the camera moves; Folio documents 
 
 Two other modes put it in the scene to take post-processing if desired.
 
+https://github.com/user-attachments/assets/19c0910f-c940-40cd-a8e8-3668150aa3a3
+
 ### Surface-Projected UI
 
 Documents can be projected onto the surface of a mesh, with input enabled, so that CRT monitor the player can actually use? Already sorted as a byproduct of a proper tech foundation: [CRT terminal tutorial](docs/tutorials/crt_terminal.md)

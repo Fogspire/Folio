@@ -59,6 +59,14 @@ Folio ships with a ready-made screen-space UI component that projects into world
 
 <!-- TODO image of nameplate and maybe params -->
 
+### Draws Real 3D Transforms
+
+Modern UI often have HUDs or menus with rotation. Folio supports this when using `perspective` and `rotateY`. For example:
+
+```html
+.vitals, .comms { transform: perspective(900dp) rotateY(38deg); transform-origin: 0% 50%; }
+```
+
 ### Animation Built-In
 
 Transitions, keyframes, springs that respond to the camera, and a shader decorator for scan lines, sweeps and additive glow.

@@ -302,7 +302,10 @@ private:
 		FIntPoint Size);
 
 	/** Registers decoded bytes as a texture without creating a UObject for them. */
-	Rml::TextureHandle RegisterPixels(const void* Bgra, FIntPoint Size);
+	struct FSpareBake;
+	/** Spare, when given, supplies the texture and Slate name to rewrite instead of making new ones. */
+	Rml::TextureHandle RegisterPixels(const void* Bgra, FIntPoint Size, FSpareBake* Spare = nullptr);
+	static void RewritePixels(UTexture2D* Texture, const void* Bgra, FIntPoint Size);
 
 	/** Registers a baked sheet as a field page if it has a sidecar. Zero if it is ordinary art. */
 	Rml::TextureHandle LoadFieldAtlas(const Rml::String& Source, const TArray64<uint8>& Bgra, FIntPoint Size);
@@ -404,7 +407,46 @@ private:
 		FIntPoint Dimensions = FIntPoint(1, 1);
 		/** One baked texture per box size the gradient is asked for. */
 		TMap<FIntPoint, Rml::TextureHandle> Baked;
+		/** For a gradient, the BakedGradients entries behind Baked, one use each. */
+		TArray<uint64> SharedBakes;
 	};
+
+	/**
+	 * Gradient bakes shared between shader handles, keyed by the gradient's parameters and size.
+	 *
+	 * RmlUi recompiles a gradient whenever its element's opacity changes (opacity rides on the
+	 * vertex colours, so the parameters come out identical). Keyed by handle, every frame of a
+	 * fade would bake a new texture, and garbage collection freeing thousands at once stalls the GPU.
+	 */
+	struct FBakedGradient
+	{
+		Rml::TextureHandle Texture = 0;
+		int32 Users = 0;
+	};
+	TMap<uint64, FBakedGradient> BakedGradients;
+	/** Bakes no shader holds any more, oldest first. */
+	TArray<uint64> UnusedGradients;
+	static uint64 GradientKey(const Folio::FGradient& Gradient, FVector2f BoxSize, FIntPoint TextureSize);
+	void ReleaseBakedGradient(uint64 Key);
+
+	/**
+	 * An evicted gradient bake's texture and Slate name, kept for the next bake of the same size.
+	 *
+	 * A gradient whose stops are bound (a filling wheel) bakes every frame. Rewriting a retired texture
+	 * keeps those from piling up as garbage, which garbage collection would free in one GPU-stalling burst.
+	 */
+	struct FSpareBake
+	{
+		TStrongObjectPtr<UTexture2D> Texture;
+		FName Name;
+		FIntPoint Size = FIntPoint::ZeroValue;
+		uint64 Frame = 0;
+	};
+	TArray<FSpareBake> SpareBakes;
+	/** The spare TakeSpareBake handed out, held until RegisterPixels has used it. */
+	FSpareBake TakenSpare;
+	void RetireBake(Rml::TextureHandle Handle);
+	FSpareBake* TakeSpareBake(FIntPoint Size);
 
 	/** The texture for a shader effect, generated on first use. */
 	const FTexture* GetEffectTexture(Rml::CompiledShaderHandle Shader);

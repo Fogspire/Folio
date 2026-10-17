@@ -92,7 +92,9 @@ commands.runCommand('load-layout', store.get().project.root + '/UI/not-a-layout.
 await wait(700);
 expect(names() === allPanels && !!document.querySelector('.canvas-panel canvas'), 'a file that is not a layout leaves the default one');
 expect(await host.testMenu(['View', 'Layout', 'Reset Layout']), 'the menu bar has View > Layout');
-expect(await host.testMenuChecked(['Help', 'About Folio Studio']) !== null, 'and Help > About');
+// On a Mac, About lives in the app menu instead.
+const onMac = navigator.platform.startsWith('Mac');
+expect((await host.testMenuChecked(['Help', 'About Folio Studio']) !== null) !== onMac, onMac ? 'and About is not in Help' : 'and Help > About');
 await wait(500);
 
 // Keys: the defaults, walking the tree, and giving a command a key of its own.

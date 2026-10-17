@@ -11,6 +11,7 @@
 #include "FolioModule.h"
 #include "FolioTextures.h"
 #include "HAL/PlatformFileManager.h"
+#include "Hash/CityHash.h"
 #include "Brushes/SlateDynamicImageBrush.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IImageWrapper.h"
@@ -950,12 +951,14 @@ TSharedPtr<FSlateDynamicImageBrush> FFolioRenderInterface::MakeDynamicBrush(cons
 		FVector2D(double(Size.X), double(Size.Y)), Pixels);
 }
 
-Rml::TextureHandle FFolioRenderInterface::RegisterPixels(const void* Bgra, const FIntPoint Size)
+Rml::TextureHandle FFolioRenderInterface::RegisterPixels(const void* Bgra, const FIntPoint Size,
+	FSpareBake* Spare)
 {
 	const Rml::TextureHandle Handle = NextHandle++;
 
-	TSharedPtr<FSlateDynamicImageBrush> Brush = MakeDynamicBrush(
-		FString::Printf(TEXT("Folio.Tex.%llu"), static_cast<uint64>(Handle)), Bgra, Size);
+	TSharedPtr<FSlateDynamicImageBrush> Brush = MakeDynamicBrush(Spare
+		? Spare->Name.ToString()
+		: FString::Printf(TEXT("Folio.Tex.%llu"), static_cast<uint64>(Handle)), Bgra, Size);
 	if (!Brush.IsValid())
 	{
 		return 0;
@@ -969,7 +972,12 @@ Rml::TextureHandle FFolioRenderInterface::RegisterPixels(const void* Bgra, const
 	// recording and layer replays bind an FRHITexture straight off a UTexture, so without this every
 	// generated image - which is every gradient - resolves to nothing and the shader samples white.
 	// That is not a fallback anyone sees as missing: a white quad the size of the element.
-	if (UTexture2D* Generated = UTexture2D::CreateTransient(Size.X, Size.Y, PF_B8G8R8A8))
+	if (Spare)
+	{
+		RewritePixels(Spare->Texture.Get(), Bgra, Size);
+		Entry->Texture.Reset(Spare->Texture.Get());
+	}
+	else if (UTexture2D* Generated = UTexture2D::CreateTransient(Size.X, Size.Y, PF_B8G8R8A8))
 	{
 		Generated->SRGB = true;
 		Generated->Filter = TF_Bilinear;
@@ -992,6 +1000,22 @@ Rml::TextureHandle FFolioRenderInterface::RegisterPixels(const void* Bgra, const
 
 	Textures.Add(Handle, MoveTemp(Entry));
 	return Handle;
+}
+
+void FFolioRenderInterface::RewritePixels(UTexture2D* Texture, const void* Bgra, const FIntPoint Size)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FolioRenderInterface::RewritePixels);
+
+	const uint32 Pitch = static_cast<uint32>(Size.X) * 4;
+	uint8* Copy = static_cast<uint8*>(FMemory::Malloc(static_cast<SIZE_T>(Pitch) * Size.Y));
+	FMemory::Memcpy(Copy, Bgra, static_cast<SIZE_T>(Pitch) * Size.Y);
+	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, Size.X, Size.Y);
+	Texture->UpdateTextureRegions(0, 1, Region, Pitch, 4, Copy,
+		[](uint8* Data, const FUpdateTextureRegion2D* Regions)
+		{
+			FMemory::Free(Data);
+			delete Regions;
+		});
 }
 
 Rml::TextureHandle FFolioRenderInterface::RegisterTexture(UTexture* Texture, const FIntPoint Size,
@@ -1996,20 +2020,124 @@ const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetGradientTexture
 		return FindTexture(*Cached);
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_BakeGradient);
-	SCOPE_CYCLE_COUNTER(STAT_FolioBakeDecorator);
-
-	TArray<uint8> Bgra;
-	Folio::RasterizeGradient(Shader.Gradient, BoxSize, TextureSize, Bgra);
-
-	const Rml::TextureHandle Baked = RegisterPixels(Bgra.GetData(), TextureSize);
-	if (Baked == 0)
+	// Shared by content, not by handle: see BakedGradients.
+	const uint64 Key = GradientKey(Shader.Gradient, BoxSize, TextureSize);
+	FBakedGradient& Bake = BakedGradients.FindOrAdd(Key);
+	if (Bake.Texture == 0)
 	{
-		return nullptr;
+		TRACE_CPUPROFILER_EVENT_SCOPE(Folio_BakeGradient);
+		SCOPE_CYCLE_COUNTER(STAT_FolioBakeDecorator);
+
+		TArray<uint8> Bgra;
+		Folio::RasterizeGradient(Shader.Gradient, BoxSize, TextureSize, Bgra);
+
+		Bake.Texture = RegisterPixels(Bgra.GetData(), TextureSize, TakeSpareBake(TextureSize));
+		if (Bake.Texture == 0)
+		{
+			BakedGradients.Remove(Key);
+			return nullptr;
+		}
+	}
+	else if (Bake.Users == 0)
+	{
+		UnusedGradients.RemoveSingle(Key);
 	}
 
-	Shader.Baked.Add(TextureSize, Baked);
-	return FindTexture(Baked);
+	++Bake.Users;
+	Shader.Baked.Add(TextureSize, Bake.Texture);
+	Shader.SharedBakes.Add(Key);
+	return FindTexture(Bake.Texture);
+}
+
+uint64 FFolioRenderInterface::GradientKey(const Folio::FGradient& Gradient, const FVector2f BoxSize,
+	const FIntPoint TextureSize)
+{
+	// Everything the bake reads. A 64-bit hash stands in for the bytes: across the few hundred
+	// gradients a game holds at once, a collision is not a real risk.
+	TArray<uint8, TInlineAllocator<256>> Bytes;
+	const auto Add = [&Bytes](const void* Data, const int32 Size)
+	{
+		Bytes.Append(static_cast<const uint8*>(Data), Size);
+	};
+	const int32 Stops[2] = { Gradient.StopColours.Num(), Gradient.StopPositions.Num() };
+	Add(&Gradient.Type, sizeof(Gradient.Type));
+	Add(&Gradient.bRepeating, sizeof(Gradient.bRepeating));
+	Add(&Gradient.P0, sizeof(FVector2f));
+	Add(&Gradient.P1, sizeof(FVector2f));
+	Add(&Gradient.Centre, sizeof(FVector2f));
+	Add(&Gradient.Radius, sizeof(FVector2f));
+	Add(&Gradient.Length, sizeof(float));
+	Add(&Gradient.Angle, sizeof(float));
+	Add(Stops, sizeof(Stops));
+	Add(Gradient.StopColours.GetData(), Stops[0] * sizeof(FColor));
+	Add(Gradient.StopPositions.GetData(), Stops[1] * sizeof(float));
+	Add(&BoxSize, sizeof(BoxSize));
+	Add(&TextureSize, sizeof(TextureSize));
+	return CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num());
+}
+
+void FFolioRenderInterface::ReleaseBakedGradient(const uint64 Key)
+{
+	FBakedGradient* Bake = BakedGradients.Find(Key);
+	if (!Bake || --Bake->Users > 0)
+	{
+		return;
+	}
+
+	// RmlUi releases the old shader before it compiles the new one, so a bake nobody holds is kept
+	// for the next compile of the same gradient. One whose stops or size keep changing bakes every
+	// frame, and its evicted bakes are rewritten rather than left for garbage collection.
+	static constexpr int32 MaxUnused = 32;
+	UnusedGradients.Add(Key);
+	if (UnusedGradients.Num() > MaxUnused)
+	{
+		const uint64 Oldest = UnusedGradients[0];
+		UnusedGradients.RemoveAt(0);
+		if (const FBakedGradient* Evicted = BakedGradients.Find(Oldest))
+		{
+			RetireBake(Evicted->Texture);
+		}
+		BakedGradients.Remove(Oldest);
+	}
+}
+
+void FFolioRenderInterface::RetireBake(const Rml::TextureHandle Handle)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FolioRenderInterface::RetireBake);
+
+	const TUniquePtr<FTexture>* Found = Textures.Find(Handle);
+	UTexture2D* Texture = Found && Found->IsValid() ? Cast<UTexture2D>((*Found)->Texture.Get()) : nullptr;
+	if (Texture && (*Found)->DynamicBrush.IsValid())
+	{
+		static constexpr int32 MaxSpare = 32;
+		if (SpareBakes.Num() >= MaxSpare)
+		{
+			SpareBakes.RemoveAt(0);
+		}
+		FSpareBake& Spare = SpareBakes.AddDefaulted_GetRef();
+		Spare.Texture.Reset(Texture);
+		Spare.Name = (*Found)->DynamicBrush->GetResourceName();
+		Spare.Size = FIntPoint(Texture->GetSizeX(), Texture->GetSizeY());
+		Spare.Frame = GFrameCounter;
+	}
+
+	Textures.Remove(Handle);
+}
+
+FFolioRenderInterface::FSpareBake* FFolioRenderInterface::TakeSpareBake(const FIntPoint Size)
+{
+	// The frames before this one may still be drawing it on the render thread.
+	static constexpr uint64 MinFramesRetired = 3;
+	for (int32 Index = 0; Index < SpareBakes.Num(); ++Index)
+	{
+		if (SpareBakes[Index].Size == Size && GFrameCounter - SpareBakes[Index].Frame >= MinFramesRetired)
+		{
+			TakenSpare = MoveTemp(SpareBakes[Index]);
+			SpareBakes.RemoveAt(Index);
+			return &TakenSpare;
+		}
+	}
+	return nullptr;
 }
 
 const FFolioRenderInterface::FTexture* FFolioRenderInterface::GetEffectTexture(
@@ -2162,9 +2290,18 @@ void FFolioRenderInterface::ReleaseShader(const Rml::CompiledShaderHandle Shader
 {
 	if (const TUniquePtr<FShader>* Found = Shaders.Find(Shader); Found && Found->IsValid())
 	{
-		for (const TPair<FIntPoint, Rml::TextureHandle>& Baked : (*Found)->Baked)
+		// A gradient's bakes are shared and counted; a shader effect's are its own.
+		if ((*Found)->SharedBakes.IsEmpty())
 		{
-			Textures.Remove(Baked.Value);
+			for (const TPair<FIntPoint, Rml::TextureHandle>& Baked : (*Found)->Baked)
+			{
+				Textures.Remove(Baked.Value);
+			}
+		}
+
+		for (const uint64 Key : (*Found)->SharedBakes)
+		{
+			ReleaseBakedGradient(Key);
 		}
 	}
 

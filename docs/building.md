@@ -4,7 +4,7 @@ For changing Folio itself. Authoring documents needs none of this: see [testing 
 
 ## Build the tools
 
-Requires **Visual Studio 2022** with the C++ desktop workload. Nothing else needs installing: `build.sh` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be on `PATH`.
+On Windows, requires **Visual Studio 2022** with the C++ desktop workload. Nothing else needs installing: `build.sh` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be on `PATH`. On Mac and Linux, `build.sh` takes `cmake` and `ninja` from `PATH`.
 
 ```bash
 ./scripts/build.sh                        # RelWithDebInfo, default
@@ -13,26 +13,23 @@ Requires **Visual Studio 2022** with the C++ desktop workload. Nothing else need
 ./scripts/build.sh --asan                  # AddressSanitizer, into its own build tree
 ```
 
-Output lands at `bin/win64`.
+Output lands at `bin/win64`, `bin/mac` or `bin/linux`.
 
 The first build clones the dependencies and takes several minutes. Later builds reuse them.
 
 `build.sh` runs `check_shader_parity.sh` before compiling, which fails if the HLSL and GLSL distance field shaders have drifted apart. `--skip-shader-parity` to bypass it while editing one side.
 
-Every configuration writes to the same `bin/win64`, so an `--asan` build replaces the normal binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH for the sanitizer runtime.
+Every configuration writes to the same `bin/<platform>`, so an `--asan` build replaces the normal binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH for the sanitizer runtime.
 
 ### Linux (cloud sessions, CI)
 
-`build.sh` is Windows-only; on Linux, call CMake directly. GLFW needs the X11 headers, and with no display the preview runs under Xvfb.
+GLFW needs the X11 headers, and with no display the preview runs under Xvfb.
 
 ```bash
-apt-get install -y ninja-build libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb
-cmake -S . -B build/linux -G Ninja -DGLFW_BUILD_WAYLAND=OFF
-cmake --build build/linux --target uipreview
+apt-get install -y cmake ninja-build libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb
+./scripts/build.sh --target uipreview
 xvfb-run -a ./bin/linux/uipreview ../../UI/screens/pause.rml --root ../.. --strict --a11y
 ```
-
-Output lands at `bin/linux`.
 
 ## Before you commit
 

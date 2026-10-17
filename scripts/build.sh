@@ -2,9 +2,8 @@
 #
 # Builds the Folio native tools.
 #
-# Locates the CMake and Ninja that ship inside Visual Studio, imports the MSVC environment, then
-# configures and builds. Nothing has to be installed globally and neither cmake nor ninja has to be on
-# PATH.
+# On Windows, locates the CMake and Ninja that ship inside Visual Studio and imports the MSVC
+# environment, so neither has to be on PATH. On Mac and Linux, takes cmake and ninja from PATH.
 #
 #   ./scripts/build.sh
 #   ./scripts/build.sh --config Debug
@@ -50,13 +49,19 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [[ $asan -eq 1 ]]; then
-	build_dir="$repo_root/build/win64-asan"
+if folio_is_windows; then
+	host=win64
+	folio_import_msvc "$toolset"
 else
-	build_dir="$repo_root/build/win64-$config"
+	[[ "$(uname -s)" == Darwin ]] && host=mac || host=linux
+	folio_import_unix_tools
 fi
 
-folio_import_msvc "$toolset"
+if [[ $asan -eq 1 ]]; then
+	build_dir="$repo_root/build/$host-asan"
+else
+	build_dir="$repo_root/build/$host-$config"
+fi
 
 # Before the compile, because it takes a moment and catches a class of bug that survives every later
 # check: the tool and the engine resolving the same field differently.
@@ -75,18 +80,27 @@ folio_discard_moved_build "$build_dir"
 
 configure_args=(
 	-G Ninja
-	"-DCMAKE_MAKE_PROGRAM=$(cygpath -m "$FOLIO_NINJA")"
+	"-DCMAKE_MAKE_PROGRAM=$(folio_tool_path "$FOLIO_NINJA")"
 	"-DCMAKE_BUILD_TYPE=$config"
-	-S "$(cygpath -m "$repo_root")"
-	-B "$(cygpath -m "$build_dir")"
+	-S "$(folio_tool_path "$repo_root")"
+	-B "$(folio_tool_path "$build_dir")"
 )
+# CMake 4 refuses fetched dependencies that still declare cmake_minimum_required below 3.5.
+[[ $host != win64 ]] && configure_args+=(-DCMAKE_POLICY_VERSION_MINIMUM=3.5)
+[[ $host == linux ]] && configure_args+=(-DGLFW_BUILD_WAYLAND=OFF)
 
-if [[ $asan -eq 1 ]]; then
+if [[ $asan -eq 1 && $host == win64 ]]; then
 	# /Zi and a non-incremental link, or the report is addresses with no symbols.
 	configure_args+=(
 		"-DCMAKE_C_FLAGS=/fsanitize=address /Zi"
 		"-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi"
 		"-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO /DEBUG"
+	)
+elif [[ $asan -eq 1 ]]; then
+	configure_args+=(
+		"-DCMAKE_C_FLAGS=-fsanitize=address -g -fno-omit-frame-pointer"
+		"-DCMAKE_CXX_FLAGS=-fsanitize=address -g -fno-omit-frame-pointer"
+		"-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address"
 	)
 fi
 
@@ -98,11 +112,11 @@ fi
 "$FOLIO_CMAKE" "${configure_args[@]}" || folio_die "CMake configure failed."
 
 echo "Building ($config)..."
-build_args=(--build "$(cygpath -m "$build_dir")" --parallel)
+build_args=(--build "$(folio_tool_path "$build_dir")" --parallel)
 [[ -n "$target" ]] && build_args+=(--target "$target")
 "$FOLIO_CMAKE" "${build_args[@]}" || folio_die "build failed."
 
-echo "Done. Output in $repo_root/bin/win64"
+echo "Done. Output in $repo_root/bin/$host"
 
 # Every configuration writes its executables to the same place, so whichever built last is the one
 # that runs. An instrumented binary left there quietly makes everything slower.

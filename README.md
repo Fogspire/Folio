@@ -59,9 +59,9 @@ Folio ships with a ready-made screen-space UI component that projects into world
 
 <!-- TODO image of nameplate and maybe params -->
 
-### Draws Real 3D Transforms
+### Real 3D Transforms
 
-Modern UI often have HUDs or menus with rotation. Folio supports this when using `perspective` and `rotateY`. For example:
+Modern UI often draw HUDs or menus with perspective instead of flat 2D panels. Folio supports this. For example:
 
 ```html
 .vitals, .comms { transform: perspective(900dp) rotateY(38deg); transform-origin: 0% 50%; }

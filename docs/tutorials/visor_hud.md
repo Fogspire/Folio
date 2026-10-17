@@ -7,7 +7,7 @@ Build a first-person visor: a helmet frame around the view, a curved energy ribb
 The parts worth reading for themselves:
 
 - **A helmet is one element.** A rounded rectangle whose *border* is the helmet mass.
-- **Curvature without 3D transforms**, which RCSS does not have.
+- **Curvature without 3D transforms**, which tilt planes but cannot bend them.
 - **Motion is a component, not a transition**, and there are two of them driving different elements.
 - **A HUD is not a screen**, which is one property and the difference between a game that works after an alt-tab and one that does not.
 
@@ -121,7 +121,7 @@ There is no `calc()` and there are no custom properties, so the two numbers have
 
 ## 4. Curvature, without 3D
 
-**3D transforms do not exist.** No `perspective`, no `rotateX`, no `rotateY` - they parse and do nothing. A curved visor has to be faked in two dimensions.
+**A 3D transform tilts a plane, and a visor is not a plane.** `perspective()` with `rotateY` turns a panel away from the eye, but nothing bends one, so a curve still has to be faked in two dimensions.
 
 The energy ribbon is a flex row of 41 ticks. Each tick is pushed down and rotated by an amount that grows with its distance from the middle, which is a parabola standing in for an arc:
 

@@ -138,7 +138,7 @@ To grow or shrink something, animate `transform: scaleX()` on an element with a 
 
 `transition` fires only when a class or pseudo-class changes. For continuous or self-driving motion, use `@keyframes` with `animation`.
 
-3D is limited to depth echoes: `perspective` (+ `perspective-origin`) on an ancestor and `translateZ` on a child. The render interface projects each element with one per-element divide by w, which is exact only while w is constant, i.e. translateZ and nothing else. `rotateX`/`rotateY` still flatten (they make w vary per vertex), so do not use them. Otherwise 2D only: `translate`, `scale`, `rotate`, `skew`.
+3D transforms work: `perspective` (the property on an ancestor, with `perspective-origin`, or `perspective()` first in a `transform`) with `rotateX`, `rotateY` and `translateZ`, alongside the 2D `translate`, `scale`, `rotate` and `skew`. A tilted element is projected point by point and subdivided where its depth varies, so images, gradients and masks stay straight. Each tilted element costs a little CPU per frame, more the larger and steeper it is; keep it well short of edge-on, since past 90 degrees there is nothing to see.
 
 **Times are seconds, and `ms` does not exist.** `transition: opacity 120ms` does not warn and does not animate: the parser reads `120` as a *reverse adjustment factor* and the transition ends up with no duration. Always write `0.12s`.
 

@@ -14,9 +14,8 @@
 		 *
 		 *   bShown    bool    up: stamina short, or full for under a second
 		 *   Position  string  transform placing it, "translate(Xdp, Ydp)". Optionally followed by
-		 *                     "scaleX(S)" to angle it, S the cosine of the angle (3D transforms do
-		 *                     not reach the Unreal renderer), and "rotate(Ndeg)" to spin where it
-		 *                     fills from
+		 *                     "perspective(Pdp) rotateY(Tdeg)" to tilt it like a disc in the world,
+		 *                     and "rotate(Ndeg)" to spin where it fills from
 		 *   Wheels    array   one row per ring, innermost first:
 		 *     Size        float  outer diameter in dp
 		 *     Hole        float  the cut-out, as a percentage of the radius: smaller is thicker

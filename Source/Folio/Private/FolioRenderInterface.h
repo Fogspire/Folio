@@ -575,9 +575,30 @@ private:
 	bool bClipPushed = false;
 	Rml::Rectanglei ScissorRegion;
 
-	/** RmlUi's current transform, already reduced to the 2D affine part Slate can express. */
+	/** RmlUi's current transform when it is affine, as Slate can express it. */
 	FSlateRenderTransform RmlTransform;
 	bool bHasTransform = false;
+
+	/**
+	 * RmlUi's current transform when it has perspective: w varies across the element, as under
+	 * perspective() with rotateX or rotateY. Geometry is then projected on the CPU by
+	 * ProjectGeometry and drawn as if untransformed, with bHasTransform false.
+	 */
+	Rml::Matrix4f ProjectiveMatrix;
+	bool bProjective = false;
+
+	/**
+	 * Geometry with the perspective transform applied, in document space.
+	 *
+	 * Each triangle is projected through the full matrix with the divide by w. Slate interpolates
+	 * texture coordinates and colours linearly in screen space, which under perspective bends a
+	 * gradient or an image along the triangle's diagonal; a triangle whose depth varies enough to
+	 * show it is subdivided first, so each piece is small enough for linear to be right.
+	 */
+	void ProjectGeometry(const FCompiledGeometry& Source, Rml::Vector2f Translation, FCompiledGeometry& Out) const;
+
+	/** Reused by ProjectGeometry, so a frame does not allocate per transformed element. */
+	FCompiledGeometry ProjectedScratch;
 
 	uint64 NextHandle = 1;
 };

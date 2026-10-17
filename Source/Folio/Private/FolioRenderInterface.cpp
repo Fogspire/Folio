@@ -291,6 +291,112 @@ const TArray<FSlateVertex>& FFolioRenderInterface::PositionedVertices(const FCom
 	return ScratchVertices;
 }
 
+namespace FolioProjection
+{
+	/** Below this w a point is at or behind the eye; it is held just in front instead of flipping. */
+	constexpr float NearW = 1.0e-3f;
+
+	/** Largest number of segments one edge of a triangle is split into. */
+	constexpr int32 MaxSubdivisions = 16;
+
+	/** Document pixels of edge per unit of w ratio over one, per segment: smaller subdivides more. */
+	constexpr float PixelsPerSegment = 6.0f;
+
+	FColor LerpColour(const FColor A, const FColor B, const FColor C, const float U, const float V, const float W)
+	{
+		return FColor(
+			uint8(FMath::Clamp(FMath::RoundToInt(A.R * U + B.R * V + C.R * W), 0, 255)),
+			uint8(FMath::Clamp(FMath::RoundToInt(A.G * U + B.G * V + C.G * W), 0, 255)),
+			uint8(FMath::Clamp(FMath::RoundToInt(A.B * U + B.B * V + C.B * W), 0, 255)),
+			uint8(FMath::Clamp(FMath::RoundToInt(A.A * U + B.A * V + C.A * W), 0, 255)));
+	}
+}
+
+void FFolioRenderInterface::ProjectGeometry(const FCompiledGeometry& Source, const Rml::Vector2f Translation,
+	FCompiledGeometry& Out) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ProjectGeometry);
+
+	Out.Vertices.Reset();
+	Out.Indices.Reset();
+	Out.bTiles = Source.bTiles;
+
+	const Rml::Matrix4f& M = ProjectiveMatrix;
+	const FVector2f Offset(Translation.x, Translation.y);
+	const auto DepthOf = [&M](const FVector2f P)
+	{
+		return FMath::Max(M[0][3] * P.X + M[1][3] * P.Y + M[3][3], FolioProjection::NearW);
+	};
+	const auto Project = [&M, &DepthOf](const FVector2f P)
+	{
+		const float W = DepthOf(P);
+		return FVector2f(
+			(M[0][0] * P.X + M[1][0] * P.Y + M[3][0]) / W,
+			(M[0][1] * P.X + M[1][1] * P.Y + M[3][1]) / W);
+	};
+
+	for (int32 Index = 0; Index + 2 < Source.Indices.Num(); Index += 3)
+	{
+		const FSlateVertex& A = Source.Vertices[Source.Indices[Index]];
+		const FSlateVertex& B = Source.Vertices[Source.Indices[Index + 1]];
+		const FSlateVertex& C = Source.Vertices[Source.Indices[Index + 2]];
+		const FVector2f PA = FVector2f(A.Position) + Offset;
+		const FVector2f PB = FVector2f(B.Position) + Offset;
+		const FVector2f PC = FVector2f(C.Position) + Offset;
+
+		// How far linear interpolation would drift: the spread of depth across the triangle, times its size.
+		const float MinW = FMath::Min3(DepthOf(PA), DepthOf(PB), DepthOf(PC));
+		const float MaxW = FMath::Max3(DepthOf(PA), DepthOf(PB), DepthOf(PC));
+		const float Edge = FMath::Max3(FVector2f::Distance(PA, PB), FVector2f::Distance(PB, PC), FVector2f::Distance(PC, PA));
+		const int32 Segments = FMath::Clamp(
+			FMath::CeilToInt((MaxW / MinW - 1.0f) * Edge / FolioProjection::PixelsPerSegment), 1, FolioProjection::MaxSubdivisions);
+
+		// A grid of points across the triangle, row by row: row I has Segments - I + 1 points.
+		const int32 First = Out.Vertices.Num();
+		for (int32 Row = 0; Row <= Segments; ++Row)
+		{
+			for (int32 Column = 0; Column <= Segments - Row; ++Column)
+			{
+				const float V = float(Column) / Segments;
+				const float W = float(Row) / Segments;
+				const float U = 1.0f - V - W;
+
+				FSlateVertex& Vertex = Out.Vertices.AddDefaulted_GetRef();
+				Vertex.Position = Project(PA * U + PB * V + PC * W);
+				for (int32 Channel = 0; Channel < 4; ++Channel)
+				{
+					Vertex.TexCoords[Channel] = A.TexCoords[Channel] * U + B.TexCoords[Channel] * V + C.TexCoords[Channel] * W;
+				}
+				Vertex.MaterialTexCoords = FVector2f(A.MaterialTexCoords) * U + FVector2f(B.MaterialTexCoords) * V + FVector2f(C.MaterialTexCoords) * W;
+				Vertex.Color = FolioProjection::LerpColour(A.Color, B.Color, C.Color, U, V, W);
+			}
+		}
+
+		const auto PointAt = [First, Segments](const int32 Row, const int32 Column)
+		{
+			// Rows before Row hold (Segments + 1) + Segments + ... points.
+			const int32 Before = Row * (Segments + 1) - (Row * (Row - 1)) / 2;
+			return SlateIndex(First + Before + Column);
+		};
+
+		for (int32 Row = 0; Row < Segments; ++Row)
+		{
+			for (int32 Column = 0; Column < Segments - Row; ++Column)
+			{
+				Out.Indices.Add(PointAt(Row, Column));
+				Out.Indices.Add(PointAt(Row, Column + 1));
+				Out.Indices.Add(PointAt(Row + 1, Column));
+				if (Column + 1 < Segments - Row)
+				{
+					Out.Indices.Add(PointAt(Row, Column + 1));
+					Out.Indices.Add(PointAt(Row + 1, Column + 1));
+					Out.Indices.Add(PointAt(Row + 1, Column));
+				}
+			}
+		}
+	}
+}
+
 void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Handle,
 	const Rml::Vector2f Translation, const Rml::TextureHandle Texture)
 {
@@ -307,7 +413,16 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		return;
 	}
 
-	const FCompiledGeometry& Compiled = **Found;
+	Rml::Vector2f At = Translation;
+	const FCompiledGeometry* Drawn = Found->Get();
+	if (bProjective)
+	{
+		ProjectGeometry(*Drawn, Translation, ProjectedScratch);
+		Drawn = &ProjectedScratch;
+		At = Rml::Vector2f(0.0f, 0.0f);
+	}
+
+	const FCompiledGeometry& Compiled = *Drawn;
 	if (Compiled.Vertices.IsEmpty() || Compiled.Indices.IsEmpty())
 	{
 		return;
@@ -326,7 +441,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 			// Unmasked: a recording has no stencil, because a clip mask is a layer's mechanism and a
 			// recording has no layer. Clipping a world-space document is the mesh's job.
 			FVector2f Offset;
-			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, At, Offset);
 
 			DrawList->AddField(Vertices, Compiled.Indices, Field->Page->Texture.Get(),
 				Offset, FieldParams, EffectParams,
@@ -337,7 +452,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		if (!Layers.IsEmpty())
 		{
 			FVector2f Offset;
-			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, At, Offset);
 
 			// Held back for the screen rather than drawn into a target that is about to be scaled down.
 			// The offset is folded in, because a run that is put back later is put back on its own.
@@ -376,7 +491,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 		if (const FMsdfBinding* Resolved = ResolveMsdfBinding(Texture))
 		{
 			ApplyClipping();
-			DrawGeometry(Compiled, Translation, Resolved->Handle, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ true);
+			DrawGeometry(Compiled, At, Resolved->Handle, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ true);
 		}
 
 		return;
@@ -391,7 +506,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 			: GetWhiteTexture();
 
 		FVector2f Offset;
-		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, At, Offset);
 
 		DrawList->AddTriangles(Vertices, Compiled.Indices, Recorded,
 			Offset, /*bMasked*/ false, /*bMaskInverted*/ false, Compiled.bTiles,
@@ -409,7 +524,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 			: GetWhiteTexture();
 
 		FVector2f Offset;
-		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, At, Offset);
 
 		FlushCoveredFields(BoundsOf(Vertices, Offset));
 
@@ -421,7 +536,7 @@ void FFolioRenderInterface::RenderGeometry(const Rml::CompiledGeometryHandle Han
 	const FSlateResourceHandle& Resource = Bound ? Bound->Handle : GetWhiteHandle();
 
 	ApplyClipping();
-	DrawGeometry(Compiled, Translation, Resource, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ false,
+	DrawGeometry(Compiled, At, Resource, FVector2f(1.0f, 1.0f), /*bStraightAlpha*/ false,
 		Compiled.bTiles, Bound && Bound->bStraightAlpha);
 }
 
@@ -1212,14 +1327,26 @@ void FFolioRenderInterface::SetTransform(const Rml::Matrix4f* Transform)
 	if (!Transform)
 	{
 		bHasTransform = false;
+		bProjective = false;
+		RmlTransform = FSlateRenderTransform();
+		return;
+	}
+
+	// rotateX or rotateY under a perspective make w vary from point to point, which no affine transform can
+	// express; ProjectGeometry does those per vertex instead.
+	const Rml::Matrix4f& M = *Transform;
+	bProjective = FMath::Abs(M[0][3]) > UE_KINDA_SMALL_NUMBER || FMath::Abs(M[1][3]) > UE_KINDA_SMALL_NUMBER;
+	if (bProjective)
+	{
+		ProjectiveMatrix = M;
+		bHasTransform = false;
 		RmlTransform = FSlateRenderTransform();
 		return;
 	}
 
 	// Slate's render transform is 2D, so this is an affine projection of a 3D matrix. With only translateZ
 	// under a perspective, w is the same for every point of the element, so dividing by M[3][3] is the exact
-	// projection. rotateX/rotateY make w vary per vertex and still flatten.
-	const Rml::Matrix4f& M = *Transform;
+	// projection.
 	const float InvW = 1.0f / (FMath::Abs(M[3][3]) > UE_SMALL_NUMBER ? M[3][3] : 1.0f);
 	const FMatrix2x2 Linear(
 		M[0][0] * InvW, M[0][1] * InvW,
@@ -1269,25 +1396,34 @@ void FFolioRenderInterface::RenderToClipMask(const Rml::ClipMaskOperation Operat
 		return;
 	}
 
+	Rml::Vector2f At = Translation;
+	const FCompiledGeometry* Shape = Found->Get();
+	if (bProjective)
+	{
+		ProjectGeometry(*Shape, Translation, ProjectedScratch);
+		Shape = &ProjectedScratch;
+		At = Rml::Vector2f(0.0f, 0.0f);
+	}
+
 	// Inside a layer the mask is a real stencil, so the shape is exact and SetInverse works.
 	if (!Layers.IsEmpty())
 	{
-		Layers.SetClipMask(Operation, (*Found)->Vertices, (*Found)->Indices,
-			FVector2f(Translation.x - LayerOrigin.X, Translation.y - LayerOrigin.Y));
+		Layers.SetClipMask(Operation, Shape->Vertices, Shape->Indices,
+			FVector2f(At.x - LayerOrigin.X, At.y - LayerOrigin.Y));
 		return;
 	}
 
 	// Outside one, Slate clips with a quad, so the mask becomes the bounds of the geometry
 	// that drew it. Exact for a rectangle; a rounded rectangle clips to its square corners.
-	FVector2f Minimum((*Found)->Vertices[0].Position);
+	FVector2f Minimum(Shape->Vertices[0].Position);
 	FVector2f Maximum = Minimum;
-	for (const FSlateVertex& Vertex : (*Found)->Vertices)
+	for (const FSlateVertex& Vertex : Shape->Vertices)
 	{
 		Minimum = FVector2f::Min(Minimum, FVector2f(Vertex.Position));
 		Maximum = FVector2f::Max(Maximum, FVector2f(Vertex.Position));
 	}
 
-	const FVector2f Offset(Translation.x, Translation.y);
+	const FVector2f Offset(At.x, At.y);
 	const FSlateRect Bounds(Minimum.X + Offset.X, Minimum.Y + Offset.Y, Maximum.X + Offset.X, Maximum.Y + Offset.Y);
 
 	switch (Operation)
@@ -1930,7 +2066,16 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		return;
 	}
 
-	const FCompiledGeometry& Compiled = **Found;
+	Rml::Vector2f At = Translation;
+	const FCompiledGeometry* Drawn = Found->Get();
+	if (bProjective)
+	{
+		ProjectGeometry(*Drawn, Translation, ProjectedScratch);
+		Drawn = &ProjectedScratch;
+		At = Rml::Vector2f(0.0f, 0.0f);
+	}
+
+	const FCompiledGeometry& Compiled = *Drawn;
 
 	// A shader effect's geometry carries normalised coordinates rather than the gradient path's
 	// pixel offsets, so the texture stretches over the box and needs no rescaling.
@@ -1940,7 +2085,7 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 		if (const FTexture* Entry = GetEffectTexture(Shader))
 		{
 			FVector2f Offset;
-			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+			const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, At, Offset);
 
 			if (DrawList)
 			{
@@ -1951,7 +2096,7 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 			}
 
 			ApplyClipping();
-			DrawGeometry(Compiled, Translation, Entry->Handle, FVector2f(1.0f, 1.0f));
+			DrawGeometry(Compiled, At, Entry->Handle, FVector2f(1.0f, 1.0f));
 		}
 		return;
 	}
@@ -1976,7 +2121,7 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	if (DrawList || !Layers.IsEmpty())
 	{
 		FVector2f Offset;
-		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, Translation, Offset);
+		const TArray<FSlateVertex>& Vertices = PositionedVertices(Compiled, At, Offset);
 
 		// The gradient's texture coordinates are pixel offsets in the element box, so they need scaling
 		// into the 0..1 the recording's sampler expects. The Slate path does the same thing through its
@@ -2007,7 +2152,7 @@ void FFolioRenderInterface::RenderShader(const Rml::CompiledShaderHandle Shader,
 	}
 
 	ApplyClipping();
-	DrawGeometry(Compiled, Translation, Entry->Handle, FVector2f(1.0f / BoxSize.X, 1.0f / BoxSize.Y));
+	DrawGeometry(Compiled, At, Entry->Handle, FVector2f(1.0f / BoxSize.X, 1.0f / BoxSize.Y));
 }
 
 void FFolioRenderInterface::ReleaseShader(const Rml::CompiledShaderHandle Shader)

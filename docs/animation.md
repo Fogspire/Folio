@@ -34,7 +34,7 @@ The set is `<family>-in`, `<family>-out` or `<family>-in-out` for each of:
 
 So the everyday ones are **`cubic-out`** for something arriving, **`cubic-in`** for something leaving, and `cubic-in-out` for something moving between two places.
 
-**3D transforms do not map onto the renderer.** No `rotateX`, `rotateY` or `perspective`. 2D only: `translate`, `scale`, `rotate`, `skew`.
+**3D transforms work.** `perspective()` (or the `perspective` property on an ancestor) with `rotateX`, `rotateY` and `translateZ` tilts an element like a card in space, and it animates like any other transform: `transform: perspective(400dp) rotateY(-30deg)`. The renderer projects a tilted element point by point on the CPU, so a large one tilted steeply costs more than a flat one; a panel or a card is nothing to worry about.
 
 **`opacity` on an element with overlapping children fades wrong, and the middle of the fade is the only place it shows.** RCSS inherits `opacity`, unlike CSS, and multiplies it into premultiplied vertex colours rather than compositing the subtree as one image. Every descendant is drawn on its own, overlapping quads accumulate instead of blending, and a light panel over a dark shadow blows out to white halfway through. Both ends look right, which is what makes it hard to place: the symptom is a flash partway through an entry animation, not a wrong final state.
 

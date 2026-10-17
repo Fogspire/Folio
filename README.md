@@ -67,6 +67,8 @@ Modern UI often draw HUDs or menus with perspective instead of flat 2D panels. F
 .vitals, .comms { transform: perspective(900dp) rotateY(38deg); transform-origin: 0% 50%; }
 ```
 
+<img width="357" height="208" alt="electron_2026-10-17_14-53-41" src="https://github.com/user-attachments/assets/ed45e6df-adac-4f90-9cc9-2f5368cf5174" />
+
 ### Animation Built-In
 
 Transitions, keyframes, springs that respond to the camera, and a shader decorator for scan lines, sweeps and additive glow.

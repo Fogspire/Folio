@@ -27,6 +27,8 @@ DEFINE_STAT(STAT_FolioSupersample);
 DEFINE_STAT(STAT_FolioWorldSurfaces);
 DEFINE_STAT(STAT_FolioDraws);
 DEFINE_STAT(STAT_FolioBatches);
+DEFINE_STAT(STAT_FolioLayersDrawn);
+DEFINE_STAT(STAT_FolioLayersReused);
 DEFINE_STAT(STAT_FolioLayerMemory);
 
 UE_TRACE_CHANNEL_DEFINE(FolioChannel);

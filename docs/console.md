@@ -60,6 +60,9 @@ See **[documents in the world](world_documents.md)**.
 | `stat Folio` | What the UI costs per frame. Start here. |
 | `folio.Invalidation` | Whether the skip-if-unchanged path is on. Turn it off to find out whether a bug is the invalidation or the document. |
 | `folio.Invalidation.Trace` | Why a document is not idling. A screen that never settles is usually one element still transitioning something invisible. |
+| `folio.Layers.Cache` | Whether a layer whose content has not changed reuses its picture from an earlier frame. On by default; turn it off to find out whether a stale effect is the cache. |
+| `folio.Layers.CacheStats` | Logs how many layers were drawn and how many reused since the last call. |
+| `folio.Layers.CacheTrace [frames]` | Logs every layer drawn rather than reused over the next frames, with what changed since the frame before: place, filters, mask, or which draw and which part (texture, positions, uvs, colours). A layer whose draw gets a new texture every frame is usually a gradient whose stops are bound to a value that keeps moving. |
 | `folio.Input.Trace` | Every input event as it reaches a document, and what consumed it. |
 | `folio.Font.Report` | Which faces are loaded, their variation tuples, and what they cost in atlas pages and glyphs. Finds a screen that quietly instantiated nine weights. |
 | `folio.Font.ClearCache` | Drops the generated fields and regenerates. For proving a bake rather than a cache. |

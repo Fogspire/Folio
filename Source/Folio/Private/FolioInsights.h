@@ -41,6 +41,8 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Accessibility walk"), STAT_FolioAccessibility, S
 
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Draws"), STAT_FolioDraws, STATGROUP_Folio, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Geometry batches"), STAT_FolioBatches, STATGROUP_Folio, );
+DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Layers drawn"), STAT_FolioLayersDrawn, STATGROUP_Folio, );
+DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Layers reused"), STAT_FolioLayersReused, STATGROUP_Folio, );
 
 /// What the layers cost to hold, which is the number a sample count multiplies by itself.
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Layer targets"), STAT_FolioLayerMemory, STATGROUP_Folio, );

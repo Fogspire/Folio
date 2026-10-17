@@ -7,7 +7,10 @@
 #include "FolioInsights.h"
 
 #include "CommonRenderResources.h"
+#include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "HAL/IConsoleManager.h"
+#include "Hash/CityHash.h"
 #include "FolioBlurShader.h"
 #include "FolioModule.h"
 #include "PipelineStateCache.h"
@@ -21,6 +24,50 @@ namespace
 	/** The value written into the stencil where a mask covers. */
 	constexpr uint32 MaskStencilRef = 1;
 
+	TAutoConsoleVariable<bool> CVarLayerCache(
+		TEXT("folio.Layers.Cache"), true,
+		TEXT("Reuse a layer's finished picture when what it draws has not changed since an earlier frame, so ")
+		TEXT("only layers whose content moved are drawn again. Off draws every layer every frame."));
+
+	/** Frames a cached layer survives unused, so a document that skips a paint does not lose its cache. */
+	constexpr uint64 CacheFrames = 2;
+
+	template <typename T>
+	uint64 HashBytes(const TArray<T>& Items, const uint64 Seed)
+	{
+		return Items.IsEmpty() ? Seed : CityHash64WithSeed(reinterpret_cast<const char*>(Items.GetData()),
+			Items.Num() * sizeof(T), Seed);
+	}
+
+	template <typename T>
+	uint64 HashValue(const T& Value, const uint64 Seed)
+	{
+		return CityHash64WithSeed(reinterpret_cast<const char*>(&Value), sizeof(T), Seed);
+	}
+
+	/** Frames left to trace cache misses for; folio.Layers.CacheTrace sets it. */
+	int32 TraceFramesLeft = 0;
+
+	FAutoConsoleCommand CacheTraceCommand(
+		TEXT("folio.Layers.CacheTrace"),
+		TEXT("folio.Layers.CacheTrace [frames]. Logs every layer drawn rather than reused from the cache over the ")
+		TEXT("next frames (default 1), with what changed since the layer in the same place the frame before: its ")
+		TEXT("place, filters, mask, or which draw and which part of it. The way to find what keeps a layer from caching."),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			TraceFramesLeft = Args.IsEmpty() ? 1 : FMath::Max(1, FCString::Atoi(*Args[0]));
+		}));
+
+	template <typename T, typename F>
+	uint64 HashField(const TArray<T>& Items, F Field)
+	{
+		uint64 Hash = 0;
+		for (const T& Item : Items)
+		{
+			Hash = HashValue(Field(Item), Hash);
+		}
+		return Hash;
+	}
 }
 
 FFolioLayerStack::FFolioLayerStack() = default;
@@ -39,7 +86,289 @@ void FFolioLayerStack::Reset()
 
 	Stack.Empty();
 	Pool.Empty();
+	Cache.Empty();
+	Cached.Empty();
+	PrintsOfResults.Empty();
 	Scale = 1;
+}
+
+FFolioLayerStack::FCacheStats FFolioLayerStack::TakeCacheStats()
+{
+	const FCacheStats Taken = Stats;
+	Stats = FCacheStats();
+	return Taken;
+}
+
+bool FFolioLayerStack::PrintOf(const FLayer& Layer, const float BlurSigma,
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask, uint64& OutPrint)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_PrintLayer);
+
+	if (!CVarLayerCache.GetValueOnGameThread())
+	{
+		return false;
+	}
+
+	BeginTraceFrame();
+	FTracedLayer* Traced = TraceFramesLeft > 0 ? &TracedNow.AddDefaulted_GetRef() : nullptr;
+	if (Traced)
+	{
+		Traced->Size = Layer.Size;
+		Traced->Origin = Layer.Origin;
+	}
+
+	uint64 Print = HashValue(Layer.Size, 0x464f4c494f);
+	Print = HashValue(Layer.ClipSize, Print);
+	Print = HashValue(Layer.Origin, Print);
+	const uint64 Place = Print;
+
+	Print = HashValue(BlurSigma, Print);
+	for (const Folio::FColourFilter& Filter : Colour)
+	{
+		Print = HashValue(Filter.Kind, Print);
+		Print = HashValue(Filter.Amount, Print);
+	}
+	if (Traced)
+	{
+		Traced->Place = Place;
+		Traced->Filters = Print;
+	}
+
+	if (Mask)
+	{
+		const uint64* MaskPrint = PrintsOfResults.Find(Mask);
+		if (!MaskPrint)
+		{
+			if (Traced)
+			{
+				Traced->Uncacheable = TEXT("its mask is a layer that was not cached");
+			}
+			return false;
+		}
+		Print = HashValue(*MaskPrint, Print);
+		if (Traced)
+		{
+			Traced->Mask = *MaskPrint;
+		}
+	}
+
+	for (const FFolioDraw& Draw : Layer.Draws.GetDraws())
+	{
+		// A finished layer is printed by what it shows rather than by which target holds it this frame. A
+		// target nobody printed is the game's, and can change without the recording changing at all.
+		UTexture* Texture = Draw.Texture.Get();
+		uint64 TextureKey = 0;
+		if (UTextureRenderTarget2D* Target = Cast<UTextureRenderTarget2D>(Texture))
+		{
+			const uint64* Shown = PrintsOfResults.Find(Target);
+			if (!Shown)
+			{
+				if (Traced)
+				{
+					Traced->Uncacheable = FString::Printf(TEXT("it samples render target %s, which the game draws"), *Target->GetName());
+				}
+				return false;
+			}
+			TextureKey = *Shown;
+		}
+		else if (Texture && !Texture->IsA<UTexture2D>())
+		{
+			if (Traced)
+			{
+				Traced->Uncacheable = FString::Printf(TEXT("it samples %s, a %s that can change behind Folio"), *Texture->GetName(), *Texture->GetClass()->GetName());
+			}
+			return false;
+		}
+		else
+		{
+			TextureKey = reinterpret_cast<UPTRINT>(Texture);
+		}
+		Print = HashValue(TextureKey, Print);
+
+		uint64 State = HashValue(Draw.Kind, 0);
+		State = HashValue(Draw.bMasked, State);
+		State = HashValue(Draw.bMaskInverted, State);
+		State = HashValue(Draw.bTiles, State);
+		State = HashValue(Draw.bStraightAlpha, State);
+		State = HashValue(Draw.Field, State);
+		State = HashValue(Draw.Effect, State);
+		State = HashValue(Draw.Scissor, State);
+		Print = HashValue(State, Print);
+		Print = HashBytes(Draw.Vertices, Print);
+		Print = HashBytes(Draw.Indices, Print);
+
+		if (Traced)
+		{
+			FTracedDraw& Part = Traced->Draws.AddDefaulted_GetRef();
+			Part.Texture = TextureKey;
+			Part.State = State;
+			Part.Positions = HashField(Draw.Vertices, [](const FFolioUIVertex& V) { return V.Position; });
+			Part.UVs = HashField(Draw.Vertices, [](const FFolioUIVertex& V) { return V.UV; });
+			Part.Colours = HashField(Draw.Vertices, [](const FFolioUIVertex& V) { return V.Color; });
+			Part.Indices = HashBytes(Draw.Indices, 0);
+			Part.TextureName = Texture ? Texture->GetName() : TEXT("no texture");
+		}
+	}
+
+	OutPrint = Print;
+	return true;
+}
+
+void FFolioLayerStack::BeginTraceFrame()
+{
+	if (TracedFrame == GFrameCounter)
+	{
+		return;
+	}
+
+	// Layers are compared by paint order, which holds for as long as the document's structure does.
+	if (!TracedNow.IsEmpty())
+	{
+		TraceFramesLeft = FMath::Max(0, TraceFramesLeft - 1);
+	}
+	TracedFrame = GFrameCounter;
+	TracedBefore = MoveTemp(TracedNow);
+	TracedNow.Reset();
+}
+
+void FFolioLayerStack::TraceMiss(const FTracedLayer& Now, const int32 Slot) const
+{
+	const FString Where = FString::Printf(TEXT("layer %d (%dx%d at %d,%d, %d draws)"), Slot, Now.Size.X, Now.Size.Y,
+		Now.Origin.X, Now.Origin.Y, Now.Draws.Num());
+
+	if (!Now.Uncacheable.IsEmpty())
+	{
+		UE_LOG(LogFolio, Display, TEXT("folio cache: %s cannot cache: %s"), *Where, *Now.Uncacheable);
+		return;
+	}
+
+	if (!TracedBefore.IsValidIndex(Slot))
+	{
+		UE_LOG(LogFolio, Display, TEXT("folio cache: %s is new this frame"), *Where);
+		return;
+	}
+
+	const FTracedLayer& Before = TracedBefore[Slot];
+	TArray<FString> Changes;
+	if (Before.Place != Now.Place)
+	{
+		Changes.Add(FString::Printf(TEXT("place (was %dx%d at %d,%d)"), Before.Size.X, Before.Size.Y, Before.Origin.X, Before.Origin.Y));
+	}
+	else if (Before.Filters != Now.Filters)
+	{
+		Changes.Add(TEXT("filters (opacity, blur or colour)"));
+	}
+	if (Before.Mask != Now.Mask)
+	{
+		Changes.Add(TEXT("mask"));
+	}
+	if (Before.Draws.Num() != Now.Draws.Num())
+	{
+		Changes.Add(FString::Printf(TEXT("draw count (was %d)"), Before.Draws.Num()));
+	}
+
+	for (int32 Index = 0; Index < FMath::Min(Before.Draws.Num(), Now.Draws.Num()); ++Index)
+	{
+		const FTracedDraw& A = Before.Draws[Index];
+		const FTracedDraw& B = Now.Draws[Index];
+		TArray<FString> Parts;
+		if (A.Texture != B.Texture) { Parts.Add(TEXT("texture")); }
+		if (A.State != B.State) { Parts.Add(TEXT("state or scissor")); }
+		if (A.Positions != B.Positions) { Parts.Add(TEXT("positions")); }
+		if (A.UVs != B.UVs) { Parts.Add(TEXT("uvs")); }
+		if (A.Colours != B.Colours) { Parts.Add(TEXT("colours")); }
+		if (A.Indices != B.Indices) { Parts.Add(TEXT("indices")); }
+		if (!Parts.IsEmpty())
+		{
+			Changes.Add(FString::Printf(TEXT("draw %d (%s): %s"), Index, *B.TextureName, *FString::Join(Parts, TEXT(", "))));
+		}
+	}
+
+	UE_LOG(LogFolio, Display, TEXT("folio cache: %s changed: %s"), *Where,
+		Changes.IsEmpty() ? TEXT("nothing visible, so its cached result had been dropped") : *FString::Join(Changes, TEXT("; ")));
+}
+
+UTextureRenderTarget2D* FFolioLayerStack::FindCached(const uint64 Print)
+{
+	TrimCache();
+
+	FCached* Found = Cache.Find(Print);
+	if (!Found || !Found->Result.IsValid())
+	{
+		return nullptr;
+	}
+
+	Found->LastUsedFrame = GFrameCounter;
+	return Found->Result.Get();
+}
+
+void FFolioLayerStack::AddCached(const uint64 Print, UTextureRenderTarget2D* Result, const bool bPooled)
+{
+	if (!Result)
+	{
+		return;
+	}
+
+	FCached& Entry = Cache.FindOrAdd(Print);
+	if (Entry.Result.IsValid() && Entry.Result.Get() != Result)
+	{
+		Cached.Remove(Entry.Result.Get());
+		if (Entry.bPooled)
+		{
+			Release(Entry.Result.Get());
+		}
+	}
+
+	Entry.Result = TStrongObjectPtr<UTextureRenderTarget2D>(Result);
+	Entry.LastUsedFrame = GFrameCounter;
+	Entry.bPooled = bPooled;
+	Cached.Add(Result);
+}
+
+void FFolioLayerStack::TrimCache()
+{
+	if (TrimmedFrame == GFrameCounter)
+	{
+		return;
+	}
+	TrimmedFrame = GFrameCounter;
+
+	// The prints of results are this frame's: a target from the pool is a different picture next time.
+	PrintsOfResults.Reset();
+	for (const TPair<uint64, FCached>& Entry : Cache)
+	{
+		if (Entry.Value.Result.IsValid())
+		{
+			PrintsOfResults.Add(Entry.Value.Result.Get(), Entry.Key);
+		}
+	}
+
+	for (auto It = Cache.CreateIterator(); It; ++It)
+	{
+		if (GFrameCounter - It->Value.LastUsedFrame <= CacheFrames)
+		{
+			continue;
+		}
+
+		UTextureRenderTarget2D* Result = It->Value.Result.Get();
+		Cached.Remove(Result);
+		PrintsOfResults.Remove(Result);
+		if (It->Value.bPooled)
+		{
+			Release(Result);
+		}
+		It.RemoveCurrent();
+	}
+}
+
+void FFolioLayerStack::Discard(FLayer& Layer)
+{
+	Layer.Draws.Reset();
+	for (const TStrongObjectPtr<UTextureRenderTarget2D>& Target : Layer.Sampled)
+	{
+		Release(Target.Get());
+	}
+	Layer.Sampled.Reset();
 }
 
 FIntPoint FFolioLayerStack::DocumentSizeOf(const FLayer& Layer)
@@ -140,7 +469,8 @@ UTextureRenderTarget2D* FFolioLayerStack::Obtain(const FIntPoint Size)
 
 void FFolioLayerStack::Release(UTextureRenderTarget2D* Target)
 {
-	if (Target)
+	// A cached result is still somebody's picture; the cache returns it to the pool when it drops it.
+	if (Target && !Cached.Contains(Target))
 	{
 		Pool.Add(FIntPoint(Target->SizeX, Target->SizeY), TStrongObjectPtr<UTextureRenderTarget2D>(Target));
 	}
@@ -330,6 +660,27 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	}
 
 	FLayer& Layer = Stack.Last();
+
+	uint64 Print = 0;
+	const bool bPrinted = PrintOf(Layer, BlurSigma, Colour, Mask, Print);
+	if (bPrinted)
+	{
+		if (UTextureRenderTarget2D* Reused = FindCached(Print))
+		{
+			Discard(Layer);
+			PrintsOfResults.Add(Reused, Print);
+			++Stats.Reused;
+			INC_DWORD_STAT(STAT_FolioLayersReused);
+			return Reused;
+		}
+	}
+	++Stats.Rendered;
+	if (TraceFramesLeft > 0 && !TracedNow.IsEmpty())
+	{
+		TraceMiss(TracedNow.Last(), TracedNow.Num() - 1);
+	}
+	INC_DWORD_STAT(STAT_FolioLayersDrawn);
+
 	ResolveAndRecycle(Layer);
 
 	Folio::ApplyColourFilters(Layer.Target.Get(), Colour);
@@ -360,6 +711,12 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	Replacement->UpdateResourceImmediate(true);
 
 	Layer.Target = TStrongObjectPtr<UTextureRenderTarget2D>(Replacement);
+
+	if (bPrinted)
+	{
+		AddCached(Print, Detached, /*bPooled*/ false);
+		PrintsOfResults.Add(Detached, Print);
+	}
 	return Detached;
 }
 
@@ -372,6 +729,28 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	}
 
 	FLayer& Source = Stack.Last();
+
+	uint64 Print = 0;
+	const bool bPrinted = PrintOf(Source, BlurSigma, Colour, Mask, Print);
+	if (bPrinted)
+	{
+		if (UTextureRenderTarget2D* Reused = FindCached(Print))
+		{
+			Discard(Source);
+			PrintsOfResults.Add(Reused, Print);
+			++Stats.Reused;
+			INC_DWORD_STAT(STAT_FolioLayersReused);
+			AddCompositeQuad(Source, Reused);
+			return;
+		}
+	}
+	++Stats.Rendered;
+	if (TraceFramesLeft > 0 && !TracedNow.IsEmpty())
+	{
+		TraceMiss(TracedNow.Last(), TracedNow.Num() - 1);
+	}
+	INC_DWORD_STAT(STAT_FolioLayersDrawn);
+
 	ResolveAndRecycle(Source);
 
 	// Colour before blur, which is the order CSS gives and the order that matters: blurring a
@@ -406,6 +785,22 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 
 	Folio::ApplyMask(Composited, Mask, {});
 
+	// Kept before the quad is recorded, so the destination's release of what it sampled leaves it alone.
+	if (bPrinted)
+	{
+		AddCached(Print, Composited, /*bPooled*/ true);
+		PrintsOfResults.Add(Composited, Print);
+		if (Composited == Source.Target.Get())
+		{
+			Source.bHandedOff = true;
+		}
+	}
+
+	AddCompositeQuad(Source, Composited);
+}
+
+void FFolioLayerStack::AddCompositeQuad(FLayer& Source, UTextureRenderTarget2D* Composited)
+{
 	// Compositing is a full-target quad drawn into the layer below, recorded like any other
 	// draw so it stays ordered with the geometry around it.
 	FLayer& Destination = Stack[Stack.Num() - 2];

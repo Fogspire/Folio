@@ -144,7 +144,7 @@ In order of likelihood, and check these before concluding anything structural:
 | `W-PERF-RESIZINGLAYER` | A layer effect on an element whose box is transitioned. The expensive one, and the only one that fails a build |
 | `I-PERF-FULLSCREENLAYER` | A layer effect covering at least 75% of the viewport |
 | `I-PERF-LAYERCOUNT` | How many elements draw one at all |
-| `I-PERF-NEVERIDLES` | An animation that runs forever, so every layer in the document is paid for every frame |
+| `I-PERF-NEVERIDLES` | An animation that runs forever, so the document is drawn every frame. Layers whose content has not changed are reused from the cache; the rest are paid for every frame |
 
 `folio.Bake` warns on its own account when it writes a texture over a megapixel without a downscale, since that is memory and a game-thread upload rather than anything the document can see.
 
@@ -162,7 +162,9 @@ folio.Bake UI/screens/hud_baker.rml #scorch UI/art/scorch.png 1920 1080 4
 
 That is 480x270 - half a megabyte instead of eight, and on a soft wash there is nothing to see. **Do not bake at a small size instead.** A `70dp` blur is a much larger fraction of a 270dp box than of a 1080dp one, so the vignette comes out thicker; the render has to happen at the real size and the downsample after it.
 
-**A document that idles pays none of it.** Folio skips the frame entirely when nothing changed, so layers on a settled screen are free. One running animation anywhere in the document ends that, and every layer in it starts costing every frame - which is why a screen effect coming up can look like it caused a spike that was actually sitting there all along. The effect added no cost; it stopped the document idling. `I-PERF-NEVERIDLES` says when a document is in that state.
+**A document that idles pays none of it.** Folio skips the frame entirely when nothing changed, so layers on a settled screen are free. One running animation anywhere in the document ends that and the document is drawn every frame - but a layer is only drawn again when what it contains changed. Each layer is fingerprinted from everything it draws plus its filters and mask, and a layer whose fingerprint matches one from the last couple of frames reuses that picture. So an animation costs its own layers, not every layer beside it. `folio.Layers.Cache 0` turns this off, `folio.Layers.CacheStats` logs how many layers were drawn and reused, and `stat Folio` shows the same as Layers drawn and Layers reused.
+
+A layer that samples a render target the game updates itself, such as a scene capture, is drawn every frame, because the same recording can be a different picture.
 
 ### Bake it, in the engine
 

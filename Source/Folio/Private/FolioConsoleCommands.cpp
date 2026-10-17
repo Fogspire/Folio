@@ -1310,6 +1310,18 @@ namespace
 			"is relative to the project directory; the sample count is 1 to 4 and defaults to 1."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&ShowDocument));
 
+	FAutoConsoleCommand LayerCacheStatsCommand(
+		TEXT("folio.Layers.CacheStats"),
+		TEXT("Logs how many layers were drawn and how many reused from the cache since the last call."),
+		FConsoleCommandDelegate::CreateLambda([]
+		{
+			if (FFolioRenderInterface* Renderer = FFolioModule::Get().GetRenderInterface())
+			{
+				const FFolioLayerStack::FCacheStats Stats = Renderer->TakeLayerCacheStats();
+				UE_LOG(LogFolio, Display, TEXT("folio.Layers.CacheStats drawn=%d reused=%d"), Stats.Rendered, Stats.Reused);
+			}
+		}));
+
 	FAutoConsoleCommand HideCommand(
 		TEXT("folio.Hide"),
 		TEXT("Removes the document shown by folio.Show."),

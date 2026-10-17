@@ -156,6 +156,9 @@ public:
 	/** Highest Slate layer used this frame, so the caller can continue above the document. */
 	int32 GetMaxLayerId() const { return MaxLayerId; }
 
+	/** Layers drawn and reused from the cache since the last call. */
+	FFolioLayerStack::FCacheStats TakeLayerCacheStats() { return Layers.TakeCacheStats(); }
+
 	/**
 	 * Drops cached textures whose file has changed since it was read, so a re-baked atlas or a
 	 * repainted sprite appears without restarting the editor.

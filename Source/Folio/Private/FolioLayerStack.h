@@ -154,6 +154,14 @@ public:
 
 	void Reset();
 
+	/** Layers resolved from scratch and reused from the cache since the last call, for stats and tests. */
+	struct FCacheStats
+	{
+		int32 Rendered = 0;
+		int32 Reused = 0;
+	};
+	FCacheStats TakeCacheStats();
+
 private:
 	struct FLayer
 	{
@@ -213,6 +221,92 @@ private:
 
 	/** Replays a layer's recorded draws into its target, then clears the recording. */
 	void Resolve(FLayer& Layer);
+
+	/**
+	 * What a layer will look like once resolved and filtered, as one number.
+	 *
+	 * Built from everything that decides the result: its size and place, every recorded draw's
+	 * vertices, indices, texture, state and scissor, and the filters and mask about to run over it. Two
+	 * layers with the same print are the same picture, so the second need not be drawn - which is what
+	 * lets a document with one animating element stop paying for every other layer in it each frame.
+	 *
+	 * False when the result cannot be known from the recording: a draw samples a render target the
+	 * game updates behind Folio's back, such as a scene capture, so the same recording can be a
+	 * different picture next frame.
+	 */
+	bool PrintOf(const FLayer& Layer, float BlurSigma, TArrayView<const Folio::FColourFilter> Colour,
+		UTextureRenderTarget2D* Mask, uint64& OutPrint);
+
+	/** What one draw of a traced layer was, broken down so a miss can say which part changed. */
+	struct FTracedDraw
+	{
+		uint64 Texture = 0;
+		uint64 State = 0;
+		uint64 Positions = 0;
+		uint64 UVs = 0;
+		uint64 Colours = 0;
+		uint64 Indices = 0;
+		FString TextureName;
+	};
+
+	/** One layer's print in parts, kept per layer in paint order while folio.Layers.CacheTrace runs. */
+	struct FTracedLayer
+	{
+		uint64 Place = 0;
+		uint64 Filters = 0;
+		uint64 Mask = 0;
+		FIntPoint Size = FIntPoint::ZeroValue;
+		FIntPoint Origin = FIntPoint::ZeroValue;
+		TArray<FTracedDraw> Draws;
+
+		/** Why the layer cannot be cached at all, when it cannot. */
+		FString Uncacheable;
+	};
+
+	/** Starts this frame's trace, rolling the last frame's over to compare against. */
+	void BeginTraceFrame();
+
+	/** Logs why a layer was drawn rather than reused: what differs from the layer in the same place last frame. */
+	void TraceMiss(const FTracedLayer& Now, int32 Slot) const;
+
+	TArray<FTracedLayer> TracedNow;
+	TArray<FTracedLayer> TracedBefore;
+	uint64 TracedFrame = 0;
+
+	/** A finished layer from an earlier frame with this print, or null. Marks it used this frame. */
+	UTextureRenderTarget2D* FindCached(uint64 Print);
+
+	/** Keeps a finished layer for later frames. Pooled is whether it goes back to the pool when dropped. */
+	void AddCached(uint64 Print, UTextureRenderTarget2D* Result, bool bPooled);
+
+	/** Drops what has not been used for a couple of frames. Cheap enough to call on every lookup. */
+	void TrimCache();
+
+	/** A layer whose cached result is being used instead: its draws are thrown away and what it sampled freed. */
+	void Discard(FLayer& Layer);
+
+	/** Records the quad that draws a finished layer into the one below it, and keeps its target alive until then. */
+	void AddCompositeQuad(FLayer& Source, UTextureRenderTarget2D* Composited);
+
+	struct FCached
+	{
+		TStrongObjectPtr<UTextureRenderTarget2D> Result;
+		uint64 LastUsedFrame = 0;
+
+		/** A composited result came from the pool and goes back to it; a detached one belongs to its caller. */
+		bool bPooled = false;
+	};
+
+	TMap<uint64, FCached> Cache;
+
+	/** Every result the cache holds, so Release never hands one back to the pool while it is still wanted. */
+	TSet<UTextureRenderTarget2D*> Cached;
+
+	/** The print of each finished layer, so a draw or a mask that samples one can be printed by content. */
+	TMap<UTextureRenderTarget2D*, uint64> PrintsOfResults;
+
+	uint64 TrimmedFrame = 0;
+	FCacheStats Stats;
 
 	/** Resolves, then returns every target the layer sampled to the pool. */
 	void ResolveAndRecycle(FLayer& Layer);

@@ -46,6 +46,7 @@ If the game is running in the editor, saving in Studio hot-reloads the document 
 | `the renderer is missing from Tools/studio/engine/dist` | Your checkout is incomplete. `git status` should show nothing missing under `Tools/studio/engine/dist`; `git checkout -- Tools/studio/engine/dist` restores it. |
 | "This document did not load" | Open **Problems**. It lists what the renderer rejected, with file and line. |
 | The canvas shows the document with no data | The document binds a model with no mock. Open **Data** and create one. |
+| A screen costs frames while it sits still | Open **Activity**. It says whether the document idles in the game, and names every animation that runs forever (which stops it idling), what can wake it (transitions, animations that end, data bindings), and every element drawing a layer. Click a row to select the element. |
 | "This element is not written in the document as it appears here" | The element comes from a template or was generated at run time. Select its parent, or edit the template's own file. |
 | A panel is gone | **View** lists every panel and reopens a closed one. **View > Layout > Reset Layout**, or F10, puts them all back. |
 | Terminal says it could not start | Run `./scripts/studio.sh` again so it reinstalls dependencies. If you set a shell in **File > Preferences**, check its path. |

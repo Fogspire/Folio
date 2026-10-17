@@ -173,9 +173,10 @@ run_tests() {
 	# Each scripted test edits files, so each gets a throwaway copy of what it works on.
 	local scratch
 	scratch="$(mktemp -d)"
-	mkdir -p "$scratch/edit/UI/screens" "$scratch/shell/UI/screens" "$scratch/data"
+	mkdir -p "$scratch/edit/UI/screens" "$scratch/shell/UI/screens" "$scratch/data" "$scratch/activity/UI/screens"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/edit/UI/screens/test.rml"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/shell/UI/screens/test.rml"
+	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/activity/UI/screens/test.rml"
 	cp -r "$studio/test/fixtures/data/UI" "$scratch/data/UI"
 
 	local failed=0
@@ -190,6 +191,8 @@ run_tests() {
 	run_scripted shell "$scratch/shell" UI/screens/test.rml
 	echo "Data"
 	run_scripted data "$scratch/data" UI/screens/pause.rml
+	echo "Activity"
+	run_scripted activity "$scratch/activity" UI/screens/test.rml
 
 	rm -rf "$scratch"
 	[[ $failed -eq 0 ]] || folio_die "scripted tests failed."

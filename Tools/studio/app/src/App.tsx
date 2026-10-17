@@ -5,6 +5,7 @@ import { handleKey, runCommand } from './commands';
 import { Dialogs } from './Dialogs';
 import { setDock, showPanel } from './dock';
 import { host } from './host';
+import { ActivityPanel } from './panels/Activity';
 import { CanvasPanel } from './panels/Canvas';
 import { CodePanel } from './panels/Code';
 import { DataPanel } from './panels/Data';
@@ -19,6 +20,7 @@ import { basename } from './paths';
 import { checkForUpdatesNow, openProject, pickProject, revertAll, saveAll, setMode, store, toggleUpdateCheck } from './session';
 
 const components = {
+	activity: ActivityPanel,
 	canvas: CanvasPanel,
 	code: CodePanel,
 	data: DataPanel,

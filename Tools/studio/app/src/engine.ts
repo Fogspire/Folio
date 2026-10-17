@@ -39,6 +39,31 @@ export interface Diagnostic {
 	message: string;
 }
 
+export interface ActivityElement {
+	id: string;
+	path: string;
+	/** Tag, id and classes, which is how a person names it. */
+	label: string;
+	visible: boolean;
+	/** Animations that never end, so the document never idles while the element is shown. */
+	forever: string[];
+	finite: { name: string; times: number }[];
+	/** Properties that transition when they change, or "all". */
+	transitions: string[];
+	/** The data-* attributes binding it to a model. */
+	bindings: string[];
+	/** The layer effects it draws, comma separated, or empty. */
+	layer: string;
+	/** Its share of the viewport, 0 to 1. */
+	coverage: number;
+}
+
+export interface Activity {
+	/** Seconds until RmlUi next wants an update: 0 for every frame, null for not until something changes. */
+	next: number | null;
+	elements: ActivityElement[];
+}
+
 export interface OpenSettings {
 	root: string;
 	document: string;
@@ -64,6 +89,7 @@ interface NativeEngine {
 	tree(): string;
 	inspect(id: string, names: string): string;
 	diagnostics(): string;
+	activity(): string;
 	setInlineProperty(id: string, name: string, value: string): boolean;
 	removeInlineProperty(id: string, name: string): void;
 	screenshot(path: string): boolean;
@@ -285,6 +311,11 @@ export class EngineClient {
 
 	diagnostics(): Diagnostic[] {
 		return JSON.parse(this.native!.diagnostics());
+	}
+
+	/** When the document would next update in the game, and what about each element can make it. */
+	activity(): Activity | null {
+		return JSON.parse(this.native!.activity());
 	}
 
 	setInlineProperty(id: string, name: string, value: string): boolean {

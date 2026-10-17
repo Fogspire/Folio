@@ -2,16 +2,20 @@
 #include "Bake.h"
 #include "Diagnostics.h"
 #include "Options.h"
+#include "ElementPath.h"
 #include "ProvenanceReport.h"
 #include "backend/UipreviewBackendGLFW.h"
 
 #include "FolioCore/FolioCoreVersion.h"
 
+#include <RmlUi/Core/Animation.h>
+#include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/ElementText.h>
 #include <RmlUi/Core/Property.h>
+#include <RmlUi/Core/StringUtilities.h>
 #include <RmlUi/Core/StyleSheetSpecification.h>
 
 #include <GLFW/glfw3.h>
@@ -94,6 +98,113 @@ std::string StructuralId(Rml::Element* element, Rml::ElementDocument* document)
 		id += std::to_string(*it);
 	}
 	return id;
+}
+
+/** Attributes that bind to a data model, so the element changes when its data does. Events and keys are not. */
+bool IsBinding(const std::string& name)
+{
+	if (name.rfind("data-", 0) != 0)
+		return false;
+	return name != "data-model" && name != "data-loc" && name != "data-noloc" && name.rfind("data-event-", 0) != 0
+		&& name.rfind("data-alias-", 0) != 0;
+}
+
+/**
+ * What about one element can make the document update: animations that never end, ones that end,
+ * transitions waiting for a change, data bindings, and the layer effects whose cost rides on all of it.
+ * Null when there is nothing.
+ */
+json DescribeActivity(Rml::Element* element, Rml::ElementDocument* document, const Rml::Vector2f viewport)
+{
+	const Rml::ComputedValues& computed = element->GetComputedValues();
+
+	json forever = json::array();
+	json finite = json::array();
+	if (const Rml::AnimationList* animations = computed.animation())
+	{
+		for (const Rml::Animation& animation : *animations)
+		{
+			if (animation.paused)
+				continue;
+			if (animation.num_iterations < 0)
+				forever.push_back(animation.name);
+			else
+				finite.push_back({{"name", animation.name}, {"times", animation.num_iterations}});
+		}
+	}
+
+	json transitions = json::array();
+	if (const Rml::TransitionList* list = computed.transition(); list && !list->none)
+	{
+		if (list->all)
+			transitions.push_back("all");
+		for (const Rml::Transition& transition : list->transitions)
+			transitions.push_back(Rml::StyleSheetSpecification::GetPropertyName(transition.id));
+	}
+
+	json bindings = json::array();
+	for (const auto& [name, value] : element->GetAttributes())
+	{
+		if (IsBinding(name))
+			bindings.push_back(name);
+	}
+
+	std::string layer;
+	const auto add = [&layer](const char* name) { layer += (layer.empty() ? "" : ", ") + std::string(name); };
+	if (computed.has_box_shadow())
+		add("box-shadow");
+	if (computed.has_filter())
+		add("filter");
+	if (computed.has_backdrop_filter())
+		add("backdrop-filter");
+	if (computed.has_mask_image())
+		add("mask-image");
+
+	if (forever.empty() && finite.empty() && transitions.empty() && bindings.empty() && layer.empty())
+		return nullptr;
+
+	const Rml::Vector2f size = element->GetBox().GetSize(Rml::BoxArea::Border);
+	json out;
+	out["id"] = StructuralId(element, document);
+	out["path"] = uipreview::ComputeElementPath(element);
+
+	// What a person would call it: the tag, its id and its classes. The path is exact but unreadable
+	// once nothing on the way has an id.
+	std::string label = element->GetTagName();
+	if (!element->GetId().empty())
+		label += "#" + element->GetId();
+	Rml::StringList classes;
+	Rml::StringUtilities::ExpandString(classes, element->GetClassNames(), ' ');
+	for (const std::string& name : classes)
+	{
+		if (!name.empty())
+			label += "." + name;
+	}
+	out["label"] = label;
+	out["visible"] = element->IsVisible();
+	out["forever"] = std::move(forever);
+	out["finite"] = std::move(finite);
+	out["transitions"] = std::move(transitions);
+	out["bindings"] = std::move(bindings);
+	out["layer"] = layer;
+	out["coverage"] = viewport.x > 0.0f && viewport.y > 0.0f ? Round2(size.x * size.y / (viewport.x * viewport.y)) : 0.0;
+	return out;
+}
+
+void CollectActivity(Rml::Element* element, Rml::ElementDocument* document, const Rml::Vector2f viewport, json& out)
+{
+	if (!element || IsText(element))
+		return;
+
+	if (element != document)
+	{
+		json entry = DescribeActivity(element, document, viewport);
+		if (!entry.is_null() && entry["id"] != kNoId)
+			out.push_back(std::move(entry));
+	}
+
+	for (int i = 0; i < element->GetNumChildren(); ++i)
+		CollectActivity(element->GetChild(i), document, viewport, out);
 }
 
 Rml::Element* ResolveStructuralId(Rml::ElementDocument* document, const std::string& id)
@@ -371,6 +482,31 @@ public:
 		return out.dump();
 	}
 
+	/**
+	 * When the document would next update in the game, and every element that can make it.
+	 *
+	 * `next` is what RmlUi asked for after the last frame: 0 for every frame, a number of seconds for a
+	 * timer such as a caret blink, and null for not until something changes. Folio skips every frame
+	 * until then, so null is a document that costs nothing while it sits there.
+	 */
+	std::string Activity() const
+	{
+		if (!app || !app->GetDocument())
+			return "null";
+
+		Rml::Context* context = app->GetContext();
+		const double next = context->GetNextUpdateDelay();
+		const Rml::Vector2i dimensions = context->GetDimensions();
+
+		json elements = json::array();
+		CollectActivity(app->GetDocument(), app->GetDocument(), Rml::Vector2f(float(dimensions.x), float(dimensions.y)), elements);
+
+		json out;
+		out["next"] = std::isfinite(next) ? json(Round2(float(next))) : json(nullptr);
+		out["elements"] = std::move(elements);
+		return out.dump();
+	}
+
 	/** Sets a property on the live element only, for previewing a gesture before it is written to source. */
 	bool SetInlineProperty(const std::string& id, const std::string& name, const std::string& value)
 	{
@@ -457,6 +593,7 @@ EMSCRIPTEN_BINDINGS(folio_engine)
 		.function("tree", &Engine::Tree)
 		.function("inspect", &Engine::Inspect)
 		.function("diagnostics", &Engine::Diagnostics)
+		.function("activity", &Engine::Activity)
 		.function("setInlineProperty", &Engine::SetInlineProperty)
 		.function("removeInlineProperty", &Engine::RemoveInlineProperty)
 		.function("screenshot", &Engine::Screenshot)

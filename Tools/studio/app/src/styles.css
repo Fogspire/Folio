@@ -1740,3 +1740,81 @@ select {
 	width: 160px;
 	background: var(--bg-panel);
 }
+
+/* Activity */
+
+.activity {
+	padding: 8px 0;
+	user-select: text;
+}
+
+.activity section {
+	margin-top: 12px;
+}
+
+.activity h3 {
+	padding: 0 12px;
+}
+
+.activity-verdict {
+	margin: 0 12px;
+	padding: 8px 10px;
+	border-left: 3px solid var(--text-dim);
+	background: var(--bg-raised);
+}
+
+.activity-verdict .title {
+	font-weight: 600;
+}
+
+.activity-verdict .detail {
+	color: var(--text-dim);
+	margin-top: 2px;
+}
+
+.activity-verdict.never {
+	border-left-color: var(--error);
+}
+
+.activity-verdict.busy,
+.activity-verdict.timer {
+	border-left-color: var(--warning);
+}
+
+.activity-verdict.idle {
+	border-left-color: var(--accent);
+}
+
+.activity-row {
+	display: flex;
+	gap: 10px;
+	padding: 3px 12px;
+	align-items: baseline;
+	cursor: default;
+}
+
+.activity-row:hover {
+	background: var(--bg-hover);
+}
+
+.activity-row.hidden {
+	color: var(--text-faint);
+}
+
+.activity-row .path {
+	flex: none;
+	max-width: 45%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 11px;
+}
+
+.activity-row .why {
+	flex: 1;
+	color: var(--text-dim);
+}
+
+.activity-none {
+	padding: 0 12px;
+}

@@ -55,6 +55,7 @@ export const COMMANDS: CommandInfo[] = [
 	command('View', 'panel:inspector', 'Show Properties', 'app'),
 	command('View', 'panel:data', 'Show Data', 'app'),
 	command('View', 'panel:problems', 'Show Problems', 'app'),
+	command('View', 'panel:activity', 'Show Activity', 'app'),
 	command('View', 'panel:docs', 'Show Docs', 'app', 'F1'),
 	command('View', 'panel:terminal', 'Show Terminal', 'app'),
 	command('View', 'show-messages', 'Messages', 'app'),

@@ -29,6 +29,8 @@ const PANELS: PanelPlace[] = [
 
 let api: DockviewApi | null = null;
 const LAYOUT_KEY = 'folio.studio.layout';
+/** Every panel Studio had when the layout was last saved, so one added since can be told from one closed on purpose. */
+const KNOWN_PANELS_KEY = 'folio.studio.knownPanels';
 let rememberTimer: number | null = null;
 
 function addPanel(place: PanelPlace, fresh: boolean) {
@@ -46,13 +48,33 @@ export function setDock(value: DockviewApi) {
 	api = value;
 	const remembered = host.testing || !loadSettings().restoreLayout ? null : localStorage.getItem(LAYOUT_KEY);
 	if (!remembered || !restoreLayout(remembered)) resetLayout();
+	else addNewPanels();
 
 	// The layout as it was left is the one the next start opens with.
 	api.onDidLayoutChange(() => {
 		if (host.testing) return;
 		if (rememberTimer !== null) window.clearTimeout(rememberTimer);
-		rememberTimer = window.setTimeout(() => localStorage.setItem(LAYOUT_KEY, serialiseLayout()), 500);
+		rememberTimer = window.setTimeout(() => {
+			localStorage.setItem(LAYOUT_KEY, serialiseLayout());
+			localStorage.setItem(KNOWN_PANELS_KEY, JSON.stringify(PANELS.map((place) => place.id)));
+		}, 500);
 	});
+}
+
+/** Docks panels this version of Studio has and the remembered layout never knew about, behind their neighbours. */
+function addNewPanels() {
+	let known: string[] | null = null;
+	try {
+		known = JSON.parse(localStorage.getItem(KNOWN_PANELS_KEY) ?? 'null');
+	} catch {
+		known = null;
+	}
+	for (const place of PANELS) {
+		// Without a record, a panel the layout lacks may have been closed on purpose, except one added since that record existed.
+		const isNew = known ? !known.includes(place.id) : place.id === 'activity';
+		if (isNew && !api!.getPanel(place.id)) addPanel(place, true);
+	}
+	localStorage.setItem(KNOWN_PANELS_KEY, JSON.stringify(PANELS.map((place) => place.id)));
 }
 
 export function serialiseLayout(): string {

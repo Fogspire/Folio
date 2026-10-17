@@ -59,6 +59,15 @@ public:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 	//~ End FSceneViewExtensionBase
 
+	/**
+	 * Drops these recordings from what the render thread is drawing.
+	 *
+	 * The snapshot is only replaced when a family renders with a live document in it, so a document torn down
+	 * with its world (the end of PIE) would otherwise stay in the last one for good, holding its textures and
+	 * through them the old world. Compared by address only; the caller still owns the lists.
+	 */
+	void ForgetDrawLists(TArray<const class FFolioDrawList*> Lists);
+
 private:
 	/** The in-scene route, once the renderer's own scene colour and depth have been found. */
 	void DrawInScene(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef SceneColour,

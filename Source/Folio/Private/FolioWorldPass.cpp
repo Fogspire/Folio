@@ -47,6 +47,28 @@ bool FFolioWorldPass::IsActiveThisFrame_Internal(const FSceneViewExtensionContex
 	return CVarWorldDocuments.GetValueOnAnyThread() && !UFolioWorldDocument::GetLive().IsEmpty();
 }
 
+void FFolioWorldPass::ForgetDrawLists(TArray<const FFolioDrawList*> Lists)
+{
+	ENQUEUE_RENDER_COMMAND(FolioForgetSurfaces)(
+		[this, Lists = MoveTemp(Lists)](FRHICommandListImmediate&)
+		{
+			if (!RenderSurfaces.IsValid())
+			{
+				return;
+			}
+
+			TSharedRef<TArray<FSurface>> Kept = MakeShared<TArray<FSurface>>();
+			for (const FSurface& Surface : *RenderSurfaces)
+			{
+				if (!Lists.Contains(Surface.Draws.Get()))
+				{
+					Kept->Add(Surface);
+				}
+			}
+			RenderSurfaces = Kept;
+		});
+}
+
 bool FFolioWorldPass::HasSurfaces(const bool bInScene) const
 {
 	return RenderSurfaces.IsValid() && RenderSurfaces->ContainsByPredicate(

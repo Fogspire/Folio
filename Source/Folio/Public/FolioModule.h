@@ -86,6 +86,9 @@ public:
 	 */
 	FFolioRenderInterface* GetRenderInterface() const { return RenderInterface.Get(); }
 
+	/** Draws world-space documents. Null until the renderer is up. */
+	class FFolioWorldPass* GetWorldPass() const { return WorldPass.Get(); }
+
 	/** The text engine, or null if RmlUi failed to start. */
 	Folio::FFolioFontEngine* GetFontEngine() const { return FontEngine.Get(); }
 

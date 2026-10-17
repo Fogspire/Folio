@@ -7,6 +7,7 @@
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
 #include "FolioSettings.h"
+#include "FolioWorldPass.h"
 #include "SFolioWorldFocus.h"
 
 #include "Engine/TextureRenderTarget2D.h"
@@ -294,6 +295,17 @@ void UFolioWorldDocument::ReleaseRecordings()
 
 	if (StillInFlight(Published) || Retired.ContainsByPredicate(StillInFlight))
 	{
+		// The pass's snapshot holds them too, and is not replaced once no document is left to draw.
+		if (FFolioWorldPass* Pass = FFolioModule::IsAvailable() ? FFolioModule::Get().GetWorldPass() : nullptr)
+		{
+			TArray<const FFolioDrawList*> Lists;
+			Lists.Add(Published.Get());
+			for (const TSharedPtr<const FFolioDrawList>& List : Retired)
+			{
+				Lists.Add(List.Get());
+			}
+			Pass->ForgetDrawLists(MoveTemp(Lists));
+		}
 		FlushRenderingCommands();
 	}
 

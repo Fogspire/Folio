@@ -73,6 +73,12 @@ void FFolioWorldPass::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 				continue;
 			}
 
+			// Hidden the way any component is: a game shows and hides a surface without tearing its document down.
+			if (!Document->IsVisible())
+			{
+				continue;
+			}
+
 			// A surface renders itself into a target for a material to sample, so neither route here draws it.
 			if (Document->DrawMode == EFolioWorldDrawMode::Surface)
 			{

@@ -30,7 +30,8 @@ namespace
 		1,
 		TEXT("Occlusion for documents drawn after the tonemapper, where there is no depth buffer to test "
 			"against. 0 draws every document through the world, which separates an occlusion bug from a "
-			"transform bug. 1 rejects fragments behind scene geometry. 2 replaces the document with what the "
+			"transform bug. 1 rejects fragments behind scene geometry, and fades documents with "
+			"bBehindTranslucency under translucency. 2 replaces the document with what the "
 			"test reads: red is scene depth, green is the document's own depth amplified 20x, blue means "
 			"occluded. Red anywhere near white means the depth lookup is wrong rather than the comparison. "
 			"In-scene documents ignore this: they test the real depth buffer."),
@@ -118,6 +119,7 @@ void FFolioWorldPass::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 			Surface.DocumentSize = Document->GetDocumentSize();
 			Surface.bInScene = Document->DrawMode == EFolioWorldDrawMode::InScene;
 			Surface.bAlwaysOnTop = Document->bAlwaysOnTop;
+			Surface.bBehindTranslucency = Document->bBehindTranslucency;
 			Document->GetSurface(Surface.Centre, Surface.Right, Surface.Up);
 		}
 	}
@@ -148,6 +150,74 @@ void FFolioWorldPass::SubscribeToPostProcessingPass(const EPostProcessingPass Pa
 void FFolioWorldPass::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View,
 	const FPostProcessingInputs& Inputs)
 {
+	// This hook is the only place the translucency textures are handed over, and it runs for every view before
+	// post-processing starts, so it is where an after-tonemap document finds what is in front of it. Entries
+	// from earlier frames go first, as do this view's own: a texture belongs to one graph, and every family
+	// rendered in a tick shares a frame number, so a view that has none this time must not be handed the one
+	// a different family left at the same address.
+	ViewTranslucency.RemoveAll(
+		[&View, FrameNumber = View.Family->FrameNumber](const FViewTranslucency& Entry)
+		{
+			return Entry.FrameNumber != FrameNumber || Entry.View == &View;
+		});
+
+	const bool bAnyBehindTranslucency = RenderSurfaces.IsValid() && RenderSurfaces->ContainsByPredicate(
+		[](const FSurface& Surface) { return !Surface.bInScene && Surface.bBehindTranslucency; });
+	if (bAnyBehindTranslucency && Inputs.TranslucencyViewResourcesMap.IsValid())
+	{
+		// Before-DOF (standard) translucency renders straight into scene colour unless
+		// r.Translucency.StandardSeparated is on, so there is no layer here to read for it and documents still
+		// draw over it. VFX materials have to stay on After DOF (the default) or After Motion Blur to sit in
+		// front of a document.
+		const auto ReadLayer = [&GraphBuilder, &Inputs](const ETranslucencyPass::Type Pass)
+		{
+			FTranslucencyLayer Layer;
+			const FTranslucencyPassResources& Resources = Inputs.TranslucencyViewResourcesMap.Get(Pass);
+
+			// Either texture is enough: additive translucency can arrive with no modulate, and a modulated
+			// layer with no colour. The renderer hands back a dummy for whichever is missing, one that
+			// composites to nothing, so a layer is only left null when it has neither.
+			const bool bHasColour = Resources.ColorTexture.IsValid();
+			if (!Resources.IsValid() || !(bHasColour || Resources.ColorModulateTexture.IsValid()))
+			{
+				return Layer;
+			}
+
+			Layer.Colour = Resources.GetColorForRead(GraphBuilder);
+			Layer.Modulate = Resources.GetColorModulateForRead(GraphBuilder);
+
+			// The textures can be lower resolution than the scene, and the view sits somewhere inside them, so
+			// the shader is given the rect as fractions of the extent rather than pixels. The extent is the
+			// real texture's, since a dummy is a single texel and says nothing about where the view sits.
+			const FRDGTextureRef Real = bHasColour
+				? Resources.ColorTexture.Resolve
+				: Resources.ColorModulateTexture.Resolve;
+			const FIntPoint Extent = Real->Desc.Extent;
+
+			Layer.Rect = FVector4f(
+				float(Resources.ViewRect.Min.X) / float(FMath::Max(1, Extent.X)),
+				float(Resources.ViewRect.Min.Y) / float(FMath::Max(1, Extent.Y)),
+				float(Resources.ViewRect.Width()) / float(FMath::Max(1, Extent.X)),
+				float(Resources.ViewRect.Height()) / float(FMath::Max(1, Extent.Y)));
+			return Layer;
+		};
+
+		// The two are composited one after the other, after DOF first, so they are kept apart rather than
+		// merged: the shader needs the order to combine them the way the renderer did.
+		const FTranslucencyLayer AfterDof = ReadLayer(ETranslucencyPass::TPT_TranslucencyAfterDOF);
+		const FTranslucencyLayer AfterMotionBlur =
+			ReadLayer(ETranslucencyPass::TPT_TranslucencyAfterMotionBlur);
+
+		if (AfterDof.Colour || AfterMotionBlur.Colour)
+		{
+			FViewTranslucency& Entry = ViewTranslucency.AddDefaulted_GetRef();
+			Entry.View = &View;
+			Entry.FrameNumber = View.Family->FrameNumber;
+			Entry.AfterDof = AfterDof;
+			Entry.AfterMotionBlur = AfterMotionBlur;
+		}
+	}
+
 	// Before post-processing rather than after the base pass, which is the other hook that looks right and
 	// is not: in a deferred renderer scene colour is still being accumulated then, so lighting would be
 	// added on top of the document. Here the scene is lit and translucency is done, and the temporal
@@ -232,25 +302,6 @@ FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FScene
 		return SceneColour;
 	}
 
-	// The pass writes over the scene rather than producing a new image, so it needs somewhere it may
-	// write. OverrideOutput is supplied when this happens to be the last pass; otherwise the scene colour
-	// is written in place, which is what a post-process material at this point does.
-	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
-	if (Output.IsValid())
-	{
-		AddDrawTexturePass(GraphBuilder, View, SceneColour, Output);
-
-		// The override arrives with a load action that discards, because whoever handed it over expected a
-		// single pass to fill it. The copy above has already filled it, so the document's own pass has to
-		// load: leaving the discard in place clears the scene back to black and draws the document onto
-		// nothing, which is a black screen with a correctly lit depth buffer behind it.
-		Output.LoadAction = ERenderTargetLoadAction::ELoad;
-	}
-	else
-	{
-		Output = FScreenPassRenderTarget(SceneColour, ERenderTargetLoadAction::ELoad);
-	}
-
 	// Either uniform buffer, because the mobile renderer fills its own and leaves the deferred one
 	// null. Read only the first and occlusion silently turns itself off under mobile forward, which
 	// looks like the depth test failing rather than never running.
@@ -264,12 +315,62 @@ FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FScene
 		SceneDepth = Inputs.SceneTextures.MobileSceneTextures->GetContents()->SceneDepthTexture;
 	}
 
+	const int32 OcclusionMode = SceneDepth != nullptr
+		? FMath::Clamp(CVarWorldOcclusion.GetValueOnRenderThread(), 0, 2)
+		: 0;
+
+	// Faded by the same switch as occlusion rather than one of its own: both are the document being placed
+	// among the scene's depth, and a single 0 then draws it plainly on top of everything. Deferred only, since
+	// the shader needs the scene colour the layers were composited over and the mobile renderer's uniform
+	// buffer has none. Found before the output is chosen because it decides whether that can be the scene
+	// colour itself.
+	const FViewTranslucency* Translucency = nullptr;
+	if (OcclusionMode > 0 && Inputs.SceneTextures.SceneTextures)
+	{
+		Translucency = ViewTranslucency.FindByPredicate(
+			[&View](const FViewTranslucency& Existing)
+			{
+				return Existing.View == &View && Existing.FrameNumber == View.Family->FrameNumber;
+			});
+	}
+
+	// The pass writes over the scene rather than producing a new image, so it needs somewhere it may
+	// write. OverrideOutput is supplied when this happens to be the last pass; otherwise the scene colour
+	// is written in place, which is what a post-process material at this point does.
+	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+
+	// Except when fading, which reads the tonemapped scene as a texture to find how much of it is
+	// translucency's own glow. A texture cannot be read while it is also the target being written, so the
+	// in-place case is given a copy to draw into exactly as an override is, and the scene colour stays
+	// readable.
+	if (Translucency && !Output.IsValid())
+	{
+		FRDGTextureDesc CopyDesc = SceneColour.Texture->Desc;
+		CopyDesc.Flags |= TexCreate_RenderTargetable | TexCreate_ShaderResource;
+		Output = FScreenPassRenderTarget(GraphBuilder.CreateTexture(CopyDesc, TEXT("FolioWorldSceneColour")),
+			SceneColour.ViewRect, ERenderTargetLoadAction::ENoAction);
+	}
+
+	if (Output.IsValid())
+	{
+		AddDrawTexturePass(GraphBuilder, View, SceneColour, Output);
+
+		// The override arrives with a load action that discards, because whoever handed it over expected a
+		// single pass to fill it, and the texture made for fading starts out empty to the same effect. The
+		// copy above has already filled it, so the document's own pass has to load: leaving the discard in
+		// place clears the scene back to black and draws the document onto nothing, which is a black screen
+		// with a correctly lit depth buffer behind it.
+		Output.LoadAction = ERenderTargetLoadAction::ELoad;
+	}
+	else
+	{
+		Output = FScreenPassRenderTarget(SceneColour, ERenderTargetLoadAction::ELoad);
+	}
+
 	FTarget Target;
 	Target.Colour = Output.GetRenderTargetBinding();
 	Target.Viewport = Output.ViewRect;
-	Target.OcclusionMode = SceneDepth != nullptr
-		? FMath::Clamp(CVarWorldOcclusion.GetValueOnRenderThread(), 0, 2)
-		: 0;
+	Target.OcclusionMode = OcclusionMode;
 	Target.DepthTexture = Target.OcclusionMode > 0
 		? SceneDepth
 		: GSystemTextures.GetBlackDummy(GraphBuilder);
@@ -282,6 +383,30 @@ FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FScene
 		float(Target.Viewport.Min.X), float(Target.Viewport.Min.Y),
 		1.0f / float(FMath::Max(1, Target.Viewport.Width())),
 		1.0f / float(FMath::Max(1, Target.Viewport.Height())));
+
+	if (Translucency)
+	{
+		Target.AfterDof = Translucency->AfterDof;
+		Target.AfterMotionBlur = Translucency->AfterMotionBlur;
+
+		// The layers were composited over the scene colour in the scene textures, which the composite does not
+		// write to: DOF and the standalone compose both make a new texture, so this still holds the picture
+		// from before any of it.
+		Target.SceneColourBefore = Inputs.SceneTextures.SceneTextures->GetContents()->SceneColorTexture;
+
+		// What this pass was handed, which is the tonemapper's output and so what the viewer would see. Never
+		// the target: that is a separate texture whenever this is active, so it can be read while drawing.
+		Target.SceneColourAfter = SceneColour.Texture;
+
+		// Fractions of the texture's extent for the same reason as the layers' rects: where the view sits in
+		// it need not be the whole texture.
+		const FIntPoint SceneExtent = SceneColour.Texture->Desc.Extent;
+		Target.SceneColourAfterRect = FVector4f(
+			float(SceneColour.ViewRect.Min.X) / float(FMath::Max(1, SceneExtent.X)),
+			float(SceneColour.ViewRect.Min.Y) / float(FMath::Max(1, SceneExtent.Y)),
+			float(SceneColour.ViewRect.Width()) / float(FMath::Max(1, SceneExtent.X)),
+			float(SceneColour.ViewRect.Height()) / float(FMath::Max(1, SceneExtent.Y)));
+	}
 
 	if (Target.OcclusionMode == 2)
 	{
@@ -355,19 +480,51 @@ void FFolioWorldPass::AddSurface(FRDGBuilder& GraphBuilder, const FSceneView& Vi
 		? 0.0f
 		: float(Target.OcclusionMode);
 	Parameters->FolioSceneTarget = Target.SceneTarget;
+
+	// Each of these is a dummy where there is nothing to fade by, picked so the shader's composite of them
+	// changes nothing: a layer of no colour that hides none of the scene, scene colour of black.
+	Parameters->FolioTranslucencyDof = Target.AfterDof.Colour
+		? Target.AfterDof.Colour
+		: GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
+	Parameters->FolioTranslucencyDofModulate = Target.AfterDof.Modulate
+		? Target.AfterDof.Modulate
+		: GSystemTextures.GetWhiteDummy(GraphBuilder);
+	Parameters->FolioTranslucencyDofRect = Target.AfterDof.Rect;
+	Parameters->FolioTranslucencyMb = Target.AfterMotionBlur.Colour
+		? Target.AfterMotionBlur.Colour
+		: GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
+	Parameters->FolioTranslucencyMbModulate = Target.AfterMotionBlur.Modulate
+		? Target.AfterMotionBlur.Modulate
+		: GSystemTextures.GetWhiteDummy(GraphBuilder);
+	Parameters->FolioTranslucencyMbRect = Target.AfterMotionBlur.Rect;
+	Parameters->FolioSceneColourBefore = Target.SceneColourBefore
+		? Target.SceneColourBefore
+		: GSystemTextures.GetBlackDummy(GraphBuilder);
+	Parameters->FolioSceneColourAfter = Target.SceneColourAfter
+		? Target.SceneColourAfter
+		: GSystemTextures.GetBlackDummy(GraphBuilder);
+	Parameters->FolioSceneColourAfterRect = Target.SceneColourAfterRect;
+
+	// One sampler for all of them: every lookup is a bilinear read of a texture of some other size, clamped
+	// so a view that sits against an edge does not pick up the far side.
+	Parameters->FolioTranslucencySampler =
+		TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	Parameters->RenderTargets[0] = Target.Colour;
 	Parameters->RenderTargets.DepthStencil = Target.Depth;
 
 	const FIntRect Viewport = Target.Viewport;
 	const bool bDepthTest = Target.bDepthTest;
 
+	FFolioWorldPixelPermutation Permutation;
+	Permutation.Set<FFolioBehindTranslucencyDim>(Surface.bBehindTranslucency && Target.SceneColourAfter != nullptr);
+
 	GraphBuilder.AddPass(RDG_EVENT_NAME("FolioWorldDocument"), Parameters, ERDGPassFlags::Raster,
-		[Parameters, Viewport, bDepthTest, Draws](FRHICommandList& RHICmdList)
+		[Parameters, Viewport, bDepthTest, Draws, Permutation](FRHICommandList& RHICmdList)
 		{
 			const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 			TShaderMapRef<FFolioWorldVS> VertexShader(ShaderMap);
-			TShaderMapRef<FFolioWorldPS> PixelShader(ShaderMap);
-			TShaderMapRef<FFolioWorldMsdfPS> FieldShader(ShaderMap);
+			TShaderMapRef<FFolioWorldPS> PixelShader(ShaderMap, Permutation);
+			TShaderMapRef<FFolioWorldMsdfPS> FieldShader(ShaderMap, Permutation);
 
 			RHICmdList.SetViewport(Viewport.Min.X, Viewport.Min.Y, 0.0f,
 				Viewport.Max.X, Viewport.Max.Y, 1.0f);

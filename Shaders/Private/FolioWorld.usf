@@ -31,8 +31,8 @@ float4 MsdfField;
 float4 MsdfEffect;
 
 // x: 1 when the sample is straight alpha and has to be premultiplied before it is blended.
-// y: 1 when the target and vertex colour are gamma encoded (after the tonemapper) but the sRGB sampler hands
-//    back linear, so the texel is encoded again.
+// y: 1 after the tonemapper, where the target and the vertex colour are gamma encoded but the sRGB sampler
+//    hands back linear: the texel is encoded again or every image, gradient and layer lands too dark.
 float4 UIOptions;
 
 Texture2D FolioSceneDepth;
@@ -50,6 +50,39 @@ float FolioOcclusionMode;
 //   z:  1 to remap clip space from the view rect into the whole target.
 //   w:  1 to scale colour by the view's pre-exposure.
 float4 FolioSceneTarget;
+
+// The separate translucency the renderer composited before the tonemapper: colour, whose alpha is how much of
+// the scene shows through it and whose rgb is what it adds, and the modulate texture that tints what shows
+// through. After DOF is composited first and after motion blur over it. Where there is nothing to fade by
+// these are dummies, a black alpha-one colour and a white modulate, which hide nothing and add nothing.
+//   Rect xy: where the view starts in the textures, as a fraction of their extent.
+//   Rect zw: the view's size as a fraction of their extent.
+Texture2D FolioTranslucencyDof;
+Texture2D FolioTranslucencyDofModulate;
+float4 FolioTranslucencyDofRect;
+Texture2D FolioTranslucencyMb;
+Texture2D FolioTranslucencyMbModulate;
+float4 FolioTranslucencyMbRect;
+SamplerState FolioTranslucencySampler;
+
+// Scene colour from before either layer was composited into it, which is what they were composited over, and
+// the tonemapped scene colour this document is drawn over. Black where there is nothing to fade by. The
+// first shares the depth buffer's extent and is found the same way; the second is looked up through the
+// rect, which works as the layers' does.
+Texture2D FolioSceneColourBefore;
+Texture2D FolioSceneColourAfter;
+float4 FolioSceneColourAfterRect;
+
+// The floor on the composite when working out how much of it is glow. A calibration knob, in pre-exposed
+// linear scene colour, which is the unit the scene and the translucency are both in and so depends on how the
+// scene is exposed. A faint translucency over a near-black scene is everything on screen there, so without a
+// floor it counts as entirely glow and covers the document at full strength; below this it is taken as a
+// proportionally smaller share instead.
+#define FOLIO_GLOW_EPSILON 0.01f
+
+#ifndef FOLIO_BEHIND_TRANSLUCENCY
+#define FOLIO_BEHIND_TRANSLUCENCY 0
+#endif
 
 void WorldVS(
 	in float2 InPosition : ATTRIBUTE0,
@@ -85,18 +118,24 @@ void WorldVS(
 		: InColor;
 }
 
-// What scene depth holds at this fragment.
+// Where this fragment's pixel is in the scene's own buffers, as a fraction of their extent.
 //
 // Routed through a screen position rather than scaling pixels directly: the two targets differ in both
 // resolution and padding under an upscaler, and ScreenPositionScaleBias already describes the render
-// target the depth buffer actually lives in.
-float SceneDeviceZAt(float4 SvPosition)
+// target the scene buffers actually live in. Scene colour and depth share that extent, so one mapping
+// serves both.
+float2 SceneBufferUV(float4 SvPosition)
 {
 	const float2 Screen = (SvPosition.xy - FolioOutputRect.xy) * FolioOutputRect.zw
 		* float2(2.0f, -2.0f) + float2(-1.0f, 1.0f);
-	const float2 DepthUV = Screen * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
 
-	return FolioSceneDepth.Load(int3(int2(DepthUV * View.BufferSizeAndInvSize.xy), 0)).r;
+	return Screen * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
+}
+
+// What scene depth holds at this fragment.
+float SceneDeviceZAt(float4 SvPosition)
+{
+	return FolioSceneDepth.Load(int3(int2(SceneBufferUV(SvPosition) * View.BufferSizeAndInvSize.xy), 0)).r;
 }
 
 // True when scene geometry is in front of this fragment.
@@ -111,6 +150,56 @@ bool IsOccluded(float4 SvPosition)
 	}
 
 	return SceneDeviceZAt(SvPosition) > SvPosition.z;
+}
+
+// A premultiplied document, placed behind the translucency in front of this fragment. Returns it unchanged
+// where there is none.
+//
+// The document is drawn after the tonemapper, so by now fire, smoke and the like have already been composited
+// over the scene and the document would land crisply on top of them. The renderer composites a layer as
+// scene * colour.a * modulate.rgb + colour.rgb, so a layer hides the scene by V = colour.a * modulate.rgb and
+// adds R = colour.rgb. After DOF is composited first and after motion blur over it, which folds into
+// V = V1 * V2 and R = R1 * V2 + R2.
+//
+// Whatever hides the scene should hide the document with it, and scaling by V does that for anything
+// alpha-blended. Additive glow is the case it misses: V stays one, so the document would draw over the glow.
+// The tonemapper was handed X = S * V + R, S being the scene from before the layers, and made D of it, which
+// is what the document is drawn over. So D * R / X is the glow's share of D, and adding that back at the
+// document's coverage puts the glow over the document rather than under it. The lookups use the same
+// view-relative position as scene depth, with each rect mapping it into a texture that may be smaller.
+//
+// max(1 - V, ...) keeps the covering at least as strong as scaling by V alone, so alpha-blended translucency
+// hides a document exactly as it did before and opaque translucency (V = 0) leaves D whole. X is floored with
+// a max rather than offset by an epsilon, so a bright composite is divided by itself and not by something
+// slightly bigger. With the dummies bound V is one, R and D are zero and the result is the document as given.
+float4 BehindTranslucency(float4 Premultiplied, float4 SvPosition)
+{
+#if !FOLIO_BEHIND_TRANSLUCENCY
+	return Premultiplied;
+#else
+	const float2 ScreenUV = (SvPosition.xy - FolioOutputRect.xy) * FolioOutputRect.zw;
+	const float2 DofUV = FolioTranslucencyDofRect.xy + ScreenUV * FolioTranslucencyDofRect.zw;
+	const float2 MbUV = FolioTranslucencyMbRect.xy + ScreenUV * FolioTranslucencyMbRect.zw;
+	const float2 AfterUV = FolioSceneColourAfterRect.xy + ScreenUV * FolioSceneColourAfterRect.zw;
+
+	const float4 DofColour = FolioTranslucencyDof.SampleLevel(FolioTranslucencySampler, DofUV, 0);
+	const float4 DofModulate = FolioTranslucencyDofModulate.SampleLevel(FolioTranslucencySampler, DofUV, 0);
+	const float4 MbColour = FolioTranslucencyMb.SampleLevel(FolioTranslucencySampler, MbUV, 0);
+	const float4 MbModulate = FolioTranslucencyMbModulate.SampleLevel(FolioTranslucencySampler, MbUV, 0);
+
+	const float3 MbVisibility = MbColour.a * MbModulate.rgb;
+	const float3 Visibility = DofColour.a * DofModulate.rgb * MbVisibility;
+	const float3 Glow = DofColour.rgb * MbVisibility + MbColour.rgb;
+
+	const float3 SceneBefore = FolioSceneColourBefore.SampleLevel(FolioTranslucencySampler,
+		SceneBufferUV(SvPosition), 0).rgb;
+	const float3 SceneAfter = FolioSceneColourAfter.SampleLevel(FolioTranslucencySampler, AfterUV, 0).rgb;
+
+	const float3 Composite = SceneBefore * Visibility + Glow;
+	const float3 Share = saturate(max(1.0f - Visibility, Glow / max(Composite, FOLIO_GLOW_EPSILON)));
+
+	return float4(Visibility * Premultiplied.rgb + Premultiplied.a * SceneAfter * Share, Premultiplied.a);
+#endif
 }
 
 // Red is what scene depth reads, green is the document's own depth amplified so a near-plane-relative value
@@ -139,9 +228,11 @@ float4 WorldPS(
 	}
 
 	float4 Texel = UITexture.Sample(UISampler, UV);
+	// Encoding undoes the sampler's decode channel by channel, so a premultiplied texel comes back exactly
+	// as stored too. White, the plain fill, is unchanged.
 	Texel.rgb = lerp(Texel.rgb, LinearToSrgbBranchless(Texel.rgb), UIOptions.y);
 	Texel.rgb = lerp(Texel.rgb, Texel.rgb * Texel.a, UIOptions.x);
-	return Texel * Color;
+	return BehindTranslucency(Texel * Color, SvPosition);
 }
 
 // Text and vector art, which is where drawing after the tonemapper pays for itself: with no temporal
@@ -167,7 +258,9 @@ float4 WorldMsdfPS(
 	// No fill pattern on this path, for the same reason the layer path has none: a second texture needs
 	// a second sampler, and passing the atlas keeps the sampler valid where a strength of zero means it
 	// is never read.
-	return FolioMsdfShade(UITexture, UISampler, UV, MsdfField.xy, MsdfField.z,
+	const float4 Shaded = FolioMsdfShade(UITexture, UISampler, UV, MsdfField.xy, MsdfField.z,
 		MsdfEffect.x, MsdfEffect.y, MsdfEffect.z, MsdfField.w, Premultiplied,
 		UITexture, UISampler, UV, 0.0f);
+
+	return BehindTranslucency(Shaded, SvPosition);
 }

@@ -55,8 +55,47 @@ BEGIN_SHADER_PARAMETER_STRUCT(FFolioWorldParameters, )
 	 */
 	SHADER_PARAMETER(FVector4f, FolioSceneTarget)
 
+	/**
+	 * The after-DOF translucency the renderer composited before the tonemapper: colour, whose alpha is how
+	 * much of the scene shows through it and whose rgb is what it adds, and the modulate texture that tints
+	 * what shows through. A document drawn over them has to sit behind them rather than on top, and alpha
+	 * alone cannot do it: additive glow leaves alpha at one. Bound to dummies where there is nothing to fade
+	 * by, a black alpha-one colour and a white modulate, which hide nothing and add nothing.
+	 */
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FolioTranslucencyDof)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FolioTranslucencyDofModulate)
+
+	/**
+	 * xy: where the view starts in the after-DOF textures, as a fraction of their extent. zw: the view's size
+	 * as a fraction of it. They can be lower resolution than the scene, so pixels would not line up.
+	 */
+	SHADER_PARAMETER(FVector4f, FolioTranslucencyDofRect)
+
+	/** The same for the after-motion-blur layer, which the renderer composites over the after-DOF one. */
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FolioTranslucencyMb)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FolioTranslucencyMbModulate)
+	SHADER_PARAMETER(FVector4f, FolioTranslucencyMbRect)
+
+	/**
+	 * Scene colour from before either layer was composited into it, which is what they were composited over,
+	 * and the tonemapped scene colour the document is drawn over, which is what ended up on screen. Black
+	 * where there is nothing to fade by.
+	 */
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FolioSceneColourBefore)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FolioSceneColourAfter)
+
+	/** xy: where the view starts in the tonemapped scene colour, as a fraction of its extent. zw: its size. */
+	SHADER_PARAMETER(FVector4f, FolioSceneColourAfterRect)
+
+	/** One bilinear clamp sampler for every lookup above. */
+	SHADER_PARAMETER_SAMPLER(SamplerState, FolioTranslucencySampler)
+
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
+
+/** Fades the document under the translucency in front of it. See UFolioWorldDocument::bBehindTranslucency. */
+class FFolioBehindTranslucencyDim : SHADER_PERMUTATION_BOOL("FOLIO_BEHIND_TRANSLUCENCY");
+using FFolioWorldPixelPermutation = TShaderPermutationDomain<FFolioBehindTranslucencyDim>;
 
 class FFolioWorldVS : public FGlobalShader
 {
@@ -77,6 +116,7 @@ public:
 	DECLARE_GLOBAL_SHADER(FFolioWorldPS);
 	SHADER_USE_PARAMETER_STRUCT(FFolioWorldPS, FGlobalShader);
 	using FParameters = FFolioWorldParameters;
+	using FPermutationDomain = FFolioWorldPixelPermutation;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -90,6 +130,7 @@ public:
 	DECLARE_GLOBAL_SHADER(FFolioWorldMsdfPS);
 	SHADER_USE_PARAMETER_STRUCT(FFolioWorldMsdfPS, FGlobalShader);
 	using FParameters = FFolioWorldParameters;
+	using FPermutationDomain = FFolioWorldPixelPermutation;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{

@@ -85,6 +85,24 @@ private:
 
 		/** After tonemap only: this surface skips the occlusion test. See UFolioWorldDocument::bAlwaysOnTop. */
 		bool bAlwaysOnTop = false;
+		/** See UFolioWorldDocument::bBehindTranslucency. */
+		bool bBehindTranslucency = false;
+	};
+
+	/**
+	 * One separate translucency layer as the renderer composites it: scene * colour.a * modulate + colour.rgb.
+	 *
+	 * Both textures are carried because alpha alone is not the whole story. Additive translucency leaves it at
+	 * one and lives entirely in the colour, and a modulated layer lives in the modulate texture. A layer the
+	 * view does not have is left null, and the shader is given dummies that composite to nothing.
+	 */
+	struct FTranslucencyLayer
+	{
+		FRDGTextureRef Colour = nullptr;
+		FRDGTextureRef Modulate = nullptr;
+
+		/** xy where the view starts in those textures, zw its size, as fractions of their extent. */
+		FVector4f Rect = FVector4f(0.0f, 0.0f, 1.0f, 1.0f);
 	};
 
 	/**
@@ -108,6 +126,27 @@ private:
 
 		/** True where the depth buffer is bound and does the rejecting itself. */
 		bool bDepthTest = false;
+
+		/**
+		 * After tonemap only: the separate translucency a document is placed behind, in the order the renderer
+		 * composites it. Left null where there is nothing to fade by, and the shader is given dummies that
+		 * leave the document alone.
+		 */
+		FTranslucencyLayer AfterDof;
+		FTranslucencyLayer AfterMotionBlur;
+
+		/**
+		 * After tonemap only: the scene colour from before either layer was composited into it, and the
+		 * tonemapped scene colour this document is drawn over. Set with the layers or not at all. The first is
+		 * what the layers were composited over and the second is what the viewer sees, so between them they
+		 * say how much of the picture under a document is translucency's own glow. Null where there is nothing
+		 * to fade by, and the shader is given black.
+		 */
+		FRDGTextureRef SceneColourBefore = nullptr;
+		FRDGTextureRef SceneColourAfter = nullptr;
+
+		/** xy where the view starts in SceneColourAfter, zw its size, as fractions of the texture's extent. */
+		FVector4f SceneColourAfterRect = FVector4f(0.0f, 0.0f, 1.0f, 1.0f);
 	};
 
 	FScreenPassTexture Draw(FRDGBuilder& GraphBuilder, const FSceneView& View,
@@ -132,4 +171,27 @@ private:
 	 * so copying every frame would undo the invalidation work.
 	 */
 	TSharedPtr<const TArray<FSurface>> RenderSurfaces;
+
+	/**
+	 * The after-DOF and after-motion-blur translucency one view produced, kept from where it is reachable to
+	 * where it is read.
+	 */
+	struct FViewTranslucency
+	{
+		const FSceneView* View = nullptr;
+		uint32 FrameNumber = 0;
+		FTranslucencyLayer AfterDof;
+		FTranslucencyLayer AfterMotionBlur;
+	};
+
+	/**
+	 * Render thread only. PrePostProcessPass is the only hook that is handed the translucency textures, and
+	 * the tonemap callback that wants them runs later in the same graph, so this carries them across.
+	 *
+	 * Keyed by frame number as well as view, and a view's entry is cleared each time it passes through the
+	 * hook above: a texture belongs to one frame's graph, so a view that never reaches the tonemapper must
+	 * not leave a dangling RDG reference for a later frame to pick up, nor one for another family in the
+	 * same frame.
+	 */
+	TArray<FViewTranslucency> ViewTranslucency;
 };

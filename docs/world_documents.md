@@ -38,6 +38,13 @@ The price is that bloom, depth of field and motion blur never reach it, and anti
 
 Reach for this unless you have a specific reason not to.
 
+Translucency the renderer has already composited (fire, smoke, additive glow) lands under it, so the document draws crisply over a fire in front of it. Tick `Behind Translucency` to fade it under them instead:
+
+- Deferred renderer only. Under forward or mobile it does nothing.
+- Only translucency in the **After DOF** pass (the default for translucent materials) or **After Motion Blur** fades a document. Before-DOF translucency still draws under it unless `r.Translucency.StandardSeparated` is on.
+- It costs a copy of scene colour per view and six texture reads per document pixel, so leave it off for documents nothing passes in front of.
+- `folio.World.Occlusion 0` turns it off along with depth testing.
+
 ### In Scene
 
 Drawn into the scene as world-space triangles, before post-processing. Still no render target and no resample, so still sharp at any distance, and it receives bloom, depth of field and colour grading like anything else in the world. Temporal antialiasing will smear it.
@@ -213,6 +220,7 @@ Markup and stylesheet edits hot reload in the world the same as anywhere else: n
 
 - **Surface mode and the mesh is blank.** Nothing is sampling the target yet, or the Blueprint bound `On Surface Changed` and never received the first one. See step 3.
 - **Every edge is dark, or the whole thing is dim.** The material is `Translucent` rather than `AlphaComposite`.
+- **A fire or glow in front of it draws behind it.** Tick `Behind Translucency`, and check the effect's material is in the After DOF or After Motion Blur translucency pass. A document still showing faintly through dim smoke over a very dark scene is expected; please raise an issue with a screenshot if it reads wrong.
 - **It is behind the wall it is mounted on.** Nudge it off the surface. `folio.World.Occlusion 0` confirms that is what is happening in one command.
 - **Nothing hovers or clicks.** Nothing is driving the pointer. Tick `Pointer From Player View` or call `Move Pointer Along` yourself, and check `Pointer Reach` covers how far away you are standing. `folio.World.ShowSurface 1` says which of those it is.
 - **The cursor moves the wrong way.** `Invert Pointer V`. See above.

@@ -126,6 +126,17 @@ public:
 	bool bAlwaysOnTop = false;
 
 	/**
+	 * After tonemap only: fades the document under translucency in front of it (fire, smoke, additive glow)
+	 * rather than drawing crisply over it. Applies with bAlwaysOnTop too.
+	 *
+	 * Deferred renderer only, and only for translucency in the After DOF or After Motion Blur pass, unless
+	 * r.Translucency.StandardSeparated is on. Costs a scene colour copy and six texture reads per pixel.
+	 * See docs/world_documents.md.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	bool bBehindTranslucency = false;
+
+	/**
 	 * Surface mode only: the largest the offscreen target may be, as a multiple of the document's size.
 	 *
 	 * The target is sized from how large the surface lands on screen, so walking up to it sharpens it

@@ -1,0 +1,9 @@
+{
+	"bShown": true,
+	"Position": "translate(0dp, 0dp)",
+	"Wheels": [
+		{ "Size": 60.0, "Hole": 36.0, "Length": 360.0, "Fill": 360.0, "Trail": 360.0, "bSpent": false, "bTemporary": false },
+		{ "Size": 80.0, "Hole": 80.0, "Length": 216.0, "Fill": 150.0, "Trail": 185.0, "bSpent": false, "bTemporary": false },
+		{ "Size": 96.0, "Hole": 86.0, "Length": 100.0, "Fill": 100.0, "Trail": 100.0, "bSpent": false, "bTemporary": true }
+	]
+}

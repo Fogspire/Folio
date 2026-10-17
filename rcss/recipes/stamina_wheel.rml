@@ -1,0 +1,73 @@
+<rml>
+<head>
+	<meta name="folio-size" content="320x320"/>
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+	<style>
+		/*
+		 * A stamina wheel: a thick ring beside the character that appears when stamina is spent, empties
+		 * clockwise from twelve with what was just spent trailing in red, turns red when run dry and
+		 * refills red until it recovers, and fades a moment after it is full. More stamina rings the
+		 * first, larger and thinner, and a ring can be part of a circle: only what is owned has a track.
+		 * Temporary stamina is yellow.
+		 *
+		 * The "stamina" model this expects:
+		 *
+		 *   bShown    bool    up: stamina short, or full for under a second
+		 *   Position  string  transform placing it, "translate(Xdp, Ydp)", with " rotate(Ndeg)" after it
+		 *                     to turn twelve o'clock toward the character
+		 *   Wheels    array   one row per ring, innermost first:
+		 *     Size        float  outer diameter in dp
+		 *     Hole        float  the cut-out, as a percentage of the radius: smaller is thicker
+		 *     Length      float  degrees of the ring that exist, 0 to 360: a part ring stops here
+		 *     Fill        float  degrees filled, 0 to Length
+		 *     Trail       float  degrees the red end reaches, Fill to Length: stamina a moment ago
+		 *     bSpent      bool   run dry: the whole fill is red until it recovers
+		 *     bTemporary  bool   bonus stamina, yellow, which does not come back once spent
+		 *
+		 * Everything that changes with stamina is a number; the colours and shapes are built here, in
+		 * the expressions below. The game decides when it shows, how fast the trail catches up and what
+		 * counts as recovered. docs/tutorials/stamina_wheel.md fills the model.
+		 *
+		 * Each ring is one disc painted by a conic gradient and hollowed by a radial mask-image, so both
+		 * edges are smooth circles at any size. The mask is a render layer: one per ring, and only
+		 * while the wheel is shown. It masks decorators; a plain background-color is not masked.
+		 */
+		body {
+			position: relative;
+			width: 100%;
+			height: 100%;
+			background-color: transparent;
+		}
+
+		/* A zero-size point the rings centre on. */
+		.stamina {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			width: 0;
+			height: 0;
+			opacity: 0;
+			transition: opacity 0.3s cubic-out;
+		}
+		.stamina.shown { opacity: 1; }
+
+		.ring { position: absolute; }
+	</style>
+</head>
+
+<body data-model="stamina">
+	<div class="stamina" data-class-shown="bShown" data-style-transform="Position">
+		<div class="ring" data-for="w : Wheels"
+			data-style-width="w.Size + 'dp'"
+			data-style-height="w.Size + 'dp'"
+			data-style-left="(w.Size / -2) + 'dp'"
+			data-style-top="(w.Size / -2) + 'dp'"
+			data-style-decorator="'conic-gradient(from 0deg at 50% 50%, '
+				+ (w.bSpent ? '#e0424a' : (w.bTemporary ? '#f2d24b' : '#7ed957')) + ' 0deg, '
+				+ (w.bSpent ? '#e0424a' : (w.bTemporary ? '#f2d24b' : '#7ed957')) + ' ' + w.Fill + 'deg, '
+				+ '#e0424a ' + w.Fill + 'deg, #e0424a ' + w.Trail + 'deg, '
+				+ '#0b0b0fa0 ' + w.Trail + 'deg, #0b0b0fa0 ' + w.Length + 'deg, #00000000 ' + w.Length + 'deg, #00000000 360deg)'"
+			data-style-mask-image="'radial-gradient(circle farthest-side at 50% 50%, #ffffff00 ' + w.Hole + '%, #ffffffff ' + (w.Hole + 3) + '%, #ffffffff 97%, #ffffff00 100%)'"></div>
+	</div>
+</body>
+</rml>

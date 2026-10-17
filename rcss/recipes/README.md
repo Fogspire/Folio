@@ -17,6 +17,7 @@ strings and the ids, and delete what you do not need. Nothing links them at runt
 | `prompts.rml` | Every drawn glyph the library ships |
 | `bindings.rml` | A rebinding list over `UFolioInputBindings` |
 | `circle.rml` | Circles, rings, capsules - and why a bordered box is not one |
+| `stamina_wheel.rml` | Stamina represented on a wheel, with partial, extra and temporary wheels. See [the tutorial](../../docs/tutorials/stamina_wheel.md) |
 
 Each one is rendered under `--strict` before it is committed, so a copied recipe starts clean.
 

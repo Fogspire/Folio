@@ -75,6 +75,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[A helmet HUD that responds to the player](tutorials/visor_hud.md)** | A first-person visor with no art at all: a helmet made of one border, curvature without 3D transforms, two components trailing the camera and the stride, and baking the aperture glow so it stops costing a render target a frame. |
 | **[A paper doll, and 3D items in a grid](tutorials/paper_doll.md)** | A character in a profile frame and meshes in inventory cells: isolating a capture without a staging area, the premultiply trap, and one rig feeding a page of targets. |
 | **[The coloured screen edge](tutorials/screen_edge.md)** | Standing in fire, taking a hit, running on low health: an inset box-shadow is the whole effect, states cross-fade while events animate - then bake the lot to textures, because a full-screen layer costs a render target every frame. |
+| **[A stamina wheel](tutorials/stamina_wheel.md)** | Stamina represented on a wheel, with partial, extra and temporary wheels. |
 
 ## Reference
 

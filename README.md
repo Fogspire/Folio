@@ -4,7 +4,7 @@
 
 Folio is free, source included, and built to be the UI layer of a shipping game, from a solo project to a full production, from indie to AAA.
 
-UE5.8+
+UE5.8+ supporting both Deferred Rendering and Forward Rendering.
 
 > [!WARNING]
 > Fully ready to be used, however not yet fully released

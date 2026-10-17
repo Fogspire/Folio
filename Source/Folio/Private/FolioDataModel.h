@@ -38,13 +38,21 @@ public:
 	FFolioDataModel();
 	~FFolioDataModel();
 
-	/** Reads the file and creates the model. Must happen before the document is loaded. */
-	bool Mount(Rml::Context* Context, const FString& ModelName, const FString& JsonPath);
+	/**
+	 * Reads the file and creates the model. Must happen before the document is loaded. Each of EventNames
+	 * not also a key in the file gets a callback that does nothing, since mock data has no game code behind
+	 * it and a slider reports its value through data-event-change as it loads.
+	 */
+	bool Mount(Rml::Context* Context, const FString& ModelName, const FString& JsonPath,
+		const TArray<FString>& EventNames = {});
 
 	bool IsMounted() const { return bMounted; }
 
 	/** The model a document declares, read from the markup: the DOM does not exist yet. */
 	static FString DiscoverModelName(const FString& DocumentText);
+
+	/** The callbacks a document's data-event-* attributes call, e.g. SetMusicVolume in "SetMusicVolume(ev.value)". */
+	static TArray<FString> DiscoverEventNames(const FString& DocumentText);
 
 	/** UI/mock/<model>.json under the content root, or empty if there is none. */
 	static FString FindMockFile(const FString& ModelName);

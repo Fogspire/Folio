@@ -22,6 +22,13 @@ endif()
 include(FetchContent)
 
 set(FOLIO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+if(APPLE)
+	set(FOLIO_BIN_DIR "${FOLIO_ROOT}/bin/mac")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	set(FOLIO_BIN_DIR "${FOLIO_ROOT}/bin/linux")
+else()
+	set(FOLIO_BIN_DIR "${FOLIO_ROOT}/bin/win64")
+endif()
 include("${FOLIO_ROOT}/cmake/Pins.cmake")
 
 find_package(Git REQUIRED)

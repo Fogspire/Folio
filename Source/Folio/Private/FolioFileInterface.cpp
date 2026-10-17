@@ -86,7 +86,19 @@ FString FFolioFileInterface::ResolveInPackage(const Rml::String& Path) const
 
 	if (Relative.StartsWith(TEXT("/")))
 	{
-		return FPaths::Combine(ContentRoot, Relative.RightChop(1));
+		const FString InContentRoot = FPaths::Combine(ContentRoot, Relative.RightChop(1));
+
+#if !PLATFORM_WINDOWS
+		// Off Windows a real absolute path starts with a slash too (every font the engine registers), so
+		// one the content root does not have falls back to the path as given. Through the file manager so
+		// a path inside a pak still counts.
+		if (!IFileManager::Get().FileExists(*InContentRoot) && IFileManager::Get().FileExists(*Relative))
+		{
+			return Relative;
+		}
+#endif
+
+		return InContentRoot;
 	}
 
 	// A path reaching up out of the binary directory is already anchored there, the form

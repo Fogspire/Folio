@@ -9,6 +9,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace Rml {
 class Context;
@@ -38,6 +39,9 @@ public:
 	/** Mounts an empty model, so bindings resolve to blanks instead of warning per element. */
 	bool MountEmpty(Rml::Context* context, const std::string& model_name);
 
+	/** Callbacks bound as no-ops when the model is mounted. Set before mounting. */
+	void SetEventStubs(std::vector<std::string> names) { event_stubs = std::move(names); }
+
 	/** Re-reads the file into the existing slots. */
 	bool Reload();
 
@@ -52,6 +56,7 @@ public:
 
 private:
 	bool Assign(const nlohmann::ordered_json& source, bool warn_about_new_keys);
+	void BindEventStubs(Rml::DataModelConstructor& constructor);
 
 	Diagnostics& diagnostics;
 	std::string json_path;
@@ -60,6 +65,7 @@ private:
 	/** Addresses must stay put, so every bound value lives in its own allocation. */
 	std::map<std::string, std::unique_ptr<nlohmann::ordered_json>> slots;
 	Rml::DataModelHandle handle;
+	std::vector<std::string> event_stubs;
 
 	class Definitions;
 	std::unique_ptr<Definitions> definitions;

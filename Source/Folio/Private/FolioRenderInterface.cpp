@@ -921,7 +921,12 @@ Rml::TextureHandle FFolioRenderInterface::LoadTexture(Rml::Vector2i& OutDimensio
 				TEXT("'%s' names a texture the game has not registered. Call Folio::RegisterTexture, or ")
 				TEXT("UFolioWidget::RegisterTexture, before the document draws."),
 				*Folio::ToFString(Source));
-			return 0;
+
+			// A clear pixel rather than a failure: RmlUi remembers a failed source for good, so the
+			// document would stay blank after the game registers the name.
+			static const Rml::byte Clear[4] = { 0, 0, 0, 0 };
+			OutDimensions = Rml::Vector2i(1, 1);
+			return GenerateTexture(Rml::Span<const Rml::byte>(Clear, 4), OutDimensions);
 		}
 
 		const FIntPoint Size(
@@ -1211,15 +1216,15 @@ void FFolioRenderInterface::SetTransform(const Rml::Matrix4f* Transform)
 		return;
 	}
 
-	// Slate's render transform is 2D. RCSS 3D transforms are out of scope by decision, so the
-	// upper-left 2x2 plus the translation column is the whole of what can be expressed; a
-	// perspective or rotateX would silently flatten, which is why they are banned in the
-	// conventions rather than merely discouraged.
+	// Slate's render transform is 2D, so this is an affine projection of a 3D matrix. With only translateZ
+	// under a perspective, w is the same for every point of the element, so dividing by M[3][3] is the exact
+	// projection. rotateX/rotateY make w vary per vertex and still flatten.
 	const Rml::Matrix4f& M = *Transform;
+	const float InvW = 1.0f / (FMath::Abs(M[3][3]) > UE_SMALL_NUMBER ? M[3][3] : 1.0f);
 	const FMatrix2x2 Linear(
-		M[0][0], M[0][1],
-		M[1][0], M[1][1]);
-	const FVector2f Offset(M[3][0], M[3][1]);
+		M[0][0] * InvW, M[0][1] * InvW,
+		M[1][0] * InvW, M[1][1] * InvW);
+	const FVector2f Offset(M[3][0] * InvW, M[3][1] * InvW);
 
 	RmlTransform = FSlateRenderTransform(Linear, Offset);
 	bHasTransform = true;

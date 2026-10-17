@@ -185,10 +185,11 @@ void FFolioModule::ShutdownModule()
 	Folio::ReleaseFolioDecorators();
 	Folio::ReleaseFolioFilters();
 
+	// The font engine's atlases release their pages into the render interface, so it goes first.
+	FontEngine.Reset();
 	RenderInterface.Reset();
 	Folio::SetHost(nullptr);
 	CoreHost.Reset();
-	FontEngine.Reset();
 	FontCache.Reset();
 	FileInterface.Reset();
 	SystemInterface.Reset();

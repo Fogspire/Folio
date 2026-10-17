@@ -93,6 +93,12 @@ private:
 	 * never see.
 	 */
 	std::vector<std::string> DiscoverDataModelNames() const;
+	/**
+	 * Names the document's data-event-* attributes call. A mock is JSON and has no functions, so
+	 * each is bound as a no-op; otherwise a slider's change on load reads as a missing callback the
+	 * game's model would never report.
+	 */
+	std::vector<std::string> DiscoverEventCallbacks() const;
 	std::string FindConventionalDataFile(const std::string& model_name) const;
 	void MountDataModel();
 

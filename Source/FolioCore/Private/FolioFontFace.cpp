@@ -201,14 +201,14 @@ namespace Folio
 			return;
 		}
 
-		std::vector<unsigned char> Data;
-		if (!CacheStore->Read(CacheKey, Data))
+		std::vector<unsigned char> CacheData;
+		if (!CacheStore->Read(CacheKey, CacheData))
 		{
 			return;
 		}
 
 		std::vector<FCachedGlyph> Cached;
-		if (!DeserializeGlyphCache(Data, Atlas.GetAtlas().GetParams(), Cached))
+		if (!DeserializeGlyphCache(CacheData, Atlas.GetAtlas().GetParams(), Cached))
 		{
 			return;
 		}

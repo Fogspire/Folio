@@ -138,7 +138,7 @@ To grow or shrink something, animate `transform: scaleX()` on an element with a 
 
 `transition` fires only when a class or pseudo-class changes. For continuous or self-driving motion, use `@keyframes` with `animation`.
 
-Do not use 3D transforms (`rotateX`, `rotateY`, `perspective`). They do not map onto the renderer. 2D only: `translate`, `scale`, `rotate`, `skew`.
+3D is limited to depth echoes: `perspective` (+ `perspective-origin`) on an ancestor and `translateZ` on a child. The render interface projects each element with one per-element divide by w, which is exact only while w is constant, i.e. translateZ and nothing else. `rotateX`/`rotateY` still flatten (they make w vary per vertex), so do not use them. Otherwise 2D only: `translate`, `scale`, `rotate`, `skew`.
 
 **Times are seconds, and `ms` does not exist.** `transition: opacity 120ms` does not warn and does not animate: the parser reads `120` as a *reverse adjustment factor* and the transition ends up with no duration. Always write `0.12s`.
 

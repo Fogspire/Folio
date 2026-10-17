@@ -5,6 +5,9 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#elif !defined(__EMSCRIPTEN__)
+#include <filesystem>
+#include <map>
 #endif
 
 namespace uipreview {
@@ -139,6 +142,99 @@ void FileWatcher::Run()
 	CancelIo(handle);
 	CloseHandle(overlapped.hEvent);
 	CloseHandle(handle);
+}
+
+#elif !defined(__EMSCRIPTEN__)
+
+// No ReadDirectoryChangesW here. A background mtime scan is the portable stand-in: it costs a stat
+// per file every quarter second off the render thread, and a save still arrives as one reload
+// because Drain debounces the burst the same way.
+FileWatcher::~FileWatcher()
+{
+	Stop();
+}
+
+bool FileWatcher::Start(const std::string& in_directory)
+{
+	directory = in_directory;
+	std::replace(directory.begin(), directory.end(), '\\', '/');
+	while (!directory.empty() && directory.back() == '/')
+		directory.pop_back();
+
+	stopping = false;
+	thread = std::thread(&FileWatcher::Run, this);
+	return true;
+}
+
+void FileWatcher::Stop()
+{
+	if (!thread.joinable())
+		return;
+
+	stopping = true;
+	thread.join();
+}
+
+void FileWatcher::Run()
+{
+	namespace fs = std::filesystem;
+	using Stamp = fs::file_time_type;
+
+	auto scan = [this]() {
+		std::map<std::string, Stamp> stamps;
+		std::error_code ec;
+		for (fs::recursive_directory_iterator it(directory, fs::directory_options::skip_permission_denied, ec), end;
+			 !ec && it != end; it.increment(ec))
+		{
+			std::error_code entry_ec;
+			if (it->is_directory(entry_ec))
+			{
+				// --root is usually an Unreal project, whose Content and caches are gigabytes that
+				// no document reads. Scanning them every tick would be the stat storm itself.
+				static const char* const skipped[] = {"Content", "DerivedDataCache", "Intermediate", "Saved",
+					"Binaries", "Build", "build", ".git", "node_modules"};
+				const std::string name = it->path().filename().string();
+				if (std::find(std::begin(skipped), std::end(skipped), name) != std::end(skipped))
+					it.disable_recursion_pending();
+				continue;
+			}
+			if (!it->is_regular_file(entry_ec))
+				continue;
+			std::string path = it->path().generic_string();
+			std::transform(path.begin(), path.end(), path.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+			stamps[path] = it->last_write_time(entry_ec);
+		}
+		return stamps;
+	};
+
+	std::map<std::string, Stamp> previous = scan();
+	while (!stopping)
+	{
+		for (int i = 0; i < 5 && !stopping; ++i)
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		if (stopping)
+			break;
+
+		std::map<std::string, Stamp> current = scan();
+		std::vector<std::string> changed;
+		for (const auto& [path, stamp] : current)
+		{
+			const auto found = previous.find(path);
+			if (found == previous.end() || found->second != stamp)
+				changed.push_back(path);
+		}
+		for (const auto& [path, stamp] : previous)
+			if (!current.count(path))
+				changed.push_back(path);
+
+		if (!changed.empty())
+		{
+			std::lock_guard<std::mutex> lock(mutex);
+			pending.insert(changed.begin(), changed.end());
+			last_event_ms = NowMs();
+		}
+		previous = std::move(current);
+	}
 }
 
 #else

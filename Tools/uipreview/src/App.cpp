@@ -352,6 +352,34 @@ std::vector<std::string> App::DiscoverDataModelNames() const
 	return names;
 }
 
+std::vector<std::string> App::DiscoverEventCallbacks() const
+{
+	std::vector<std::string> names;
+
+	std::ifstream file(fs::path(root) / fs::path(document_path).relative_path());
+	if (!file)
+		return names;
+
+	const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	static const std::regex attribute(R"RX(data-event-[a-z]+\s*=\s*"([^"]*)")RX");
+	// A statement that starts with a name and calls it, with or without arguments. An assignment
+	// such as 'bOpen = false' is not a callback.
+	static const std::regex call(R"RX((?:^|;)\s*([A-Za-z_]\w*)\s*(?=\(|;|$))RX");
+
+	for (std::sregex_iterator it(text.begin(), text.end(), attribute), end; it != end; ++it)
+	{
+		const std::string expression = (*it)[1].str();
+		for (std::sregex_iterator c(expression.begin(), expression.end(), call); c != end; ++c)
+		{
+			const std::string name = (*c)[1].str();
+			if (std::find(names.begin(), names.end(), name) == names.end())
+				names.push_back(name);
+		}
+	}
+
+	return names;
+}
+
 std::string App::FindConventionalDataFile(const std::string& model_name) const
 {
 	// A bound document with no data renders its bindings as literal {{ }}, which reads as
@@ -398,6 +426,14 @@ void App::MountDataModel()
 	const std::vector<std::string> model_names = DiscoverDataModelNames();
 	const std::string model_name = model_names.empty() ? std::string() : model_names.front();
 
+	const std::vector<std::string> callbacks = DiscoverEventCallbacks();
+	if (!callbacks.empty())
+	{
+		diagnostics.Report(Severity::Info, "I-DATA-EVENTSTUB",
+			std::to_string(callbacks.size()) + " data event callbacks are bound as no-ops; check their names against the game's model");
+	}
+	data_model.SetEventStubs(callbacks);
+
 	// Everything past the first, each from its own mock. --data belongs to the document's own model,
 	// so these only ever come from UI/mock/<name>.json.
 	extra_models.clear();
@@ -408,6 +444,7 @@ void App::MountDataModel()
 			continue;
 
 		auto model = std::make_unique<JsonDataModel>(diagnostics);
+		model->SetEventStubs(callbacks);
 		const std::string path = FindConventionalDataFile(name);
 
 		if (path.empty())

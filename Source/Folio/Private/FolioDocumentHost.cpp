@@ -431,7 +431,7 @@ void FFolioDocumentHost::MountDataModel(const FString& RelativePath)
 	}
 
 	DataModel = MakeUnique<FFolioDataModel>();
-	if (!DataModel->Mount(Context, ModelName, MockPath))
+	if (!DataModel->Mount(Context, ModelName, MockPath, FFolioDataModel::DiscoverEventNames(Markup)))
 	{
 		DataModel.Reset();
 	}
@@ -507,6 +507,13 @@ bool FFolioDocumentHost::Update(const float DeltaSeconds, const float DpRatio, c
 	if (!Context)
 	{
 		return false;
+	}
+
+	// The UI scale can settle a few frames after the first layout with the pixel size unchanged.
+	if (DpRatio != AppliedDpRatio)
+	{
+		AppliedDpRatio = DpRatio;
+		MarkDirty(TEXT("dp ratio"));
 	}
 
 	// Nothing on our side changed and RmlUi asked not to be updated yet, so the frame is skipped

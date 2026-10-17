@@ -407,16 +407,16 @@ void SFolioCanvas::UpdateAccessibility(const bool bDocumentChanged, const FGeome
 
 	// A context unit is a pixel of the context, and a supersampled context has more of them per Slate
 	// unit than the screen does. Proxies are placed on screen, so they follow the screen.
-	const float Scale = ContextToLocal(AllottedGeometry) / float(Supersample);
+	const float ProxyScale = ContextToLocal(AllottedGeometry) / float(Supersample);
 
-	if (bDocumentChanged || Accessibility->IsEmpty() || Scale != AccessibilityScale)
+	if (bDocumentChanged || Accessibility->IsEmpty() || ProxyScale != AccessibilityScale)
 	{
 		// Forced when there is nothing yet or the whole thing has moved, and rate limited otherwise -
 		// a document that changed has usually not changed what it means, and the tree decides that.
-		const bool bForce = Accessibility->IsEmpty() || Scale != AccessibilityScale;
+		const bool bForce = Accessibility->IsEmpty() || ProxyScale != AccessibilityScale;
 
-		AccessibilityScale = Scale;
-		Accessibility->Refresh(Host.GetDocument(), Scale, bForce);
+		AccessibilityScale = ProxyScale;
+		Accessibility->Refresh(Host.GetDocument(), ProxyScale, bForce);
 
 		// Only when the root widget itself is a different one. Detaching and reattaching the same
 		// widget would tell the platform its parent had changed on every frame the document moved.

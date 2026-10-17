@@ -83,7 +83,9 @@ if folio_is_windows; then
 else
 	folio_import_unix_tools
 	if [[ -z "$toolchain" && "$platform" == Mac ]]; then
-		host_defines+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" "-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0")
+		# CMake 4 refuses fetched dependencies that still declare cmake_minimum_required below 3.5.
+		host_defines+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" "-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0"
+			"-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
 	elif [[ -z "$toolchain" && "$platform" == Linux ]]; then
 		triple=x86_64-unknown-linux-gnu
 		[[ "$(uname -m)" == aarch64 ]] && triple=aarch64-unknown-linux-gnueabi

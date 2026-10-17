@@ -121,6 +121,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
 	EFolioWorldDrawMode DrawMode = EFolioWorldDrawMode::AfterTonemap;
 
+	/** After tonemap only: skips the occlusion test, so scene geometry never hides this document. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	bool bAlwaysOnTop = false;
+
 	/**
 	 * Surface mode only: the largest the offscreen target may be, as a multiple of the document's size.
 	 *

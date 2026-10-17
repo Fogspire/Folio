@@ -159,7 +159,7 @@ public:
 	bool bListening = false;
 
 	/** The action being rebound, for the panel to name. */
-	UPROPERTY(BlueprintReadOnly, Category = "Folio")
+	UPROPERTY(BlueprintReadOnly, Category = "Folio", meta = (ScriptName = "ListeningAction"))
 	FString Listening;
 
 	/** True when the key pressed already has actions on it and the player has to agree. */

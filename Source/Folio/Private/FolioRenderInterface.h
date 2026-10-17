@@ -269,6 +269,12 @@ private:
 		TSharedPtr<struct FSlateDynamicImageBrush> DynamicBrush;
 
 		/**
+		 * Drops Handle before DynamicBrush releases its resource. Slate frees a dynamic texture only when no
+		 * other handle shares it and never checks again, so a handle outliving the brush leaks the texture.
+		 */
+		~FTexture() { Handle = FSlateResourceHandle(); }
+
+		/**
 		 * The pixels are straight alpha rather than premultiplied.
 		 *
 		 * True only for a texture the game registered, which is an engine UTexture nobody

@@ -21,6 +21,19 @@ The first build clones the dependencies and takes several minutes. Later builds 
 
 Every configuration writes to the same `bin/win64`, so an `--asan` build replaces the normal binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH for the sanitizer runtime.
 
+### Linux (cloud sessions, CI)
+
+`build.sh` is Windows-only; on Linux, call CMake directly. GLFW needs the X11 headers, and with no display the preview runs under Xvfb.
+
+```bash
+apt-get install -y ninja-build libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev xvfb
+cmake -S . -B build/linux -G Ninja -DGLFW_BUILD_WAYLAND=OFF
+cmake --build build/linux --target uipreview
+xvfb-run -a ./bin/linux/uipreview ../../UI/screens/pause.rml --root ../.. --strict --a11y
+```
+
+Output lands at `bin/linux`.
+
 ## Before you commit
 
 Run the verification harness before and after a change, and diff the two:

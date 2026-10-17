@@ -89,6 +89,7 @@ void FFolioWorldPass::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 			Surface.Draws = MoveTemp(Draws);
 			Surface.DocumentSize = Document->GetDocumentSize();
 			Surface.bInScene = Document->DrawMode == EFolioWorldDrawMode::InScene;
+			Surface.bAlwaysOnTop = Document->bAlwaysOnTop;
 			Document->GetSurface(Surface.Centre, Surface.Right, Surface.Up);
 		}
 	}
@@ -272,11 +273,15 @@ FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FScene
 	const FMatrix ViewProjection =
 		View.ViewMatrices.GetWorldToView() * View.ViewMatrices.GetViewToClipNoAA();
 
-	for (const FSurface& Surface : *RenderSurfaces)
+	// On-top surfaces last, so an ordinary world screen overlapping one on screen never paints over it.
+	for (const bool bOnTop : { false, true })
 	{
-		if (!Surface.bInScene)
+		for (const FSurface& Surface : *RenderSurfaces)
 		{
-			AddSurface(GraphBuilder, View, Surface, ViewProjection, Target);
+			if (!Surface.bInScene && Surface.bAlwaysOnTop == bOnTop)
+			{
+				AddSurface(GraphBuilder, View, Surface, ViewProjection, Target);
+			}
 		}
 	}
 
@@ -317,7 +322,10 @@ void FFolioWorldPass::AddSurface(FRDGBuilder& GraphBuilder, const FSceneView& Vi
 		? Target.DepthTexture
 		: GSystemTextures.GetBlackDummy(GraphBuilder);
 	Parameters->FolioOutputRect = Target.OutputRect;
-	Parameters->FolioOcclusionMode = float(Target.OcclusionMode);
+	// Mode 0 draws through geometry. The debug view (2) is kept so it still reads for every surface.
+	Parameters->FolioOcclusionMode = (Surface.bAlwaysOnTop && Target.OcclusionMode != 2)
+		? 0.0f
+		: float(Target.OcclusionMode);
 	Parameters->FolioSceneTarget = Target.SceneTarget;
 	Parameters->RenderTargets[0] = Target.Colour;
 	Parameters->RenderTargets.DepthStencil = Target.Depth;

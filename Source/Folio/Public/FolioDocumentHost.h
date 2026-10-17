@@ -189,5 +189,8 @@ private:
 
 	/** Set once the document has been through a context update, so it has computed styles. */
 	bool bLaidOut = false;
+
+	/** The dp ratio the last update laid out with, so a scale change alone still forces a layout. */
+	float AppliedDpRatio = 0.0f;
 	const TCHAR* DirtyReason = TEXT("first frame");
 };

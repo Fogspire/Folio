@@ -73,6 +73,9 @@ private:
 		FVector Up = FVector::ZeroVector;
 		FIntPoint DocumentSize = FIntPoint(1, 1);
 		bool bInScene = false;
+
+		/** After tonemap only: this surface skips the occlusion test. See UFolioWorldDocument::bAlwaysOnTop. */
+		bool bAlwaysOnTop = false;
 	};
 
 	/**

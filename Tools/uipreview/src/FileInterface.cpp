@@ -48,8 +48,24 @@ std::string RootedFileInterface::Resolve(const std::string& path) const
 			return normalised;
 	}
 
+#ifndef _WIN32
+	const bool leading_slash = !normalised.empty() && normalised.front() == '/';
+#endif
+
 	while (!normalised.empty() && normalised.front() == '/')
 		normalised.erase(0, 1);
+
+#ifndef _WIN32
+	// A leading slash is usually root-relative ("/UI/art/x.png"), but off Windows it can also be a real
+	// absolute path outside both roots, such as the engine's Roboto or a --font. Root-relative wins when
+	// both exist.
+	if (leading_slash)
+	{
+		std::error_code ec;
+		if (!std::filesystem::exists(root + "/" + normalised, ec) && std::filesystem::exists(path, ec))
+			return path;
+	}
+#endif
 
 	// Whatever Folio itself ships resolves against the plugin, not the content root, so a
 	// document can import the base stylesheet without knowing where it was launched from.

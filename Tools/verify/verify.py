@@ -106,9 +106,9 @@ def main() -> int:
     args = parser.parse_args()
 
     repo = pathlib.Path(args.repo).resolve() if args.repo else pathlib.Path(__file__).resolve().parents[2]
-    preview = repo / "bin/win64/uipreview.exe"
-    if not preview.is_file():
-        preview = repo / "bin/win64/uipreview"
+    candidates = [repo / "bin/win64/uipreview.exe", repo / "bin/win64/uipreview", repo / "bin/linux/uipreview",
+                  repo / "bin/mac/uipreview"]
+    preview = next((path for path in candidates if path.is_file()), candidates[0])
     if not preview.is_file():
         print(f"verify: {preview} not found. Run scripts/build.sh first.", file=sys.stderr)
         return 1

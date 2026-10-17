@@ -7,7 +7,7 @@
 
 namespace
 {
-	TSharedPtr<FSlateStyleSet> Style;
+	TSharedPtr<FSlateStyleSet> StyleSet;
 }
 
 FName FFolioEditorStyle::GetStyleSetName()
@@ -18,7 +18,7 @@ FName FFolioEditorStyle::GetStyleSetName()
 
 void FFolioEditorStyle::Register()
 {
-	if (Style.IsValid())
+	if (StyleSet.IsValid())
 	{
 		return;
 	}
@@ -29,23 +29,23 @@ void FFolioEditorStyle::Register()
 		return;
 	}
 
-	Style = MakeShared<FSlateStyleSet>(GetStyleSetName());
-	Style->SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
+	StyleSet = MakeShared<FSlateStyleSet>(GetStyleSetName());
+	StyleSet->SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 
 	// Authored at the size it is drawn at, so nothing is resampled.
-	Style->Set(GetToolbarIconName(), new FSlateImageBrush(
-		Style->RootToContentDir(TEXT("Icon20"), TEXT(".png")), FVector2D(20.0, 20.0)));
+	StyleSet->Set(GetToolbarIconName(), new FSlateImageBrush(
+		StyleSet->RootToContentDir(TEXT("Icon20"), TEXT(".png")), FVector2D(20.0, 20.0)));
 
-	FSlateStyleRegistry::RegisterSlateStyle(*Style);
+	FSlateStyleRegistry::RegisterSlateStyle(*StyleSet);
 }
 
 void FFolioEditorStyle::Unregister()
 {
-	if (!Style.IsValid())
+	if (!StyleSet.IsValid())
 	{
 		return;
 	}
 
-	FSlateStyleRegistry::UnRegisterSlateStyle(*Style);
-	Style.Reset();
+	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleSet);
+	StyleSet.Reset();
 }

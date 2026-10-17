@@ -4,6 +4,7 @@
 
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "Internationalization/Regex.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
@@ -217,13 +218,30 @@ FString FFolioDataModel::DiscoverModelName(const FString& DocumentText)
 	return End == INDEX_NONE ? FString() : DocumentText.Mid(At + 1, End - At - 1);
 }
 
+TArray<FString> FFolioDataModel::DiscoverEventNames(const FString& DocumentText)
+{
+	TArray<FString> Names;
+	FRegexMatcher Attributes(FRegexPattern(TEXT("data-event-[\\w-]+\\s*=\\s*\"([^\"]*)\"")), DocumentText);
+	while (Attributes.FindNext())
+	{
+		// An identifier followed by "(" in an event expression can only be a callback
+		FRegexMatcher Calls(FRegexPattern(TEXT("([A-Za-z_]\\w*)\\s*\\(")), Attributes.GetCaptureGroup(1));
+		while (Calls.FindNext())
+		{
+			Names.AddUnique(Calls.GetCaptureGroup(1));
+		}
+	}
+	return Names;
+}
+
 FString FFolioDataModel::FindMockFile(const FString& ModelName)
 {
 	const FString Candidate = FFolioModule::Get().GetUiRoot() / TEXT("mock") / (ModelName + TEXT(".json"));
 	return FPaths::FileExists(Candidate) ? Candidate : FString();
 }
 
-bool FFolioDataModel::Mount(Rml::Context* Context, const FString& ModelName, const FString& JsonPath)
+bool FFolioDataModel::Mount(Rml::Context* Context, const FString& ModelName, const FString& JsonPath,
+	const TArray<FString>& EventNames)
 {
 	if (!Context || ModelName.IsEmpty())
 	{
@@ -269,6 +287,15 @@ bool FFolioDataModel::Mount(Rml::Context* Context, const FString& ModelName, con
 		// Held before binding: RmlUi keeps the address, so the value has to outlive this loop.
 		Slots.Add(FString(Entry.Key), Entry.Value);
 		Constructor.BindCustomDataVariable(Folio::ToRmlString(*Entry.Key), Definitions->For(Entry.Value.Get()));
+	}
+
+	for (const FString& Name : EventNames)
+	{
+		if (!Parsed->HasField(Name))
+		{
+			Constructor.BindEventCallback(Folio::ToRmlString(Name),
+				[](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
+		}
 	}
 
 	Handle = Constructor.GetModelHandle();

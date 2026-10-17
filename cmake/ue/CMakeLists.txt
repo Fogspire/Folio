@@ -57,6 +57,15 @@ else()
 	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
+# Folio and FolioCore each link their own RmlUi. With its symbols exported, dyld merges the weak type
+# identifiers behind RMLUI_CUSTOM_RTTI across the two dylibs, so rmlui_dynamic_cast compares different
+# addresses and returns null everywhere. Set as flags because fetched dependencies with an old
+# cmake_minimum_required ignore CMAKE_*_VISIBILITY_PRESET for static libraries.
+if(APPLE)
+	string(APPEND CMAKE_C_FLAGS " -fvisibility=hidden")
+	string(APPEND CMAKE_CXX_FLAGS " -fvisibility=hidden -fvisibility-inlines-hidden")
+endif()
+
 #
 # FreeType: the engine's copy, not our own.
 #

@@ -56,7 +56,7 @@ public:
 
 		// After startup, so the warning is not lost behind everything else the editor prints on the
 		// way up, and so the settings it reads have been loaded.
-		FCoreDelegates::OnPostEngineInit.AddStatic(&FolioLevelActions::CheckStagedDirectories);
+		FCoreDelegates::GetOnPostEngineInit().AddStatic(&FolioLevelActions::CheckStagedDirectories);
 
 		UToolMenus::RegisterStartupCallback(
 			FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FFolioEditorModule::RegisterMenus));

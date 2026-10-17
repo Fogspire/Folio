@@ -8,6 +8,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
 #endif
 
 namespace fs = std::filesystem;
@@ -98,6 +100,16 @@ std::string EngineFromUproject(fs::path directory)
 				return registered.empty() ? std::string() : Forward((fs::path(registered) / "Engine").string());
 			}
 
+#ifdef __APPLE__
+			// A launcher install is associated by version ("5.8") and always lives in one place.
+			if (association.find_first_not_of("0123456789.") == std::string::npos)
+			{
+				const fs::path launcher = fs::path("/Users/Shared/Epic Games") / ("UE_" + association);
+				if (HasSlateFonts(launcher))
+					return Forward((launcher / "Engine").string());
+			}
+#endif
+
 			// Otherwise a path, which the .uproject expresses relative to itself.
 			const fs::path relative = fs::weakly_canonical(uproject.parent_path() / association, ec);
 			return Forward((relative / "Engine").string());
@@ -142,6 +154,17 @@ std::string ExecutableDirectory()
 		return {};
 
 	const fs::path executable(std::wstring(buffer, length));
+	return Forward(executable.parent_path().string());
+#elif defined(__APPLE__)
+	char buffer[4096] = {};
+	uint32_t size = sizeof buffer;
+	if (_NSGetExecutablePath(buffer, &size) != 0)
+		return {};
+
+	std::error_code ec;
+	fs::path executable = fs::canonical(fs::path(buffer), ec);
+	if (ec)
+		executable = fs::path(buffer);
 	return Forward(executable.parent_path().string());
 #else
 	std::error_code ec;

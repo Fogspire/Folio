@@ -145,6 +145,7 @@ bool JsonDataModel::MountEmpty(Rml::Context* context, const std::string& model_n
 	auto slot = std::make_unique<ordered_json>(ordered_json::object());
 	constructor.BindCustomDataVariable("preview", definitions->For(*slot));
 	slots["preview"] = std::move(slot);
+	BindEventStubs(constructor);
 
 	handle = constructor.GetModelHandle();
 	mounted = true;
@@ -202,10 +203,21 @@ bool JsonDataModel::Mount(Rml::Context* context, const std::string& model_name, 
 			diagnostics.Report(Severity::Warning, "W-DATA-BIND", "could not bind '" + entry.key() + "'");
 		slots[entry.key()] = std::move(slot);
 	}
+	BindEventStubs(constructor);
 
 	handle = constructor.GetModelHandle();
 	mounted = true;
 	return true;
+}
+
+void JsonDataModel::BindEventStubs(Rml::DataModelConstructor& constructor)
+{
+	for (const std::string& name : event_stubs)
+	{
+		// A mock key of the same name is a variable, and the document means that instead.
+		if (slots.find(name) == slots.end())
+			constructor.BindEventCallback(name, [](Rml::DataModelHandle, Rml::Event&, const Rml::VariantList&) {});
+	}
 }
 
 bool JsonDataModel::Assign(const ordered_json& source, bool warn_about_new_keys)

@@ -1,6 +1,6 @@
 # A stamina wheel
 
-Stamina represented on a wheel, with partial, extra and temporary wheels. It appears when stamina is spent, empties clockwise with what was just spent trailing in red, turns red when run dry, and fades a moment after it is full.
+Stamina represented on a wheel, with partial, extra and temporary wheels. It appears when stamina is spent, empties clockwise with what was just spent trailing in red, turns red and throbs when run dry, and fades a moment after it is full.
 
 The markup is the `stamina_wheel.rml` recipe. Your game only supplies numbers: where the wheel is, and for each ring how much is filled.
 

@@ -22,7 +22,7 @@
 		 *     Length      float  degrees of the ring that exist, 0 to 360: a part ring stops here
 		 *     Fill        float  degrees filled, 0 to Length
 		 *     Trail       float  degrees the red end reaches, Fill to Length: stamina a moment ago
-		 *     bSpent      bool   run dry: the whole fill is red until it recovers
+		 *     bSpent      bool   run dry: the whole fill is red, throbbing brighter, until it recovers
 		 *     bTemporary  bool   bonus stamina, yellow, which does not come back once spent
 		 *
 		 * Everything that changes with stamina is a number; the colours and shapes are built here, in
@@ -30,8 +30,8 @@
 		 * counts as recovered. docs/tutorials/stamina_wheel.md fills the model.
 		 *
 		 * Each ring is one disc painted by a conic gradient and hollowed by a radial mask-image, so both
-		 * edges are smooth circles at any size. The mask is a render layer: one per ring, and only
-		 * while the wheel is shown. It masks decorators; a plain background-color is not masked.
+		 * edges are smooth circles at any size. The mask is a render layer: one per ring, and one more
+		 * per ring while run dry, and only while the wheel is shown. It masks decorators; a plain background-color is not masked.
 		 */
 		body {
 			position: relative;
@@ -52,23 +52,40 @@
 		}
 		.stamina.shown { opacity: 1; }
 
-		.ring { position: absolute; }
+		/* Each row is a zero-size point too, holding its ring and, while run dry, the glow over it. */
+		.wheel { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+		.ring, .glow { position: absolute; }
+
+		/* Run dry, a brighter red over the filled part pulses, so the red throbs while the track stays
+		   still. Under two a second, well inside the flashing limit. Colours in a decorator cannot be
+		   animated, so the pulse is a second ring's opacity. */
+		.glow { animation: 0.35s sine-in-out infinite alternate stamina-throb; }
+		@keyframes stamina-throb { from { opacity: 0; } to { opacity: 1; } }
 	</style>
 </head>
 
 <body data-model="stamina">
 	<div class="stamina" data-class-shown="bShown" data-style-transform="Position">
-		<div class="ring" data-for="w : Wheels"
-			data-style-width="w.Size + 'dp'"
-			data-style-height="w.Size + 'dp'"
-			data-style-left="(w.Size / -2) + 'dp'"
-			data-style-top="(w.Size / -2) + 'dp'"
-			data-style-decorator="'conic-gradient(from 0deg at 50% 50%, '
-				+ (w.bSpent ? '#e0424a' : (w.bTemporary ? '#f2d24b' : '#7ed957')) + ' 0deg, '
-				+ (w.bSpent ? '#e0424a' : (w.bTemporary ? '#f2d24b' : '#7ed957')) + ' ' + w.Fill + 'deg, '
-				+ '#e0424a ' + w.Fill + 'deg, #e0424a ' + w.Trail + 'deg, '
-				+ '#0b0b0fa0 ' + w.Trail + 'deg, #0b0b0fa0 ' + w.Length + 'deg, #00000000 ' + w.Length + 'deg, #00000000 360deg)'"
-			data-style-mask-image="'radial-gradient(circle farthest-side at 50% 50%, #ffffff00 ' + w.Hole + '%, #ffffffff ' + (w.Hole + 3) + '%, #ffffffff 97%, #ffffff00 100%)'"></div>
+		<div class="wheel" data-for="w : Wheels">
+			<div class="ring"
+				data-style-width="w.Size + 'dp'"
+				data-style-height="w.Size + 'dp'"
+				data-style-left="(w.Size / -2) + 'dp'"
+				data-style-top="(w.Size / -2) + 'dp'"
+				data-style-decorator="'conic-gradient(from 0deg at 50% 50%, '
+					+ (w.bSpent ? '#e0424a' : (w.bTemporary ? '#f2d24b' : '#7ed957')) + ' 0deg, '
+					+ (w.bSpent ? '#e0424a' : (w.bTemporary ? '#f2d24b' : '#7ed957')) + ' ' + w.Fill + 'deg, '
+					+ '#e0424a ' + w.Fill + 'deg, #e0424a ' + w.Trail + 'deg, '
+					+ '#0b0b0fa0 ' + w.Trail + 'deg, #0b0b0fa0 ' + w.Length + 'deg, #00000000 ' + w.Length + 'deg, #00000000 360deg)'"
+				data-style-mask-image="'radial-gradient(circle farthest-side at 50% 50%, #ffffff00 ' + w.Hole + '%, #ffffffff ' + (w.Hole + 3) + '%, #ffffffff 97%, #ffffff00 100%)'"></div>
+			<div class="glow" data-if="w.bSpent"
+				data-style-width="w.Size + 'dp'"
+				data-style-height="w.Size + 'dp'"
+				data-style-left="(w.Size / -2) + 'dp'"
+				data-style-top="(w.Size / -2) + 'dp'"
+				data-style-decorator="'conic-gradient(from 0deg at 50% 50%, #ff9a9f 0deg, #ff9a9f ' + w.Fill + 'deg, #00000000 ' + w.Fill + 'deg, #00000000 360deg)'"
+				data-style-mask-image="'radial-gradient(circle farthest-side at 50% 50%, #ffffff00 ' + w.Hole + '%, #ffffffff ' + (w.Hole + 3) + '%, #ffffffff 97%, #ffffff00 100%)'"></div>
+		</div>
 	</div>
 </body>
 </rml>

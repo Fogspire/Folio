@@ -16,6 +16,7 @@
 // thing here that stays correct under an upscaler.
 #include "/Engine/Private/Common.ush"
 #include "/Folio/FolioMsdf.ush"
+#include "/Engine/Private/GammaCorrectionCommon.ush"
 
 Texture2D UITexture;
 SamplerState UISampler;
@@ -30,6 +31,8 @@ float4 MsdfField;
 float4 MsdfEffect;
 
 // x: 1 when the sample is straight alpha and has to be premultiplied before it is blended.
+// y: 1 when the target and vertex colour are gamma encoded (after the tonemapper) but the sRGB sampler hands
+//    back linear, so the texel is encoded again.
 float4 UIOptions;
 
 Texture2D FolioSceneDepth;
@@ -136,6 +139,7 @@ float4 WorldPS(
 	}
 
 	float4 Texel = UITexture.Sample(UISampler, UV);
+	Texel.rgb = lerp(Texel.rgb, LinearToSrgbBranchless(Texel.rgb), UIOptions.y);
 	Texel.rgb = lerp(Texel.rgb, Texel.rgb * Texel.a, UIOptions.x);
 	return Texel * Color;
 }

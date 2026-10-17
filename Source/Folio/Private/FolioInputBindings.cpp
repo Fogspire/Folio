@@ -25,7 +25,8 @@
 class FFolioKeyCapture final : public IInputProcessor
 {
 public:
-	explicit FFolioKeyCapture(TFunction<void(const FKey&)> InOnKey) : OnKey(MoveTemp(InOnKey)) {}
+	FFolioKeyCapture(TFunction<void(const FKey&)> InOnKey, TFunction<bool(const FKey&)> InAccepts)
+		: OnKey(MoveTemp(InOnKey)), Accepts(MoveTemp(InAccepts)) {}
 
 	virtual void Tick(const float, FSlateApplication&, TSharedRef<ICursor>) override {}
 
@@ -44,7 +45,7 @@ public:
 	virtual bool HandleAnalogInputEvent(FSlateApplication&, const FAnalogInputEvent& Event) override
 	{
 		// An axis at rest reports every frame. Only a real push is a choice.
-		if (FMath::Abs(Event.GetAnalogValue()) > 0.6f)
+		if (FMath::Abs(Event.GetAnalogValue()) > 0.6f && Accepts(Event.GetKey()))
 		{
 			Take(Event.GetKey());
 			return true;
@@ -55,9 +56,10 @@ public:
 	virtual const TCHAR* GetDebugName() const override { return TEXT("FolioKeyCapture"); }
 
 private:
+	/** A key Accepts turns down is still swallowed, so it neither binds nor reaches the game. */
 	void Take(const FKey& Key)
 	{
-		if (OnKey && Key.IsValid())
+		if (OnKey && Key.IsValid() && Accepts(Key))
 		{
 			// Copied first: the callback tears this processor down.
 			TFunction<void(const FKey&)> Callback = OnKey;
@@ -67,13 +69,20 @@ private:
 	}
 
 	TFunction<void(const FKey&)> OnKey;
+	TFunction<bool(const FKey&)> Accepts;
 };
 
 namespace
 {
 	EPlayerMappableKeySlot SlotOf(const int32 Index)
 	{
-		return Index <= 0 ? EPlayerMappableKeySlot::First : EPlayerMappableKeySlot::Second;
+		return static_cast<EPlayerMappableKeySlot>(FMath::Clamp(Index, 0, static_cast<int32>(EPlayerMappableKeySlot::Seventh)));
+	}
+
+	/** Escape, or the pad's view button for a player with no keyboard in reach. Never a binding. */
+	bool IsCancelKey(const FKey& Key)
+	{
+		return Key == EKeys::Escape || Key == EKeys::Gamepad_Special_Left;
 	}
 
 	void Describe(const FKey& Key, FString& OutText, FString& OutGlyph)
@@ -88,6 +97,13 @@ void UFolioInputBindings::Initialise(ULocalPlayer* InLocalPlayer)
 {
 	LocalPlayer = InLocalPlayer;
 	Refresh();
+}
+
+bool UFolioInputBindings::IsOnDevice(const FPlayerKeyMapping& Mapping) const
+{
+	// The default says which device a mapping is for, so one the player cleared still has its place.
+	const FKey& Key = Mapping.GetDefaultKey().IsValid() ? Mapping.GetDefaultKey() : Mapping.GetCurrentKey();
+	return Key.IsValid() && Key.IsGamepadKey() == bGamepad;
 }
 
 UEnhancedInputUserSettings* UFolioInputBindings::GetSettings() const
@@ -136,8 +152,21 @@ void UFolioInputBindings::Refresh()
 		FFolioKeyBinding Binding;
 		Binding.Mapping = Row.Key.ToString();
 
+		TArray<const FPlayerKeyMapping*> Sorted;
 		for (const FPlayerKeyMapping& Mapping : Row.Value.Mappings)
 		{
+			Sorted.Add(&Mapping);
+		}
+		Sorted.Sort([](const FPlayerKeyMapping& A, const FPlayerKeyMapping& B) { return A.GetSlot() < B.GetSlot(); });
+
+		bool bPrimary = false;
+		bool bSecondary = false;
+		TSet<int32> Taken;
+		for (const FPlayerKeyMapping* Each : Sorted)
+		{
+			const FPlayerKeyMapping& Mapping = *Each;
+			Taken.Add(static_cast<int32>(Mapping.GetSlot()));
+
 			// Every mapping in a row is the same action in a different slot, so the naming is taken
 			// from whichever comes first and the keys from each.
 			if (Binding.Action.IsEmpty())
@@ -151,26 +180,48 @@ void UFolioInputBindings::Refresh()
 				}
 			}
 
-			Binding.bCustomised |= Mapping.IsCustomized();
-
 			// Filled by device rather than by the slot the engine happens to have used, so a keyboard
 			// page never shows a pad button and the columns mean what they say.
-			const FKey& Key = Mapping.GetCurrentKey();
-			if (!Key.IsValid() || Key.IsGamepadKey() != bGamepad)
+			if (!IsOnDevice(Mapping))
 			{
 				continue;
 			}
 
-			if (Binding.PrimaryKey.IsEmpty())
+			Binding.bCustomised |= Mapping.IsCustomized();
+
+			if (!bPrimary)
 			{
+				bPrimary = true;
 				Binding.PrimarySlot = static_cast<int32>(Mapping.GetSlot());
-				Describe(Key, Binding.PrimaryKey, Binding.PrimaryGlyph);
+				Describe(Mapping.GetCurrentKey(), Binding.PrimaryKey, Binding.PrimaryGlyph);
 			}
-			else if (Binding.SecondaryKey.IsEmpty())
+			else if (!bSecondary)
 			{
+				bSecondary = true;
 				Binding.SecondarySlot = static_cast<int32>(Mapping.GetSlot());
-				Describe(Key, Binding.SecondaryKey, Binding.SecondaryGlyph);
+				Describe(Mapping.GetCurrentKey(), Binding.SecondaryKey, Binding.SecondaryGlyph);
 			}
+		}
+
+		// A column with nothing behind it writes to a slot no other device holds, or binding a pad
+		// button there would replace the keyboard key sharing the row.
+		auto FreeSlot = [&Taken]()
+		{
+			int32 Slot = 0;
+			while (Taken.Contains(Slot))
+			{
+				++Slot;
+			}
+			Taken.Add(Slot);
+			return Slot;
+		};
+		if (!bPrimary)
+		{
+			Binding.PrimarySlot = FreeSlot();
+		}
+		if (!bSecondary)
+		{
+			Binding.SecondarySlot = FreeSlot();
 		}
 
 		if (Binding.Action.IsEmpty())
@@ -236,7 +287,9 @@ void UFolioInputBindings::Rebind(const FString& Mapping, const int32 Slot)
 		return;
 	}
 
-	Capture = MakeShared<FFolioKeyCapture>([this](const FKey& Key) { OnKeyCaptured(Key); });
+	Capture = MakeShared<FFolioKeyCapture>(
+		[this](const FKey& Key) { OnKeyCaptured(Key); },
+		[this](const FKey& Key) { return IsCancelKey(Key) || Key.IsGamepadKey() == bGamepad; });
 
 	// Ahead of the game and ahead of the UI: the whole point is to see a key nothing else lets
 	// through.
@@ -247,7 +300,7 @@ void UFolioInputBindings::OnKeyCaptured(const FKey& Key)
 {
 	StopListening();
 
-	if (Key == EKeys::Escape)
+	if (IsCancelKey(Key))
 	{
 		RebindEventDelegate.Broadcast(Folio::ERebindEvent::Cancelled);
 		return;
@@ -365,8 +418,15 @@ void UFolioInputBindings::ClearBinding(const FString& Mapping)
 		return;
 	}
 
+	const FFolioKeyBinding* Row = Bindings.FindByPredicate(
+		[&Mapping](const FFolioKeyBinding& B) { return B.Mapping == Mapping; });
+	if (!Row)
+	{
+		return;
+	}
+
 	FGameplayTagContainer Failure;
-	for (int32 Slot = 0; Slot < 2; ++Slot)
+	for (const int32 Slot : { Row->PrimarySlot, Row->SecondarySlot })
 	{
 		FMapPlayerKeyArgs Args;
 		Args.MappingName = FName(*Mapping);
@@ -413,11 +473,38 @@ void UFolioInputBindings::ResetBinding(const FString& Mapping)
 		return;
 	}
 
-	FMapPlayerKeyArgs Args;
-	Args.MappingName = FName(*Mapping);
+	const UEnhancedPlayerMappableKeyProfile* Profile = GetProfile();
+	const FKeyMappingRow* Row = Profile ? Profile->FindKeyMappingRow(FName(*Mapping)) : nullptr;
+	if (!Row)
+	{
+		return;
+	}
+
+	// This device's keys only: a reset on the gamepad page leaves the keyboard as the player set it.
+	TArray<FMapPlayerKeyArgs> Resets;
+	for (const FPlayerKeyMapping& Each : Row->Mappings)
+	{
+		if (IsOnDevice(Each) && Each.IsCustomized())
+		{
+			FMapPlayerKeyArgs& Args = Resets.AddDefaulted_GetRef();
+			Args.MappingName = FName(*Mapping);
+			Args.Slot = Each.GetSlot();
+			Args.NewKey = Each.GetDefaultKey();
+		}
+	}
 
 	FGameplayTagContainer Failure;
-	Settings->ResetAllPlayerKeysInRow(Args, Failure);
+	for (const FMapPlayerKeyArgs& Args : Resets)
+	{
+		if (Args.NewKey.IsValid())
+		{
+			Settings->MapPlayerKey(Args, Failure);
+		}
+		else
+		{
+			Settings->UnMapPlayerKey(Args, Failure);
+		}
+	}
 
 	Settings->ApplySettings();
 	Settings->SaveSettings();
@@ -433,11 +520,10 @@ void UFolioInputBindings::SetActionOrder(const TArray<FName>& MappingNames)
 
 void UFolioInputBindings::ResetAll()
 {
-	// Only what this page is showing. The list is already filtered to the active device, so every row
-	// in it has a key of that device on it; a row with nothing on this device is not touched.
+	// Only what this page is showing: ResetBinding touches this device's keys and nothing else.
 	for (const FFolioKeyBinding& Binding : TArray<FFolioKeyBinding>(Bindings))
 	{
-		if (!Binding.PrimaryKey.IsEmpty() || !Binding.SecondaryKey.IsEmpty())
+		if (Binding.bCustomised)
 		{
 			ResetBinding(Binding.Mapping);
 		}

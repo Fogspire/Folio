@@ -129,15 +129,15 @@
 		<span class="keys">
 			<span class="slot">
 				<span class="pg pg-key focusable" data-if="row.PrimaryKey != ''"
-					data-event-click="Rebind(row.Mapping, 0)">{{ row.PrimaryKey }}</span>
+					data-event-click="Rebind(row.Mapping, row.PrimarySlot)">{{ row.PrimaryKey }}</span>
 				<span class="pg pg-unbound focusable" data-if="row.PrimaryKey == ''"
-					folio-label="Unbound, primary" data-event-click="Rebind(row.Mapping, 0)">&#8212;</span>
+					folio-label="Unbound, primary" data-event-click="Rebind(row.Mapping, row.PrimarySlot)">&#8212;</span>
 			</span>
 			<span class="slot">
 				<span class="pg pg-key focusable" data-if="row.SecondaryKey != ''"
-					data-event-click="Rebind(row.Mapping, 1)">{{ row.SecondaryKey }}</span>
+					data-event-click="Rebind(row.Mapping, row.SecondarySlot)">{{ row.SecondaryKey }}</span>
 				<span class="pg pg-unbound focusable" data-if="row.SecondaryKey == ''"
-					folio-label="Unbound, secondary" data-event-click="Rebind(row.Mapping, 1)">&#8212;</span>
+					folio-label="Unbound, secondary" data-event-click="Rebind(row.Mapping, row.SecondarySlot)">&#8212;</span>
 			</span>
 			<span class="reset focusable" data-if="row.bCustomised"
 				data-event-click="ResetBinding(row.Mapping)">reset</span>

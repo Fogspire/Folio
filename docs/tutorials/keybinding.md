@@ -32,9 +32,9 @@ Document->LoadDocument(TEXT("UI/screens/controls.rml"));
     <span class="cat">{{ row.Category }}</span>
 
     <span class="pg pg-key focusable" data-if="row.PrimaryKey != ''"
-        data-event-click="Rebind(row.Mapping, 0)">{{ row.PrimaryKey }}</span>
+        data-event-click="Rebind(row.Mapping, row.PrimarySlot)">{{ row.PrimaryKey }}</span>
     <span class="pg pg-unbound focusable" data-if="row.PrimaryKey == ''"
-        data-event-click="Rebind(row.Mapping, 0)">&#8212;</span>
+        data-event-click="Rebind(row.Mapping, row.PrimarySlot)">&#8212;</span>
 
     <span class="reset focusable" data-if="row.bCustomised"
         data-event-click="ResetBinding(row.Mapping)">reset</span>
@@ -51,7 +51,7 @@ Three things worth copying:
 
 ## 3. Catching the key
 
-`Rebind(mapping, slot)` starts listening. Slot 0 is primary, 1 is secondary.
+`Rebind(mapping, slot)` starts listening. Pass the row's `PrimarySlot` or `SecondarySlot`, not 0 and 1: a row holds the keyboard and the pad keys together, so the column is not the engine slot, and writing to the wrong one replaces the other device's key.
 
 While it waits, `bListening` is true and `Listening` names the action, which is everything a panel needs:
 
@@ -64,7 +64,7 @@ While it waits, `bListening` is true and `Listening` names the action, which is 
 
 **The capture is an input pre-processor, not a focused widget.** That is the whole reason it works: the point is to catch keys nothing has asked for. A gamepad face button, a mouse thumb button, a key the game has bound to crouch - a focused widget sees none of those, or sees them after the game has already acted on them. A pre-processor runs before any of it and takes the event.
 
-Escape cancels rather than binding, because a player who has changed their mind needs one key that is never a binding.
+Escape or the pad's view button cancels rather than binding, because a player who has changed their mind needs one key that is never a binding. A key from the other device is swallowed and ignored, so a keyboard page never takes a pad button.
 
 ## 4. When the key is already taken
 
@@ -87,9 +87,9 @@ Silently stealing a key from another action is the behaviour players complain ab
 | `Rebind(mapping, slot)` | Listen, then apply. |
 | `CancelRebind()` | Stop listening, or dismiss the conflict warning. |
 | `ConfirmConflict()` | Apply the key that was already taken. |
-| `ClearBinding(mapping)` | Both slots to nothing. |
-| `ResetBinding(mapping)` | Back to the action's default. |
-| `ResetAll()` | The whole profile. |
+| `ClearBinding(mapping)` | This device's keys to nothing. |
+| `ResetBinding(mapping)` | This device's keys back to the action's default. |
+| `ResetAll()` | Every action, on this device. |
 
 Every one of them applies and saves through Enhanced Input, then re-reads the profile, so the list reflects what was actually stored rather than what was asked for. A mapping the engine refuses - and it can refuse - shows up as the row not changing, with the reason in the log.
 

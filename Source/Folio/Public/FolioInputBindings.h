@@ -9,6 +9,7 @@
 class ULocalPlayer;
 class UEnhancedInputUserSettings;
 class UEnhancedPlayerMappableKeyProfile;
+struct FPlayerKeyMapping;
 
 namespace Folio
 {
@@ -63,7 +64,10 @@ struct FFolioKeyBinding
 	UPROPERTY(BlueprintReadOnly, Category = "Folio")
 	FString SecondaryGlyph;
 
-	/** Which engine slot each column came from, so a rebind writes back to the right one. */
+	/**
+	 * Which engine slot each column writes to. Pass these to Rebind and ClearSlot: a row holds every
+	 * device's keys, so the column number is not the slot. An empty column has a slot no other device holds.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Folio")
 	int32 PrimarySlot = 0;
 
@@ -113,8 +117,9 @@ public:
 	/**
 	 * Waits for a key and puts it in a slot.
 	 *
-	 * Slot 0 is the primary binding and 1 the secondary. While waiting, `bListening` is true and
-	 * `Listening` names the action, which is all a "press any key" panel needs. Escape cancels.
+	 * Slot is the engine slot, the row's PrimarySlot or SecondarySlot. While waiting, `bListening` is
+	 * true and `Listening` names the action, which is all a "press any key" panel needs. Escape or the
+	 * pad's view button cancels, and a key from the other device is ignored.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void Rebind(const FString& Mapping, int32 Slot);
@@ -129,7 +134,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void ClearBinding(const FString& Mapping);
 
-	/** Clears one column. What a right click on a key is for. */
+	/** Clears one column, by its engine slot. What a right click on a key is for. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void ClearSlot(const FString& Mapping, int32 Slot);
 
@@ -192,6 +197,9 @@ private:
 
 	/** Called by the capture with whatever the player pressed. */
 	void OnKeyCaptured(const FKey& Key);
+
+	/** Whether a mapping belongs on the page for the device the list is showing. */
+	bool IsOnDevice(const FPlayerKeyMapping& Mapping) const;
 
 	UEnhancedInputUserSettings* GetSettings() const;
 	UEnhancedPlayerMappableKeyProfile* GetProfile() const;

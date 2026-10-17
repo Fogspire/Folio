@@ -31,9 +31,12 @@ namespace Folio
 
 		const FIntPoint Size(Target->SizeX, Target->SizeY);
 		const FVector4f Parameters(Options.bUseAlpha ? 1.0f : 0.0f, Options.bInvert ? 1.0f : 0.0f, 0.0f, 0.0f);
+		const FVector4f MaskTransform = Options.MaskTransform.X != 0.0f
+			? Options.MaskTransform
+			: FVector4f(1.0f / Size.X, 1.0f / Size.Y, 0.0f, 0.0f);
 
 		ENQUEUE_RENDER_COMMAND(FolioMask)(
-			[TargetResource, MaskResource, Size, Parameters](FRHICommandListImmediate& RHICmdList)
+			[TargetResource, MaskResource, Size, Parameters, MaskTransform](FRHICommandListImmediate& RHICmdList)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Mask);
 				SCOPE_CYCLE_COUNTER(STAT_FolioMaskFilter);
@@ -63,6 +66,7 @@ namespace Folio
 					Pass->MaskSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 					Pass->MaskParameters = Parameters;
 					Pass->InvSize = FVector2f(1.0f / Size.X, 1.0f / Size.Y);
+					Pass->MaskTransform = MaskTransform;
 					Pass->RenderTargets[0] = FRenderTargetBinding(Scratch, ERenderTargetLoadAction::ENoAction);
 
 					const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);

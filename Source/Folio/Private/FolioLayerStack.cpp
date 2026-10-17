@@ -29,6 +29,14 @@ namespace
 		TEXT("Reuse a layer's finished picture when what it draws has not changed since an earlier frame, so ")
 		TEXT("only layers whose content moved are drawn again. Off draws every layer every frame."));
 
+	TAutoConsoleVariable<bool> CVarLayerTighten(
+		TEXT("folio.Layers.Tighten"), true,
+		TEXT("Size each layer to what it actually draws rather than to the region it was pushed for, which ")
+		TEXT("is the whole screen for an element with no clip. Off allocates the full region."));
+
+	/** Shrunk only when the drawn area is under this share of the layer, so a near-full layer keeps its pooled size. */
+	constexpr float TightenBelow = 0.6f;
+
 	/** Frames a cached layer survives unused, so a document that skips a paint does not lose its cache. */
 	constexpr uint64 CacheFrames = 2;
 
@@ -89,6 +97,7 @@ void FFolioLayerStack::Reset()
 	Cache.Empty();
 	Cached.Empty();
 	PrintsOfResults.Empty();
+	ResultRects.Empty();
 	Scale = 1;
 }
 
@@ -421,15 +430,129 @@ FSlateRect FFolioLayerStack::CurrentContentRect() const
 	return FSlateRect(Min.X + Origin.X, Min.Y + Origin.Y, Max.X + Origin.X, Max.Y + Origin.Y);
 }
 
-UTextureRenderTarget2D* FFolioLayerStack::Acquire(const FIntPoint Size)
+FIntRect FFolioLayerStack::DocumentRectOf(const FLayer& Layer)
 {
-	UTextureRenderTarget2D* Target = Obtain(Size);
-	if (Target)
+	return FIntRect(Layer.Origin, Layer.Origin + DocumentSizeOf(Layer));
+}
+
+void FFolioLayerStack::Prepare(FLayer& Layer, const float Margin, const bool bMayShrink)
+{
+	if (Layer.Target.IsValid())
 	{
-		Stack.Add({ TStrongObjectPtr<UTextureRenderTarget2D>(Target), Size });
+		return;
 	}
 
-	return Target;
+	const FIntPoint Document = DocumentSizeOf(Layer);
+	const int32 LayerScale = FMath::Max(1, FMath::RoundToInt(ScaleOf(Layer)));
+
+	if (bMayShrink && CVarLayerTighten.GetValueOnGameThread() && Document.X > 0 && Document.Y > 0)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Folio_TightenLayer);
+
+		bool bAny = false;
+		FVector2f Min = FVector2f::ZeroVector;
+		FVector2f Max = FVector2f::ZeroVector;
+		for (const FFolioDraw& Draw : Layer.Draws.GetDraws())
+		{
+			// Clip masks only limit what other draws reach, so they do not widen what the layer shows.
+			if (Draw.Kind != FFolioDraw::EKind::Geometry && Draw.Kind != FFolioDraw::EKind::Field)
+			{
+				continue;
+			}
+
+			FVector2f DrawMin = FVector2f::ZeroVector;
+			FVector2f DrawMax = FVector2f::ZeroVector;
+			for (int32 Index = 0; Index < Draw.Vertices.Num(); ++Index)
+			{
+				const FVector2f Position = Draw.Vertices[Index].Position;
+				DrawMin = Index == 0 ? Position : FVector2f::Min(DrawMin, Position);
+				DrawMax = Index == 0 ? Position : FVector2f::Max(DrawMax, Position);
+			}
+			if (Draw.Vertices.IsEmpty())
+			{
+				continue;
+			}
+
+			if (Draw.Scissor.Area() > 0)
+			{
+				DrawMin = FVector2f::Max(DrawMin, FVector2f(Draw.Scissor.Min));
+				DrawMax = FVector2f::Min(DrawMax, FVector2f(Draw.Scissor.Max));
+				if (DrawMin.X >= DrawMax.X || DrawMin.Y >= DrawMax.Y)
+				{
+					continue;
+				}
+			}
+
+			Min = bAny ? FVector2f::Min(Min, DrawMin) : DrawMin;
+			Max = bAny ? FVector2f::Max(Max, DrawMax) : DrawMax;
+			bAny = true;
+		}
+
+		// A layer that drew nothing still composites, so it keeps one transparent pixel rather than a screen of them.
+		FIntRect Covered(0, 0, 1, 1);
+		if (bAny)
+		{
+			Covered = FIntRect(
+				FMath::FloorToInt(Min.X - Margin), FMath::FloorToInt(Min.Y - Margin),
+				FMath::CeilToInt(Max.X + Margin), FMath::CeilToInt(Max.Y + Margin));
+			Covered.Clip(FIntRect(FIntPoint::ZeroValue, Document));
+		}
+
+		if (Covered.Area() > 0 && Covered.Area() < TightenBelow * float(Document.X) * float(Document.Y))
+		{
+			const FVector2f Shift(Covered.Min);
+			for (FFolioDraw& Draw : Layer.Draws.GetDraws())
+			{
+				for (FFolioUIVertex& Vertex : Draw.Vertices)
+				{
+					Vertex.Position -= Shift;
+				}
+				if (Draw.Scissor.Area() > 0)
+				{
+					Draw.Scissor -= Covered.Min;
+				}
+			}
+
+			UE_LOG(LogFolio, VeryVerbose, TEXT("layer shrunk from %dx%d to %dx%d at %d,%d"), Document.X, Document.Y,
+				Covered.Width(), Covered.Height(), Layer.Origin.X + Covered.Min.X, Layer.Origin.Y + Covered.Min.Y);
+
+			Layer.Origin += Covered.Min;
+			Layer.ClipSize = Covered.Size();
+			Layer.Size = Covered.Size() * LayerScale;
+		}
+	}
+
+	Layer.Target.Reset(Obtain(Layer.Size));
+}
+
+FVector4f FFolioLayerStack::MaskTransformFor(const FIntRect& Source, const float SourceScale,
+	UTextureRenderTarget2D* Mask) const
+{
+	const FIntRect* MaskRect = Mask ? ResultRects.Find(Mask) : nullptr;
+	if (!MaskRect || MaskRect->Width() <= 0 || MaskRect->Height() <= 0 || SourceScale <= 0.0f)
+	{
+		return FVector4f::Zero();
+	}
+
+	// Target pixel to document pixel, then document pixel to the mask's UV.
+	const FVector2f MaskSize(MaskRect->Width(), MaskRect->Height());
+	return FVector4f(
+		1.0f / (SourceScale * MaskSize.X), 1.0f / (SourceScale * MaskSize.Y),
+		float(Source.Min.X - MaskRect->Min.X) / MaskSize.X, float(Source.Min.Y - MaskRect->Min.Y) / MaskSize.Y);
+}
+
+void FFolioLayerStack::TakeRectOf(FLayer& Layer, UTextureRenderTarget2D* Result) const
+{
+	const FIntRect* Rect = ResultRects.Find(Result);
+	if (!Rect)
+	{
+		return;
+	}
+
+	const int32 LayerScale = FMath::Max(1, FMath::RoundToInt(ScaleOf(Layer)));
+	Layer.Origin = Rect->Min;
+	Layer.ClipSize = Rect->Size();
+	Layer.Size = Rect->Size() * LayerScale;
 }
 
 UTextureRenderTarget2D* FFolioLayerStack::Obtain(const FIntPoint Size)
@@ -478,13 +601,15 @@ void FFolioLayerStack::Release(UTextureRenderTarget2D* Target)
 
 bool FFolioLayerStack::Push(const FIntPoint Size, const FIntPoint Origin)
 {
-	if (Size.X <= 0 || Size.Y <= 0 || !Acquire(FIntPoint(Size.X * Scale, Size.Y * Scale)))
+	if (Size.X <= 0 || Size.Y <= 0)
 	{
 		return false;
 	}
 
-	Stack.Last().Origin = Origin;
-	Stack.Last().ClipSize = Size;
+	FLayer& Layer = Stack.AddDefaulted_GetRef();
+	Layer.Size = FIntPoint(Size.X * Scale, Size.Y * Scale);
+	Layer.Origin = Origin;
+	Layer.ClipSize = Size;
 	return true;
 }
 
@@ -513,15 +638,17 @@ bool FFolioLayerStack::PushMatchingTop()
 	const FIntPoint Clip = Stack.Last().ClipSize;
 	const FIntPoint Origin = Stack.Last().Origin;
 
-	if (Size.X <= 0 || Size.Y <= 0 || !Acquire(Size))
+	if (Size.X <= 0 || Size.Y <= 0)
 	{
 		return false;
 	}
 
-	// Carried too, or a layer over a supersampled surface would replay the same geometry at the
+	// Clip is carried too, or a layer over a supersampled surface would replay the same geometry at the
 	// target's scale instead of the document's.
-	Stack.Last().ClipSize = Clip;
-	Stack.Last().Origin = Origin;
+	FLayer& Layer = Stack.AddDefaulted_GetRef();
+	Layer.Size = Size;
+	Layer.ClipSize = Clip;
+	Layer.Origin = Origin;
 	return true;
 }
 
@@ -652,7 +779,7 @@ void FFolioLayerStack::EnableClipMask(const bool bEnable)
 }
 
 UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask, FIntPoint* OutOrigin)
 {
 	if (Stack.IsEmpty())
 	{
@@ -665,12 +792,19 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	const bool bPrinted = PrintOf(Layer, BlurSigma, Colour, Mask, Print);
 	if (bPrinted)
 	{
-		if (UTextureRenderTarget2D* Reused = FindCached(Print))
+		// A caller that cannot be told where the result sits needs it covering the layer's whole region.
+		UTextureRenderTarget2D* Reused = FindCached(Print);
+		const FIntRect* ReusedRect = Reused ? ResultRects.Find(Reused) : nullptr;
+		if (Reused && (OutOrigin || !ReusedRect || *ReusedRect == DocumentRectOf(Layer)))
 		{
 			Discard(Layer);
 			PrintsOfResults.Add(Reused, Print);
 			++Stats.Reused;
 			INC_DWORD_STAT(STAT_FolioLayersReused);
+			if (OutOrigin)
+			{
+				*OutOrigin = ReusedRect ? ReusedRect->Min : Layer.Origin;
+			}
 			return Reused;
 		}
 	}
@@ -681,6 +815,12 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	}
 	INC_DWORD_STAT(STAT_FolioLayersDrawn);
 
+	// The layer goes on recording after this, in the region it was pushed for, so that is put back after.
+	const FIntPoint PushedSize = Layer.Size;
+	const FIntPoint PushedClip = Layer.ClipSize;
+	const FIntPoint PushedOrigin = Layer.Origin;
+
+	Prepare(Layer, BlurSigma > 0.0f ? FMath::CeilToFloat(3.0f * BlurSigma) + 2.0f : 2.0f, OutOrigin != nullptr);
 	ResolveAndRecycle(Layer);
 
 	Folio::ApplyColourFilters(Layer.Target.Get(), Colour);
@@ -696,21 +836,23 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 
 	// Last, because the mask decides what survives: masking before a blur would let the blur bleed
 	// back over what the mask had just cut away.
-	Folio::ApplyMask(Layer.Target.Get(), Mask, {});
+	Folio::FMaskOptions MaskOptions;
+	MaskOptions.MaskTransform = MaskTransformFor(DocumentRectOf(Layer), ScaleOf(Layer), Mask);
+	Folio::ApplyMask(Layer.Target.Get(), Mask, MaskOptions);
 
+	// The caller owns the detached target now and RmlUi keeps it indefinitely, so it never goes back to
+	// the pool. The layer gets a new one only if it resolves again.
 	UTextureRenderTarget2D* Detached = Layer.Target.Get();
+	ResultRects.Add(Detached, DocumentRectOf(Layer));
+	if (OutOrigin)
+	{
+		*OutOrigin = Layer.Origin;
+	}
 
-	// The caller owns the detached target now, so the layer needs a fresh one to keep drawing
-	// into. Deliberately not from the pool: RmlUi keeps the saved one indefinitely.
-	UTextureRenderTarget2D* Replacement = NewObject<UTextureRenderTarget2D>();
-	Replacement->RenderTargetFormat = RTF_RGBA8;
-	Replacement->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	Replacement->bAutoGenerateMips = false;
-	Replacement->bForceLinearGamma = false;
-	Replacement->InitAutoFormat(Layer.Size.X, Layer.Size.Y);
-	Replacement->UpdateResourceImmediate(true);
-
-	Layer.Target = TStrongObjectPtr<UTextureRenderTarget2D>(Replacement);
+	Layer.Target.Reset();
+	Layer.Size = PushedSize;
+	Layer.ClipSize = PushedClip;
+	Layer.Origin = PushedOrigin;
 
 	if (bPrinted)
 	{
@@ -740,6 +882,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 			PrintsOfResults.Add(Reused, Print);
 			++Stats.Reused;
 			INC_DWORD_STAT(STAT_FolioLayersReused);
+			TakeRectOf(Source, Reused);
 			AddCompositeQuad(Source, Reused);
 			return;
 		}
@@ -751,6 +894,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	}
 	INC_DWORD_STAT(STAT_FolioLayersDrawn);
 
+	Prepare(Source, BlurSigma > 0.0f ? FMath::CeilToFloat(3.0f * BlurSigma) + 2.0f : 2.0f, /*bMayShrink*/ true);
 	ResolveAndRecycle(Source);
 
 	// Colour before blur, which is the order CSS gives and the order that matters: blurring a
@@ -783,7 +927,11 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 		Folio::BlurRenderTarget(Composited, BlurSigma * BlurScale, BlurScale);
 	}
 
-	Folio::ApplyMask(Composited, Mask, {});
+	Folio::FMaskOptions MaskOptions;
+	MaskOptions.MaskTransform = MaskTransformFor(DocumentRectOf(Source),
+		Composited == Source.Target.Get() ? ScaleOf(Source) : 1.0f, Mask);
+	Folio::ApplyMask(Composited, Mask, MaskOptions);
+	ResultRects.Add(Composited, DocumentRectOf(Source));
 
 	// Kept before the quad is recorded, so the destination's release of what it sampled leaves it alone.
 	if (bPrinted)

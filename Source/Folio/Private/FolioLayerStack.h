@@ -150,7 +150,8 @@ public:
 	 * handed it to the next layer and cleared it.
 	 */
 	UTextureRenderTarget2D* DetachCurrent(float BlurSigma = 0.0f,
-		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr);
+		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr,
+		FIntPoint* OutOrigin = nullptr);
 
 	void Reset();
 
@@ -205,8 +206,24 @@ private:
 		TArray<TStrongObjectPtr<UTextureRenderTarget2D>> Sampled;
 	};
 
-	/** Takes a target from the pool, or makes one, and pushes a layer over it. */
-	UTextureRenderTarget2D* Acquire(FIntPoint Size);
+	/**
+	 * Gives a layer its target, which is not allocated until the layer is about to resolve.
+	 *
+	 * By then the draws are known, so when bMayShrink is set the target covers only what they reach plus
+	 * Margin, rather than the whole region the layer was pushed for. A layer with no clip is pushed the
+	 * size of the context, so without this a 60dp masked ring costs a full-screen target, a clear, a
+	 * replay and a mask pass, every frame it changes.
+	 */
+	void Prepare(FLayer& Layer, float Margin, bool bMayShrink);
+
+	/** The document pixels a layer covers, in the space below it. */
+	static FIntRect DocumentRectOf(const FLayer& Layer);
+
+	/** Maps a source's target pixels to a mask's UVs, for masks and sources that no longer share a space. */
+	FVector4f MaskTransformFor(const FIntRect& Source, float SourceScale, UTextureRenderTarget2D* Mask) const;
+
+	/** Gives a layer the place and size of a finished result it is being replaced by. */
+	void TakeRectOf(FLayer& Layer, UTextureRenderTarget2D* Result) const;
 
 	/** The same without the layer, for a target that is a step in a composite rather than a layer. */
 	UTextureRenderTarget2D* Obtain(FIntPoint Size);
@@ -304,6 +321,9 @@ private:
 
 	/** The print of each finished layer, so a draw or a mask that samples one can be printed by content. */
 	TMap<UTextureRenderTarget2D*, uint64> PrintsOfResults;
+
+	/** The document pixels each finished layer covers, which is not the layer's own region once shrunk. */
+	TMap<UTextureRenderTarget2D*, FIntRect> ResultRects;
 
 	uint64 TrimmedFrame = 0;
 	FCacheStats Stats;

@@ -6,7 +6,8 @@
 // come out with hard edges.
 //
 // RmlUi renders the mask decorators into a layer of their own and hands it over as a compiled filter,
-// so by the time this runs both sides are ordinary textures of the same size.
+// so by the time this runs both sides are ordinary textures. Either may have been shrunk to what it
+// drew, so the mask is read through MaskTransform rather than at the same UV.
 //
 // Both are premultiplied, matching RmlUi 6.x. Scaling a premultiplied texel by a coverage value is
 // exactly the operation wanted - colour and alpha fall together - so unlike the colour filters this
@@ -25,6 +26,9 @@ float4 MaskParameters;
 
 float2 InvSize;
 
+// Target pixel to mask UV: xy scales, zw offsets.
+float4 MaskTransform;
+
 // Rec. 709, matching the colour filters.
 static const float3 LumaWeights = float3(0.2126f, 0.7152f, 0.0722f);
 
@@ -33,7 +37,11 @@ float4 MainPS(float4 SvPosition : SV_POSITION) : SV_Target0
 	const float2 UV = SvPosition.xy * InvSize;
 
 	const float4 Source = SourceTexture.SampleLevel(SourceSampler, UV, 0);
-	const float4 Mask = MaskTexture.SampleLevel(MaskSampler, UV, 0);
+	const float2 MaskUV = SvPosition.xy * MaskTransform.xy + MaskTransform.zw;
+
+	// Past the mask's edge is past everything it drew, so nothing there is covered.
+	const bool bInside = all(MaskUV >= 0.0f) && all(MaskUV <= 1.0f);
+	const float4 Mask = bInside ? MaskTexture.SampleLevel(MaskSampler, MaskUV, 0) : float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 	// Alpha by default, which is what CSS `mask-mode: alpha` means and what a decorator drawn into a
 	// transparent layer produces. Luminance is the other reading, and needs the mask unpremultiplied

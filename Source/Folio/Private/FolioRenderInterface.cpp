@@ -1702,7 +1702,8 @@ void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
 void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma,
 	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask)
 {
-	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma, Colour, Mask);
+	FIntPoint At = LayerOrigin;
+	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma, Colour, Mask, &At);
 	if (!Target || !ElementList || !FSlateApplication::IsInitialized())
 	{
 		return;
@@ -1720,7 +1721,7 @@ void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma,
 		return;
 	}
 
-	const FVector2f Origin(LayerOrigin.X, LayerOrigin.Y);
+	const FVector2f Origin(At.X, At.Y);
 	const FVector2f Size(Target->SizeX, Target->SizeY);
 
 	FCompiledGeometry Quad;
@@ -1821,7 +1822,9 @@ Rml::CompiledFilterHandle FFolioRenderInterface::SaveLayerAsMaskImage()
 	}
 	else
 	{
-		Filter.Mask.Reset(Layers.DetachCurrent());
+		// Its place is kept with the result, so the mask can be shrunk to what it drew.
+		FIntPoint Unused;
+		Filter.Mask.Reset(Layers.DetachCurrent(0.0f, {}, nullptr, &Unused));
 	}
 
 	const Rml::CompiledFilterHandle Handle = NextHandle++;

@@ -16,14 +16,20 @@ namespace Folio
 
 		/** The mask cuts a hole rather than a window. */
 		bool bInvert = false;
+
+		/**
+		 * Target pixel to mask UV: xy scales, zw offsets. Zero means the two share a space, which they do
+		 * unless one of them was shrunk to what it drew. Outside the mask is uncovered.
+		 */
+		FVector4f MaskTransform = FVector4f::Zero();
 	};
 
 	/**
 	 * Multiplies a layer's alpha by a mask layer's, in place.
 	 *
 	 * A real alpha mask rather than a stencil: the stencil path records coverage, so a soft-edged mask
-	 * comes out hard. Both layers are the same size by construction - RmlUi pushes the mask layer over
-	 * the one it masks - so this is one pass with no transform.
+	 * comes out hard. RmlUi pushes the mask layer over the one it masks, so they start in one space;
+	 * either may since have been shrunk to what it drew, which Options.MaskTransform maps between.
 	 */
 	void ApplyMask(UTextureRenderTarget2D* Target, UTextureRenderTarget2D* Mask, const FMaskOptions& Options);
 }
@@ -41,6 +47,7 @@ public:
 		SHADER_PARAMETER_SAMPLER(SamplerState, MaskSampler)
 		SHADER_PARAMETER(FVector4f, MaskParameters)
 		SHADER_PARAMETER(FVector2f, InvSize)
+		SHADER_PARAMETER(FVector4f, MaskTransform)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 

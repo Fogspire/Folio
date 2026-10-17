@@ -5,21 +5,36 @@ import { engine, select, setHover, store } from '../session';
 /** How often the panel rereads the document, which is often enough to watch a settle without costing a frame. */
 const POLL_MS = 250;
 
-type Verdict = { kind: 'never' | 'busy' | 'timer' | 'idle'; title: string; detail: string };
+type Verdict = { kind: 'never' | 'conditional' | 'busy' | 'timer' | 'idle'; title: string; detail: string };
 
 /**
- * What the game would do with this document right now.
+ * What the game will do with this document in play, not only with the data it has now.
  *
  * Folio skips a document's frame until RmlUi asks for one, so the difference between these is the
  * difference between a screen that costs nothing while it sits there and one that costs every frame.
+ * An endless animation that something switches off - a data-if, a bound class, hover - only costs
+ * while it is on, so it is reported with what turns it on rather than as never idling.
  */
 function verdict(activity: Activity): Verdict {
-	const forever = activity.elements.filter((entry) => entry.visible && entry.forever.length);
-	if (forever.length) {
+	const always = activity.elements.filter((entry) => entry.visible && entry.forever.length && !entry.conditions.length);
+	if (always.length) {
 		return {
 			kind: 'never',
 			title: 'Never idles',
-			detail: `${forever.length === 1 ? 'An animation runs' : forever.length + ' animations run'} forever, so the game draws this document every frame.`,
+			detail: `${always.length === 1 ? 'An animation runs' : always.length + ' animations run'} forever and nothing switches ${always.length === 1 ? 'it' : 'them'} off, so the game draws this document every frame.`,
+		};
+	}
+
+	const switched = activity.elements.filter((entry) => entry.forever.length && entry.conditions.length);
+	if (switched.length) {
+		const conditions = [...new Set(switched.flatMap((entry) => entry.conditions))];
+		const onNow = switched.some((entry) => entry.visible);
+		return {
+			kind: 'conditional',
+			title: 'Idles, except while ' + conditions.join(' or '),
+			detail: onNow
+				? 'With the current data that holds, so right now the game draws it every frame.'
+				: 'With the current data it does not, so right now it idles.',
 		};
 	}
 	if (activity.next === 0) {
@@ -91,7 +106,7 @@ export function ActivityPanel() {
 					<h3>Runs forever</h3>
 					{forever.map((entry) => (
 						<Row key={entry.id} entry={entry}>
-							{entry.forever.join(', ')}
+							{entry.forever.join(', ')} · {entry.conditions.length ? 'while ' + entry.conditions.join(' and ') : 'always'}
 						</Row>
 					))}
 				</section>

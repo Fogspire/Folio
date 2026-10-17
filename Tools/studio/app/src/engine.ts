@@ -47,6 +47,11 @@ export interface ActivityElement {
 	visible: boolean;
 	/** Animations that never end, so the document never idles while the element is shown. */
 	forever: string[];
+	/**
+	 * What has to hold for those to run: data-if and data-visible expressions over the element, class
+	 * bindings and states such as "hovered" in the rule. Empty means nothing can stop them.
+	 */
+	conditions: string[];
 	finite: { name: string; times: number }[];
 	/** Properties that transition when they change, or "all". */
 	transitions: string[];

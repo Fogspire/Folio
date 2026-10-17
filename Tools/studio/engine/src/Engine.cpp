@@ -109,6 +109,82 @@ bool IsBinding(const std::string& name)
 		&& name.rfind("data-alias-", 0) != 0;
 }
 
+/** The binding on this element or an ancestor that sets a class, or empty when the class is written in the markup. */
+std::string ClassBinding(Rml::Element* element, Rml::ElementDocument* document, const std::string& name)
+{
+	for (Rml::Element* current = element; current && current != document; current = current->GetParentNode())
+	{
+		const std::string binding = current->GetAttribute<Rml::String>("data-class-" + name, "");
+		if (!binding.empty())
+			return binding;
+	}
+	return {};
+}
+
+/**
+ * What has to be true for this element's animation to run, as a person would say it.
+ *
+ * Empty means nothing can stop it: the rule applies from the markup alone. Otherwise each entry is one
+ * thing that switches it on - a data-if or data-visible over it, a class the data sets, or hover or
+ * focus in the selector - and the animation stops whenever any of them is false, because a hidden
+ * element asks for no updates.
+ */
+json AnimationConditions(Rml::Element* element, Rml::ElementDocument* document)
+{
+	json conditions = json::array();
+	const auto add = [&conditions](const std::string& text) {
+		if (std::find(conditions.begin(), conditions.end(), text) == conditions.end())
+			conditions.push_back(text);
+	};
+
+	for (Rml::Element* current = element; current && current != document; current = current->GetParentNode())
+	{
+		for (const char* name : {"data-if", "data-visible"})
+		{
+			const std::string expression = current->GetAttribute<Rml::String>(name, "");
+			if (!expression.empty())
+				add(expression);
+		}
+	}
+
+	const Rml::Property* animation = element->GetProperty("animation");
+	if (!animation || !animation->source)
+	{
+		if (element->HasAttribute("data-style-animation"))
+			add(element->GetAttribute<Rml::String>("data-style-animation", ""));
+		return conditions;
+	}
+
+	// The selector's classes and states, read off its text: a class the data sets, or a state the player
+	// causes, is what the rule waits on. A class written in the markup is no condition at all.
+	const std::string& selector = animation->source->rule_name;
+	for (size_t at = 0; at < selector.size(); ++at)
+	{
+		const char mark = selector[at];
+		if (mark != '.' && mark != ':')
+			continue;
+		size_t end = at + 1;
+		while (end < selector.size() && (std::isalnum((unsigned char)selector[end]) || selector[end] == '-' || selector[end] == '_'))
+			++end;
+		const std::string name = selector.substr(at + 1, end - at - 1);
+		if (mark == '.')
+		{
+			if (std::string binding = ClassBinding(element, document, name); !binding.empty())
+				add(binding);
+		}
+		else if (name == "hover")
+			add("hovered");
+		else if (name == "focus" || name == "focus-visible")
+			add("focused");
+		else if (name == "active")
+			add("pressed");
+		else if (name == "checked")
+			add("checked");
+		at = end - 1;
+	}
+	return conditions;
+}
+
 /**
  * What about one element can make the document update: animations that never end, ones that end,
  * transitions waiting for a change, data bindings, and the layer effects whose cost rides on all of it.
@@ -182,6 +258,7 @@ json DescribeActivity(Rml::Element* element, Rml::ElementDocument* document, con
 	}
 	out["label"] = label;
 	out["visible"] = element->IsVisible();
+	out["conditions"] = forever.empty() ? json::array() : AnimationConditions(element, document);
 	out["forever"] = std::move(forever);
 	out["finite"] = std::move(finite);
 	out["transitions"] = std::move(transitions);

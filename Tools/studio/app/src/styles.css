@@ -1776,6 +1776,7 @@ select {
 	border-left-color: var(--error);
 }
 
+.activity-verdict.conditional,
 .activity-verdict.busy,
 .activity-verdict.timer {
 	border-left-color: var(--warning);

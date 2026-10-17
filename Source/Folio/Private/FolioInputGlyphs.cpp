@@ -170,6 +170,41 @@ void Folio::SetGlyphSources(const TArray<EFolioGlyphSource>& Keyboard,
 	GGamepadOrder = Gamepad.IsEmpty() ? TArray<EFolioGlyphSource>{ EFolioGlyphSource::Drawn } : Gamepad;
 }
 
+FString Folio::ShapeFor(const FKey& Key)
+{
+	if (Key == EKeys::LeftMouseButton) { return TEXT("mouse left"); }
+	if (Key == EKeys::RightMouseButton) { return TEXT("mouse right"); }
+	if (Key == EKeys::MiddleMouseButton || Key == EKeys::MouseScrollUp || Key == EKeys::MouseScrollDown) { return TEXT("mouse middle"); }
+	if (Key == EKeys::ThumbMouseButton) { return TEXT("mouse side-one"); }
+	if (Key == EKeys::ThumbMouseButton2) { return TEXT("mouse side-two"); }
+	if (!Key.IsGamepadKey()) { return TEXT("key"); }
+
+	if (Key == EKeys::Gamepad_FaceButton_Bottom || Key == EKeys::Gamepad_FaceButton_Right
+		|| Key == EKeys::Gamepad_FaceButton_Left || Key == EKeys::Gamepad_FaceButton_Top)
+	{
+		return TEXT("face");
+	}
+	if (Key == EKeys::Gamepad_LeftShoulder || Key == EKeys::Gamepad_RightShoulder) { return TEXT("bumper"); }
+	if (Key == EKeys::Gamepad_LeftTrigger || Key == EKeys::Gamepad_RightTrigger
+		|| Key == EKeys::Gamepad_LeftTriggerAxis || Key == EKeys::Gamepad_RightTriggerAxis)
+	{
+		return TEXT("trigger");
+	}
+	if (Key == EKeys::Gamepad_DPad_Up || Key == EKeys::Gamepad_DPad_Down
+		|| Key == EKeys::Gamepad_DPad_Left || Key == EKeys::Gamepad_DPad_Right)
+	{
+		return TEXT("dpad");
+	}
+	if (Key == EKeys::Gamepad_LeftThumbstick || Key == EKeys::Gamepad_RightThumbstick
+		|| Key == EKeys::Gamepad_Left2D || Key == EKeys::Gamepad_Right2D
+		|| Key == EKeys::Gamepad_LeftX || Key == EKeys::Gamepad_LeftY
+		|| Key == EKeys::Gamepad_RightX || Key == EKeys::Gamepad_RightY)
+	{
+		return TEXT("stick");
+	}
+	return TEXT("key");
+}
+
 FFolioGlyph Folio::ResolveGlyph(const FKey& Key, const ULocalPlayer* LocalPlayer)
 {
 	FFolioGlyph Glyph;
@@ -182,6 +217,7 @@ FFolioGlyph Folio::ResolveGlyph(const FKey& Key, const ULocalPlayer* LocalPlayer
 	// runtime, and it costs a string.
 	Glyph.Kind = TEXT("drawn");
 	Glyph.Cap = LabelFor(Key).ToString();
+	Glyph.Shape = ShapeFor(Key);
 
 	const TArray<EFolioGlyphSource>& Order = Key.IsGamepadKey() ? GGamepadOrder : GKeyboardOrder;
 

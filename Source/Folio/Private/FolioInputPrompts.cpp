@@ -57,6 +57,19 @@ namespace
 	}
 }
 
+bool UFolioPromptSet::IsGamepadActive()
+{
+	return FFolioModule::IsAvailable() && FFolioModule::Get().GetInputDevice() == Folio::EInputDevice::Gamepad;
+}
+
+void UFolioPromptSet::SetGamepadActive(const bool bGamepad)
+{
+	if (FFolioModule::IsAvailable())
+	{
+		FFolioModule::Get().SetInputDevice(bGamepad ? Folio::EInputDevice::Gamepad : Folio::EInputDevice::Keyboard);
+	}
+}
+
 void UFolioPromptSet::Add(const FName MappingName, const FString& Label)
 {
 	Wanted.Emplace(MappingName, Label);

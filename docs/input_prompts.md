@@ -22,6 +22,8 @@ Document->BindViewModel(TEXT("prompts"), Prompts);
 
 Game code names the actions once. `Refresh` resolves each to the key the player has bound **and filters by what they are holding** - a pad in hand never shows `F`. Call it when the screen opens, when the device changes, and after a rebind; it is cheap.
 
+`UFolioPromptSet::IsGamepadActive()` says which device that is, and `SetGamepadActive(bool)` switches it as real input would, for an attract mode or a capture that has to show both.
+
 `bBound` is false when nothing is bound. Hide the row: a prompt for an unbound action sends the player looking for a key that does nothing.
 
 ## Where the picture comes from
@@ -44,6 +46,14 @@ Folio::SetGlyphSources(
 **The default is drawn everywhere**, which is what makes prompts work in a project with no art and no CommonInput data at all. `ResolveGlyph` always fills in `Cap` whichever source wins, so a missing texture degrades to a keycap rather than to a blank.
 
 Two lists rather than one because the answer is usually different. A keyboard prompt drawn as a keycap looks better than any screenshot of a keyboard; a PlayStation face button has art the project has licensed and should be using, and drawing your own is a trademark question as much as a taste one.
+
+`Shape` names the drawn shape as the class after `pg-`: `key`, `face`, `bumper`, `trigger`, `dpad`, `stick`, or `mouse` and its button (`mouse left`). So a pad's A is drawn as a face button rather than a keycap with an A in it, from one element:
+
+```html
+<span data-attr-class="'pg pg-' + p.Glyph.Shape">{{ p.Glyph.Cap }}</span>
+```
+
+The mouse, the stick and the d-pad have children of their own; `rcss/recipes/prompts.rml` shows each.
 
 `Kind` says which won - `drawn`, `sprite` or `image` - so markup picks a branch instead of testing three fields for emptiness:
 

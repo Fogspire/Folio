@@ -76,6 +76,14 @@ struct FFolioGlyph
 	UPROPERTY(BlueprintReadOnly, Category = "Folio")
 	FString Cap;
 
+	/**
+	 * Which drawn shape the key is, as the class after `pg-` that draws it: `key`, `face`, `bumper`,
+	 * `trigger`, `dpad`, `stick`, or `mouse` followed by the button, as in `mouse left`. A drawn prompt
+	 * can then be one element, `data-attr-class="'pg pg-' + p.Glyph.Shape"`, rather than a branch per shape.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Folio")
+	FString Shape;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Folio")
 	FString Sprite;
 
@@ -124,4 +132,7 @@ namespace Folio
 
 	/** What a keycap should say. The table's label, else the key's own display name. */
 	FOLIO_API FText LabelFor(const FKey& Key);
+
+	/** Which drawn shape a key is. See FFolioGlyph::Shape. */
+	FOLIO_API FString ShapeFor(const FKey& Key);
 }

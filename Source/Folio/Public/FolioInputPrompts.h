@@ -57,6 +57,17 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Folio")
 	TArray<FFolioPrompt> Prompts;
 
+	/** Whether Folio takes the player to be holding a gamepad, which is what Refresh resolves against. */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	static bool IsGamepadActive();
+
+	/**
+	 * Tells Folio the player has picked up a pad or gone back to the keyboard, as real input would, so
+	 * prompts and navigation follow. For an attract mode or a capture; the next real input moves it again.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	static void SetGamepadActive(bool bGamepad);
+
 private:
 	/** What was asked for, kept so a refresh can resolve it again. */
 	TArray<TPair<FName, FString>> Wanted;

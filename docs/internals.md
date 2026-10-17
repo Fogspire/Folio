@@ -295,7 +295,7 @@ Folio ships Inter and RobotoMono, both variable, under `fonts/`. The original in
 
 The reason is that the engine's Roboto is a static face. Variable-font support is most of the value here: `font-weight: 450` is a real instance rather than a snap to the nearest cut, and `opsz` is driven from the requested size automatically. Neither is expressible with a static face, so shipping one that has axes is what makes the feature reachable by default rather than only after a game supplies its own faces.
 
-Resolution order is unchanged in spirit and is the same in both renderers: the game's own `UI/fonts/` first, then the faces Folio ships, then the engine's Roboto as a last resort. A game that drops faces in `UI/fonts/` still wins outright, which was the part of the original intent that mattered.
+The same rule holds in both renderers: the game's own `UI/fonts/` if it has any faces, else the faces Folio ships, else the engine's Roboto. Only the first of those that has faces is loaded, so a game with fonts of its own never carries Folio's.
 
 The first face registered becomes the fallback. Without one, a document naming a family nobody registered renders nothing at all, which reads as a layout bug and says nothing about the cause.
 

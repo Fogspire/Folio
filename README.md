@@ -92,11 +92,11 @@ Merely a single line of text for each element.
 
 ### Common Game Functionality Out-of-the-Box
 
-_All waiting for you in Folio Studio, either as a recipe or a tutorial. Don't waste time reproducing functionality common to many games, like UMG/Slate expects._
+All waiting for you in Folio Studio, either as a recipe or a tutorial. Don't waste time reproducing functionality common to many games, like UMG/Slate expects.
 
-Nameplates. Subtitles. Dialogue/Typewriter. Paper doll/inventory. Motes TODO
+Nameplates. Dialogue. Stamina Wheel. 3D Paper Doll. Subtitles. Bound Input Reading.
 
-<!-- TODO images -->
+https://github.com/user-attachments/assets/397efa14-864e-40bd-b1ec-4de47caf4c0e
 
 ### Input and Menu Navigation
 
@@ -117,20 +117,6 @@ World documents render correctly under instanced stereo, verified with Unreal's 
 A short prompt can come back as a finished working screen. Hand it [AGENTS.md](AGENTS.md). May benefit from also handing it a concept image if available.
 
 <!-- TODO example prompt+image -->
-
-<!-- TODO remove old notes
-- **Absolutely rapid, and outside Unreal.** Everything is a text file. Edit it in **[Folio Studio](docs/studio.md)**, a WYSIWYG editor that draws with the same renderer the game does. The UI designer does not need Unreal installed. A polished, animated menu is minutes of markup, where the same thing in UMG or Slate is days of widget wrangling.
-- **Unparalleled clarity.** Text and vector art are distance fields, resolved for the exact pixel they land on. A screen is as sharp at 4K as at 720p, under `transform: scale(8)`, mid-animation, and from across a room.
-- **Text that scales without limit.** One field per glyph serves every size, so there is no atlas per font size and no blur when text grows, shrinks or rotates. Variable-weight fonts, outlines and glows are part of the same field. Slate rasterises a bitmap for each size; Folio never does.
-- **Vector art.** SVG icons bake to the same fields, so an icon drawn once is correct at any size and can be recoloured from the stylesheet.
-- **UI in the world that stays sharp.** A text document on a computer screen, a sign or a cockpit panel is drawn after the tonemapper by default, where TAA, TSR, motion blur and post-processing cannot touch it. World UI in Unreal normally smears the moment the camera moves; this does not. It is still depth-tested, so it goes behind geometry correctly. Two other modes put it in the scene to take bloom and grading, or onto curved meshes.
-- **World screens the player can use.** Point at one, click it, navigate it with a pad, type into it. A working in-game computer only involved a document and a component, not an entire project. See the [CRT terminal tutorial](docs/tutorials/crt_terminal.md).
-- **Stereo.** World documents render correctly under instanced stereo, verified with Unreal's emulated stereo. It has not yet been run on a headset.
-- **Animation built in.** Transitions, keyframes, springs that respond to the camera, and a shader decorator for scan lines, sweeps and additive glow.
-- **Plain text in source control.** A screen is not a binary `.uasset`. It diffs, merges and reviews like code, two people can work on one screen without locking it, and plain git is enough. A visual edit in Studio changes only the lines it has to.
-- **Keyboard, mouse and gamepad from one stylesheet.** Spatial navigation, focus, modals and input prompts that swap when the player picks up a pad, with no focus code to write.
-- **Driven by your game.** Bind any `UObject` by reflection: `{{ Health }}` in text, lists from arrays, commands back to C++ or Blueprint. No JavaScript, and no binding code.
-- **Quick to prototype with an AI agent, if you use one.** A screen is plain text, and the checker and screenshot tool tell an agent what it got wrong without a person in the loop, so a short prompt can come back as a finished, working screen. Hand it [AGENTS.md](AGENTS.md). May benefit from also handing it a concept image if available. -->
 
 ## Production Features
 
@@ -168,6 +154,10 @@ A fading typewriter effect. Rich text with emphasis inside one translatable line
 
 <!-- TODO gif -->
 
+### Stamina Wheel
+
+<img width="417" height="275" alt="UnrealEditor-Win64-DebugGame_2026-10-17_22-11-22" src="https://github.com/user-attachments/assets/211b6d16-67a7-4949-bbad-c6820a86d3eb" />
+
 ### Inventory
 
 A grid with drag and drop, 3D items in cells, a paper doll, a list of ten thousand items that allocates nothing while scrolling.
@@ -195,8 +185,6 @@ Buttons, sliders, toggles, tab bars, lists, panels, scroll bars, drifting motes.
 Folio Studio for building your UI.
 
 <img width="1584" height="935" alt="image" src="https://github.com/user-attachments/assets/c4e83c80-b060-46f5-be5e-6ad856ce07c7" />
-
-`uipreview` for checks and screenshots in a build, vector and font baking, view model code generation, VSCode highlighting.
 
 <!--
 | | |

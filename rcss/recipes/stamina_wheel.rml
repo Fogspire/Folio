@@ -13,8 +13,10 @@
 		 * The "stamina" model this expects:
 		 *
 		 *   bShown    bool    up: stamina short, or full for under a second
-		 *   Position  string  transform placing it, "translate(Xdp, Ydp)", with " rotate(Ndeg)" after it
-		 *                     to turn twelve o'clock toward the character
+		 *   Position  string  transform placing it, "translate(Xdp, Ydp)". Optionally followed by
+		 *                     "scaleX(S)" to angle it, S the cosine of the angle (3D transforms do
+		 *                     not reach the Unreal renderer), and "rotate(Ndeg)" to spin where it
+		 *                     fills from
 		 *   Wheels    array   one row per ring, innermost first:
 		 *     Size        float  outer diameter in dp
 		 *     Hole        float  the cut-out, as a percentage of the radius: smaller is thicker

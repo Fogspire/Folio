@@ -19,7 +19,7 @@ The model it binds:
 | Name | Type | |
 |---|---|---|
 | `bShown` | bool | The wheel is up. It fades in and out on its own. |
-| `Position` | string | `translate(Xdp, Ydp)`, the wheel's centre on screen, optionally followed by ` rotate(Ndeg)` |
+| `Position` | string | `translate(Xdp, Ydp)`, the wheel's centre on screen, optionally followed by `scaleX(S)` to angle it and `rotate(Ndeg)` to spin it |
 | `Wheels` | array | One row per ring, innermost first |
 
 Each row of `Wheels`:
@@ -115,12 +115,12 @@ void UMyHud::UpdateStamina(float DeltaTime)
 	if (Scale > 0.f && PC->ProjectWorldLocationToScreen(Character->GetActorLocation() + FVector(0, 0, 120), Pixel, true))
 	{
 		const FVector2D At = Pixel / Scale + FVector2D(64.f, -28.f);
-		Model->Position = FString::Printf(TEXT("translate(%.0fdp, %.0fdp) rotate(%.0fdeg)"), At.X, At.Y, Angle);
+		Model->Position = FString::Printf(TEXT("translate(%.0fdp, %.0fdp) scaleX(%.3f) rotate(%.0fdeg)"), At.X, At.Y, FMath::Cos(FMath::DegreesToRadians(Tilt)), Angle);
 	}
 }
 ```
 
-`Trail` and `FullTime` are members, starting at the full amount and 0; `Angle` is a setting, 0 to fill from twelve.
+`Trail` and `FullTime` are members, starting at the full amount and 0; `Tilt` and `Angle` are settings, both 0 to leave it facing the screen and filling from twelve.
 
 A data model is polled, so setting the fields is all it takes. Keep `Wheels` the same length from frame to frame where you can: a row removed is destroyed on the spot, and one added is built.
 
@@ -136,7 +136,8 @@ A data model is polled, so setting the fields is all it takes. Keep `Wheels` the
 ## Tune it
 
 - **Thickness:** `Hole` on the first ring. 36 is a thick ring; 60 is a thin band.
-- **Where it fills from:** `Angle`, degrees clockwise from twelve. Pointing it at the character, beside whom the wheel sits, reads well.
+- **Tilt:** `Tilt` angles the wheel as if turned about its vertical axis toward the character, which makes it read as attached to them. It is a horizontal squash by the angle's cosine: `perspective()` and `rotateY()` do not reach the Unreal renderer, which is 2D.
+- **Where it fills from:** `Angle`, degrees clockwise from twelve.
 - **Part rings:** `PerWheel` against the maximum. A maximum of 1.6 wheels' worth draws one ring and three fifths of the next.
 - **Size:** `Size`, and the 16dp each further ring adds.
 - **Colours:** the hex values in the recipe's `data-style-decorator` expression: fill, red end, temporary, and the track.

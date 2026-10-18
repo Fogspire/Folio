@@ -27,6 +27,8 @@ const PANELS: PanelPlace[] = [
 	{ id: 'data', title: 'Data', beside: 'inspector', direction: 'within', inactive: true },
 ];
 
+export const PANEL_IDS = PANELS.map((place) => place.id);
+
 let api: DockviewApi | null = null;
 const LAYOUT_KEY = 'folio.studio.layout';
 /** Every panel Studio had when the layout was last saved, so one added since can be told from one closed on purpose. */

@@ -71,7 +71,7 @@ expect(find('id', 'after') !== null, 'and it still edits');
 commands.runCommand('undo');
 commands.runCommand('reset-layout');
 await wait(500);
-expect(document.querySelectorAll('.dv-default-tab').length === 10 && !!document.querySelector('.canvas-panel canvas'), 'Reset Layout restores every panel');
+expect(document.querySelectorAll('.dv-default-tab').length === studio.dock.PANEL_IDS.length && !!document.querySelector('.canvas-panel canvas'), 'Reset Layout restores every panel');
 
 // A layout is saved to a file and loaded back.
 const layoutFile = studio.shots + '/narrow.json';
@@ -103,7 +103,7 @@ const tabCount = () => document.querySelectorAll('.dv-default-tab').length;
 await wait(300);
 key(document.body, { key: 'F10' });
 await wait(500);
-expect(tabCount() === 10, 'F10 resets the layout');
+expect(tabCount() === studio.dock.PANEL_IDS.length, 'F10 resets the layout');
 expect(await host.testMenuKey(['View', 'Layout', 'Reset Layout']) === 'F10', 'and the menu shows the key');
 
 const surface = document.querySelector('.canvas-panel [data-element-keys]');
@@ -381,7 +381,7 @@ expect(store.get().openFiles.length === 1 && store.get().document === path && st
 const docsTab = [...document.querySelectorAll('.dv-default-tab')].find((entry) => entry.textContent.trim() === 'Docs');
 docsTab.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 }));
 await wait(300);
-expect(document.querySelectorAll('.dv-default-tab').length === 9, 'a middle-click closes a panel tab');
+expect(document.querySelectorAll('.dv-default-tab').length === studio.dock.PANEL_IDS.length - 1, 'a middle-click closes a panel tab');
 commands.runCommand('reset-layout');
 await wait(500);
 

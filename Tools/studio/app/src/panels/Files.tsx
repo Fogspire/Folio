@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { popup } from '../commands';
 import { showPanel } from '../dock';
 import { host } from '../host';
@@ -180,16 +180,31 @@ function FolderRows({ folder, depth, collapsed, toggle, begin }: RowProps) {
 	);
 }
 
+/** Folders collapsed in the Files panel, remembered per project. */
+const COLLAPSED_KEY = 'folio.studio.collapsed:';
+
+function loadCollapsed(root: string | undefined): Set<string> {
+	if (!root || host.testing) return new Set();
+	try {
+		return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY + root.toLowerCase()) ?? '[]'));
+	} catch {
+		return new Set();
+	}
+}
+
 export function FilesPanel() {
 	const project = store.use((state) => state.project);
 	const files = store.use((state) => state.projectFiles);
-	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+	const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsed(project?.root));
 	const [creating, setCreating] = useState<Creating | null>(null);
 	const tree = useMemo(() => (project ? buildTree(project.root, files) : null), [project, files]);
+
+	useEffect(() => setCollapsed(loadCollapsed(project?.root)), [project?.root]);
 
 	const toggle = (path: string) => setCollapsed((current) => {
 		const next = new Set(current);
 		if (!next.delete(path)) next.add(path);
+		if (project && !host.testing) localStorage.setItem(COLLAPSED_KEY + project.root.toLowerCase(), JSON.stringify([...next]));
 		return next;
 	});
 

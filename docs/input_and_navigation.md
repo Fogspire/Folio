@@ -84,15 +84,15 @@ Make the background inert for as long as the dialog is up:
 
 ## Disabled
 
-Disabled controls want all three:
-
-```css
-.is-disabled { opacity: 0.6; color: #8a8a99; focus: none; pointer-events: none; }
+```html
+<div class="btn focusable" data-attrif-disabled="!bCanAfford" data-event-click="Buy">Buy</div>
 ```
 
-A class for the look, `focus: none` to leave navigation, `pointer-events: none` to stop responding.
+`:disabled` is set on **any** element with the `disabled` attribute. The attribute also writes `focus: none` onto the element as an inline property, so it leaves navigation and user clicks do not reach it. Bind it with `data-attrif-disabled="expr"`, which adds and removes the attribute; `data-attr-disabled` writes the value as text, and an attribute reading `false` is still there and still disables. The `.is-disabled` class means the same in the component library, for markup that would rather carry a class. Style the look, and add `pointer-events: none` to stop it responding to hover too:
 
-`:disabled` is set **only** by `input`, `select` and `textarea`, and only from the `disabled` attribute. On a `<button>` or a `<div>` it matches nothing and warns about nothing. So: real form controls use the attribute, everything else uses a class.
+```css
+:disabled { opacity: 0.6; color: #8a8a99; pointer-events: none; }
+```
 
 Note that `focus: none` also suppresses `click`, because a click is dispatched to the nearest *focusable* ancestor rather than to what was under the cursor - so a `focus: none` element silently forwards its clicks to whatever contains it. `mousedown`, `mouseup`, `mouseover` and `:hover` still fire on it.
 

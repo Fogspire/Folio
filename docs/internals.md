@@ -13,8 +13,7 @@ Everything an author needs is in **[the manual](README.md)**, and what Folio can
 Known cases:
 
 - **CSS custom properties and `var()` do not exist in 6.2.** Merged to master 2026-06-07 (PR #947) with follow-up bugs still open (#965 transitions with `var()`, #966 `var()` with dp-ratio changes). `UI/tokens.rcss` therefore expresses design tokens as **concrete classes**, not variables. Revisit at RmlUi 7.0.
-- **`:disabled` is not an RCSS pseudo-class.** Use a `.is-disabled` class. `:focus`, `:focus-visible`, `:checked`, `:hover`, `:active`, `:nth-child()`, `:not()` and `:scope` are all supported.
-- **`border-radius` does not support percentages or elliptical (two-axis) radii.**
+- **`:disabled` is set from the `disabled` attribute on any element** (patch 0006). `:focus`, `:focus-visible`, `:checked`, `:hover`, `:active`, `:nth-child()`, `:not()` and `:scope` are all supported.
 - **`Rml::ReleaseMemoryPools()` does not exist** in 6.2. Not available for the reload path.
 
 ## The RmlUi fork this project was first pointed at is dead

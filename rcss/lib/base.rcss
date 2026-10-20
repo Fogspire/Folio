@@ -57,11 +57,12 @@
 /* --- Disabled ---------------------------------------------------------------------- */
 
 /*
- * RCSS has no :disabled. focus: none drops the element out of navigation and inherits down its
- * subtree; pointer-events: none is what actually stops it responding to the mouse. Both are
- * behaviour rather than appearance, so they stay here and the theme only dims it.
+ * The disabled attribute and the class mean the same. focus: none drops the element out of
+ * navigation and inherits down its subtree; pointer-events: none is what actually stops it
+ * responding to the mouse. Both are behaviour rather than appearance, so they stay here and the
+ * theme only dims it.
  */
-.is-disabled
+.is-disabled, :disabled
 {
 	focus: none;
 	pointer-events: none;

@@ -52,13 +52,7 @@ input.field selection     { background-color: #4ea1ff4d; }
 
 Radios sharing a `name` are exclusive, and RmlUi handles it.
 
-**These are the only elements that get `:disabled`.** It is set by `input`, `select` and `textarea` only, and only from the `disabled` attribute, which also makes RmlUi write `focus: none` onto the element as an inline property. On a `<button>` or a `<div>`, `:disabled` matches nothing and warns about nothing.
-
-So: real form controls use the attribute, everything else uses a class.
-
-```css
-.is-disabled { opacity: 0.6; focus: none; pointer-events: none; }
-```
+`:disabled` is set on **any** element with the `disabled` attribute. The attribute also writes `focus: none` onto the element as an inline property, so it leaves navigation and user clicks do not reach it. Bind it with `data-attrif-disabled="expr"`, which adds and removes the attribute; `data-attr-disabled` writes the value as text, and an attribute reading `false` is still there and still disables. The `.is-disabled` class means the same in the component library, for markup that would rather carry a class.
 
 ### Styling the box itself
 

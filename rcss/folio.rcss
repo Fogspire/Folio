@@ -58,8 +58,7 @@ button, input, select, textarea, progress, progressbar, handle { display: inline
 tabset, tabs, panels, panel { display: block; }
 tab { display: inline-block; }
 
-/* RmlUi has no :disabled pseudo-class, so disabled state is carried by a class. */
-.is-disabled { color: #7f7f7f; }
+.is-disabled, :disabled { color: #7f7f7f; }
 
 /*
  * Scrollbars have no default size, and an auto width on one resolves to the full content

@@ -107,7 +107,7 @@ Supported structural selectors, in full: `:nth-child()`, `:nth-last-child()`, `:
 
 Everything else written as `:something` is treated as a **pseudo-class**: a free-form flag the host sets on an element. Unknown ones are not an error and are not warned about; they simply never match. The pseudo-classes RmlUi actually sets are `:hover`, `:active`, `:focus`, `:focus-visible`, `:checked`, `:selected` (a tab and its panel) and `:disabled`.
 
-`:disabled` is the one to be careful with. It is set **only** by `input`, `select` and `textarea`, and only in response to the `disabled` attribute, which also makes RmlUi write `focus: none` onto the element as an inline property. Every other element (including a `<button>`, which is not a real element type) never gets it, and `:disabled` there matches nothing and warns about nothing. So: real form controls use the `disabled` attribute, and everything else uses a class.
+`:disabled` is set on **any** element with the `disabled` attribute. The attribute also writes `focus: none` onto the element as an inline property, so it leaves navigation and user clicks do not reach it. Bind it with `data-attrif-disabled="expr"`, which adds and removes the attribute; `data-attr-disabled` writes the value as text, and an attribute reading `false` is still there and still disables. The `.is-disabled` class means the same in the component library, for markup that would rather carry a class.
 
 ---
 

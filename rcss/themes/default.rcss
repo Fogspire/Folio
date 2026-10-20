@@ -204,8 +204,9 @@ body
 .focusable:hover          { background-color: #363642; }
 .focusable:focus-visible  { border-color: #f0c674; box-shadow: #f0c67459 0dp 0dp 12dp; }
 
-.is-disabled              { color: #5c5c6b; opacity: 0.6; }
-.is-disabled:hover        { background-color: transparent; }
+.is-disabled, :disabled   { color: #5c5c6b; opacity: 0.6; }
+.is-disabled:hover,
+:disabled:hover           { background-color: transparent; }
 
 .divider                  { background-color: #3a3a48; }
 .divider-soft             { background-color: #2b2b36; }
@@ -915,7 +916,7 @@ scrollbarhorizontal sliderbar:hover
 	.focusable:focus-visible  { border-color: #ffffff; box-shadow: #ffffffa0 0dp 0dp 14dp; }
 	.focusable:hover          { background-color: #303040; }
 
-	.is-disabled              { color: #9090a0; opacity: 1.0; }
+	.is-disabled, :disabled   { color: #9090a0; opacity: 1.0; }
 
 	.btn                      { background-color: #1c1c28; color: #ffffff; }
 	.btn-primary              { background-color: #ffd98a; color: #000000; }

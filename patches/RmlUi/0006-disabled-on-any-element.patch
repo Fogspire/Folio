@@ -1,0 +1,86 @@
+From: Folio <folio@localhost>
+Subject: [PATCH] :disabled on any element with the disabled attribute
+
+Only input, select and textarea set :disabled from the disabled attribute, and only they drop out
+of focus when it is set. Every other element, including a generic element styled as a button,
+matches nothing with :disabled and stays focusable and clickable, so a disabled state has to be
+carried by a class and its behaviour restated in every stylesheet.
+
+The handling moves from ElementFormControl to Element, so the attribute means the same on every
+element: the pseudo-class is set, the element is blurred, and focus: none is set inline so it
+leaves navigation and user clicks do not reach it.
+
+Removable once upstream sets :disabled from the attribute on every element.
+
+diff --git a/Include/RmlUi/Core/Elements/ElementFormControl.h b/Include/RmlUi/Core/Elements/ElementFormControl.h
+index 443cd009..18a590bb 100644
+--- a/Include/RmlUi/Core/Elements/ElementFormControl.h
++++ b/Include/RmlUi/Core/Elements/ElementFormControl.h
+@@ -43,11 +43,6 @@ public:
+ 	/// Sets the disabled status of the form control.
+ 	/// @param[in] disable True to disable the element, false to enable.
+ 	void SetDisabled(bool disable);
+-
+-protected:
+-	/// Checks for changes to the 'disabled' attribute.
+-	/// @param[in] changed_attributes List of changed attributes on the element.
+-	void OnAttributeChange(const ElementAttributes& changed_attributes) override;
+ };
+ 
+ } // namespace Rml
+diff --git a/Source/Core/Element.cpp b/Source/Core/Element.cpp
+index 5ae0b56c..779deaf2 100644
+--- a/Source/Core/Element.cpp
++++ b/Source/Core/Element.cpp
+@@ -1681,6 +1681,21 @@ void Element::OnAttributeChange(const ElementAttributes& changed_attributes)
+ 		{
+ 			DirtyLayout();
+ 		}
++		else if (attribute == "disabled")
++		{
++			const bool is_disabled = HasAttribute("disabled");
++			SetPseudoClass("disabled", is_disabled);
++
++			// Disable focus when element is disabled. This will also prevent click
++			// events (when originating from user inputs, see Context) to reach the element.
++			if (is_disabled)
++			{
++				SetProperty(PropertyId::Focus, Property(Style::Focus::None));
++				Blur();
++			}
++			else
++				RemoveProperty(PropertyId::Focus);
++		}
+ 		else if (attribute.size() > 2 && attribute[0] == 'o' && attribute[1] == 'n')
+ 		{
+ 			static constexpr size_t on_length = 2;
+diff --git a/Source/Core/Elements/ElementFormControl.cpp b/Source/Core/Elements/ElementFormControl.cpp
+index 48d648c9..21212577 100644
+--- a/Source/Core/Elements/ElementFormControl.cpp
++++ b/Source/Core/Elements/ElementFormControl.cpp
+@@ -38,25 +38,4 @@ void ElementFormControl::SetDisabled(bool disable)
+ 		RemoveAttribute("disabled");
+ }
+ 
+-void ElementFormControl::OnAttributeChange(const ElementAttributes& changed_attributes)
+-{
+-	Element::OnAttributeChange(changed_attributes);
+-
+-	if (changed_attributes.find("disabled") != changed_attributes.end())
+-	{
+-		bool is_disabled = IsDisabled();
+-		SetPseudoClass("disabled", is_disabled);
+-
+-		// Disable focus when element is disabled. This will also prevent click
+-		// events (when originating from user inputs, see Context) to reach the element.
+-		if (is_disabled)
+-		{
+-			SetProperty(PropertyId::Focus, Property(Style::Focus::None));
+-			Blur();
+-		}
+-		else
+-			RemoveProperty(PropertyId::Focus);
+-	}
+-}
+-
+ } // namespace Rml

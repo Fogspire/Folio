@@ -75,6 +75,7 @@ App::~App()
 	Folio::ReleaseFolioFontEffects();
 	Folio::ReleaseFolioDecorators();
 	Folio::ReleaseFolioFilters();
+	Folio::Text::ReleaseFolioText();
 
 	// Before the backend, which owns the render interface the atlases release their pages
 	// through. Left to member order the engine would outlive its own sink and read a freed

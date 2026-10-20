@@ -6,10 +6,8 @@ Folio is free, source included, and built to be the UI layer of a shipping game,
 
 UE5.8+ supporting both Deferred Rendering and Forward Rendering.
 
-> [!WARNING]
-> Fully ready to be used, however not yet fully released
-> <br>Improved documentation and showcase images, as well as documentation images are pending
-> <br>Changes are still reasonably frequent and not yet documented via changelog - expect to `git fetch` regularly
+> [!NOTE]
+> Improved documentation and showcase images, as well as documentation images are pending
 
 ## Showcase
 
@@ -277,6 +275,35 @@ For a commercial license, open an issue or ask the author.
 Contributions are accepted only with the right for the author to relicense them, so a commercial license can cover the whole of Folio.
 
 ## Changelog
+
+### 1.1.0
+* `border-radius` takes percentages and elliptical corners: `50%` on a square is a circle, `a / b` gives the vertical radii, and `border-top-left-radius: a b` sets one corner
+* `:disabled` is set from the `disabled` attribute on any element, which also takes it out of navigation and clicks
+* `@import` and `@font-face`
+* Font effect lengths resolve in `dp` and `em`
+* 3D transforms render
+* Layers are sized to what they draw, and unchanged layers are reused between frames
+* World documents can fade under translucency; hidden ones are skipped in the world pass, and a torn-down one leaves no recordings behind
+* Sampled texels are re-encoded for after-tonemap world documents
+* Array rows bind nested structs
+* Glyph shapes, and reading and setting the active input device
+* Rebinding binds to each row's own slot and keeps bindings to the page's device
+* Gradient bakes are shared between shaders
+* Fixed a generated texture leak
+* Stamina wheel recipe
+* Studio: Activity panel, listing what keeps a document from idling
+* Studio: library components in the Elements palette
+* Studio: bake every document in a folder to PNG, and choose the canvas background
+* Studio: documents with a declared size open at 1x scale
+* Studio: picks up files created or deleted on disk, and remembers collapsed folders per project
+* Studio: offers to rebuild out-of-date Unreal libraries and uipreview
+* Studio: copy from the terminal, and its output is kept after a build
+* Studio: Code completes tags, attributes, RCSS properties and values, classes and bindings, with hover docs and go-to-definition
+* Studio: Code underlines CSS that RCSS ignores, and renderer and schema problems, on their lines
+* Studio: Format Document (Alt+Shift+F) for `.rml` and `.rcss`, optionally on save, on Enter, on paste or when Code loses focus
+* Studio: Preferences and Keyboard Shortcuts are under Edit; Ctrl+Shift+, opens Keyboard Shortcuts, and shortcuts with Shift and punctuation can be bound
+* The Unreal build refuses RmlUi libraries built with other patches
+* A new RmlUi patch applies to an existing build tree; CMake build folders configured at another path are discarded
 
 ### 1.0.0
 * Initial release to the general public

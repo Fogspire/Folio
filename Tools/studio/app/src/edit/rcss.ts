@@ -47,7 +47,8 @@ export interface Declaration {
 
 export function applyEdits(text: string, edits: TextEdit[]): string {
 	let out = text;
-	for (const edit of [...edits].sort((a, b) => b.from - a.from)) out = out.slice(0, edit.from) + edit.text + out.slice(edit.to);
+	// At one offset the replacement goes first, so an insertion there lands before it, as Monaco applies them.
+	for (const edit of [...edits].sort((a, b) => b.from - a.from || b.to - a.to)) out = out.slice(0, edit.from) + edit.text + out.slice(edit.to);
 	return out;
 }
 

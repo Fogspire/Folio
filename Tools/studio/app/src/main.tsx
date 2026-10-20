@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { registerLanguageFeatures } from './lang/editor';
 import { initialise } from './session';
 import './styles.css';
 import { runTestScript } from './testing';
@@ -11,5 +12,6 @@ for (const [family, file, weight] of [['Inter', 'Inter-Variable.ttf', '100 900']
 	face.load().catch(() => undefined);
 }
 
+registerLanguageFeatures();
 createRoot(document.getElementById('root')!).render(<App />);
 initialise().then(runTestScript);

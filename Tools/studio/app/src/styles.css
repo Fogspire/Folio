@@ -25,6 +25,11 @@
 	box-sizing: border-box;
 }
 
+/* Monaco sizes its widgets for content-box, so border-box clips the last suggestion by its borders. */
+:where(.monaco-editor, .monaco-editor *) {
+	box-sizing: content-box;
+}
+
 html,
 body,
 #root {

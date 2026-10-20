@@ -5,6 +5,7 @@ import {
 import { lineOf } from './edit/rcss';
 import { host } from './host';
 import { commandForKey, commandInfo, comboOf, keysFor, toAccelerator } from './keys';
+import { formatActiveFile } from './lang/editor';
 import { monaco } from './monaco';
 import {
 	answerDialog, askBake, canvasScale, checkForUpdatesNow, findNode, openFile, openProject, pickProject, revertAll, saveAll, select, setEditing, setMode, setZoom, store, toggleTimeline, toggleUpdateCheck,
@@ -163,6 +164,7 @@ export function runCommand(command: string, argument?: string) {
 		case 'show-messages': return store.set({ dialog: { kind: 'messages' } });
 		case 'assign-key': return void (argument && store.set({ dialog: { kind: 'assign', command: argument } }));
 		case 'bake': return void (selection !== null && askBake(selection));
+		case 'format-document': return formatActiveFile();
 		case 'revert-all': return void revertAll();
 		case 'toggle-timeline': return toggleTimeline();
 		case 'create-shortcuts':

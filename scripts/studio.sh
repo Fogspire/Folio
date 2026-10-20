@@ -118,7 +118,8 @@ build_engine() {
 	"$FOLIO_CMAKE" --build "$(native_path "$build_dir")" --parallel || folio_die "build failed."
 
 	"$(folio_python)" "$studio/engine/source_hash.py" --write
-	echo "Done. Commit Tools/studio/engine/dist."
+	"$(folio_python)" "$studio/engine/vocabulary.py" || folio_die "could not write the RCSS vocabulary."
+	echo "Done. Commit Tools/studio/engine/dist and Tools/studio/app/src/lang/vocabulary.json."
 }
 
 # Renders every recipe and example through both renderers and compares them. A difference of one
@@ -178,6 +179,8 @@ run_tests() {
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/shell/UI/screens/test.rml"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/activity/UI/screens/test.rml"
 	cp -r "$studio/test/fixtures/data/UI" "$scratch/data/UI"
+	mkdir -p "$scratch/intellisense"
+	cp -r "$studio/test/fixtures/data/UI" "$scratch/intellisense/UI"
 
 	local failed=0
 	run_scripted() {
@@ -191,6 +194,8 @@ run_tests() {
 	run_scripted shell "$scratch/shell" UI/screens/test.rml
 	echo "Data"
 	run_scripted data "$scratch/data" UI/screens/pause.rml
+	echo "Completion and formatting"
+	run_scripted intellisense "$scratch/intellisense" UI/screens/pause.rml
 	echo "Activity"
 	run_scripted activity "$scratch/activity" UI/screens/test.rml
 

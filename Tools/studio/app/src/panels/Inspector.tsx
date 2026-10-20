@@ -14,11 +14,16 @@ interface Field {
 	label?: string;
 	/** The properties a shorthand stands for, in the order its value lists them. */
 	longhands?: string[];
+	/** Other shorthands a rule can write the same longhands with, removed with them when this one is set. */
+	alternatives?: string[];
+	/** The longhands are four horizontal values then four vertical ones, written with a slash between them. */
+	slashed?: boolean;
 	options?: string[];
 	colour?: boolean;
 }
 
 const sides = (prefix: string, suffix = '') => ['top', 'right', 'bottom', 'left'].map((side) => `${prefix}-${side}${suffix}`);
+const corners = (suffix = '') => ['top-left', 'top-right', 'bottom-right', 'bottom-left'].map((corner) => `border-${corner}-radius${suffix}`);
 const LENGTH_HINT = ['auto', '0', '100%'];
 
 const GROUPS: { title: string; fields: Field[] }[] = [
@@ -88,7 +93,7 @@ const GROUPS: { title: string; fields: Field[] }[] = [
 			{ name: 'opacity' },
 			{ name: 'border-width', longhands: sides('border', '-width') },
 			{ name: 'border-color', longhands: sides('border', '-color'), colour: true },
-			{ name: 'border-radius', label: 'radius', longhands: ['border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius'] },
+			{ name: 'border-radius', label: 'radius', longhands: [...corners('-x'), ...corners('-y')], alternatives: corners(), slashed: true },
 			{ name: 'overflow', longhands: ['overflow-x', 'overflow-y'], options: ['visible', 'hidden', 'auto', 'scroll'] },
 		],
 	},
@@ -114,6 +119,13 @@ function collapse(values: string[]): string {
 	return values.join(' ');
 }
 
+function format(field: Field, values: string[]): string {
+	if (!field.slashed) return collapse(values);
+	const horizontal = collapse(values.slice(0, 4));
+	const vertical = collapse(values.slice(4));
+	return horizontal === vertical ? horizontal : `${horizontal} / ${vertical}`;
+}
+
 interface Resolved {
 	/** What a rule or the style attribute sets, or empty when nothing does. */
 	value: string;
@@ -126,14 +138,14 @@ function resolve(inspection: Inspection, field: Field): Resolved {
 	const names = field.longhands ?? [field.name];
 	const own = (name: string) => inspection.rules.find((entry) => entry.name === name && !entry.inherited) ?? null;
 	const inlineNames = names.filter((name) => name in inspection.inline);
-	const computed = collapse(names.map((name) => inspection.computed[name] ?? ''));
+	const computed = format(field, names.map((name) => inspection.computed[name] ?? ''));
 
-	if (inlineNames.length) return { value: collapse(names.map((name) => inspection.inline[name] ?? inspection.computed[name] ?? '')), computed, origin: 'inline' };
+	if (inlineNames.length) return { value: format(field, names.map((name) => inspection.inline[name] ?? inspection.computed[name] ?? '')), computed, origin: 'inline' };
 
 	const sources = names.map(own);
 	const first = sources.find(Boolean) ?? null;
 	if (!first) return { value: '', computed, origin: null };
-	return { value: collapse(names.map((name, index) => sources[index]?.value ?? inspection.computed[name] ?? '')), computed, origin: first };
+	return { value: format(field, names.map((name, index) => sources[index]?.value ?? inspection.computed[name] ?? '')), computed, origin: first };
 }
 
 /** `#rrggbb` out of an RCSS colour, for the colour well, which knows nothing of alpha. */
@@ -186,7 +198,7 @@ function PropertyRow({ inspection, field, editable }: { inspection: Inspection; 
 	const commit = (value: string) => {
 		if (!editable) return;
 		// A shorthand replaces whatever longhands the rule wrote, or they would go on overriding it.
-		const longhands: [string, null][] = (field.longhands ?? []).map((name) => [name, null]);
+		const longhands: [string, null][] = [...(field.longhands ?? []), ...(field.alternatives ?? [])].map((name) => [name, null]);
 
 		if (value === '') {
 			// Clearing removes the declaration where it is written. One that Folio ships is not ours to remove.

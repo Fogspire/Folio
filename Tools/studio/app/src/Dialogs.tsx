@@ -69,6 +69,22 @@ function Preferences() {
 
 				<h3>Code</h3>
 				<label className="field-row"><span>Font size</span>{size('codeFontSize')}</label>
+				<label className="check-row">
+					<input type="checkbox" checked={settings.formatOnSave} onChange={(event) => updateSettings({ formatOnSave: event.target.checked })} />
+					Format .rml and .rcss files when saving
+				</label>
+				<label className="check-row">
+					<input type="checkbox" checked={settings.formatOnType} onChange={(event) => updateSettings({ formatOnType: event.target.checked })} />
+					Format a line when Enter, {'}'} or {'>'} finishes it
+				</label>
+				<label className="check-row">
+					<input type="checkbox" checked={settings.formatOnPaste} onChange={(event) => updateSettings({ formatOnPaste: event.target.checked })} />
+					Format pasted text
+				</label>
+				<label className="check-row">
+					<input type="checkbox" checked={settings.formatOnBlur} onChange={(event) => updateSettings({ formatOnBlur: event.target.checked })} />
+					Format a file when the editor loses focus
+				</label>
 
 				<h3>Canvas</h3>
 				<label className="check-row">

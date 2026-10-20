@@ -3,6 +3,7 @@ import type { Target } from './edit/target';
 import { Diagnostic, EngineClient, Inspection, TreeNode } from './engine';
 import { BuildStatus, host, HostState, ProjectInfo, TreeFile, UpdateStatus } from './host';
 import { COMMANDS, keysFor, toAccelerator } from './keys';
+import { formatModel } from './lang/formatting';
 import { languageFor, monaco } from './monaco';
 import { basename, dirname, extension, isUnder, join, relativeTo, stem } from './paths';
 import { loadSettings, saveSettings, Settings } from './settings';
@@ -151,7 +152,8 @@ export const INSPECTED_PROPERTIES = [
 	'background-color', 'opacity',
 	'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
 	'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
-	'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius',
+	'border-top-left-radius-x', 'border-top-right-radius-x', 'border-bottom-right-radius-x', 'border-bottom-left-radius-x',
+	'border-top-left-radius-y', 'border-top-right-radius-y', 'border-bottom-right-radius-y', 'border-bottom-left-radius-y',
 	'overflow-x', 'overflow-y', 'transform', 'filter', 'box-shadow', 'decorator', 'font-effect', 'transition',
 ];
 
@@ -940,6 +942,9 @@ function forgetFile(path: string) {
 export async function save(path: string) {
 	const model = models.get(key(path));
 	if (!model) return;
+	const { project, settings } = store.get();
+	const shipped = !!project && project.folioRoot !== project.root && isUnder(project.folioRoot, path);
+	if (settings.formatOnSave && !shipped) formatModel(model);
 	await host.writeFile(path, model.getValue());
 	savedVersions.set(key(path), model.getAlternativeVersionId());
 	recomputeDirty(path, model);

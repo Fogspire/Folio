@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { currentSource, sourceElement } from '../edit/commands';
 import { elementContaining } from '../edit/rml';
+import { formatIfEditable } from '../lang/editor';
 import { monaco } from '../monaco';
 import { FileTabs } from '../FileTabs';
 import { host } from '../host';
@@ -83,6 +84,8 @@ export function CodePanel() {
 	const selection = store.use((state) => state.selection);
 	const revision = store.use((state) => state.revision);
 	const fontSize = store.use((state) => state.settings.codeFontSize);
+	const formatOnType = store.use((state) => state.settings.formatOnType);
+	const formatOnPaste = store.use((state) => state.settings.formatOnPaste);
 	const marks = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
 	const container = useRef<HTMLDivElement>(null);
 	const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -102,6 +105,8 @@ export function CodePanel() {
 			renderWhitespace: 'selection',
 			wordWrap: 'off',
 			padding: { top: 6 },
+			// Completion and hover draw over the panels around the editor rather than being cut off at its edge.
+			fixedOverflowWidgets: true,
 		});
 		instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
 			const path = store.get().activeFile;
@@ -119,6 +124,10 @@ export function CodePanel() {
 			const id = element && source ? source.map.ids.get(element)?.[0] : undefined;
 			if (id !== undefined && id !== state.selection) select(id);
 		});
+		instance.onDidBlurEditorText(() => {
+			const model = instance.getModel();
+			if (model && store.get().settings.formatOnBlur) formatIfEditable(model);
+		});
 		// Monaco measures character widths once, so a face that finishes loading afterwards draws text
 		// wider than the caret thinks it is.
 		const remeasure = () => monaco.editor.remeasureFonts();
@@ -134,6 +143,10 @@ export function CodePanel() {
 	useEffect(() => {
 		editor.current?.updateOptions({ fontSize });
 	}, [fontSize]);
+
+	useEffect(() => {
+		editor.current?.updateOptions({ formatOnType, formatOnPaste });
+	}, [formatOnType, formatOnPaste]);
 
 	useEffect(() => {
 		const instance = editor.current;

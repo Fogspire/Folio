@@ -25,8 +25,6 @@ export const COMMANDS: CommandInfo[] = [
 	command('File', 'new-from-recipe', 'New Document from Recipe', 'app', 'Ctrl+N'),
 	command('File', 'save-all', 'Save All', 'app', 'Ctrl+S'),
 	command('File', 'revert-all', 'Revert Unsaved Changes', 'app'),
-	command('File', 'preferences', 'Preferences', 'app', 'Ctrl+,'),
-	command('File', 'keybindings', 'Keyboard Shortcuts', 'app'),
 	command('File', 'create-shortcuts', 'Create Shortcuts', 'app'),
 
 	command('Edit', 'undo', 'Undo', 'edit', 'Ctrl+Z'),
@@ -40,6 +38,9 @@ export const COMMANDS: CommandInfo[] = [
 	command('Edit', 'edit-text', 'Edit Text', 'element', 'Enter'),
 	command('Edit', 'show-in-code', 'Show in Code', 'element'),
 	command('Edit', 'bake', 'Bake to PNG', 'element'),
+	command('Edit', 'format-document', 'Format Document', 'app', 'Alt+Shift+F'),
+	command('Edit', 'preferences', 'Preferences', 'app', 'Ctrl+,'),
+	command('Edit', 'keybindings', 'Keyboard Shortcuts', 'app', 'Ctrl+Shift+,'),
 
 	command('Select', 'select-parent', 'Select Parent', 'element', 'Alt+ArrowUp'),
 	command('Select', 'select-first-child', 'Select First Child', 'element', 'Alt+ArrowDown'),
@@ -82,13 +83,18 @@ export function commandInfo(id: string): CommandInfo | null {
 
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'AltGraph', 'CapsLock', 'NumLock', 'ScrollLock']);
 
+/** Punctuation by the key pressed, so Shift+, is not read as <. Equal is left out: Ctrl+Shift++ zooms in. */
+const UNSHIFTED: Record<string, string> = {
+	Comma: ',', Period: '.', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Backslash: '\\', Minus: '-', Backquote: '`',
+};
+
 /** A key press as "Ctrl+Shift+Z", or null for a modifier on its own. */
 export function comboOf(event: KeyboardEvent): string | null {
 	if (MODIFIER_KEYS.has(event.key) || !event.key) return null;
 
 	// Letters and digits by the key pressed, so Shift does not turn 1 into ! and lose the binding.
 	const physical = /^Key([A-Z])$/.exec(event.code) ?? /^Digit(\d)$/.exec(event.code);
-	let key = physical ? physical[1] : event.key;
+	let key = physical ? physical[1] : (event.shiftKey && UNSHIFTED[event.code]) || event.key;
 	if (key === ' ') key = 'Space';
 	else if (key.length === 1) key = key.toUpperCase();
 

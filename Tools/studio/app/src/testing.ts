@@ -4,6 +4,7 @@ import * as commands from './commands';
 import * as dock from './dock';
 import * as edit from './edit/commands';
 import { host } from './host';
+import { monaco } from './monaco';
 import * as session from './session';
 
 /**
@@ -22,6 +23,7 @@ export async function runTestScript() {
 		commands,
 		dock,
 		data: { ...models, mockFromSchema },
+		monaco,
 		shots: ((await host.state()) as { shots: string | null }).shots,
 		store: session.store,
 		engine: session.engine,

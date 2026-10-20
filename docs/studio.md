@@ -21,7 +21,7 @@ Run from a plugin inside a project, it opens that project. To open another, pass
 - **Ctrl+T** goes to a file by name. Type any part of it, such as `alti` for `altitude.rml`, pick from the list with Up and Down, and press Enter. Tab completes the chosen name.
 - Every document you open stays open as a tab over the canvas and in **Code**. Click a tab to bring that document to the canvas. Middle-click closes a tab, and right-click closes the others or those to one side.
 - **Click** an element to select it. **Alt-click** steps out to its parent. **Double-click** text to edit it in place.
-- **Drag** a positioned element to move it, or any other element to reorder it among its siblings. Drag the handles to resize. A size set by a rule changes in that rule, so every element sharing it resizes; hold Shift to resize only this one. **File > Preferences** turns that off.
+- **Drag** a positioned element to move it, or any other element to reorder it among its siblings. Drag the handles to resize. A size set by a rule changes in that rule, so every element sharing it resizes; hold Shift to resize only this one. **Edit > Preferences** turns that off.
 - **Properties** edits styles, classes, attributes and text. Each value shows the rule it comes from; click the rule to open it in **Code**.
 - **Library** has elements to drag onto the canvas, and recipes to start a new screen from. Click a recipe to preview it, then **Use** to copy it into `UI/screens/` and open the copy.
 - **Right-click** an element on the canvas or in **Outline** for cut, copy, paste, duplicate, delete and wrap.
@@ -32,6 +32,8 @@ Run from a plugin inside a project, it opens that project. To open another, pass
 - **Revert** in the top bar, File > Revert Unsaved Changes, or a tab's right-click menu puts unsaved files back as they are on disk. Undo brings the changes back.
 - **Terminal** is a shell in the project's folder, for git or anything else you run from a command line. Copy is Ctrl+Shift+C, paste is Ctrl+V.
 - The bar along the bottom explains whatever is under the pointer. **Messages** there, or **View > Messages**, lists every message the top bar has shown this session; the top bar clears its message on your next click or key, or after a few seconds.
+- **Code** completes as you type: tags, attributes, RCSS properties and their values, classes from every stylesheet the document links, and inside a binding the model's fields, a row's members and its commands. Hover a name for what it does, and Ctrl+click a class, id, binding or `href` to go to where it is defined. CSS that RCSS silently ignores, such as `text-shadow` or `transition: opacity 120ms`, is underlined with what to write instead, and so is whatever the renderer or the schema reports.
+- **Alt+Shift+F**, or **Edit > Format Document**, fixes indentation and spacing in an `.rml` or `.rcss`. It never moves anything onto another line, keeps aligned columns, and leaves comments and `<text>` as written.
 - **Ctrl+S** saves. Until then your edits are previewed but not on disk, so the running game does not see them.
 
 Every edit is a change to the `.rml` or `.rcss` text, and nothing else in the file moves. You can keep editing by hand in **Code**, in VSCode, or anywhere else; Studio picks up changes from disk.
@@ -47,10 +49,12 @@ If the game is running in the editor, saving in Studio hot-reloads the document 
 | "This document did not load" | Open **Problems**. It lists what the renderer rejected, with file and line. |
 | The canvas shows the document with no data | The document binds a model with no mock. Open **Data** and create one. |
 | A screen costs frames while it sits still | Open **Activity**. It says whether the document idles in the game, and names every animation that runs forever (which stops it idling), what can wake it (transitions, animations that end, data bindings), and every element drawing a layer. Click a row to select the element. |
+| A binding completes no field names | The model has neither `UI/schema/<model>.json` nor `UI/mock/<model>.json`, or the one it has is not valid JSON. Open **Data**. |
+| A property that works is underlined as unknown | The vocabulary is older than the renderer. Run `./scripts/studio.sh engine`, which regenerates both. |
 | "This element is not written in the document as it appears here" | The element comes from a template or was generated at run time. Select its parent, or edit the template's own file. |
 | A panel is gone | **View** lists every panel and reopens a closed one. **View > Layout > Reset Layout**, or F10, puts them all back. |
-| Terminal says it could not start | Run `./scripts/studio.sh` again so it reinstalls dependencies. If you set a shell in **File > Preferences**, check its path. |
-| A key does nothing, or does the wrong thing | **File > Keyboard Shortcuts** shows what each key runs. Restore All Defaults there undoes every change. |
+| Terminal says it could not start | Run `./scripts/studio.sh` again so it reinstalls dependencies. If you set a shell in **Edit > Preferences**, check its path. |
+| A key does nothing, or does the wrong thing | **Edit > Keyboard Shortcuts** shows what each key runs. Restore All Defaults there undoes every change. |
 | A style change lands in a rule you did not expect | **Properties** shows where each value is written and "New properties go to" says where a new one will be. Change the target there. |
 | An edit to a property seems ignored | The value is set by a rule Folio ships, shown in italics. Studio never edits those; it writes an override to your own rule instead. Check the rule order in your stylesheet. |
 | A blur that reaches the edge of the screen looks slightly different from the game | A known difference in Studio's renderer. See [known gaps](known_gaps.md). Everything else matches `uipreview` to within two colour levels. |
@@ -77,13 +81,13 @@ Studio reopens with the panels as you left them. **View > Layout > Save Layout A
 
 ### Preferences
 
-**File > Preferences** sets the terminal's shell and arguments, the font size of the terminal and of **Code**, and whether Studio restores the last layout and checks for updates when it starts.
+**Edit > Preferences** sets the terminal's shell and arguments, the font size of the terminal and of **Code**, whether an `.rml` or `.rcss` is formatted on save, on Enter (and `}` or `>`), on paste or when **Code** loses focus (all off by default), and whether Studio restores the last layout and checks for updates when it starts.
 
 With no shell set, the terminal runs Git Bash on Windows when it is installed and PowerShell otherwise, and `$SHELL` on macOS and Linux. The `FOLIO_STUDIO_SHELL` environment variable is used before those defaults.
 
 ### Keyboard shortcuts
 
-**File > Keyboard Shortcuts** lists every command. Change gives one a new key, taking it from whatever had it; Remove leaves it with none; Default puts it back.
+**Edit > Keyboard Shortcuts** lists every command. Change gives one a new key, taking it from whatever had it; Remove leaves it with none; Default puts it back.
 
 Ctrl+Shift+click an item in the menu bar to set or remove that item's key without opening the list.
 
@@ -137,4 +141,4 @@ Only needed after changing C++ under `Tools/uipreview`, `Tools/studio/engine` or
 ./scripts/studio.sh test
 ```
 
-Commit `Tools/studio/engine/dist` afterwards. `scripts/verify.sh` fails while that build is older than its sources.
+Commit `Tools/studio/engine/dist` and `Tools/studio/app/src/lang/vocabulary.json` afterwards. The vocabulary is the list of properties, keywords and effects that **Code** completes and checks, read from RmlUi's and FolioCore's sources; `python Tools/studio/engine/vocabulary.py` writes it on its own. `scripts/verify.sh` fails while the renderer build is older than its sources.

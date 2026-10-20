@@ -6,6 +6,14 @@ export interface Settings {
 	terminalArguments: string;
 	terminalFontSize: number;
 	codeFontSize: number;
+	/** Whether saving an .rml or .rcss formats it first. */
+	formatOnSave: boolean;
+	/** Whether Enter, `}` and `>` format the line they finish. */
+	formatOnType: boolean;
+	/** Whether pasted text is formatted. */
+	formatOnPaste: boolean;
+	/** Whether a file is formatted when the code editor loses focus. */
+	formatOnBlur: boolean;
 	updateCheck: boolean;
 	/** Whether a start reopens the panels as they were left. */
 	restoreLayout: boolean;
@@ -31,6 +39,10 @@ export const DEFAULT_SETTINGS: Settings = {
 	terminalArguments: '',
 	terminalFontSize: 13,
 	codeFontSize: 13,
+	formatOnSave: false,
+	formatOnType: false,
+	formatOnPaste: false,
+	formatOnBlur: false,
 	updateCheck: true,
 	restoreLayout: true,
 	shiftResize: true,

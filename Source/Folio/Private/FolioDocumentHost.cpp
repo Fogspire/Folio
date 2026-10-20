@@ -206,7 +206,7 @@ void FFolioDocumentHost::Destroy()
 	LiveHosts.RemoveSingle(this);
 	Rml::RemoveContext(Context->GetName());
 	Context = nullptr;
-	DataModel.Reset();
+	DataModels.Empty();
 }
 
 void FFolioDocumentHost::SetSize(const FIntPoint InSize)
@@ -387,7 +387,7 @@ void FFolioDocumentHost::MountDataModel(const FString& RelativePath)
 	// model the game forgot to bind would silently render invented values instead of failing visibly,
 	// and the mock would occupy the name the real view model wanted.
 #if !UE_BUILD_SHIPPING
-	if (!Folio::MockDataEnabled() || DataModel.IsValid())
+	if (!Folio::MockDataEnabled())
 	{
 		return;
 	}
@@ -400,40 +400,38 @@ void FFolioDocumentHost::MountDataModel(const FString& RelativePath)
 		return;
 	}
 
-	const FString ModelName = FFolioDataModel::DiscoverModelName(Markup);
-	if (ModelName.IsEmpty())
+	const TArray<FString> EventNames = FFolioDataModel::DiscoverEventNames(Markup);
+	for (const FString& ModelName : FFolioDataModel::DiscoverModelNames(Markup))
 	{
-		return;
-	}
+		// The reserved model is mounted with the context and is not a game model, so it has no mock file
+		// and nothing is missing when there isn't one.
+		if (ModelName == UTF8_TO_TCHAR(Folio::InputModel::Name()) || DataModels.Contains(ModelName))
+		{
+			continue;
+		}
 
-	// The reserved model is mounted with the context and is not a game model, so it has no mock file and
-	// nothing is missing when there isn't one.
-	if (ModelName == UTF8_TO_TCHAR(Folio::InputModel::Name()))
-	{
-		return;
-	}
+		// Game code got there first, and it wins. RmlUi refuses a second model under the same name, so
+		// mounting a mock here is what would make BindObjectModel fail rather than the other way round.
+		if (HasObjectModel(ModelName))
+		{
+			continue;
+		}
 
-	// Game code got there first, and it wins. RmlUi refuses a second model under the same name, so
-	// mounting a mock here is what would make BindObjectModel fail rather than the other way round.
-	if (HasObjectModel(ModelName))
-	{
-		return;
-	}
+		const FString MockPath = FFolioDataModel::FindMockFile(ModelName);
+		if (MockPath.IsEmpty())
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("'%s' declares data-model=\"%s\" and nothing is bound, so its bindings render as literal ")
+				TEXT("{{ }}. Provide the model from game code, or put mock values in UI/mock/%s.json."),
+				*RelativePath, *ModelName, *ModelName);
+			continue;
+		}
 
-	const FString MockPath = FFolioDataModel::FindMockFile(ModelName);
-	if (MockPath.IsEmpty())
-	{
-		UE_LOG(LogFolio, Warning,
-			TEXT("'%s' declares data-model=\"%s\" and nothing is bound, so its bindings render as literal ")
-			TEXT("{{ }}. Provide the model from game code, or put mock values in UI/mock/%s.json."),
-			*RelativePath, *ModelName, *ModelName);
-		return;
-	}
-
-	DataModel = MakeUnique<FFolioDataModel>();
-	if (!DataModel->Mount(Context, ModelName, MockPath, FFolioDataModel::DiscoverEventNames(Markup)))
-	{
-		DataModel.Reset();
+		TUniquePtr<FFolioDataModel> Model = MakeUnique<FFolioDataModel>();
+		if (Model->Mount(Context, ModelName, MockPath, EventNames))
+		{
+			DataModels.Add(ModelName, MoveTemp(Model));
+		}
 	}
 #endif
 }

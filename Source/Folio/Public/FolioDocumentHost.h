@@ -142,7 +142,7 @@ public:
 	FFolioInputModel& GetInputModel() { return InputModel; }
 
 private:
-	/** Mounts UI/mock/<model>.json if the document declares a model, so bindings resolve. */
+	/** Mounts UI/mock/<model>.json for each model the document declares, so bindings resolve. */
 	void MountDataModel(const FString& RelativePath);
 
 	/** Writes the accessibility text scale onto the document root, where every `rem` resolves against it. */
@@ -160,7 +160,7 @@ private:
 	FFolioBehaviours Behaviours;
 
 	/** Rebuilt with the context: a model cannot be added once a document is loaded. */
-	TUniquePtr<class FFolioDataModel> DataModel;
+	TMap<FString, TUniquePtr<class FFolioDataModel>> DataModels;
 
 	/** Bound UObject sources. Held here because a data model belongs to its context. */
 	TArray<TUniquePtr<class FFolioObjectModel>> ObjectModels;

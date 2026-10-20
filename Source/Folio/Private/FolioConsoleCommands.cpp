@@ -1876,7 +1876,7 @@ namespace
 		const FString Out = FPaths::IsRelative(Args[1])
 			? FPaths::Combine(FPaths::ProjectDir(), Args[1]) : Args[1];
 
-		if (!FFileHelper::SaveStringToFile(Json, *Out))
+		if (!FFileHelper::SaveStringToFile(Json, *Out, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
 		{
 			UE_LOG(LogFolio, Error, TEXT("folio metrics: could not write '%s'"), *Out);
 			return;

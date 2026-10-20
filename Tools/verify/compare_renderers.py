@@ -25,24 +25,19 @@ import pathlib
 import subprocess
 import sys
 
-# Documents the game ships, not a special one. A divergence that only a test document provokes is a
-# divergence nobody meets.
-DOCUMENTS = (
-    "UI/examples/panel.rml",
-    "UI/examples/button.rml",
-    "UI/examples/list.rml",
-    "UI/examples/modal.rml",
-    "UI/screens/settings.rml",
-    # Layer effects. Only the text in them is compared - nothing here checks what a box-shadow or a
-    # backdrop-filter looks like, because the preview draws those in OpenGL and the engine replays
-    # them through RHI. Layout under an effect agreeing is worth having; it is not the whole claim.
-    "UI/examples/effects.rml",
-    "UI/examples/backdrop.rml",
-)
-
 SIZE = (1280, 720)
 DP_RATIO = 1
 SECONDS = 90
+
+
+def discover_documents(root: pathlib.Path) -> list[str]:
+    """Every document the project ships under UI/: a divergence only a test document provokes is one
+    nobody meets. Templates are skipped, since they only load linked from a document."""
+    documents = []
+    for path in sorted((root / "UI").rglob("*.rml")):
+        if path.read_text(encoding="utf-8-sig", errors="replace").lstrip().startswith("<rml"):
+            documents.append(path.relative_to(root).as_posix())
+    return documents
 
 
 def run_preview(uipreview: pathlib.Path, root: pathlib.Path, document: str,
@@ -52,7 +47,7 @@ def run_preview(uipreview: pathlib.Path, root: pathlib.Path, document: str,
         "--size", f"{SIZE[0]}x{SIZE[1]}", "--dp-ratio", str(DP_RATIO),
         "--metrics-report", str(out),
     ]
-    result = subprocess.run(arguments, capture_output=True, text=True, timeout=SECONDS)
+    result = subprocess.run(arguments, capture_output=True, text=True, timeout=SECONDS, cwd=root)
     if not out.is_file():
         return f"uipreview wrote no report: {result.stdout.strip() or result.stderr.strip()}"
     return None
@@ -66,7 +61,7 @@ def run_engine(editor: pathlib.Path, uproject: pathlib.Path, document: str,
         str(editor), str(uproject), "-game", "-windowed", "-resx=400", "-resy=300",
         "-nosplash", "-unattended",
         f"-ExecCmds=folio.Metrics.Report {document} {relative.as_posix()} "
-        f"{SIZE[0]} {SIZE[1]} {DP_RATIO}",
+        f"{SIZE[0]} {SIZE[1]} {DP_RATIO},quit",
         "-log=FolioCompare.log",
     ]
 
@@ -74,8 +69,7 @@ def run_engine(editor: pathlib.Path, uproject: pathlib.Path, document: str,
         subprocess.run(arguments, timeout=SECONDS, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
-        # Expected: nothing tells the game to quit, so the window is closed by the timeout. The report
-        # is written long before that.
+        # The report is written before the quit, so a game that hangs on the way out still has one.
         pass
 
     if not out.is_file():
@@ -128,6 +122,8 @@ def main() -> int:
     parser.add_argument("--editor", required=True, help="path to UnrealEditor")
     parser.add_argument("--project", required=True, help="path to the .uproject")
     parser.add_argument("--uipreview", required=True, help="path to uipreview")
+    parser.add_argument("documents", nargs="*",
+                        help="documents relative to the project (default: every one under UI/)")
     parser.add_argument("--filter", default="", help="run only documents whose path contains this")
     args = parser.parse_args()
 
@@ -144,8 +140,13 @@ def main() -> int:
     reports = root / "Saved" / "FolioCompare"
     reports.mkdir(parents=True, exist_ok=True)
 
+    documents = args.documents or discover_documents(root)
+    if not documents:
+        print(f"compare_renderers: no documents under {root / 'UI'}", file=sys.stderr)
+        return 2
+
     failures = 0
-    for document in DOCUMENTS:
+    for document in documents:
         if args.filter and args.filter not in document:
             continue
 

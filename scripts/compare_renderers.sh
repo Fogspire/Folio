@@ -8,6 +8,7 @@
 #
 #   ./scripts/compare_renderers.sh
 #   ./scripts/compare_renderers.sh --filter settings
+#   ./scripts/compare_renderers.sh UI/screens/pause.rml UI/screens/hud_night.rml
 
 set -euo pipefail
 

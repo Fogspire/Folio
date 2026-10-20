@@ -48,8 +48,8 @@ public:
 
 	bool IsMounted() const { return bMounted; }
 
-	/** The model a document declares, read from the markup: the DOM does not exist yet. */
-	static FString DiscoverModelName(const FString& DocumentText);
+	/** The models a document declares, in order, read from the markup: the DOM does not exist yet. */
+	static TArray<FString> DiscoverModelNames(const FString& DocumentText);
 
 	/** The callbacks a document's data-event-* attributes call, e.g. SetMusicVolume in "SetMusicVolume(ev.value)". */
 	static TArray<FString> DiscoverEventNames(const FString& DocumentText);

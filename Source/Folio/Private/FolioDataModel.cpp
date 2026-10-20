@@ -198,24 +198,15 @@ FFolioDataModel::FFolioDataModel()
 
 FFolioDataModel::~FFolioDataModel() = default;
 
-FString FFolioDataModel::DiscoverModelName(const FString& DocumentText)
+TArray<FString> FFolioDataModel::DiscoverModelNames(const FString& DocumentText)
 {
-	const FString Marker = TEXT("data-model");
-
-	int32 At = DocumentText.Find(Marker, ESearchCase::IgnoreCase);
-	if (At == INDEX_NONE)
+	TArray<FString> Names;
+	FRegexMatcher Matcher(FRegexPattern(TEXT("data-model\\s*=\\s*\"([^\"]+)\"")), DocumentText);
+	while (Matcher.FindNext())
 	{
-		return FString();
+		Names.AddUnique(Matcher.GetCaptureGroup(1));
 	}
-
-	At = DocumentText.Find(TEXT("\""), ESearchCase::CaseSensitive, ESearchDir::FromStart, At);
-	if (At == INDEX_NONE)
-	{
-		return FString();
-	}
-
-	const int32 End = DocumentText.Find(TEXT("\""), ESearchCase::CaseSensitive, ESearchDir::FromStart, At + 1);
-	return End == INDEX_NONE ? FString() : DocumentText.Mid(At + 1, End - At - 1);
+	return Names;
 }
 
 TArray<FString> FFolioDataModel::DiscoverEventNames(const FString& DocumentText)

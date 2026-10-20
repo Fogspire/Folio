@@ -81,8 +81,11 @@ namespace Folio
 			}
 
 		private:
-			/// One piece of the outline. A run is a straight edge; an arc is a corner, always a
-			/// quarter circle, because RCSS gives a corner one radius rather than two.
+			/// Samples along a corner, for turning a distance along it into an angle.
+			static constexpr int ArcSamples = 32;
+
+			/// One piece of the outline. A run is a straight edge; an arc is a corner, a quarter
+			/// of an ellipse with a horizontal and a vertical radius.
 			struct FSegment
 			{
 				bool bArc = false;
@@ -90,13 +93,42 @@ namespace Folio
 				Rml::Vector2f Start;
 				Rml::Vector2f End;
 				Rml::Vector2f Centre;
-				float Radius = 0.0f;
+				Rml::Vector2f Radii;
 				float StartAngle = 0.0f;
 				float Length = 0.0f;
+				/// Arc: the distance along it at each of the evenly spaced angles, so a dash keeps
+				/// its length where an ellipse is flatter.
+				float Distances[ArcSamples + 1] = {};
+
+				Rml::Vector2f PointAt(const float Angle) const
+				{
+					return Centre + Rml::Vector2f(std::cos(Angle) * Radii.x, std::sin(Angle) * Radii.y);
+				}
+
+				/// The outward normal, which on an ellipse is not the direction from the centre.
+				Rml::Vector2f NormalAt(const float Angle) const
+				{
+					return Rml::Vector2f(std::cos(Angle) * Radii.y, std::sin(Angle) * Radii.x).Normalise();
+				}
+
+				float AngleAt(const float Distance) const
+				{
+					constexpr float SampleAngle = Rml::Math::RMLUI_PI * 0.5f / float(ArcSamples);
+					int Index = 0;
+					while (Index < ArcSamples - 1 && Distances[Index + 1] < Distance)
+					{
+						++Index;
+					}
+					const float SampleLength = Distances[Index + 1] - Distances[Index];
+					const float Fraction = SampleLength > 0.0f
+						? Rml::Math::Clamp((Distance - Distances[Index]) / SampleLength, 0.0f, 1.0f)
+						: 0.0f;
+					return StartAngle + (float(Index) + Fraction) * SampleAngle;
+				}
 			};
 
 			static void BuildDashes(Rml::Mesh& Mesh, const Rml::Vector2f Origin, const Rml::Vector2f Size,
-				const Rml::CornerSizes& Radii, const float Stroke, const float Dash, const float Gap,
+				const Rml::CornerSizes2& Radii, const float Stroke, const float Dash, const float Gap,
 				const Rml::ColourbPremultiplied Colour)
 			{
 				const float Half = 0.5f * Stroke;
@@ -110,18 +142,29 @@ namespace Folio
 					return;
 				}
 
-				// Radii are clamped against each other first, the way a browser does: two corners
-				// sharing an edge cannot together be longer than it, or the arcs overlap and the
-				// straight run between them has negative length.
-				float Corner[4];
+				Rml::Vector2f Corner[4];
 				for (int Index = 0; Index < 4; ++Index)
 				{
-					Corner[Index] = Rml::Math::Max(Radii[Index] - Half, 0.0f);
+					Corner[Index] = Rml::Math::Max(Radii[Index] - Rml::Vector2f(Half), Rml::Vector2f(0.0f));
+					if (Corner[Index].x <= 0.0f || Corner[Index].y <= 0.0f)
+					{
+						Corner[Index] = Rml::Vector2f(0.0f);
+					}
 				}
-				ClampPair(Corner[0], Corner[1], Span.x);
-				ClampPair(Corner[3], Corner[2], Span.x);
-				ClampPair(Corner[0], Corner[3], Span.y);
-				ClampPair(Corner[1], Corner[2], Span.y);
+
+				// Radii are scaled down first, the way a browser does: two corners sharing an edge
+				// cannot together be longer than it, or the arcs overlap and the straight run
+				// between them has negative length. One factor for all of them, as the background
+				// under the stroke uses, so the two curves agree.
+				float Scale = 1.0f;
+				ShrinkToFit(Scale, Corner[0].x + Corner[1].x, Span.x);
+				ShrinkToFit(Scale, Corner[3].x + Corner[2].x, Span.x);
+				ShrinkToFit(Scale, Corner[0].y + Corner[3].y, Span.y);
+				ShrinkToFit(Scale, Corner[1].y + Corner[2].y, Span.y);
+				for (Rml::Vector2f& Radius : Corner)
+				{
+					Radius *= Scale;
+				}
 
 				const float Left = Inset.x;
 				const float Top = Inset.y;
@@ -145,31 +188,41 @@ namespace Folio
 					}
 				};
 
-				const auto AddArc = [&Segments](Rml::Vector2f Centre, float Radius, float StartAngle)
+				const auto AddArc = [&Segments](Rml::Vector2f Centre, Rml::Vector2f Radii, float StartAngle)
 				{
-					if (Radius > 0.0f)
+					if (Radii.x > 0.0f && Radii.y > 0.0f)
 					{
 						FSegment Arc;
 						Arc.bArc = true;
 						Arc.Centre = Centre;
-						Arc.Radius = Radius;
+						Arc.Radii = Radii;
 						Arc.StartAngle = StartAngle;
-						// A quarter of a circle, so the length is exact rather than integrated.
-						Arc.Length = Radius * Rml::Math::RMLUI_PI * 0.5f;
+
+						// An ellipse has no closed form for its length, so it is measured as a fine
+						// polyline. On a circle this is within a thousandth of the exact length.
+						constexpr float SampleAngle = Rml::Math::RMLUI_PI * 0.5f / float(ArcSamples);
+						Rml::Vector2f Previous = Arc.PointAt(StartAngle);
+						for (int Index = 1; Index <= ArcSamples; ++Index)
+						{
+							const Rml::Vector2f Point = Arc.PointAt(StartAngle + float(Index) * SampleAngle);
+							Arc.Distances[Index] = Arc.Distances[Index - 1] + (Point - Previous).Magnitude();
+							Previous = Point;
+						}
+						Arc.Length = Arc.Distances[ArcSamples];
 						Segments.push_back(Arc);
 					}
 				};
 
 				constexpr float HalfPi = Rml::Math::RMLUI_PI * 0.5f;
 
-				AddRun({Left + Corner[0], Top}, {Right - Corner[1], Top});
-				AddArc({Right - Corner[1], Top + Corner[1]}, Corner[1], -HalfPi);
-				AddRun({Right, Top + Corner[1]}, {Right, Bottom - Corner[2]});
-				AddArc({Right - Corner[2], Bottom - Corner[2]}, Corner[2], 0.0f);
-				AddRun({Right - Corner[2], Bottom}, {Left + Corner[3], Bottom});
-				AddArc({Left + Corner[3], Bottom - Corner[3]}, Corner[3], HalfPi);
-				AddRun({Left, Bottom - Corner[3]}, {Left, Top + Corner[0]});
-				AddArc({Left + Corner[0], Top + Corner[0]}, Corner[0], Rml::Math::RMLUI_PI);
+				AddRun({Left + Corner[0].x, Top}, {Right - Corner[1].x, Top});
+				AddArc({Right - Corner[1].x, Top + Corner[1].y}, Corner[1], -HalfPi);
+				AddRun({Right, Top + Corner[1].y}, {Right, Bottom - Corner[2].y});
+				AddArc({Right - Corner[2].x, Bottom - Corner[2].y}, Corner[2], 0.0f);
+				AddRun({Right - Corner[2].x, Bottom}, {Left + Corner[3].x, Bottom});
+				AddArc({Left + Corner[3].x, Bottom - Corner[3].y}, Corner[3], HalfPi);
+				AddRun({Left, Bottom - Corner[3].y}, {Left, Top + Corner[0].y});
+				AddArc({Left + Corner[0].x, Top + Corner[0].y}, Corner[0], Rml::Math::RMLUI_PI);
 
 				float Perimeter = 0.0f;
 				for (const FSegment& Segment : Segments)
@@ -195,15 +248,12 @@ namespace Folio
 				}
 			}
 
-			/// Shrinks two radii sharing an edge until they fit along it, keeping their ratio.
-			static void ClampPair(float& A, float& B, const float Extent)
+			/// Lowers the scale until two radii totalling `Total` fit along an edge of `Extent`.
+			static void ShrinkToFit(float& Scale, const float Total, const float Extent)
 			{
-				const float Total = A + B;
 				if (Total > Extent && Total > 0.0f)
 				{
-					const float Scale = Extent / Total;
-					A *= Scale;
-					B *= Scale;
+					Scale = Rml::Math::Min(Scale, Extent / Total);
 				}
 			}
 
@@ -234,17 +284,19 @@ namespace Folio
 
 					// Enough steps that the outer edge never bows in by more than about a fifth of
 					// a pixel, which is below what a distance of one pixel could show.
-					const float SweptAngle = (SegmentTo - SegmentFrom) / Segment.Radius;
+					const float Angle0 = Segment.AngleAt(SegmentFrom);
+					const float SweptAngle = Segment.AngleAt(SegmentTo) - Angle0;
+					const float Radius = Rml::Math::Max(Segment.Radii.x, Segment.Radii.y);
 					const int Steps = Rml::Math::Clamp(
-						int(std::ceil(SweptAngle / 0.2f * Rml::Math::Max(Segment.Radius / 8.0f, 1.0f))), 1, 64);
+						int(std::ceil(SweptAngle / 0.2f * Rml::Math::Max(Radius / 8.0f, 1.0f))), 1, 64);
 
-					float Angle = Segment.StartAngle + SegmentFrom / Segment.Radius;
+					float Angle = Angle0;
 					const float Step = SweptAngle / float(Steps);
 
 					for (int Index = 0; Index < Steps; ++Index)
 					{
 						const float Next = Angle + Step;
-						AddArcQuad(Mesh, Segment.Centre, Segment.Radius, Half, Angle, Next, Colour);
+						AddArcQuad(Mesh, Segment, Half, Angle, Next, Colour);
 						Angle = Next;
 					}
 				}
@@ -256,14 +308,15 @@ namespace Folio
 				AddQuad(Mesh, From - Offset, From + Offset, To + Offset, To - Offset, Colour);
 			}
 
-			static void AddArcQuad(Rml::Mesh& Mesh, const Rml::Vector2f Centre, const float Radius,
-				const float Half, const float From, const float To, const Rml::ColourbPremultiplied Colour)
+			static void AddArcQuad(Rml::Mesh& Mesh, const FSegment& Arc, const float Half, const float From,
+				const float To, const Rml::ColourbPremultiplied Colour)
 			{
-				const Rml::Vector2f A(std::cos(From), std::sin(From));
-				const Rml::Vector2f B(std::cos(To), std::sin(To));
+				const Rml::Vector2f A = Arc.PointAt(From);
+				const Rml::Vector2f B = Arc.PointAt(To);
+				const Rml::Vector2f NormalA = Arc.NormalAt(From) * Half;
+				const Rml::Vector2f NormalB = Arc.NormalAt(To) * Half;
 
-				AddQuad(Mesh, Centre + A * (Radius - Half), Centre + A * (Radius + Half),
-					Centre + B * (Radius + Half), Centre + B * (Radius - Half), Colour);
+				AddQuad(Mesh, A - NormalA, A + NormalA, B + NormalB, B - NormalB, Colour);
 			}
 
 			static void AddQuad(Rml::Mesh& Mesh, const Rml::Vector2f A, const Rml::Vector2f B,

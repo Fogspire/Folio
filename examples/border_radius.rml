@@ -1,0 +1,74 @@
+<rml>
+<head>
+	<title>Border radius</title>
+	<meta name="folio-size" content="1000x760"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/* Percentages resolve against the border box, horizontally against its width and vertically
+		   against its height, so `50%` on a box that is not square is an ellipse. The slash gives the
+		   vertical radii separately. Radii that together overrun a side are scaled down by one factor,
+		   which keeps every corner's shape. */
+		body {
+			font-family: Inter;
+			font-size: 16dp;
+			color: #e8ecf2;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			padding: 24dp;
+			box-sizing: border-box;
+			display: flex;
+			flex-wrap: wrap;
+			align-content: flex-start;
+		}
+
+		.cell { width: 220dp; margin: 0 20dp 20dp 0; }
+		.label { font-size: 13dp; font-weight: 600; letter-spacing: 0.4dp; color: #7b8494; margin-bottom: 6dp; }
+		.box { width: 220dp; height: 120dp; box-sizing: border-box; background-color: #2b3a52; }
+
+		.circle   { width: 120dp; height: 120dp; border: 6dp #4ea1ff; border-radius: 50%; }
+		.ellipse  { border: 3dp #7ee787; border-radius: 50%; }
+		.pill     { height: 60dp; margin-top: 30dp; border: 2dp #f0c674; border-radius: 999dp; }
+		.slash    { border: 2dp #d2a8ff; border-radius: 60dp / 24dp; }
+		.eight    { border: 2dp #79c0ff; border-radius: 10dp 60dp 20dp 80dp / 40dp 10dp 60dp 20dp; }
+		.longhand { border: 2dp #ff7b72; border-top-left-radius: 90dp 50dp; border-bottom-right-radius: 30%; }
+
+		/* 100% horizontally on two corners sharing a side is twice the side, so every radius is
+		   halved: the top and bottom stay one curve, and the vertical radii no longer meet. */
+		.overlap  { border: 2dp #ffa657; border-radius: 100% / 50%; }
+
+		/* A thick border around an elliptical corner: the inner edge is the outer ellipse shrunk by
+		   each side's width, and it goes square where a border is wider than its radius. */
+		.thick    { border-width: 18dp 6dp 6dp 30dp; border-color: #4ea1ff #7ee787 #f0c674 #ff7b72; border-radius: 70dp / 40dp; }
+
+		/* Clipping follows the curve, including under a transform, where it is a clip mask rather than
+		   a scissor. */
+		.clip     { border-radius: 50% / 35%; overflow: hidden; transform: rotate(10deg); background-color: #161b22; }
+		.stripe   { height: 24dp; }
+		.s1 { background-color: #4ea1ff; } .s2 { background-color: #7ee787; } .s3 { background-color: #f0c674; }
+		.s4 { background-color: #ff7b72; } .s5 { background-color: #d2a8ff; }
+
+		.shadow   { border-radius: 40% / 50%; box-shadow: #4ea1ff80 0 0 16dp 6dp; }
+		.inset    { border-radius: 80dp / 30dp; box-shadow: #000000c0 0 0 12dp 8dp inset; }
+		.dashed   { background-color: transparent; border-radius: 50% / 40%; decorator: dashed-border(#7ee787 3dp 12dp 7dp); }
+	</style>
+</head>
+<body>
+	<div class="cell"><div class="label">CIRCLE, 50%, BORDER</div><div class="box circle"></div></div>
+	<div class="cell"><div class="label">ELLIPSE, 50%</div><div class="box ellipse"></div></div>
+	<div class="cell"><div class="label">PILL</div><div class="box pill"></div></div>
+	<div class="cell"><div class="label">SLASH</div><div class="box slash"></div></div>
+	<div class="cell"><div class="label">FOUR / FOUR</div><div class="box eight"></div></div>
+	<div class="cell"><div class="label">LONGHANDS</div><div class="box longhand"></div></div>
+	<div class="cell"><div class="label">OVERLAPPING RADII</div><div class="box overlap"></div></div>
+	<div class="cell"><div class="label">THICK UNEVEN BORDER</div><div class="box thick"></div></div>
+	<div class="cell"><div class="label">CLIP UNDER TRANSFORM</div>
+		<div class="box clip">
+			<div class="stripe s1"></div><div class="stripe s2"></div><div class="stripe s3"></div><div class="stripe s4"></div><div class="stripe s5"></div>
+		</div>
+	</div>
+	<div class="cell"><div class="label">BOX SHADOW</div><div class="box shadow"></div></div>
+	<div class="cell"><div class="label">INSET SHADOW</div><div class="box inset"></div></div>
+	<div class="cell"><div class="label">DASHED</div><div class="box dashed"></div></div>
+</body>
+</rml>

@@ -6,8 +6,9 @@
 
 		   RmlUi has no circle. Every element is a box and `border-radius` is the only curve, so a
 		   circle is a square box with a radius of half its width, and a ring is that box with a
-		   border. Write the radius past half rather than as half: it is clamped to half whatever the
-		   box turns out to be, so one number stays right when the size changes.
+		   border. `50%` is that on a square, and an ellipse on anything else. A length past half
+		   is clamped to half whatever the box turns out to be, so it stays a capsule when the box
+		   is longer than it is tall.
 
 		   That a bordered box can be a circle at all is Folio's doing. Stock RmlUi scales
 		   overlapping radii against the box INSIDE the borders, so a bordered square stops rounding

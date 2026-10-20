@@ -149,7 +149,7 @@ Everything else gets a small `rotate()` toward the centre of the screen, so the 
 #visors { transform: rotate(5deg); }
 ```
 
-`scale(1, 0.78)` is how you get an ellipse. `border-radius` takes lengths, not percentages, so a circle is a square element with a radius larger than it needs - radii too large for their edge are shrunk to fit - and an ellipse is that circle squashed on one axis.
+`scale(1, 0.78)` squashes the whole radar, so the sweep and the rings inside it squash with it. `border-radius: 50%` on a wide box would make the outline an ellipse and leave its contents round.
 
 ## 5. Instruments out of gradients
 

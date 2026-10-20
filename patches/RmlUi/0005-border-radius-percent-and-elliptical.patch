@@ -1,0 +1,773 @@
+From: Folio <folio@localhost>
+Subject: [PATCH] border-radius: percentages and elliptical corners
+
+CSS Backgrounds 3 gives every corner a horizontal and a vertical radius, and lets either be a
+percentage of the border box: `border-radius: 50%` on a box that is not square is an ellipse, and
+`10px 20px / 5px` gives the vertical radii separately. RmlUi takes one length per corner, so a
+percentage fails to parse and the corner is square, and there is no way to write an ellipse.
+
+Each corner's radius is now two longhands, `border-*-radius-x` and `-y`, the way RmlUi already
+splits `transform-origin`. `border-*-radius` becomes a shorthand taking one or two values, and
+`border-radius` a shorthand of its own type that reads the slash. Percentages are kept unresolved
+in the computed values and resolved against each box when its geometry is generated, horizontal
+against the width and vertical against the height. Overlapping radii are scaled by one factor per
+CSS 5.5, horizontal radii against the width and vertical against the height. Box shadows take
+their radii from each box rather than the element, since a percentage resolves differently per box.
+
+RenderBox::GetBorderRadius now returns CornerSizes2, so code drawing its own shape from it sees
+both radii. A corner with either radius zero is square, as in CSS.
+
+Removable once upstream supports percentage and elliptical radii.
+
+diff --git a/Include/RmlUi/Core/ComputedValues.h b/Include/RmlUi/Core/ComputedValues.h
+index ebb11479..98b3a534 100644
+--- a/Include/RmlUi/Core/ComputedValues.h
++++ b/Include/RmlUi/Core/ComputedValues.h
+@@ -179,7 +179,10 @@ namespace Style {
+ 		float flex_basis = 0;
+ 		float row_gap = 0, column_gap = 0;
+ 
+-		int16_t border_top_left_radius = 0, border_top_right_radius = 0, border_bottom_right_radius = 0, border_bottom_left_radius = 0;
++		// Horizontal radii of each corner then vertical ones, ordered top-left, top-right, bottom-right, bottom-left. A set
++		// bit in the mask marks that radius a percentage of the border box rather than a length.
++		float border_radius[8] = {};
++		uint8_t border_radius_percentage = 0;
+ 		Colourb image_color = Colourb(255, 255, 255);
+ 		float scrollbar_margin = 0.f;
+ 	};
+@@ -274,12 +277,9 @@ namespace Style {
+ 		float             flex_grow()                  const { return GetLocalProperty(PropertyId::FlexGrow, 0.f); }
+ 		float             flex_shrink()                const { return GetLocalProperty(PropertyId::FlexShrink, 1.f); }
+ 		FlexBasis         flex_basis()                 const { return LengthPercentageAuto(rare.flex_basis_type, rare.flex_basis); }
+-		float             border_top_left_radius()     const { return (float)rare.border_top_left_radius; }
+-		float             border_top_right_radius()    const { return (float)rare.border_top_right_radius; }
+-		float             border_bottom_right_radius() const { return (float)rare.border_bottom_right_radius; }
+-		float             border_bottom_left_radius()  const { return (float)rare.border_bottom_left_radius; }
+-		CornerSizes       border_radius()              const { return {(float)rare.border_top_left_radius,     (float)rare.border_top_right_radius,
+-		                                                               (float)rare.border_bottom_right_radius, (float)rare.border_bottom_left_radius}; }
++		LengthPercentage  border_radius_x(int corner)  const { return GetBorderRadius(corner); }
++		LengthPercentage  border_radius_y(int corner)  const { return GetBorderRadius(4 + corner); }
++		bool              has_border_radius()          const { for (float r : rare.border_radius) { if (r > 0.f) return true; } return false; }
+ 		TextOverflow      text_overflow()              const { return rare.text_overflow; }
+ 		String            text_overflow_string()       const { return GetLocalProperty(PropertyId::TextOverflow, String());; }
+ 		Clip              clip()                       const { return rare.clip; }
+@@ -367,10 +367,8 @@ namespace Style {
+ 		void perspective               (float value)             { rare.perspective                = value; }
+ 		void has_local_perspective     (bool value)              { rare.has_local_perspective      = value; }
+ 		void has_local_transform       (bool value)              { rare.has_local_transform        = value; }
+-		void border_top_left_radius    (float value)             { rare.border_top_left_radius     = (int16_t)value; }
+-		void border_top_right_radius   (float value)             { rare.border_top_right_radius    = (int16_t)value; }
+-		void border_bottom_right_radius(float value)             { rare.border_bottom_right_radius = (int16_t)value; }
+-		void border_bottom_left_radius (float value)             { rare.border_bottom_left_radius  = (int16_t)value; }
++		void border_radius_x(int corner, LengthPercentage value) { SetBorderRadius(corner, value); }
++		void border_radius_y(int corner, LengthPercentage value) { SetBorderRadius(4 + corner, value); }
+ 		void text_overflow             (TextOverflow value)      { rare.text_overflow              = value; }
+ 		void clip                      (Clip value)              { rare.clip                       = value; }
+ 		void drag                      (Drag value)              { rare.drag                       = value; }
+@@ -393,7 +391,36 @@ namespace Style {
+ 		}
+ 		void CopyInherited(const ComputedValues& parent) { inherited = parent.inherited; }
+ 
++		/// Returns the radii of each corner, resolving percentages against the given border box size.
++		CornerSizes2 border_radius(Vector2f border_size) const
++		{
++			CornerSizes2 result;
++			for (int corner = 0; corner < 4; corner++)
++				result[corner] = {ResolveBorderRadius(corner, border_size.x), ResolveBorderRadius(4 + corner, border_size.y)};
++			return result;
++		}
++
+ 	private:
++		LengthPercentage GetBorderRadius(int index) const
++		{
++			const bool percentage = (rare.border_radius_percentage & (1 << index)) != 0;
++			return LengthPercentage(percentage ? LengthPercentage::Percentage : LengthPercentage::Length, rare.border_radius[index]);
++		}
++		void SetBorderRadius(int index, LengthPercentage value)
++		{
++			const uint8_t bit = uint8_t(1 << index);
++			rare.border_radius[index] = (value.value > 0.f ? value.value : 0.f);
++			if (value.type == LengthPercentage::Percentage)
++				rare.border_radius_percentage |= bit;
++			else
++				rare.border_radius_percentage &= uint8_t(~bit);
++		}
++		float ResolveBorderRadius(int index, float base) const
++		{
++			const bool percentage = (rare.border_radius_percentage & (1 << index)) != 0;
++			return percentage ? rare.border_radius[index] * base * 0.01f : rare.border_radius[index];
++		}
++
+ 		template <typename T>
+ 		inline T GetLocalPropertyKeyword(PropertyId id, T default_value) const
+ 		{
+diff --git a/Include/RmlUi/Core/ID.h b/Include/RmlUi/Core/ID.h
+index 5b1dbbc0..f6e22215 100644
+--- a/Include/RmlUi/Core/ID.h
++++ b/Include/RmlUi/Core/ID.h
+@@ -21,6 +21,10 @@ enum class ShorthandId : uint8_t {
+ 	BorderBottom,
+ 	BorderLeft,
+ 	Border,
++	BorderTopLeftRadius,
++	BorderTopRightRadius,
++	BorderBottomRightRadius,
++	BorderBottomLeftRadius,
+ 	BorderRadius,
+ 	Inset,
+ 	Overflow,
+@@ -64,10 +68,14 @@ enum class PropertyId : uint8_t {
+ 	BorderRightColor,
+ 	BorderBottomColor,
+ 	BorderLeftColor,
+-	BorderTopLeftRadius,
+-	BorderTopRightRadius,
+-	BorderBottomRightRadius,
+-	BorderBottomLeftRadius,
++	BorderTopLeftRadiusX,
++	BorderTopRightRadiusX,
++	BorderBottomRightRadiusX,
++	BorderBottomLeftRadiusX,
++	BorderTopLeftRadiusY,
++	BorderTopRightRadiusY,
++	BorderBottomRightRadiusY,
++	BorderBottomLeftRadiusY,
+ 	Display,
+ 	Position,
+ 	Top,
+diff --git a/Include/RmlUi/Core/PropertyDefinition.h b/Include/RmlUi/Core/PropertyDefinition.h
+index 1f912bad..1ad1b303 100644
+--- a/Include/RmlUi/Core/PropertyDefinition.h
++++ b/Include/RmlUi/Core/PropertyDefinition.h
+@@ -6,7 +6,7 @@
+ 
+ namespace Rml {
+ 
+-enum class RelativeTarget { None, ContainingBlockWidth, ContainingBlockHeight, FontSize, ParentFontSize, LineHeight };
++enum class RelativeTarget { None, ContainingBlockWidth, ContainingBlockHeight, FontSize, ParentFontSize, LineHeight, BorderBoxWidth, BorderBoxHeight };
+ 
+ class RMLUICORE_API PropertyDefinition final : public NonCopyMoveable {
+ public:
+diff --git a/Include/RmlUi/Core/PropertySpecification.h b/Include/RmlUi/Core/PropertySpecification.h
+index dadd46aa..30cce7db 100644
+--- a/Include/RmlUi/Core/PropertySpecification.h
++++ b/Include/RmlUi/Core/PropertySpecification.h
+@@ -27,7 +27,11 @@ enum class ShorthandType {
+ 	// Comma-separated list of properties or shorthands, the number of declared values must match the specified.
+ 	RecursiveCommaSeparated,
+ 	// The 'flex' shorthand has some special behavior but otherwise acts like 'FallThrough'.
+-	Flex
++	Flex,
++	// The 'border-radius' shorthand: up to four horizontal radii, optionally followed by '/' and up to four vertical
++	// radii, each list replicated around the corners like 'Box'. Expects the four horizontal properties, then the
++	// four vertical ones.
++	BorderRadius
+ };
+ 
+ /**
+diff --git a/Include/RmlUi/Core/RenderBox.h b/Include/RmlUi/Core/RenderBox.h
+index d08f9c82..41021389 100644
+--- a/Include/RmlUi/Core/RenderBox.h
++++ b/Include/RmlUi/Core/RenderBox.h
+@@ -8,6 +8,8 @@ namespace Rml {
+ using EdgeSizes = Array<float, 4>;
+ // Ordered by top-left, top-right, bottom-right, bottom-left.
+ using CornerSizes = Array<float, 4>;
++// Ordered by top-left, top-right, bottom-right, bottom-left, each a horizontal and a vertical size.
++using CornerSizes2 = Array<Vector2f, 4>;
+ 
+ /**
+     Provides the data needed to generate a mesh for a given element's box.
+@@ -15,7 +17,7 @@ using CornerSizes = Array<float, 4>;
+ 
+ class RenderBox {
+ public:
+-	RenderBox(Vector2f fill_size, Vector2f border_offset, EdgeSizes border_widths, CornerSizes border_radius) :
++	RenderBox(Vector2f fill_size, Vector2f border_offset, EdgeSizes border_widths, CornerSizes2 border_radius) :
+ 		fill_size(fill_size), border_offset(border_offset), border_widths(border_widths), border_radius(border_radius)
+ 	{}
+ 
+@@ -36,16 +38,16 @@ public:
+ 	/// Sets the border widths of the box.
+ 	void SetBorderWidths(EdgeSizes value) { border_widths = value; }
+ 
+-	/// Returns the border radius of the box.
+-	CornerSizes GetBorderRadius() const { return border_radius; }
+-	/// Sets the border radius of the box.
+-	void SetBorderRadius(CornerSizes value) { border_radius = value; }
++	/// Returns the horizontal and vertical border radius of each corner of the box.
++	CornerSizes2 GetBorderRadius() const { return border_radius; }
++	/// Sets the horizontal and vertical border radius of each corner of the box.
++	void SetBorderRadius(CornerSizes2 value) { border_radius = value; }
+ 
+ private:
+ 	Vector2f fill_size;
+ 	Vector2f border_offset;
+ 	EdgeSizes border_widths;
+-	CornerSizes border_radius;
++	CornerSizes2 border_radius;
+ };
+ inline bool operator==(const RenderBox& a, const RenderBox& b)
+ {
+diff --git a/Source/Core/BoxShadowCache.cpp b/Source/Core/BoxShadowCache.cpp
+index 6b8155c4..a82af951 100644
+--- a/Source/Core/BoxShadowCache.cpp
++++ b/Source/Core/BoxShadowCache.cpp
+@@ -89,8 +89,7 @@ SharedPtr<BoxShadowRenderable> BoxShadowCache::GetHandle(Element* element, const
+ 		computed.border_bottom_color().ToPremultiplied(),
+ 		computed.border_left_color().ToPremultiplied(),
+ 	};
+-	const CornerSizes border_radius = computed.border_radius();
+-	BoxShadowGeometryInfo geom_info = GeometryBoxShadow::Resolve(element, border_radius, background_color, border_colors, computed.opacity());
++	BoxShadowGeometryInfo geom_info = GeometryBoxShadow::Resolve(element, background_color, border_colors, computed.opacity());
+ 	return GetOrCreateBoxShadow(*render_manager, geom_info);
+ }
+ 
+diff --git a/Source/Core/BoxShadowHash.h b/Source/Core/BoxShadowHash.h
+index fa3d8869..8029478d 100644
+--- a/Source/Core/BoxShadowHash.h
++++ b/Source/Core/BoxShadowHash.h
+@@ -86,7 +86,7 @@ struct hash<::Rml::RenderBox> {
+ 	size_t operator()(const ::Rml::RenderBox& box) const noexcept
+ 	{
+ 		using namespace ::Rml::Utilities;
+-		static auto HashArray4 = [](const ::Rml::Array<float, 4>& arr) -> size_t {
++		static auto HashArray4 = [](const auto& arr) -> size_t {
+ 			size_t seed = 0;
+ 			for (const auto& v : arr)
+ 				HashCombine(seed, v);
+@@ -115,11 +115,6 @@ struct hash<::Rml::BoxShadowGeometryInfo> {
+ 			HashCombine(seed, v);
+ 		}
+ 
+-		for (const auto& v : in.border_radius)
+-		{
+-			HashCombine(seed, v);
+-		}
+-
+ 		HashCombine(seed, in.texture_dimensions);
+ 		HashCombine(seed, in.element_offset_in_texture);
+ 
+diff --git a/Source/Core/Element.cpp b/Source/Core/Element.cpp
+index 96b98348..5ae0b56c 100644
+--- a/Source/Core/Element.cpp
++++ b/Source/Core/Element.cpp
+@@ -509,7 +509,8 @@ RenderBox Element::GetRenderBox(BoxArea fill_area, int index)
+ 	case BoxArea::Auto: RMLUI_ERROR;
+ 	}
+ 
+-	return RenderBox{inner_size, box.offset, edge_sizes, meta->computed_values.border_radius()};
++	const Vector2f border_size = box.padding_size + box.box.GetFrameSize(BoxArea::Border);
++	return RenderBox{inner_size, box.offset, edge_sizes, meta->computed_values.border_radius(border_size)};
+ }
+ 
+ int Element::GetNumBoxes()
+@@ -1821,11 +1822,15 @@ void Element::OnPropertyChange(const PropertyIdSet& changed_properties)
+ 		}
+ 	}
+ 
+-	const bool border_radius_changed = (                                    //
+-		changed_properties.Contains(PropertyId::BorderTopLeftRadius) ||     //
+-		changed_properties.Contains(PropertyId::BorderTopRightRadius) ||    //
+-		changed_properties.Contains(PropertyId::BorderBottomRightRadius) || //
+-		changed_properties.Contains(PropertyId::BorderBottomLeftRadius)     //
++	const bool border_radius_changed = (                                     //
++		changed_properties.Contains(PropertyId::BorderTopLeftRadiusX) ||     //
++		changed_properties.Contains(PropertyId::BorderTopRightRadiusX) ||    //
++		changed_properties.Contains(PropertyId::BorderBottomRightRadiusX) || //
++		changed_properties.Contains(PropertyId::BorderBottomLeftRadiusX) ||  //
++		changed_properties.Contains(PropertyId::BorderTopLeftRadiusY) ||     //
++		changed_properties.Contains(PropertyId::BorderTopRightRadiusY) ||    //
++		changed_properties.Contains(PropertyId::BorderBottomRightRadiusY) || //
++		changed_properties.Contains(PropertyId::BorderBottomLeftRadiusY)     //
+ 	);
+ 	const bool filter_or_mask_changed = (changed_properties.Contains(PropertyId::Filter) || changed_properties.Contains(PropertyId::BackdropFilter) ||
+ 		changed_properties.Contains(PropertyId::MaskImage));
+diff --git a/Source/Core/ElementStyle.cpp b/Source/Core/ElementStyle.cpp
+index 8f2c9bc9..20251b3e 100644
+--- a/Source/Core/ElementStyle.cpp
++++ b/Source/Core/ElementStyle.cpp
+@@ -395,6 +395,8 @@ float ElementStyle::ResolveRelativeLength(NumericValue value, RelativeTarget rel
+ 	}
+ 	break;
+ 	case RelativeTarget::LineHeight: base_value = element->GetLineHeight(); break;
++	case RelativeTarget::BorderBoxWidth: base_value = element->GetBox().GetSize(BoxArea::Border).x; break;
++	case RelativeTarget::BorderBoxHeight: base_value = element->GetBox().GetSize(BoxArea::Border).y; break;
+ 	}
+ 
+ 	float scale_value = 0.0f;
+@@ -630,17 +632,19 @@ PropertyIdSet ElementStyle::ComputeValues(Style::ComputedValues& values, const S
+ 			values.border_left_color(p->Get<Colourb>());
+ 			break;
+ 
+-		case PropertyId::BorderTopLeftRadius:
+-			values.border_top_left_radius(ComputeLength(p->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions));
++		case PropertyId::BorderTopLeftRadiusX:
++		case PropertyId::BorderTopRightRadiusX:
++		case PropertyId::BorderBottomRightRadiusX:
++		case PropertyId::BorderBottomLeftRadiusX:
++			values.border_radius_x(int(id) - int(PropertyId::BorderTopLeftRadiusX),
++				ComputeLengthPercentage(p, font_size, document_font_size, dp_ratio, vp_dimensions));
+ 			break;
+-		case PropertyId::BorderTopRightRadius:
+-			values.border_top_right_radius(ComputeLength(p->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions));
+-			break;
+-		case PropertyId::BorderBottomRightRadius:
+-			values.border_bottom_right_radius(ComputeLength(p->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions));
+-			break;
+-		case PropertyId::BorderBottomLeftRadius:
+-			values.border_bottom_left_radius(ComputeLength(p->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions));
++		case PropertyId::BorderTopLeftRadiusY:
++		case PropertyId::BorderTopRightRadiusY:
++		case PropertyId::BorderBottomRightRadiusY:
++		case PropertyId::BorderBottomLeftRadiusY:
++			values.border_radius_y(int(id) - int(PropertyId::BorderTopLeftRadiusY),
++				ComputeLengthPercentage(p, font_size, document_font_size, dp_ratio, vp_dimensions));
+ 			break;
+ 
+ 		case PropertyId::Display:
+diff --git a/Source/Core/ElementUtilities.cpp b/Source/Core/ElementUtilities.cpp
+index ae3280b3..081644a9 100644
+--- a/Source/Core/ElementUtilities.cpp
++++ b/Source/Core/ElementUtilities.cpp
+@@ -153,8 +153,7 @@ bool ElementUtilities::GetClippingRegion(Element* element, Rectanglei& out_clip_
+ 			{
+ 				const TransformState* transform_state = clipping_element->GetTransformState();
+ 				const Matrix4f* transform = (transform_state ? transform_state->GetTransform() : nullptr);
+-				const bool has_border_radius = (clip_computed.border_top_left_radius() > 0.f || clip_computed.border_top_right_radius() > 0.f ||
+-					clip_computed.border_bottom_right_radius() > 0.f || clip_computed.border_bottom_left_radius() > 0.f);
++				const bool has_border_radius = clip_computed.has_border_radius();
+ 
+ 				// If the element has border-radius we always use a clip mask, since we can't easily predict if content is located on the curved
+ 				// region to be clipped. If the element has a transform we only use a clip mask when the content clips.
+diff --git a/Source/Core/GeometryBackgroundBorder.cpp b/Source/Core/GeometryBackgroundBorder.cpp
+index 26b9e16e..dbb96440 100644
+--- a/Source/Core/GeometryBackgroundBorder.cpp
++++ b/Source/Core/GeometryBackgroundBorder.cpp
+@@ -19,7 +19,7 @@ void MeshUtilities::SetBackgroundAntialiasWidth(float width)
+ GeometryBackgroundBorder::GeometryBackgroundBorder(Vector<Vertex>& vertices, Vector<int>& indices) : vertices(vertices), indices(indices) {}
+ 
+ BorderMetrics GeometryBackgroundBorder::ComputeBorderMetrics(Vector2f outer_position, EdgeSizes edge_sizes, Vector2f inner_size,
+-	CornerSizes outer_radii_def)
++	CornerSizes2 outer_radii_def)
+ {
+ 	BorderMetrics metrics = {};
+ 
+@@ -44,7 +44,16 @@ BorderMetrics GeometryBackgroundBorder::ComputeBorderMetrics(Vector2f outer_posi
+ 
+ 	// -- For curved borders, find the positions to draw ellipses around, and the scaled outer and inner radii --
+ 
+-	const float sum_radius = (outer_radii_def[TOP_LEFT] + outer_radii_def[TOP_RIGHT] + outer_radii_def[BOTTOM_RIGHT] + outer_radii_def[BOTTOM_LEFT]);
++	// A corner with either radius zero is square.
++	for (Vector2f& radius : outer_radii_def)
++	{
++		if (!(radius.x > 0.f && radius.y > 0.f))
++			radius = Vector2f(0.f);
++	}
++
++	float sum_radius = 0.f;
++	for (const Vector2f radius : outer_radii_def)
++		sum_radius += Math::Max(radius.x, radius.y);
+ 	const bool has_radius = (sum_radius > 1.f);
+ 
+ 	if (has_radius)
+@@ -59,17 +68,27 @@ BorderMetrics GeometryBackgroundBorder::ComputeBorderMetrics(Vector2f outer_posi
+ 		// be a circle: it keeps a flat edge on every side exactly as wide as the border. The inner radii
+ 		// are derived below by subtracting the edge sizes, and an outer radius of half the outer box
+ 		// gives an inner radius of half the inner box, so those cannot overlap either.
++		//
++		// The horizontal radii share the top and bottom, the vertical radii the left and right.
++		auto side_factor = [](float length, float radius0, float radius1) {
++			const float sum = radius0 + radius1;
++			return sum > 0.f ? length / sum : FLT_MAX;
++		};
+ 		float scale_factor = FLT_MAX;
+-		scale_factor = Math::Min(scale_factor, outer_size.x / (outer_radii[TOP_LEFT] + outer_radii[TOP_RIGHT]));       // Top
+-		scale_factor = Math::Min(scale_factor, outer_size.y / (outer_radii[TOP_RIGHT] + outer_radii[BOTTOM_RIGHT]));   // Right
+-		scale_factor = Math::Min(scale_factor, outer_size.x / (outer_radii[BOTTOM_RIGHT] + outer_radii[BOTTOM_LEFT])); // Bottom
+-		scale_factor = Math::Min(scale_factor, outer_size.y / (outer_radii[BOTTOM_LEFT] + outer_radii[TOP_LEFT]));     // Left
++		scale_factor = Math::Min(scale_factor, side_factor(outer_size.x, outer_radii[TOP_LEFT].x, outer_radii[TOP_RIGHT].x));       // Top
++		scale_factor = Math::Min(scale_factor, side_factor(outer_size.y, outer_radii[TOP_RIGHT].y, outer_radii[BOTTOM_RIGHT].y));   // Right
++		scale_factor = Math::Min(scale_factor, side_factor(outer_size.x, outer_radii[BOTTOM_RIGHT].x, outer_radii[BOTTOM_LEFT].x)); // Bottom
++		scale_factor = Math::Min(scale_factor, side_factor(outer_size.y, outer_radii[BOTTOM_LEFT].y, outer_radii[TOP_LEFT].y));     // Left
+ 		scale_factor = Math::Min(1.0f, scale_factor);
+ 
+-		for (float& radius : outer_radii)
+-			radius = Math::Round(radius * scale_factor);
++		for (Vector2f& radius : outer_radii)
++		{
++			radius = (radius * scale_factor).Round();
++			if (!(radius.x > 0.f && radius.y > 0.f))
++				radius = Vector2f(0.f);
++		}
+ 
+-		// Place the circle/ellipse centers
++		// Place the ellipse centers
+ 		metrics.positions_circle_center = {
+ 			metrics.positions_outer[TOP_LEFT] + Vector2f(1, 1) * outer_radii[TOP_LEFT],
+ 			metrics.positions_outer[TOP_RIGHT] + Vector2f(-1, 1) * outer_radii[TOP_RIGHT],
+@@ -78,10 +97,10 @@ BorderMetrics GeometryBackgroundBorder::ComputeBorderMetrics(Vector2f outer_posi
+ 		};
+ 
+ 		metrics.inner_radii = {
+-			Vector2f(outer_radii[TOP_LEFT]) - Vector2f(edge_sizes[LEFT], edge_sizes[TOP]),
+-			Vector2f(outer_radii[TOP_RIGHT]) - Vector2f(edge_sizes[RIGHT], edge_sizes[TOP]),
+-			Vector2f(outer_radii[BOTTOM_RIGHT]) - Vector2f(edge_sizes[RIGHT], edge_sizes[BOTTOM]),
+-			Vector2f(outer_radii[BOTTOM_LEFT]) - Vector2f(edge_sizes[LEFT], edge_sizes[BOTTOM]),
++			outer_radii[TOP_LEFT] - Vector2f(edge_sizes[LEFT], edge_sizes[TOP]),
++			outer_radii[TOP_RIGHT] - Vector2f(edge_sizes[RIGHT], edge_sizes[TOP]),
++			outer_radii[BOTTOM_RIGHT] - Vector2f(edge_sizes[RIGHT], edge_sizes[BOTTOM]),
++			outer_radii[BOTTOM_LEFT] - Vector2f(edge_sizes[LEFT], edge_sizes[BOTTOM]),
+ 		};
+ 	}
+ 
+@@ -169,10 +188,10 @@ void GeometryBackgroundBorder::DrawBorder(const BorderMetrics& metrics, EdgeSize
+ 	}
+ }
+ 
+-void GeometryBackgroundBorder::DrawBackgroundCorner(Corner corner, Vector2f pos_inner, Vector2f pos_circle_center, float R, Vector2f r,
++void GeometryBackgroundBorder::DrawBackgroundCorner(Corner corner, Vector2f pos_inner, Vector2f pos_circle_center, Vector2f R, Vector2f r,
+ 	ColourbPremultiplied color)
+ {
+-	if (R == 0 || r.x <= 0 || r.y <= 0)
++	if (R.x == 0 || r.x <= 0 || r.y <= 0)
+ 	{
+ 		DrawPoint(pos_inner, color);
+ 	}
+@@ -300,13 +319,13 @@ void GeometryBackgroundBorder::AntialiasRing(const Vector<int>& ring)
+ 	}
+ }
+ 
+-void GeometryBackgroundBorder::DrawBorderCorner(Corner corner, Vector2f pos_outer, Vector2f pos_inner, Vector2f pos_circle_center, float R,
++void GeometryBackgroundBorder::DrawBorderCorner(Corner corner, Vector2f pos_outer, Vector2f pos_inner, Vector2f pos_circle_center, Vector2f R,
+ 	Vector2f r, ColourbPremultiplied color0, ColourbPremultiplied color1)
+ {
+ 	const float a0 = float((int)corner + 2) * 0.5f * Math::RMLUI_PI;
+ 	const float a1 = float((int)corner + 3) * 0.5f * Math::RMLUI_PI;
+ 
+-	if (R == 0)
++	if (R.x == 0)
+ 	{
+ 		DrawPointPoint(pos_outer, pos_inner, color0, color1);
+ 	}
+@@ -336,10 +355,10 @@ void GeometryBackgroundBorder::DrawPointPoint(Vector2f pos_outer, Vector2f pos_i
+ 	}
+ }
+ 
+-void GeometryBackgroundBorder::DrawArcArc(Vector2f pos_center, float R, Vector2f r, float a0, float a1, ColourbPremultiplied color0,
++void GeometryBackgroundBorder::DrawArcArc(Vector2f pos_center, Vector2f R, Vector2f r, float a0, float a1, ColourbPremultiplied color0,
+ 	ColourbPremultiplied color1, int num_points)
+ {
+-	RMLUI_ASSERT(num_points >= 2 && R > 0 && r.x > 0 && r.y > 0);
++	RMLUI_ASSERT(num_points >= 2 && R.x > 0 && R.y > 0 && r.x > 0 && r.y > 0);
+ 
+ 	const int num_triangles = 2 * (num_points - 1);
+ 
+@@ -375,17 +394,17 @@ void GeometryBackgroundBorder::DrawArcArc(Vector2f pos_center, float R, Vector2f
+ 	}
+ }
+ 
+-void GeometryBackgroundBorder::DrawArcPoint(Vector2f pos_center, Vector2f pos_inner, float R, float a0, float a1, ColourbPremultiplied color0,
++void GeometryBackgroundBorder::DrawArcPoint(Vector2f pos_center, Vector2f pos_inner, Vector2f R, float a0, float a1, ColourbPremultiplied color0,
+ 	ColourbPremultiplied color1, int num_points)
+ {
+-	RMLUI_ASSERT(R > 0 && num_points >= 2);
++	RMLUI_ASSERT(R.x > 0 && R.y > 0 && num_points >= 2);
+ 
+ 	const int offset_vertices = (int)vertices.size();
+ 	vertices.reserve(offset_vertices + num_points + 2);
+ 
+ 	// Generate the vertices. We could also split the arc mid-way to create a sharp color transition.
+ 	DrawPoint(pos_inner, color0);
+-	DrawArc(pos_center, Vector2f(R), a0, a1, color0, color1, num_points);
++	DrawArc(pos_center, R, a0, a1, color0, color1, num_points);
+ 	DrawPoint(pos_inner, color1);
+ 
+ 	RMLUI_ASSERT((int)vertices.size() - offset_vertices == num_points + 2);
+@@ -432,9 +451,9 @@ void GeometryBackgroundBorder::FillEdge(int index_next_corner)
+ 	indices[offset_indices + 5] = index_next_corner + 1;
+ }
+ 
+-int GeometryBackgroundBorder::GetNumPoints(float R) const
++int GeometryBackgroundBorder::GetNumPoints(Vector2f R) const
+ {
+-	return Math::Clamp(3 + Math::RoundToInteger(R / 6.f), 2, 100);
++	return Math::Clamp(3 + Math::RoundToInteger(Math::Max(R.x, R.y) / 6.f), 2, 100);
+ }
+ 
+ } // namespace Rml
+diff --git a/Source/Core/GeometryBackgroundBorder.h b/Source/Core/GeometryBackgroundBorder.h
+index faec7f82..f86d843e 100644
+--- a/Source/Core/GeometryBackgroundBorder.h
++++ b/Source/Core/GeometryBackgroundBorder.h
+@@ -21,11 +21,11 @@ struct BorderMetrics {
+ 	CornerPositions positions_outer;
+ 	// Inner corner positions (e.g. at padding edge)
+ 	CornerPositions positions_inner;
+-	// Curved borders are drawn as circles (outer border) and ellipses (inner border) around the centers.
++	// Curved borders are drawn as ellipses around the centers, both the outer and the inner edge.
+ 	CornerPositions positions_circle_center;
+ 
+-	// Radii of the outer edges, always circles.
+-	CornerSizes outer_radii;
++	// Radii of the outer edges, horizontal and vertical. Either both are positive, or both are zero for a sharp corner.
++	CornerSizes2 outer_radii;
+ 	// Radii of the inner edges, 2-dimensional as these can be elliptic.
+ 	// The inner radii is effectively the (signed) distance from the circle center to the inner edge.
+ 	// They can also be zero or negative, in which case a sharp corner should be drawn instead of an arc.
+@@ -41,9 +41,9 @@ public:
+ 	/// @param outer_position Top-left position of the outer edge.
+ 	/// @param edge_sizes Widths of the border.
+ 	/// @param inner_size Size of the inner area.
+-	/// @param outer_radii The radius of the outer edge at each corner.
++	/// @param outer_radii The horizontal and vertical radius of the outer edge at each corner.
+ 	/// @return The computed metrics.
+-	static BorderMetrics ComputeBorderMetrics(Vector2f outer_position, EdgeSizes edge_sizes, Vector2f inner_size, CornerSizes outer_radii);
++	static BorderMetrics ComputeBorderMetrics(Vector2f outer_position, EdgeSizes edge_sizes, Vector2f inner_size, CornerSizes2 outer_radii);
+ 
+ 	// Generate geometry for the background, defined by the inner area of the border metrics.
+ 	void DrawBackground(const BorderMetrics& metrics, ColourbPremultiplied color);
+@@ -59,7 +59,7 @@ private:
+ 	// All draw operations place vertices in clockwise order.
+ 
+ 	// Draw the corner, delegate to the specific corner shape drawing function.
+-	void DrawBackgroundCorner(Corner corner, Vector2f pos_inner, Vector2f pos_circle_center, float R, Vector2f r, ColourbPremultiplied color);
++	void DrawBackgroundCorner(Corner corner, Vector2f pos_inner, Vector2f pos_circle_center, Vector2f R, Vector2f r, ColourbPremultiplied color);
+ 
+ 	// Add a single point.
+ 	void DrawPoint(Vector2f pos, ColourbPremultiplied color);
+@@ -85,26 +85,26 @@ private:
+ 	// Where 'next' corner means along the clockwise direction. This way we can easily fill the triangles of the edges in FillEdge().
+ 
+ 	// Draw the corner, delegate to the specific corner shape drawing function.
+-	void DrawBorderCorner(Corner corner, Vector2f pos_outer, Vector2f pos_inner, Vector2f pos_circle_center, float R, Vector2f r,
++	void DrawBorderCorner(Corner corner, Vector2f pos_outer, Vector2f pos_inner, Vector2f pos_circle_center, Vector2f R, Vector2f r,
+ 		ColourbPremultiplied color0, ColourbPremultiplied color1);
+ 
+ 	// Draw a sharp border corner, ie. no border-radius. Does not produce any triangles.
+ 	void DrawPointPoint(Vector2f pos_outer, Vector2f pos_inner, ColourbPremultiplied color0, ColourbPremultiplied color1);
+ 
+-	// Draw an arc along the outer edge (radius R), and an arc along the inner edge (two-axis radius r),
++	// Draw an arc along the outer edge (two-axis radius R), and an arc along the inner edge (two-axis radius r),
+ 	// spaced evenly between angles a0,a1 (inclusive). Connect them by triangles. Colors are interpolated.
+-	void DrawArcArc(Vector2f pos_center, float R, Vector2f r, float a0, float a1, ColourbPremultiplied color0, ColourbPremultiplied color1,
++	void DrawArcArc(Vector2f pos_center, Vector2f R, Vector2f r, float a0, float a1, ColourbPremultiplied color0, ColourbPremultiplied color1,
+ 		int num_points);
+ 
+ 	// Draw an arc along the outer edge, and connect them by triangles to a point on the inner edge.
+-	void DrawArcPoint(Vector2f pos_center, Vector2f pos_inner, float R, float a0, float a1, ColourbPremultiplied color0, ColourbPremultiplied color1,
++	void DrawArcPoint(Vector2f pos_center, Vector2f pos_inner, Vector2f R, float a0, float a1, ColourbPremultiplied color0, ColourbPremultiplied color1,
+ 		int num_points);
+ 
+ 	// Add triangles between the previous corner to another one specified by the index (possibly yet-to-be-drawn).
+ 	void FillEdge(int index_next_corner);
+ 
+ 	// -- Tools --
+-	int GetNumPoints(float R) const;
++	int GetNumPoints(Vector2f R) const;
+ 
+ 	Vector<Vertex>& vertices;
+ 	Vector<int>& indices;
+diff --git a/Source/Core/GeometryBoxShadow.cpp b/Source/Core/GeometryBoxShadow.cpp
+index e729a75f..4ae3dfa6 100644
+--- a/Source/Core/GeometryBoxShadow.cpp
++++ b/Source/Core/GeometryBoxShadow.cpp
+@@ -11,7 +11,7 @@
+ 
+ namespace Rml {
+ 
+-BoxShadowGeometryInfo GeometryBoxShadow::Resolve(Element* element, const CornerSizes& border_radius, ColourbPremultiplied background_color,
++BoxShadowGeometryInfo GeometryBoxShadow::Resolve(Element* element, ColourbPremultiplied background_color,
+ 	const Array<ColourbPremultiplied, 4>& border_colors, float opacity)
+ {
+ 	RMLUI_ZoneScoped;
+@@ -80,7 +80,6 @@ BoxShadowGeometryInfo GeometryBoxShadow::Resolve(Element* element, const CornerS
+ 	BoxShadowGeometryInfo geometry_info;
+ 	geometry_info.background_color = background_color;
+ 	geometry_info.border_colors = border_colors;
+-	geometry_info.border_radius = border_radius;
+ 	geometry_info.texture_dimensions = texture_dimensions;
+ 	geometry_info.element_offset_in_texture = element_offset_in_texture;
+ 	geometry_info.padding_render_boxes = std::move(padding_render_boxes);
+@@ -164,18 +163,17 @@ void GeometryBoxShadow::GenerateTexture(CallbackTexture& out_shadow_texture, Geo
+ 			const float spread_distance = shadow.spread_distance.number;
+ 			const float blur_radius = shadow.blur_radius.number;
+ 
+-			CornerSizes spread_radii = info.border_radius;
+-			for (int i = 0; i < 4; i++)
+-			{
+-				float& radius = spread_radii[i];
++			// Each axis of each corner is spread on its own, and each box carries its own radii since percentages resolve
++			// against the box.
++			auto spread_radius = [&](float radius) {
+ 				float spread_factor = (inset ? -1.f : 1.f);
+ 				if (radius < spread_distance)
+ 				{
+ 					const float ratio_minus_one = (radius / spread_distance) - 1.f;
+ 					spread_factor *= 1.f + ratio_minus_one * ratio_minus_one * ratio_minus_one;
+ 				}
+-				radius = Math::Max(radius + spread_factor * spread_distance, 0.f);
+-			}
++				return Math::Max(radius + spread_factor * spread_distance, 0.f);
++			};
+ 
+ 			Mesh mesh_shadow;
+ 
+@@ -184,6 +182,10 @@ void GeometryBoxShadow::GenerateTexture(CallbackTexture& out_shadow_texture, Geo
+ 			{
+ 				const float signed_spread_distance = (inset ? -spread_distance : spread_distance);
+ 				RenderBox render_box = (inset ? info.padding_render_boxes : info.border_render_boxes)[i];
++				CornerSizes2 spread_radii = render_box.GetBorderRadius();
++				for (Vector2f& radius : spread_radii)
++					radius = {spread_radius(radius.x), spread_radius(radius.y)};
++
+ 				render_box.SetFillSize(Math::Max(render_box.GetFillSize() + Vector2f(2.f * signed_spread_distance), Vector2f{0.001f}));
+ 				render_box.SetBorderRadius(spread_radii);
+ 				render_box.SetBorderOffset(render_box.GetBorderOffset() - Vector2f(signed_spread_distance));
+diff --git a/Source/Core/GeometryBoxShadow.h b/Source/Core/GeometryBoxShadow.h
+index e9c17442..2e736db2 100644
+--- a/Source/Core/GeometryBoxShadow.h
++++ b/Source/Core/GeometryBoxShadow.h
+@@ -9,7 +9,6 @@ using RenderBoxList = Vector<RenderBox>;
+ struct BoxShadowGeometryInfo {
+ 	ColourbPremultiplied background_color;
+ 	Array<ColourbPremultiplied, 4> border_colors;
+-	CornerSizes border_radius;
+ 	Vector2i texture_dimensions;
+ 	Vector2f element_offset_in_texture;
+ 	RenderBoxList padding_render_boxes;
+@@ -19,8 +18,7 @@ struct BoxShadowGeometryInfo {
+ };
+ inline bool operator==(const BoxShadowGeometryInfo& a, const BoxShadowGeometryInfo& b)
+ {
+-	return a.background_color == b.background_color && a.border_colors == b.border_colors && a.border_radius == b.border_radius &&
+-		a.texture_dimensions == b.texture_dimensions && a.element_offset_in_texture == b.element_offset_in_texture &&
++	return a.background_color == b.background_color && a.border_colors == b.border_colors && a.texture_dimensions == b.texture_dimensions && a.element_offset_in_texture == b.element_offset_in_texture &&
+ 		a.padding_render_boxes == b.padding_render_boxes && a.border_render_boxes == b.border_render_boxes && a.shadow_list == b.shadow_list &&
+ 		a.opacity == b.opacity;
+ }
+@@ -37,12 +35,11 @@ class GeometryBoxShadow {
+ public:
+ 	/// Resolve the element's properties into its box geometry info.
+ 	/// @param[in] element The element to resolve.
+-	/// @param[in] border_radius The border radius of the element.
+ 	/// @param[in] background_color The background colour of the element.
+ 	/// @param[in] border_colors The border colours of the element.
+ 	/// @param[in] opacity The computed opacity of the element.
+-	static BoxShadowGeometryInfo Resolve(Element* element, const CornerSizes& border_radius, ColourbPremultiplied background_color,
+-		const Array<ColourbPremultiplied, 4>& border_colors, float opacity);
++	static BoxShadowGeometryInfo Resolve(Element* element, ColourbPremultiplied background_color, const Array<ColourbPremultiplied, 4>& border_colors,
++		float opacity);
+ 
+ 	/// Generate the texture and geometry for a box shadow and including the element's background and border.
+ 	/// @param[out] out_shadow_texture The target texture, assumes pointer stability during the lifetime of the shadow geometry.
+diff --git a/Source/Core/MeshUtilities.cpp b/Source/Core/MeshUtilities.cpp
+index 3c4abb2c..3c6a3bf6 100644
+--- a/Source/Core/MeshUtilities.cpp
++++ b/Source/Core/MeshUtilities.cpp
+@@ -94,7 +94,7 @@ void MeshUtilities::GenerateBackgroundBorder(Mesh& out_mesh, const RenderBox& re
+ 
+ #if 0
+ 	// Debug draw vertices
+-	if (render_box.border_radius != CornerSizes{})
++	if (render_box.GetBorderRadius() != CornerSizes2{})
+ 	{
+ 		const int num_vertices = (int)vertices.size();
+ 		const int num_indices = (int)indices.size();
+diff --git a/Source/Core/PropertySpecification.cpp b/Source/Core/PropertySpecification.cpp
+index 9c965ff7..851f1013 100644
+--- a/Source/Core/PropertySpecification.cpp
++++ b/Source/Core/PropertySpecification.cpp
+@@ -232,6 +232,40 @@ bool PropertySpecification::ParsePropertyDeclaration(PropertyDictionary& diction
+ 	return true;
+ }
+ 
++/// Parses 'border-radius': one to four horizontal radii, then optionally '/' and one to four vertical radii. Without
++/// the slash the vertical radii are the horizontal ones, so every corner is a circle.
++static bool ParseBorderRadiusShorthand(PropertyDictionary& dictionary, const ShorthandDefinition& definition, const StringList& values)
++{
++	RMLUI_ASSERT(definition.items.size() == 8);
++
++	const auto slash = std::find(values.begin(), values.end(), "/");
++	const StringList horizontal(values.begin(), slash);
++	const StringList vertical = (slash == values.end() ? horizontal : StringList(slash + 1, values.end()));
++
++	if (horizontal.empty() || horizontal.size() > 4 || vertical.empty() || vertical.size() > 4 ||
++		(slash != values.end() && std::find(slash + 1, values.end(), "/") != values.end()))
++		return false;
++
++	// Which value each corner takes, ordered top-left, top-right, bottom-right, bottom-left, by the number declared.
++	static const int corner_to_value_index[4][4] = {{0, 0, 0, 0}, {0, 1, 0, 1}, {0, 1, 2, 1}, {0, 1, 2, 3}};
++
++	Property properties[8];
++	for (int corner = 0; corner < 4; corner++)
++	{
++		const String& x = horizontal[corner_to_value_index[horizontal.size() - 1][corner]];
++		const String& y = vertical[corner_to_value_index[vertical.size() - 1][corner]];
++
++		if (!definition.items[corner].property_definition->ParseValue(properties[corner], x) ||
++			!definition.items[4 + corner].property_definition->ParseValue(properties[4 + corner], y))
++			return false;
++	}
++
++	for (int i = 0; i < 8; i++)
++		dictionary.SetProperty(definition.items[i].property_id, properties[i]);
++
++	return true;
++}
++
+ bool PropertySpecification::ParseShorthandDeclaration(PropertyDictionary& dictionary, ShorthandId shorthand_id, const String& property_value) const
+ {
+ 	const ShorthandDefinition* shorthand_definition = GetShorthand(shorthand_id);
+@@ -242,10 +276,17 @@ bool PropertySpecification::ParseShorthandDeclaration(PropertyDictionary& dictio
+ 		(shorthand_definition->type == ShorthandType::RecursiveCommaSeparated ? SplitOption::Comma : SplitOption::Whitespace);
+ 
+ 	StringList property_values;
+-	ParsePropertyValues(property_values, property_value, split_option);
++	if (shorthand_definition->type == ShorthandType::BorderRadius)
++		// The slash may be written without spaces around it, as in '10px/20px'.
++		ParsePropertyValues(property_values, StringUtilities::Replace(property_value, "/", " / "), split_option);
++	else
++		ParsePropertyValues(property_values, property_value, split_option);
+ 	if (property_values.empty())
+ 		return false;
+ 
++	if (shorthand_definition->type == ShorthandType::BorderRadius)
++		return ParseBorderRadiusShorthand(dictionary, *shorthand_definition, property_values);
++
+ 	// Handle the special behavior of the flex shorthand first, otherwise it acts like 'FallThrough'.
+ 	if (shorthand_definition->type == ShorthandType::Flex && !property_values.empty())
+ 	{
+diff --git a/Source/Core/StyleSheetSpecification.cpp b/Source/Core/StyleSheetSpecification.cpp
+index 2817bc99..01d9f849 100644
+--- a/Source/Core/StyleSheetSpecification.cpp
++++ b/Source/Core/StyleSheetSpecification.cpp
+@@ -297,11 +297,23 @@ void StyleSheetSpecification::RegisterDefaultProperties()
+ 	RegisterShorthand(ShorthandId::BorderLeft, "border-left", "border-left-width, border-left-color", ShorthandType::FallThrough);
+ 	RegisterShorthand(ShorthandId::Border, "border", "border-top, border-right, border-bottom, border-left", ShorthandType::RecursiveRepeat);
+ 
+-	RegisterProperty(PropertyId::BorderTopLeftRadius, "border-top-left-radius", "0px", false, false).AddParser("length");
+-	RegisterProperty(PropertyId::BorderTopRightRadius, "border-top-right-radius", "0px", false, false).AddParser("length");
+-	RegisterProperty(PropertyId::BorderBottomRightRadius, "border-bottom-right-radius", "0px", false, false).AddParser("length");
+-	RegisterProperty(PropertyId::BorderBottomLeftRadius, "border-bottom-left-radius", "0px", false, false).AddParser("length");
+-	RegisterShorthand(ShorthandId::BorderRadius, "border-radius", "border-top-left-radius, border-top-right-radius, border-bottom-right-radius, border-bottom-left-radius", ShorthandType::Box);
++	// Each corner is an ellipse, so it has a horizontal and a vertical radius. Percentages resolve against the border box.
++	RegisterProperty(PropertyId::BorderTopLeftRadiusX, "border-top-left-radius-x", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxWidth);
++	RegisterProperty(PropertyId::BorderTopRightRadiusX, "border-top-right-radius-x", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxWidth);
++	RegisterProperty(PropertyId::BorderBottomRightRadiusX, "border-bottom-right-radius-x", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxWidth);
++	RegisterProperty(PropertyId::BorderBottomLeftRadiusX, "border-bottom-left-radius-x", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxWidth);
++	RegisterProperty(PropertyId::BorderTopLeftRadiusY, "border-top-left-radius-y", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxHeight);
++	RegisterProperty(PropertyId::BorderTopRightRadiusY, "border-top-right-radius-y", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxHeight);
++	RegisterProperty(PropertyId::BorderBottomRightRadiusY, "border-bottom-right-radius-y", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxHeight);
++	RegisterProperty(PropertyId::BorderBottomLeftRadiusY, "border-bottom-left-radius-y", "0px", false, false).AddParser("length_percent").SetRelativeTarget(RelativeTarget::BorderBoxHeight);
++	RegisterShorthand(ShorthandId::BorderTopLeftRadius, "border-top-left-radius", "border-top-left-radius-x, border-top-left-radius-y", ShorthandType::Replicate);
++	RegisterShorthand(ShorthandId::BorderTopRightRadius, "border-top-right-radius", "border-top-right-radius-x, border-top-right-radius-y", ShorthandType::Replicate);
++	RegisterShorthand(ShorthandId::BorderBottomRightRadius, "border-bottom-right-radius", "border-bottom-right-radius-x, border-bottom-right-radius-y", ShorthandType::Replicate);
++	RegisterShorthand(ShorthandId::BorderBottomLeftRadius, "border-bottom-left-radius", "border-bottom-left-radius-x, border-bottom-left-radius-y", ShorthandType::Replicate);
++	RegisterShorthand(ShorthandId::BorderRadius, "border-radius",
++		"border-top-left-radius-x, border-top-right-radius-x, border-bottom-right-radius-x, border-bottom-left-radius-x, "
++		"border-top-left-radius-y, border-top-right-radius-y, border-bottom-right-radius-y, border-bottom-left-radius-y",
++		ShorthandType::BorderRadius);
+ 
+ 	RegisterProperty(PropertyId::Display, "display", "inline", false, true)
+ 		.AddParser("keyword", "none, block, inline, inline-block, flow-root, flex, inline-flex, table, inline-table, table-row, table-row-group, table-column, table-column-group, table-cell");

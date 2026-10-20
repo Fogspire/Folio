@@ -59,11 +59,11 @@ A basis of `0` makes the item's hypothetical main size zero, and in a container 
 
 ## Round shapes
 
-There is no circle. Every element is a box and `border-radius` is the only curve, so a circle is a square box with a radius of half its width. Write the radius as a large number rather than as half the size: it is clamped to half whatever the box turns out to be, so one value stays correct when the size changes.
+There is no circle. Every element is a box and `border-radius` is the only curve, so a circle is a square box with `border-radius: 50%`. A percentage is of the box's own width horizontally and its height vertically, so `50%` on a box that is not square is an ellipse. For a capsule, whose ends stay round however long it gets, write a length past half the height instead: it is clamped to fit, so one value stays correct when the size changes. `a / b` gives the horizontal and vertical radii separately.
 
 ```css
 .badge { width: 46dp; height: 46dp; box-sizing: border-box; border: 3dp #241f2e;
-         border-radius: 200dp; background-color: #2e2839; }
+         border-radius: 50%; background-color: #2e2839; }
 ```
 
 A border is fine, and a bordered circle is a ring. That is worth stating because stock RmlUi cannot do it: it scales overlapping radii against the box *inside* the borders, so a bordered square stops rounding at `size / 2 - border` and keeps a flat edge on every side exactly as wide as the border: a squircle, and an obvious one at button size. `patches/RmlUi/0003-border-radius-clamp-against-border-box.patch` scales against the border box instead, which is what CSS Backgrounds 3 §5.5 specifies. **A Folio built without that patch cannot draw a bordered circle.**

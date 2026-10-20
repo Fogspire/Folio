@@ -24,7 +24,7 @@ This is the complete set. **A property not on this list does not exist.**
 
 **Flexbox**: fully supported, and the primary layout tool `flex` `flex-basis` `flex-direction` `flex-flow` `flex-grow` `flex-shrink` `flex-wrap` · `align-content` `align-items` `align-self` · `justify-content` · `gap` `row-gap` `column-gap`
 
-**Colour & surface** `color` · `background-color` · `background` (colour only) · `opacity` · `border-width` (+ per-edge) · `border-color` (+ per-edge) · `border` and `border-top`/`-right`/`-bottom`/`-left` (width + colour only) · `border-radius` (+ per-corner) · `box-shadow` · `image-color` · `decorator` · `mask-image` · `filter` · `backdrop-filter`
+**Colour & surface** `color` · `background-color` · `background` (colour only) · `opacity` · `border-width` (+ per-edge) · `border-color` (+ per-edge) · `border` and `border-top`/`-right`/`-bottom`/`-left` (width + colour only) · `border-radius` (+ per-corner, percentages, `/` for elliptical corners) · `box-shadow` · `image-color` · `decorator` · `mask-image` · `filter` · `backdrop-filter`
 
 **Text & fonts** `font` `font-family` `font-size` `font-style` `font-weight` `font-kerning` · `font-effect` · `text-align` `text-decoration` `text-transform` `text-overflow` · `letter-spacing` `line-height` · `white-space` `word-break`
 
@@ -88,7 +88,6 @@ RmlUi has no user-agent stylesheet, so these are the raw initial values every el
 - `font-family` accepts **one** family only, no fallback stack. A family name is one Folio registered, not a filename: the faces shipped with the plugin, anything the game drops in `UI/fonts/`, or a variable face registered under its own name with axes pinned
 - `font-weight` has no relative weights (`bolder`, `lighter`); use `normal`, `bold`, or 1–1000. On a variable face any value in that range is real: it drives the `wght` axis directly rather than snapping to the nearest cut. Values are quantised in steps of 50, so `375` and `425` are distinct instances and `375` and `380` are not
 - `font-style` has no `oblique`
-- `border-radius` takes lengths only: no percentages, no two-axis (`/`) radii
 - `position: fixed` behaves like `absolute` but ignores scrolling: it is not viewport-relative
 - `cursor` takes an application-defined string, not CSS keywords
 - **`rgba()`'s alpha channel is 0–255, not 0–1.** `rgba(0, 0, 0, 0.5)` parses to fully transparent. Write `#0000007f` instead: hex alpha is unambiguous, and `#rgb`, `#rgba`, `#rrggbb` and `#rrggbbaa` all work. `hsl()`, `hsla()`, `lab()`, `lch()`, `oklab()`, `oklch()` and the HTML colour names are also accepted
@@ -118,7 +117,7 @@ Flexbox is the primary tool. Absolute positioning is for anchoring a region, not
 
 **In a column flex container, `flex: 1 1 0` collapses the item.** A basis of `0` makes the item's hypothetical main size zero, and in a container with no definite height that becomes the container's height too, so a panel shrinks to its header and the body's content spills out below it. Use `flex: 1 1 auto` for vertical fills. `flex: 1 1 0` is correct on the horizontal axis, where it is how one cell absorbs the leftover width of a row.
 
-**A circle is a square box with a radius past half of it, and nothing else may touch its size.** Padding or an automatic width make the box wider than it is tall, and a lozenge that is nearly a circle reads as a bug. Centre the text with `line-height`. A border is fine and gives you a ring, but only because `patches/RmlUi/0003-border-radius-clamp-against-border-box.patch` scales overlapping radii against the border box as CSS specifies; stock RmlUi scales against the box inside the borders and can never round a bordered element past `size / 2 - border`. See `rcss/recipes/circle.rml`.
+**A circle is a square box with `border-radius: 50%`, and nothing else may touch its size.** Padding or an automatic width make the box wider than it is tall, and a lozenge that is nearly a circle reads as a bug. Centre the text with `line-height`. A border is fine and gives you a ring, but only because `patches/RmlUi/0003-border-radius-clamp-against-border-box.patch` scales overlapping radii against the border box as CSS specifies; stock RmlUi scales against the box inside the borders and can never round a bordered element past `size / 2 - border`. See `rcss/recipes/circle.rml`.
 
 **An `overflow: auto` container needs its scrollbar sized, or it destroys its own layout.** RmlUi ships no scrollbar styling, and an auto width on a scrollbar resolves to the container's full content width. The container lays out correctly right up until its content actually overflows, at which point the scrollbar takes everything and every child collapses to its own padding and border, with text inside anything `overflow: hidden` disappearing entirely. `folio.rcss` sets the geometry so this cannot happen. Do not override `scrollbarvertical`'s width with `auto`.
 

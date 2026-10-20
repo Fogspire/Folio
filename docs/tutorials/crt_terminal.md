@@ -18,7 +18,7 @@ The screen is an **oval**, wider than tall. The document is a **rectangle**, bec
 
 So the corners of the document simply are not on the mesh, and nothing may be laid out there. That is the constraint the whole layout is built around, and it is worth stating plainly because it is not obvious from looking at either the mesh or the markup.
 
-RCSS `border-radius` takes lengths only - **no percentages** - so you cannot make an ellipse by rounding a box. The oval is a radial falloff instead, which reads as glass on the mesh and as an oval on a flat surface.
+The oval is a radial falloff rather than `border-radius: 50%`: a hard edge would show on the mesh, and the falloff reads as glass there and as an oval on a flat surface.
 
 ```css
 body {

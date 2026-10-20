@@ -36,7 +36,7 @@ This is the complete set. **A property not on this list does not exist.**
 
 **Misc** `fill-image` (progress elements) · `scrollbar-margin`
 
-**At-rules:** `@spritesheet`, `@keyframes`, `@media`, `@decorator`. **That is the complete set**: there is no `@import` and no `@font-face`. See §10 for how stylesheets are composed without `@import`.
+**At-rules:** `@spritesheet`, `@keyframes`, `@media`, `@decorator`, `@import`, `@font-face`. **That is the complete set.** See §10 for `@import` and [text and fonts](docs/text_and_fonts.md) for `@font-face`.
 
 ### Defaults that differ from a browser
 
@@ -74,11 +74,8 @@ RmlUi has no user-agent stylesheet, so these are the raw initial values every el
 | `position: sticky` | `fixed` or `absolute` |
 | `::before` / `::after` / `content` | a real element |
 | `aspect-ratio`, `writing-mode`, `list-style-*`, `font-variant`, `font-stretch` | no equivalent: restructure |
-| `@import` | one `<link>` per stylesheet, or a single template link. See §10 |
-| `@font-face` | faces are registered by the host: `uipreview --font`, plugin settings in engine |
 | `calc()`, `clamp()`, `min()`, `max()` | precomputed values, or flexbox for proportional sizing |
 | `:has()` | restructure, or set a class from C++ |
-| `:disabled` on a generic element | a class such as `.is-disabled`. On a real form control it does work; see below |
 | `start` / `end` / `normal` in flex properties | `flex-start` / `flex-end` / `stretch` |
 
 **Value-level restrictions that are easy to miss:**
@@ -550,14 +547,16 @@ Without the second line an empty array and markup that failed to resolve are the
 
 ## 10. Stylesheet composition
 
-**RCSS has no `@import`.** A stylesheet cannot pull in another one. There are exactly two ways to get rules into a document:
+A stylesheet pulls in another with `@import`, resolved against the importing file:
 
-```html
-<link type="text/rcss" href="/UI/lib/button.rcss"/>   <!-- one per stylesheet -->
-<style> /* document-local rules */ </style>
+```css
+@import "buttons.rcss";
+@import url(/UI/lib/panels.rcss);
 ```
 
-Listing eight component stylesheets in every document is how this becomes unmaintainable, so use the one aggregation mechanism RmlUi does have: **a template's head is merged into any document that links it.**
+The imported rules come before anything after the `@import`, so the importing stylesheet wins at equal specificity. Put imports first. An import cycle, or an `@import` inside `@media`, is ignored with a warning.
+
+To give a document the whole library, link a template instead: **a template's head is merged into any document that links it.**
 
 ```html
 <link type="text/template" href="/UI/lib/lib.rml"/>

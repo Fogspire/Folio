@@ -1,0 +1,4 @@
+@import url(nested.rcss);
+
+.w { width: 200dp; }
+.p { width: 200dp; }

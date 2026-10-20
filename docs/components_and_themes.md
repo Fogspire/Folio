@@ -20,14 +20,7 @@ Keeping colour out of `lib/` is what makes the library usable by a game that doe
 
 ## Getting the library
 
-RCSS has **no `@import`**. A stylesheet cannot pull in another one. There are exactly two ways to get rules into a document:
-
-```html
-<link type="text/rcss" href="/UI/lib/button.rcss"/>   <!-- one per stylesheet -->
-<style> /* document-local rules */ </style>
-```
-
-Listing eight component stylesheets in every document is how this becomes unmaintainable, so use the one aggregation mechanism RmlUi has: **a template's head is merged into any document that links it.**
+**A template's head is merged into any document that links it**, and the library is a template:
 
 ```html
 <link type="text/template" href="/folio/lib/lib.rml"/>

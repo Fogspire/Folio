@@ -1,0 +1,27 @@
+<rml>
+<head>
+	<title>stylesheets</title>
+	<!-- @import order, a nested @import, @font-face and :disabled on a generic element. verify.py reads the widths and the focus order. -->
+	<link type="text/rcss" href="UI/stylesheets/main.rcss"/>
+	<style>
+		@font-face { font-family: "Fixture Mono"; src: url(../../../fonts/RobotoMono-Variable.ttf); font-weight: 100 900; }
+
+		body { font-family: Roboto; font-size: 18dp; color: #fff; background-color: #202028; padding: 24dp; nav: auto; }
+		div { display: block; margin-bottom: 6dp; }
+		.mono { font-family: "Fixture Mono"; }
+		.item { tab-index: auto; nav: vertical; background-color: #303040; padding: 4dp; }
+		.item:focus-visible { background-color: #4060c0; }
+		.item:disabled { color: #8a8a99; }
+	</style>
+</head>
+<body>
+	<div class="w" id="w" data-noloc>after the import: 300</div>
+	<div class="p" id="p" data-noloc>imported over nested: 200</div>
+	<div class="n" id="n" data-noloc>nested: 100</div>
+	<div class="mono" id="narrow" data-noloc>iiii</div>
+	<div class="mono" id="wide" data-noloc>WWWW</div>
+	<div class="item" id="first" autofocus data-noloc>first</div>
+	<div class="item" id="skipped" disabled data-noloc>disabled</div>
+	<div class="item" id="last" data-noloc>last</div>
+</body>
+</rml>

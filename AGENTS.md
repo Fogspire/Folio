@@ -6,7 +6,7 @@ You have been asked to build UI for a project that has this plugin. Read this pa
 
 **RmlUi is not a browser and RCSS is not CSS.** It is close enough that valid-looking CSS parses cleanly and then does nothing at all, with no warning:
 
-`display: grid` · `var()` and `--custom-properties` · `background-image` · `text-shadow` · `outline` · `calc()` · `::before` / `::after` / `content` · `aspect-ratio` · `position: sticky` · `@import` · `@font-face` · `object-fit` · `border-style` · `:has()`
+`display: grid` · `var()` and `--custom-properties` · `background-image` · `text-shadow` · `outline` · `calc()` · `::before` / `::after` / `content` · `aspect-ratio` · `position: sticky` · `object-fit` · `border-style` · `:has()`
 
 And these are wrong in ways that look right:
 
@@ -40,7 +40,7 @@ If the project has its own conventions document, it governs taste and this one g
 
 ### 3. Link the library in one line
 
-RCSS has no `@import`. A template's head merges into any document that links it, which is the only aggregation mechanism there is:
+A template's head merges into any document that links it, so one line brings in the whole library:
 
 ```html
 <link type="text/template" href="/folio/lib/lib.rml"/>

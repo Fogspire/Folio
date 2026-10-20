@@ -2,9 +2,8 @@
 <!--
 	Folio's component library in one link.
 
-	RCSS has no @import, so a stylesheet cannot pull in another one. A template's head is merged into
-	any document that links the template, which is the only aggregation mechanism RmlUi has. A
-	document writes:
+	A template's head is merged into any document that links the template, so one link brings in every
+	stylesheet below. A document writes:
 
 	Never write an angle-bracketed head, body or template tag inside this comment. The template loader
 	finds those three by raw text search before any XML parsing happens, so a mention inside a comment

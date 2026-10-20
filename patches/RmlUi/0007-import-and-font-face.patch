@@ -1,0 +1,396 @@
+From: Folio <folio@localhost>
+Subject: [PATCH] @import and @font-face
+
+RCSS has neither, so a stylesheet cannot pull in another one and a document cannot name the font
+file it is designed around: faces have to be registered by the host before the document loads.
+
+@import "file.rcss"; and @import url(file.rcss); parse the named stylesheet, resolved against the
+importing one, in place: its rules come before anything after the @import in the cascade. Import
+cycles are ignored with a warning, as is an @import inside @media.
+
+@font-face takes font-family, src, font-style and font-weight, with src resolved against the
+stylesheet. Faces are global to the library, so each family, style and weight is loaded once
+however many stylesheets declare it, and a second declaration naming a different file is ignored
+with a warning. A face the host registered first still wins its family. The file data is kept until
+the font engine has shut down, since a face loaded from memory may keep pointing into it.
+
+Removable once upstream supports @import and @font-face.
+
+diff --git a/Source/Core/Core.cpp b/Source/Core/Core.cpp
+index 78687ea2..1be5a1c7 100644
+--- a/Source/Core/Core.cpp
++++ b/Source/Core/Core.cpp
+@@ -176,6 +176,7 @@ void Shutdown()
+ 	StyleSheetSpecification::Shutdown();
+ 
+ 	font_interface->Shutdown();
++	StyleSheetParser::ReleaseFontFaces();
+ 
+ 	core_data->render_managers.clear();
+ 
+diff --git a/Source/Core/StyleSheetParser.cpp b/Source/Core/StyleSheetParser.cpp
+index 7412236f..7befbef0 100644
+--- a/Source/Core/StyleSheetParser.cpp
++++ b/Source/Core/StyleSheetParser.cpp
+@@ -1,6 +1,8 @@
+ #include "StyleSheetParser.h"
++#include "../../Include/RmlUi/Core/Core.h"
+ #include "../../Include/RmlUi/Core/Decorator.h"
+ #include "../../Include/RmlUi/Core/Factory.h"
++#include "../../Include/RmlUi/Core/FileInterface.h"
+ #include "../../Include/RmlUi/Core/Log.h"
+ #include "../../Include/RmlUi/Core/Profiling.h"
+ #include "../../Include/RmlUi/Core/PropertyDefinition.h"
+@@ -9,8 +11,11 @@
+ #include "../../Include/RmlUi/Core/StyleSheet.h"
+ #include "../../Include/RmlUi/Core/StyleSheetContainer.h"
+ #include "../../Include/RmlUi/Core/StyleSheetSpecification.h"
++#include "../../Include/RmlUi/Core/SystemInterface.h"
++#include "../../Include/RmlUi/Core/TypeConverter.h"
+ #include "ComputeProperty.h"
+ #include "ControlledLifetimeResource.h"
++#include "StreamFile.h"
+ #include "StyleSheetFactory.h"
+ #include "StyleSheetNode.h"
+ #include <algorithm>
+@@ -179,14 +184,124 @@ public:
+ 	}
+ };
+ 
++/*
++ * Font faces take descriptors rather than properties, and only four of them.
++ */
++class FontFacePropertyParser final : public AbstractPropertyParser {
++public:
++	String family;
++	String src;
++	Style::FontStyle style = Style::FontStyle::Normal;
++	Style::FontWeight weight = Style::FontWeight::Normal;
++
++	void Clear()
++	{
++		family.clear();
++		src.clear();
++		style = Style::FontStyle::Normal;
++		weight = Style::FontWeight::Normal;
++	}
++
++	bool Parse(const String& name, const String& value) override
++	{
++		if (name == "font-family")
++		{
++			family = StripQuotes(value);
++			return !family.empty();
++		}
++		if (name == "src")
++		{
++			src = ParseUrl(value);
++			return !src.empty();
++		}
++		if (name == "font-style")
++		{
++			if (value == "normal")
++				style = Style::FontStyle::Normal;
++			else if (value == "italic" || value == "oblique")
++				style = Style::FontStyle::Italic;
++			else
++				return false;
++			return true;
++		}
++		if (name == "font-weight")
++		{
++			StringList values;
++			StringUtilities::ExpandString(values, value, ' ');
++			if (values.size() == 2)
++			{
++				// A range, which is a variable face covering every weight in it.
++				weight = Style::FontWeight::Auto;
++				return true;
++			}
++			if (value == "normal")
++				weight = Style::FontWeight::Normal;
++			else if (value == "bold")
++				weight = Style::FontWeight::Bold;
++			else
++			{
++				const int number = std::atoi(value.c_str());
++				if (number < 1 || number > 1000)
++					return false;
++				weight = Style::FontWeight(number);
++			}
++			return true;
++		}
++		return false;
++	}
++
++	static String StripQuotes(const String& value)
++	{
++		if (value.size() >= 2 && (value.front() == '"' || value.front() == '\'') && value.back() == value.front())
++			return value.substr(1, value.size() - 2);
++		return value;
++	}
++
++	// The first of `url(path)`, `url("path")` or `"path"`, ignoring any format() hint or later fallback.
++	static String ParseUrl(const String& value)
++	{
++		String first = StringUtilities::StripWhitespace(value.substr(0, value.find(',')));
++		if (first.compare(0, 4, "url(") == 0)
++		{
++			const size_t close = first.find(')');
++			if (close == String::npos)
++				return String();
++			first = StringUtilities::StripWhitespace(first.substr(4, close - 4));
++		}
++		else
++		{
++			first = first.substr(0, first.find(' '));
++		}
++		return StripQuotes(first);
++	}
++};
++
+ struct StyleSheetParserData {
+ 	// The following parsers are reasonably heavy to initialize, so we construct them during library initialization.
+ 	SpritesheetPropertyParser spritesheet;
+ 	MediaQueryPropertyParser media_query;
++	FontFacePropertyParser font_face;
+ };
+ 
+ static ControlledLifetimeResource<StyleSheetParserData> style_sheet_property_parsers;
+ 
++struct LoadedFontFace {
++	String path;
++	Vector<byte> data;
++};
++
++// Font faces are global to the library, so a face declared by @font-face is loaded once, however many
++// stylesheets declare it. The data stays alive until the font engine has shut down, since a face loaded
++// from memory may keep pointing into it.
++static UnorderedMap<String, LoadedFontFace>& GetLoadedFontFaces()
++{
++	static UnorderedMap<String, LoadedFontFace> loaded_font_faces;
++	return loaded_font_faces;
++}
++
++// Deep enough for any real chain of imports, and stops one that imports itself through another file.
++static constexpr int max_import_depth = 32;
++
+ StyleSheetParser::StyleSheetParser()
+ {
+ 	line_number = 0;
+@@ -206,6 +321,11 @@ void StyleSheetParser::Shutdown()
+ 	style_sheet_property_parsers.Shutdown();
+ }
+ 
++void StyleSheetParser::ReleaseFontFaces()
++{
++	GetLoadedFontFaces().clear();
++}
++
+ static bool IsValidIdentifier(const String& str)
+ {
+ 	if (str.empty())
+@@ -517,7 +637,7 @@ bool StyleSheetParser::Parse(MediaBlockList& style_sheets, Stream* _stream, int
+ 	{
+ 		String pre_token_str;
+ 
+-		while (char token = FindAnyToken(pre_token_str, "{@}"))
++		while (char token = FindAnyToken(pre_token_str, state == State::AtRuleIdentifier ? "{@};" : "{@}"))
+ 		{
+ 			switch (state)
+ 			{
+@@ -639,6 +759,16 @@ bool StyleSheetParser::Parse(MediaBlockList& style_sheets, Stream* _stream, int
+ 						at_rule_name.clear();
+ 						state = State::Global;
+ 					}
++					else if (at_rule_identifier == "font-face")
++					{
++						auto& font_face_parser = style_sheet_property_parsers->font_face;
++						ReadProperties(font_face_parser);
++						LoadFontFace(font_face_parser.family, font_face_parser.src, font_face_parser.style, font_face_parser.weight);
++						font_face_parser.Clear();
++
++						at_rule_name.clear();
++						state = State::Global;
++					}
+ 					else if (at_rule_identifier == "media")
+ 					{
+ 						// complete the current "global" block if present and start a new block
+@@ -668,6 +798,36 @@ bool StyleSheetParser::Parse(MediaBlockList& style_sheets, Stream* _stream, int
+ 							stream_file_name.c_str(), line_number);
+ 					}
+ 				}
++				else if (token == ';')
++				{
++					const String at_rule_identifier = StringUtilities::StripWhitespace(pre_token_str.substr(0, pre_token_str.find(' ')));
++
++					if (at_rule_identifier != "import")
++					{
++						Log::Message(Log::LT_WARNING, "Invalid at-rule identifier '%s' found in stylesheet at %s:%d", at_rule_identifier.c_str(),
++							stream_file_name.c_str(), line_number);
++					}
++					else if (inside_media_block)
++					{
++						Log::Message(Log::LT_WARNING, "@import is not allowed inside @media, ignored. At %s:%d", stream_file_name.c_str(), line_number);
++					}
++					else
++					{
++						// The imported rules are earlier in the cascade than anything after the @import, so the block so far is
++						// completed before them and a new one is started after.
++						if (current_block.stylesheet)
++						{
++							PostprocessKeyframes(current_block.stylesheet->keyframes);
++							current_block.stylesheet->specificity_offset = rule_count;
++							style_sheets.push_back(std::move(current_block));
++							current_block = {};
++						}
++
++						ImportStyleSheet(style_sheets, pre_token_str.substr(at_rule_identifier.size()));
++					}
++
++					state = State::Global;
++				}
+ 				else
+ 				{
+ 					Log::Message(Log::LT_WARNING, "Invalid character '%c' found while parsing at-rule identifier in stylesheet at %s:%d", token,
+@@ -732,6 +892,96 @@ bool StyleSheetParser::Parse(MediaBlockList& style_sheets, Stream* _stream, int
+ 	return !style_sheets.empty();
+ }
+ 
++void StyleSheetParser::ImportStyleSheet(MediaBlockList& style_sheets, const String& import_rule)
++{
++	const String source_url = StringUtilities::Replace(stream->GetSourceURL().GetURL(), '|', ':');
++	const String path = FontFacePropertyParser::ParseUrl(StringUtilities::StripWhitespace(import_rule));
++	if (path.empty())
++	{
++		Log::Message(Log::LT_WARNING, "@import names no stylesheet at %s:%d", stream_file_name.c_str(), line_number);
++		return;
++	}
++
++	String joined_path;
++	GetSystemInterface()->JoinPath(joined_path, source_url, path);
++
++	Vector<String> chain = import_chain;
++	chain.push_back(source_url);
++	if (std::find(chain.begin(), chain.end(), joined_path) != chain.end() || (int)chain.size() > max_import_depth)
++	{
++		Log::Message(Log::LT_WARNING, "@import of '%s' imports itself, ignored. At %s:%d", path.c_str(), stream_file_name.c_str(), line_number);
++		return;
++	}
++
++	// Probed first, since StreamFile reports a missing file without saying what referred to it.
++	FileInterface* file_interface = GetFileInterface();
++	const FileHandle probe = file_interface->Open(joined_path);
++	if (!probe)
++	{
++		Log::Message(Log::LT_WARNING, "@import of '%s' could not be opened at %s:%d", path.c_str(), stream_file_name.c_str(), line_number);
++		return;
++	}
++	file_interface->Close(probe);
++
++	StreamFile file;
++	if (!file.Open(joined_path))
++		return;
++
++	StyleSheetParser imported;
++	imported.import_chain = std::move(chain);
++	imported.Parse(style_sheets, &file, 1);
++}
++
++void StyleSheetParser::LoadFontFace(const String& family, const String& src, Style::FontStyle style, Style::FontWeight weight)
++{
++	if (family.empty() || src.empty())
++	{
++		Log::Message(Log::LT_WARNING, "@font-face needs both font-family and src, ignored. At %s:%d", stream_file_name.c_str(), line_number);
++		return;
++	}
++
++	String path;
++	GetSystemInterface()->JoinPath(path, StringUtilities::Replace(stream->GetSourceURL().GetURL(), '|', ':'), src);
++
++	const String key = StringUtilities::ToLower(family) + '|' + ToString((int)style) + '|' + ToString((int)weight);
++	auto& loaded = GetLoadedFontFaces();
++	auto it = loaded.find(key);
++	if (it != loaded.end())
++	{
++		if (it->second.path != path)
++		{
++			Log::Message(Log::LT_WARNING,
++				"@font-face '%s' is already loaded from '%s', so '%s' is ignored. Font faces are global, not per document. At %s:%d",
++				family.c_str(), it->second.path.c_str(), path.c_str(), stream_file_name.c_str(), line_number);
++		}
++		return;
++	}
++
++	FileInterface* file_interface = GetFileInterface();
++	const FileHandle handle = file_interface->Open(path);
++	if (!handle)
++	{
++		Log::Message(Log::LT_WARNING, "@font-face '%s' could not open '%s' at %s:%d", family.c_str(), path.c_str(), stream_file_name.c_str(),
++			line_number);
++		return;
++	}
++
++	LoadedFontFace face;
++	face.path = path;
++	face.data.resize(file_interface->Length(handle));
++	const size_t read = file_interface->Read(face.data.data(), face.data.size(), handle);
++	file_interface->Close(handle);
++
++	if (face.data.empty() || read != face.data.size() || !Rml::LoadFontFace(face.data, family, style, weight))
++	{
++		Log::Message(Log::LT_WARNING, "@font-face '%s' could not load '%s' at %s:%d", family.c_str(), path.c_str(), stream_file_name.c_str(),
++			line_number);
++		return;
++	}
++
++	loaded.emplace(key, std::move(face));
++}
++
+ void StyleSheetParser::ParseProperties(PropertyDictionary& parsed_properties, const String& properties)
+ {
+ 	RMLUI_ASSERT(!stream);
+diff --git a/Source/Core/StyleSheetParser.h b/Source/Core/StyleSheetParser.h
+index b3268981..2884b43a 100644
+--- a/Source/Core/StyleSheetParser.h
++++ b/Source/Core/StyleSheetParser.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include "../../Include/RmlUi/Core/StyleSheetTypes.h"
++#include "../../Include/RmlUi/Core/StyleTypes.h"
+ #include "../../Include/RmlUi/Core/Types.h"
+ 
+ namespace Rml {
+@@ -44,6 +45,8 @@ public:
+ 	static void Initialise();
+ 	/// Reset property parsers.
+ 	static void Shutdown();
++	/// Releases the data of every face loaded by @font-face. Call after the font engine has shut down.
++	static void ReleaseFontFaces();
+ 
+ private:
+ 	/// Parses properties from the parse buffer.
+@@ -58,6 +61,12 @@ private:
+ 	/// @return The leaf node of the rule, or nullptr on parse failure.
+ 	static StyleSheetNode* ImportProperties(StyleSheetNode* node, const String& rule, const PropertyDictionary& properties, int rule_specificity);
+ 
++	/// Parses the stylesheet an @import names into the given list, after the blocks already in it.
++	void ImportStyleSheet(MediaBlockList& style_sheets, const String& import_rule);
++
++	/// Loads the face a @font-face block declares, unless one is already loaded for its family, style and weight.
++	void LoadFontFace(const String& family, const String& src, Style::FontStyle style, Style::FontWeight weight);
++
+ 	/// Attempts to parse a @keyframes block
+ 	bool ParseKeyframeBlock(KeyframesMap& keyframes_map, const String& identifier, const String& rules, const PropertyDictionary& properties);
+ 
+@@ -97,6 +106,9 @@ private:
+ 	String stream_file_name;
+ 	// Current line number we're parsing.
+ 	int line_number;
++
++	// The stylesheets that imported this one, outermost first.
++	Vector<String> import_chain;
+ };
+ 
+ } // namespace Rml

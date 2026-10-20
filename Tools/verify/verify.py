@@ -285,6 +285,35 @@ def main() -> int:
             else:
                 harness.ok(label)
 
+    # --- Stylesheets -------------------------------------------------------------------------
+
+    # @import, @font-face and :disabled come from RmlUi patches, so a pin moved without them would
+    # parse cleanly and quietly lose all three.
+    print("Stylesheets")
+    sheets_doc = tests_dir / "stylesheets.rml"
+    sheets_report = out / "stylesheets@1.metrics.json"
+    if not sheets_doc.is_file() or not sheets_report.is_file():
+        harness.fail("missing stylesheets.rml or its metrics report")
+    else:
+        entries = {entry["path"]: entry for entry in read_json(sheets_report)["text"]}
+        widths = {name: entries.get(f"#{name}", {}).get("rect", [0, 0, 0, 0])[2] for name in ("w", "p", "n")}
+        if widths != {"w": 300, "p": 200, "n": 100}:
+            harness.fail(f"@import cascade order is wrong: widths {widths}, expected 300, 200, 100")
+        else:
+            harness.ok("@import, nested and in cascade order")
+
+        narrow, wide = (entries.get(f"#{name}", {}).get("lines", [{}])[0].get("width") for name in ("narrow", "wide"))
+        if narrow is None or narrow != wide:
+            harness.fail(f"@font-face did not load a monospace face: 'iiii' is {narrow} wide and 'WWWW' {wide}")
+        else:
+            harness.ok("@font-face")
+
+        result = harness.run([str(sheets_doc), "--no-assets-wanted", "--keys", "down"])
+        if "focus-sequence: #last" not in result.stdout:
+            harness.fail("down from #first did not skip the disabled element")
+        else:
+            harness.ok(":disabled on a generic element leaves navigation")
+
     # --- Accessibility tree -----------------------------------------------------------------
 
     # What a screen reader is read out of, against a committed transcript. The engine builds its

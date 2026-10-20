@@ -6,7 +6,7 @@ The practical consequence is that **type scales freely**. One size-independent a
 
 ## Getting a face
 
-`font-family` accepts **one** family only. There is no fallback stack and there is no `@font-face` - faces are registered by the host.
+`font-family` accepts **one** family only. There is no fallback stack. Faces are registered by the host, or declared with `@font-face`.
 
 Folio bundles Inter and Roboto Mono, so `font-family: Inter` works in a new project with no setup. A game adds its own by dropping files in `UI/fonts/`; the preview takes `--font <path>`. **Once `UI/fonts/` has a face in it, the bundled two are not loaded** - a game with fonts of its own does not carry Folio's, so a document naming `Inter` there needs Inter in `UI/fonts/` too.
 
@@ -18,6 +18,18 @@ body { font-family: Inter; font-size: 16dp; }
 A family name is one Folio registered, not a filename. The faces come from the first of these that has any: `--font`, the game's `UI/fonts/`, the plugin's bundled faces, the engine's Roboto. They are alternatives, not a stack.
 
 **The bundled two are a floor, not the palette.** A screen with a voice of its own wants a face that has one, and [fonts.google.com](https://fonts.google.com) is an open-licensed library that covers most of them - fetch the `.ttf`, put it in `UI/fonts/`, ship the licence beside it. Designing around Inter because it is what is already there is the wrong reason to pick a typeface.
+
+### `@font-face`
+
+```css
+@font-face { font-family: "Hand"; src: url(fonts/hand.ttf); }
+@font-face { font-family: "Hand"; src: url(fonts/hand-bold.ttf); font-weight: bold; }
+@font-face { font-family: "Display"; src: url(fonts/display-variable.ttf); font-weight: 100 900; }
+```
+
+`src` resolves against the stylesheet. `font-weight` takes `normal`, `bold`, 1 to 1000, or a range for a variable file. `font-style` takes `normal` or `italic`.
+
+**Faces are global, not per document.** The first declaration of a family, style and weight is the one every document gets, for as long as the game runs. A later one naming a different file is ignored with a warning, which `--strict` fails on. A face of the same family, style and weight that the host registered first still wins.
 
 **Nothing renders at all until a family is named.** RCSS's initial `font-family` is empty, so a document with no family set is blank rather than wrong-looking.
 

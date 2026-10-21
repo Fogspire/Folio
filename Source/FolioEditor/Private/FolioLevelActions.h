@@ -36,6 +36,15 @@ namespace FolioLevelActions
 	void StageDocumentsUsedInLevel();
 
 	/**
+	 * Writes everything a packaged build needs from Folio to DefaultGame.ini, whatever level is open.
+	 *
+	 * The project's UI tree, the plugin's stylesheets and fonts, which documents link by their /folio/
+	 * paths, and a cook of the plugin's content, whose materials are loaded by path so the cooker never
+	 * finds them. Anything already covered is left as it is.
+	 */
+	void SetUpPackaging();
+
+	/**
 	 * Writes the CommonUI console variables a project running documents needs into DefaultEngine.ini.
 	 *
 	 * CommonUI's virtual pointer defaults on, and every part of it aims input at a software cursor

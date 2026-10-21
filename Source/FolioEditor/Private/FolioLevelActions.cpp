@@ -298,6 +298,80 @@ void FolioLevelActions::StageDocumentsUsedInLevel()
 		FText::AsNumber(Added.Num())), /*bFailed*/ false);
 }
 
+void FolioLevelActions::SetUpPackaging()
+{
+	UProjectPackagingSettings* Packaging = GetMutableDefault<UProjectPackagingSettings>();
+	if (!Packaging || !FFolioModule::IsAvailable())
+	{
+		return;
+	}
+
+	const FFolioModule& Folio = FFolioModule::Get();
+
+	TArray<FString> Roots;
+	Roots.Add(Folio.GetUiRoot());
+	if (!Folio.GetPluginRoot().IsEmpty())
+	{
+		Roots.Add(Folio.GetPluginRoot() / TEXT("rcss"));
+		Roots.Add(Folio.GetPluginRoot() / TEXT("fonts"));
+	}
+
+	TArray<FString> Added;
+	for (FString& Root : Roots)
+	{
+		FPaths::NormalizeDirectoryName(Root);
+		if (!FPaths::DirectoryExists(Root) || AlreadyStaged(*Packaging, Root))
+		{
+			continue;
+		}
+
+		FString Relative = Root;
+		FPaths::MakePathRelativeTo(Relative, *FPaths::ProjectContentDir());
+
+		FDirectoryPath Entry;
+		Entry.Path = Relative;
+		Packaging->DirectoriesToAlwaysStageAsUFS.Add(Entry);
+		Added.Add(FString::Printf(TEXT("Added (Path=\"%s\") to the packaging staging list."), *Relative));
+	}
+
+	const FString ContentMount = TEXT("/Folio");
+	const bool bCooked = Packaging->DirectoriesToAlwaysCook.ContainsByPredicate([&ContentMount](const FDirectoryPath& Cooked)
+	{
+		return Cooked.Path.Equals(ContentMount, ESearchCase::IgnoreCase);
+	});
+
+	if (!bCooked)
+	{
+		FDirectoryPath Entry;
+		Entry.Path = ContentMount;
+		Packaging->DirectoriesToAlwaysCook.Add(Entry);
+		Added.Add(FString::Printf(TEXT("Added (Path=\"%s\") to the directories always cooked."), *ContentMount));
+	}
+
+	if (Added.IsEmpty())
+	{
+		Notify(LOCTEXT("PackagingAlreadySet",
+			"Nothing to add: DefaultGame.ini already stages and cooks everything Folio needs."), /*bFailed*/ false);
+		return;
+	}
+
+	Packaging->TryUpdateDefaultConfigFile();
+
+	FMessageLog Log(FolioMessageLogName);
+	Log.NewPage(LOCTEXT("StagingPage", "Packaging"));
+	for (const FString& Line : Added)
+	{
+		Log.Info()->AddToken(FTextToken::Create(FText::FromString(Line)));
+	}
+
+	Log.Open(EMessageSeverity::Info, /*bForce*/ true);
+
+	Notify(FText::Format(
+		LOCTEXT("PackagingWritten",
+			"Added {0} packaging {0}|plural(one=entry,other=entries) to DefaultGame.ini."),
+		FText::AsNumber(Added.Num())), /*bFailed*/ false);
+}
+
 void FolioLevelActions::CheckStagedDirectories()
 {
 	if (!FFolioModule::IsAvailable())

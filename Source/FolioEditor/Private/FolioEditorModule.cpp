@@ -116,6 +116,15 @@ public:
 
 		Menu.BeginSection(TEXT("FolioProject"), LOCTEXT("FolioProjectSection", "This Project"));
 		Menu.AddMenuEntry(
+			LOCTEXT("SetUpPackaging", "Set Up Packaging"),
+			LOCTEXT("SetUpPackagingTip",
+				"Stages the project's UI tree and Folio's stylesheets and fonts, and cooks Folio's content, so "
+				"documents and their text are in a packaged build. Writes to DefaultGame.ini, leaving anything "
+				"already there alone."),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::SetUpPackaging)));
+
+		Menu.AddMenuEntry(
 			LOCTEXT("SetCommonUiCvars", "Set CommonUI Console Variables"),
 			LOCTEXT("SetCommonUiCvarsTip",
 				"Turns off CommonUI's virtual pointer, which aims the pad at a software cursor rather than "

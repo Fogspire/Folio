@@ -147,7 +147,7 @@ Run with `--strict` before you commit a document. It catches unreachable focus, 
 
 Documents, stylesheets, fonts and images are **files, not assets**. The cooker knows nothing about them, so unless you say otherwise they are simply absent from a package and every screen comes up empty in a build that worked in the editor.
 
-Mostly you do not have to do this by hand. The **Folio** button in the level editor toolbar has **Stage Documents Used In This Level**, which finds the directories the open level's documents live in and writes them to `DefaultGame.ini` for you. Run it once per level and it is done. Two things it will not do: the cook line for Folio's own content, and any directory no document in the level references: fonts you ship yourself, screens reached only from another map.
+You do not have to do this by hand. The **Folio** button in the level editor toolbar has **Set Up Packaging**, which writes every line below to `DefaultGame.ini` and leaves anything already there alone. **Stage Documents Used In This Level** covers the rest: it finds the directories the open level's documents live in, such as `/folio/examples/`, and stages those too.
 
 The whole of it, if you would rather write it yourself or need to know what the menu item produced:
 

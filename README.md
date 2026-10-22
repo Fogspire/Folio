@@ -276,6 +276,10 @@ Contributions are accepted only with the right for the author to relicense them,
 
 ## Changelog
 
+### 1.2.0
+* Studio: a project reopens with the documents it last had open
+* Editor: **Set Up Packaging** in the Folio toolbar menu stages the UI tree, stylesheets and fonts and cooks Folio's content
+
 ### 1.1.0
 * `border-radius` takes percentages and elliptical corners: `50%` on a square is a circle, `a / b` gives the vertical radii, and `border-top-left-radius: a b` sets one corner
 * `:disabled` is set from the `disabled` attribute on any element, which also takes it out of navigation and clicks

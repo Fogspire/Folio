@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 2,
-	"VersionName": "1.1.0",
+	"Version": 3,
+	"VersionName": "1.2.0",
 	"FriendlyName": "Folio",
 	"Description": "HTML/CSS-style UI for Unreal Engine 5. Build using markup, without unreal engine dependency. Text and vector art stays sharp at any size or DPI. Avoid TAA/TSR blurring and motion blur for crisp in-world UI. Project UI onto surfaces. Spatial navigation.",
 	"Category": "UI",

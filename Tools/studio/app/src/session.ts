@@ -321,7 +321,62 @@ export async function pickProject() {
 	if (root) await openProject(root);
 }
 
+/** The tabs open in each project, remembered so reopening it puts them back. */
+const OPEN_FILES_KEY = 'folio.studio.open:';
+
+interface OpenFiles {
+	files: string[];
+	active: string | null;
+	document: string | null;
+}
+
+/** Off while a project is opening, so its empty starting state does not overwrite what it remembered. */
+let rememberingOpenFiles = false;
+let rememberedOpenFiles: unknown[] = [];
+
+store.subscribe(() => {
+	const { project, openFiles, activeFile, document } = store.get();
+	const current = [project, openFiles, activeFile, document];
+	if (current.every((value, index) => value === rememberedOpenFiles[index])) return;
+	rememberedOpenFiles = current;
+	if (!project || !rememberingOpenFiles || host.testing) return;
+	const remembered: OpenFiles = { files: openFiles, active: activeFile, document };
+	localStorage.setItem(OPEN_FILES_KEY + key(project.root), JSON.stringify(remembered));
+});
+
+function loadOpenFiles(root: string): OpenFiles | null {
+	if (host.testing) return null;
+	try {
+		return JSON.parse(localStorage.getItem(OPEN_FILES_KEY + key(root)) ?? 'null');
+	} catch {
+		return null;
+	}
+}
+
+/** Reopens the tabs a project last had, skipping any whose file has gone. Returns its canvas document. */
+async function restoreOpenFiles(remembered: OpenFiles): Promise<string | null> {
+	const present = new Set<string>();
+	for (const file of remembered.files) {
+		if (await host.exists(file)) present.add(file);
+	}
+	for (const file of remembered.files) {
+		if (present.has(file)) await openFile(file);
+	}
+	return remembered.document && present.has(remembered.document) ? remembered.document : null;
+}
+
 export async function openProject(root: string, initialDocument: string | null = null) {
+	rememberingOpenFiles = false;
+	try {
+		await openProjectFiles(root, initialDocument);
+	} finally {
+		rememberingOpenFiles = true;
+		rememberedOpenFiles = [];
+		store.set({});
+	}
+}
+
+async function openProjectFiles(root: string, initialDocument: string | null) {
 	setStatus('Opening project…');
 	const project: ProjectInfo = await host.openProject(root);
 
@@ -345,10 +400,14 @@ export async function openProject(root: string, initialDocument: string | null =
 	setStatus('');
 	checkBuilds();
 
+	const remembered = loadOpenFiles(project.root);
+	const restored = remembered ? await restoreOpenFiles(remembered) : null;
 	const first = initialDocument
 		? (initialDocument.includes(':') || initialDocument.startsWith('/') ? initialDocument.replace(/\\/g, '/') : join(project.root, initialDocument))
-		: projectFiles.find((file) => extension(file) === '.rml');
+		: remembered ? restored : projectFiles.find((file) => extension(file) === '.rml');
 	if (first) await openDocument(first);
+	const { openFiles } = store.get();
+	if (remembered?.active && openFiles.includes(remembered.active) && extension(remembered.active) !== '.rml') store.set({ activeFile: remembered.active });
 }
 
 let opening = 0;

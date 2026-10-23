@@ -802,7 +802,7 @@ void UFolioWorldDocument::UpdateKeyboardFocus()
 
 	if (bWanted)
 	{
-		SFolioWorldFocus::Attach(Host.Get(), bFocusRequested);
+		SFolioWorldFocus::Attach(Host.Get(), bFocusRequested, FSimpleDelegate::CreateWeakLambda(this, [this] { OnBack.Broadcast(); }));
 	}
 	else
 	{

@@ -420,6 +420,15 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Folio")
 	FOnSurfaceChanged OnSurfaceChanged;
 
+	/**
+	 * The pad's back button while the document is focused, when nothing in the document consumed it.
+	 *
+	 * Escape is not reported here: it always falls through to the game, so the game's own binding for it still fires.
+	 */
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnWorldBack);
+	UPROPERTY(BlueprintAssignable, Category = "Folio|Input")
+	FOnWorldBack OnBack;
+
 	/** Every live world document, so a render pass can find them without walking the world. */
 	static const TArray<UFolioWorldDocument*>& GetLive();
 

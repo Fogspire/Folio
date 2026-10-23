@@ -28,7 +28,7 @@ void SFolioWorldFocus::Construct(const FArguments&, FFolioDocumentHost* InHost, 
 	SetVisibility(EVisibility::Visible);
 }
 
-void SFolioWorldFocus::Attach(FFolioDocumentHost* InHost, const bool bNavigates)
+void SFolioWorldFocus::Attach(FFolioDocumentHost* InHost, const bool bNavigates, FSimpleDelegate InOnBack)
 {
 	if (!InHost || !GEngine || !GEngine->GameViewport || !FSlateApplication::IsInitialized())
 	{
@@ -40,12 +40,14 @@ void SFolioWorldFocus::Attach(FFolioDocumentHost* InHost, const bool bNavigates)
 	if (SinkHost == InHost && Sink.IsValid())
 	{
 		Sink->bNavigates = bNavigates;
+		Sink->OnBack = MoveTemp(InOnBack);
 		return;
 	}
 
 	Detach(SinkHost);
 
 	Sink = SNew(SFolioWorldFocus, InHost, bNavigates);
+	Sink->OnBack = MoveTemp(InOnBack);
 	SinkHost = InHost;
 
 	GEngine->GameViewport->AddViewportWidgetContent(Sink.ToSharedRef(), TNumericLimits<int32>::Max());
@@ -233,7 +235,12 @@ FReply SFolioWorldFocus::OnKeyDown(const FGeometry&, const FKeyEvent& KeyEvent)
 		Nav != Rml::Input::KI_UNKNOWN)
 	{
 		Claimed.Add(KeyEvent.GetKey());
-		SendNavigation(Nav, Modifiers | Extra);
+		const bool bConsumed = SendNavigation(Nav, Modifiers | Extra);
+		// The pad's back that nothing in the document acted on is the game's to answer, as on the canvas.
+		if (Nav == Rml::Input::KI_ESCAPE && !bConsumed)
+		{
+			OnBack.ExecuteIfBound();
+		}
 		return FReply::Handled();
 	}
 

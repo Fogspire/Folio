@@ -27,8 +27,8 @@ public:
 
 	void Construct(const FArguments& InArgs, FFolioDocumentHost* InHost, bool bInNavigates);
 
-	/** Puts the sink in the viewport and gives it focus. */
-	static void Attach(FFolioDocumentHost* InHost, bool bNavigates);
+	/** Puts the sink in the viewport and gives it focus. OnBack runs for a back press the document did not consume. */
+	static void Attach(FFolioDocumentHost* InHost, bool bNavigates, FSimpleDelegate InOnBack = FSimpleDelegate());
 	static void Detach(const FFolioDocumentHost* InHost);
 
 	/**
@@ -87,6 +87,8 @@ private:
 	bool bNavigates = false;
 
 	Folio::FAnalogNavigator Analog;
+
+	FSimpleDelegate OnBack;
 
 	/**
 	 * Keys whose press this took, so only their release is taken too.

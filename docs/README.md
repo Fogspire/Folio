@@ -24,6 +24,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[Rich text, terms and the typewriter](rich_text.md)** | `<text>`: emphasis inside a translatable line, names shared across the game, and dialogue that types itself out. |
 | **[Images and sprites](images.md)** | Spritesheets, the image decorator's fit modes, ninepatch, and when a PNG is the right answer. |
 | **[Vector art](vectors.md)** | SVG baked to distance fields: infinitely scalable icons, the colour-layer stack, and what a field cannot represent. |
+| **[Line graphs](line_graph.md)** | `<line-graph>`: a smooth, per-point coloured line for live readings, with a dot on the newest and an average line. |
 | **[Animation](animation.md)** | Transitions, keyframes, what is cheap to animate and what will cost you frames. |
 | **[The shader decorator](shader_decorator.md)** | Additive blending, scanlines and sweeps - the effects RCSS has no syntax for. |
 | **[Drifting motes](motes.md)** | Atmosphere behind a menu, in six quads and no particle system. |

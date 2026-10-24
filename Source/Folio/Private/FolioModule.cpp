@@ -4,6 +4,7 @@
 #include "FolioInsights.h"
 
 #include "FolioCore/FolioDecorators.h"
+#include "FolioCore/FolioLineGraph.h"
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
@@ -108,6 +109,7 @@ void FFolioModule::StartupModule()
 	Folio::RegisterFolioFontEffects();
 	Folio::RegisterFolioFilters();
 	Folio::RegisterFolioDecorators();
+	Folio::RegisterFolioLineGraph();
 	Folio::Text::RegisterFolioText();
 
 	// Folio owns no sound assets, so a revealed character is reported and nothing is played. The
@@ -183,6 +185,7 @@ void FFolioModule::ShutdownModule()
 	Folio::FTermTables::Get().Clear();
 	Folio::ReleaseFolioFontEffects();
 	Folio::ReleaseFolioDecorators();
+	Folio::ReleaseFolioLineGraph();
 	Folio::ReleaseFolioFilters();
 
 	// The font engine's atlases release their pages into the render interface, so it goes first.

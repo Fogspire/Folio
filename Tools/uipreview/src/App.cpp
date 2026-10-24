@@ -22,6 +22,7 @@
 #include "FolioCore/FolioCoreVersion.h"
 #include "FolioCore/FolioHost.h"
 #include "FolioCore/FolioDecorators.h"
+#include "FolioCore/FolioLineGraph.h"
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
@@ -74,6 +75,7 @@ App::~App()
 	// RmlUi holds raw pointers to the instancers, so they only go once it has shut down.
 	Folio::ReleaseFolioFontEffects();
 	Folio::ReleaseFolioDecorators();
+	Folio::ReleaseFolioLineGraph();
 	Folio::ReleaseFolioFilters();
 	Folio::Text::ReleaseFolioText();
 
@@ -233,6 +235,7 @@ bool App::Initialise()
 	Folio::RegisterFolioFontEffects();
 	Folio::RegisterFolioFilters();
 	Folio::RegisterFolioDecorators();
+	Folio::RegisterFolioLineGraph();
 	Folio::Text::RegisterFolioText();
 
 	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));

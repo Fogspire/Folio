@@ -471,6 +471,54 @@
 				"number"
 			]
 		},
+		"graph-average-color": {
+			"default": "#ffffff5a",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"color"
+			]
+		},
+		"graph-dot-size": {
+			"default": "6dp",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"length"
+			]
+		},
+		"graph-high-color": {
+			"default": "#57d38c",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"color"
+			]
+		},
+		"graph-line-width": {
+			"default": "2dp",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"length"
+			]
+		},
+		"graph-low-color": {
+			"default": "#e5534b",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"color"
+			]
+		},
+		"graph-mid-color": {
+			"default": "#4ea1f3",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"color"
+			]
+		},
 		"height": {
 			"default": "auto",
 			"inherited": false,
@@ -1260,6 +1308,7 @@
 		"img",
 		"input",
 		"label",
+		"line-graph",
 		"progress",
 		"progressbar",
 		"select",

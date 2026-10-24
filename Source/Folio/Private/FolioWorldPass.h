@@ -87,6 +87,8 @@ private:
 		bool bAlwaysOnTop = false;
 		/** See UFolioWorldDocument::bBehindTranslucency. */
 		bool bBehindTranslucency = false;
+		/** See UFolioWorldDocument::bAfterPostProcessMaterials. */
+		bool bAfterMaterials = false;
 	};
 
 	/**
@@ -149,8 +151,9 @@ private:
 		FVector4f SceneColourAfterRect = FVector4f(0.0f, 0.0f, 1.0f, 1.0f);
 	};
 
+	/** Draws the after-tonemap surfaces that go on one side of the post process materials. */
 	FScreenPassTexture Draw(FRDGBuilder& GraphBuilder, const FSceneView& View,
-		const FPostProcessMaterialInputs& Inputs);
+		const FPostProcessMaterialInputs& Inputs, bool bAfterMaterials);
 
 	/** Adds one surface's draws. Called per surface rather than per frame so each gets its own transform. */
 	void AddSurface(FRDGBuilder& GraphBuilder, const FSceneView& View, const FSurface& Surface,
@@ -158,6 +161,9 @@ private:
 
 	/** Whether any collected surface wants the given route, so a pass is only added when there is work. */
 	bool HasSurfaces(bool bInScene) const;
+
+	/** Whether any after-tonemap surface draws on that side of the post process materials. */
+	bool HasAfterTonemapSurfaces(bool bAfterMaterials) const;
 
 	/**
 	 * What the render thread is drawing. Never touched from the game thread.

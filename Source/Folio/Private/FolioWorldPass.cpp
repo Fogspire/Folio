@@ -76,6 +76,12 @@ bool FFolioWorldPass::HasSurfaces(const bool bInScene) const
 		[bInScene](const FSurface& Surface) { return Surface.bInScene == bInScene; });
 }
 
+bool FFolioWorldPass::HasAfterTonemapSurfaces(const bool bAfterMaterials) const
+{
+	return RenderSurfaces.IsValid() && RenderSurfaces->ContainsByPredicate(
+		[bAfterMaterials](const FSurface& Surface) { return !Surface.bInScene && Surface.bAfterMaterials == bAfterMaterials; });
+}
+
 void FFolioWorldPass::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	// Collected here because this is the last point on the game thread where a component can safely be
@@ -120,6 +126,7 @@ void FFolioWorldPass::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 			Surface.bInScene = Document->DrawMode == EFolioWorldDrawMode::InScene;
 			Surface.bAlwaysOnTop = Document->bAlwaysOnTop;
 			Surface.bBehindTranslucency = Document->bBehindTranslucency;
+			Surface.bAfterMaterials = Document->bAfterPostProcessMaterials;
 			Document->GetSurface(Surface.Centre, Surface.Right, Surface.Up);
 		}
 	}
@@ -138,13 +145,16 @@ void FFolioWorldPass::SubscribeToPostProcessingPass(const EPostProcessingPass Pa
 	FPostProcessingPassDelegateArray& InOutPassCallbacks, const bool)
 {
 	// Tonemap is BL_SceneColorAfterTonemapping, which is after the temporal resolve. That is the whole
-	// point: subscribing anywhere earlier would put the document back inside TAA.
-	if (Pass != EPostProcessingPass::Tonemap || !HasSurfaces(/*bInScene*/ false))
+	// point: subscribing anywhere earlier would put the document back inside TAA. The materials at that
+	// location run after its callbacks, and the depth of field visualisation's callbacks are the first after
+	// them; those run even with the visualisation off.
+	const bool bAfterMaterials = Pass == EPostProcessingPass::VisualizeDepthOfField;
+	if ((Pass != EPostProcessingPass::Tonemap && !bAfterMaterials) || !HasAfterTonemapSurfaces(bAfterMaterials))
 	{
 		return;
 	}
 
-	InOutPassCallbacks.Add(FPostProcessingPassDelegate::CreateRaw(this, &FFolioWorldPass::Draw));
+	InOutPassCallbacks.Add(FPostProcessingPassDelegate::CreateRaw(this, &FFolioWorldPass::Draw, bAfterMaterials));
 }
 
 void FFolioWorldPass::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View,
@@ -288,7 +298,7 @@ void FFolioWorldPass::DrawInScene(FRDGBuilder& GraphBuilder, const FSceneView& V
 }
 
 FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FSceneView& View,
-	const FPostProcessMaterialInputs& Inputs)
+	const FPostProcessMaterialInputs& Inputs, const bool bAfterMaterials)
 {
 	// The scene colour texture itself, not a copy of it. CopyFromSlice allocates a new texture, and
 	// returning that from this pass replaced scene colour in the post chain with something the scene had
@@ -431,7 +441,7 @@ FScreenPassTexture FFolioWorldPass::Draw(FRDGBuilder& GraphBuilder, const FScene
 	{
 		for (const FSurface& Surface : *RenderSurfaces)
 		{
-			if (!Surface.bInScene && Surface.bAlwaysOnTop == bOnTop)
+			if (!Surface.bInScene && Surface.bAfterMaterials == bAfterMaterials && Surface.bAlwaysOnTop == bOnTop)
 			{
 				AddSurface(GraphBuilder, View, Surface, ViewProjection, Target);
 			}

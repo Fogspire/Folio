@@ -137,6 +137,14 @@ public:
 	bool bBehindTranslucency = false;
 
 	/**
+	 * After tonemap only: drawn after the after-tonemap post process materials rather than before them, so a
+	 * fade or vignette made by one never covers this document. For a menu over the game, not for a screen that
+	 * belongs in the world.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	bool bAfterPostProcessMaterials = false;
+
+	/**
 	 * Surface mode only: the largest the offscreen target may be, as a multiple of the document's size.
 	 *
 	 * The target is sized from how large the surface lands on screen, so walking up to it sharpens it

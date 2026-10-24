@@ -265,3 +265,4 @@ UI/
 - **Do not report a screen as finished without running `--strict`.** A clean-looking render proves almost nothing here.
 - **Do not invent properties.** If it is not in UI_CONVENTIONS.md §1, it does not exist and will not warn.
 - **Do not animate layout properties.** It is the one way to make Folio slower than the UMG it replaced.
+- **Do not trust an editor run for bindings.** Outside the editor an FName keeps whichever spelling was interned first, so a UPROPERTY or UFUNCTION named `Position` can come back as `position` in a packaged build. Struct members inside arrays (`Rows[i].Position`) match case-insensitively for this reason. Top-level view-model properties and commands are still matched as spelled, so a packaged build logging `Could not get value from data variable` or an unknown event names one that lost its case: rename it to something no other code interns in another case. Test bindings in a packaged build before calling them done.

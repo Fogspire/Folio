@@ -6,6 +6,7 @@
 #include "UObject/UnrealType.h"
 
 #include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/StringUtilities.h>
 
 namespace
 {
@@ -372,7 +373,9 @@ struct FFolioObjectModel::FDefinitions
 	{
 		for (TUniquePtr<FLeaf>& Leaf : Members)
 		{
-			if (Leaf->Name == Address.name)
+			// A property's name is an FName, which outside the editor keeps whichever spelling was created first:
+			// `Position` comes back as `position` when something interned that earlier.
+			if (Rml::StringUtilities::StringCompareCaseInsensitive(Leaf->Name, Address.name))
 			{
 				return Leaf->Members.IsEmpty()
 					? Rml::DataVariable(&Mirror, &Leaf->Value)

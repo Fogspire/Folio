@@ -134,7 +134,9 @@ bool SFolioWorldFocus::SendNavigation(const Rml::Input::KeyIdentifier Key, const
 
 	// Down and up together. RmlUi navigates on the press, but an element left thinking a key is still
 	// held misbehaves the next time the same key arrives.
-	const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+	const Rml::Element* Before = Context->GetFocusElement();
+	bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+	bConsumed |= Folio::WrapNavigation(*Context, Key, Before);
 	Context->ProcessKeyUp(Key, Modifiers);
 	return bConsumed;
 }
@@ -215,7 +217,9 @@ FReply SFolioWorldFocus::OnKeyDown(const FGeometry&, const FKeyEvent& KeyEvent)
 			return FReply::Unhandled();
 		}
 
-		const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+		const Rml::Element* Before = Context->GetFocusElement();
+		bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+		bConsumed |= bArrow && !IsTakingText() && Folio::WrapNavigation(*Context, Key, Before);
 		if (bConsumed || bClaimed)
 		{
 			Claimed.Add(KeyEvent.GetKey());

@@ -24,7 +24,49 @@ namespace
 		TEXT("The east face button confirms and the south one goes back, rather than the reverse."),
 		ECVF_Default);
 
+	TAutoConsoleVariable<int32> CVarNavWrap(TEXT("folio.Nav.Wrap"), 1,
+		TEXT("Navigating past the end of a list wraps to its other end."),
+		ECVF_Default);
+
 	FSimpleMulticastDelegate ConfirmButtonChanged;
+
+	/**
+	 * Whether an element's nav property lets it navigate along an axis without naming a target. `nav: vertical` sets
+	 * all four directions to vertical, which RmlUi reads as auto for up and down and none for left and right.
+	 */
+	bool NavSearches(Rml::Element& Element, const Rml::PropertyId Axis)
+	{
+		const Rml::Property* Nav = Element.GetLocalProperty(Axis);
+		if (!Nav || Nav->unit != Rml::Unit::KEYWORD)
+		{
+			return false;
+		}
+		const bool bVertical = Axis == Rml::PropertyId::NavUp || Axis == Rml::PropertyId::NavDown;
+		switch (static_cast<Rml::Style::Nav>(Nav->Get<int>()))
+		{
+			case Rml::Style::Nav::Auto:       return true;
+			case Rml::Style::Nav::Horizontal: return !bVertical;
+			case Rml::Style::Nav::Vertical:   return bVertical;
+			default:                          return false;
+		}
+	}
+
+	void CollectNavigable(Rml::Element& Root, const Rml::PropertyId Axis, TArray<Rml::Element*>& Out)
+	{
+		for (int i = 0; i < Root.GetNumChildren(); ++i)
+		{
+			Rml::Element* Child = Root.GetChild(i);
+			if (!Child->IsVisible() || Child->GetComputedValues().focus() == Rml::Style::Focus::None)
+			{
+				continue;
+			}
+			if (Child->GetComputedValues().tab_index() == Rml::Style::TabIndex::Auto && NavSearches(*Child, Axis))
+			{
+				Out.Add(Child);
+			}
+			CollectNavigable(*Child, Axis, Out);
+		}
+	}
 
 	/// Registered once, so the console and a settings screen both reach the same notification.
 	void EnsureConfirmCallback()
@@ -316,5 +358,72 @@ namespace Folio
 
 		Countdown = RepeatInterval;
 		return Direction;
+	}
+
+	bool WrapNavigation(Rml::Context& Context, const Rml::Input::KeyIdentifier Key, const Rml::Element* Before)
+	{
+		using namespace Rml::Input;
+
+		Rml::Element* Focus = Context.GetFocusElement();
+		if (CVarNavWrap.GetValueOnAnyThread() == 0 || !Focus || Focus != Before)
+		{
+			return false;
+		}
+
+		Rml::PropertyId Axis;
+		switch (Key)
+		{
+			case KI_UP:    Axis = Rml::PropertyId::NavUp;    break;
+			case KI_DOWN:  Axis = Rml::PropertyId::NavDown;  break;
+			case KI_LEFT:  Axis = Rml::PropertyId::NavLeft;  break;
+			case KI_RIGHT: Axis = Rml::PropertyId::NavRight; break;
+			default:       return false;
+		}
+		if (!NavSearches(*Focus, Axis))
+		{
+			return false;
+		}
+
+		TArray<Rml::Element*> Candidates;
+		const Rml::ElementDocument* Document = Focus->GetOwnerDocument();
+		for (Rml::Element* Group = Focus->GetParentNode(); Group && Candidates.Num() < 2; Group = Group->GetParentNode())
+		{
+			Candidates.Reset();
+			CollectNavigable(*Group, Axis, Candidates);
+			if (Group == Document)
+			{
+				break;
+			}
+		}
+
+		const auto Centre = [](Rml::Element* Element)
+		{
+			return Element->GetAbsoluteOffset(Rml::BoxArea::Border) + Element->GetBox().GetSize(Rml::BoxArea::Border) * 0.5f;
+		};
+		const bool bVertical = Key == KI_UP || Key == KI_DOWN;
+		// The far end lies the other way: pressing up wraps to the lowest, nearest across.
+		const float Sign = Key == KI_UP || Key == KI_LEFT ? 1.0f : -1.0f;
+		const Rml::Vector2f From = Centre(Focus);
+		Rml::Element* Best = nullptr;
+		float BestAlong = 0.0f;
+		float BestAcross = 0.0f;
+		for (Rml::Element* Candidate : Candidates)
+		{
+			const Rml::Vector2f At = Centre(Candidate);
+			const float Along = Sign * (bVertical ? At.y : At.x);
+			const float Across = FMath::Abs(bVertical ? At.x - From.x : At.y - From.y);
+			if (!Best || Along > BestAlong + 1.0f || (Along > BestAlong - 1.0f && Across < BestAcross))
+			{
+				Best = Candidate;
+				BestAlong = Along;
+				BestAcross = Across;
+			}
+		}
+		if (!Best || Best == Focus || !Best->Focus(true))
+		{
+			return false;
+		}
+		Best->ScrollIntoView(Rml::ScrollIntoViewOptions(Rml::ScrollAlignment::Nearest));
+		return true;
 	}
 }

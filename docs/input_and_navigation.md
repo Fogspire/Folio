@@ -96,6 +96,10 @@ Make the background inert for as long as the dialog is up:
 
 Note that `focus: none` also suppresses `click`, because a click is dispatched to the nearest *focusable* ancestor rather than to what was under the cursor - so a `focus: none` element silently forwards its clicks to whatever contains it. `mousedown`, `mouseup`, `mouseover` and `:hover` still fire on it.
 
+## Wrapping
+
+Pressing past the end of a list wraps to its other end: up on the top row lands on the bottom one. It applies where the focused element's `nav-up`/`nav-down`/`nav-left`/`nav-right` is `auto`, or `vertical`/`horizontal` along that axis (what `nav: vertical` and `nav: horizontal` set), and RmlUi found nothing that way. The wrap stays among the navigable elements of the nearest ancestor that holds any. An explicit `none` or `#id` is left alone, so set `nav-up: none` to stop at an end, or name the far element to wrap a hand-wired row. `folio.Nav.Wrap 0` turns it off.
+
 ## Switching schemes off
 
 Each scheme is a switch, settable from `DefaultEngine.ini` or the console with no rebuild:

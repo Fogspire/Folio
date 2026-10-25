@@ -918,7 +918,9 @@ FReply SFolioCanvas::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& Key
 			return FReply::Unhandled();
 		}
 
-		const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+		const Rml::Element* Before = Context->GetFocusElement();
+		bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+		bConsumed |= bArrow && !IsTakingText() && Folio::WrapNavigation(*Context, Key, Before);
 
 		// Escape falls through by default, because it is how a document that has gone wrong gets
 		// closed and how PIE gets stopped. A game that has bound the back action has said it will
@@ -1188,7 +1190,8 @@ bool SFolioCanvas::SendNavigation(const Rml::Input::KeyIdentifier Key, const int
 	// still held misbehaves the next time the same key arrives.
 	const Rml::Element* Before = Context->GetFocusElement();
 
-	const bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+	bool bConsumed = !Context->ProcessKeyDown(Key, Modifiers);
+	bConsumed |= Folio::WrapNavigation(*Context, Key, Before);
 	Context->ProcessKeyUp(Key, Modifiers);
 
 	static const IConsoleVariable* TraceVar =

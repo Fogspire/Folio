@@ -33,6 +33,7 @@ Type `folio.` in the console and Unreal will complete the rest.
 | | |
 |---|---|
 | `folio.Nav.Arrows` `folio.Nav.WASD` `folio.Nav.IJKL` `folio.Nav.Gamepad` | Each scheme on or off. A game that binds WASD to movement while a HUD is up wants that one off. |
+| `folio.Nav.Wrap [0\|1]` | Navigating past the end of a list wraps to its other end. On by default. |
 | `folio.Nav.SwapConfirmBack [0\|1]` | Swaps which face button confirms. Changes what the two buttons *do* and updates every open document in the same frame. |
 | `folio.Nav.Bind <key> <action>` | Binds a key at runtime. Actions: `Up`, `Down`, `Left`, `Right`, `Confirm`, `Back`, `NextTab`, `PreviousTab`, or `None` to unbind. |
 | `folio.Nav.Bindings` | What every action currently answers to. |

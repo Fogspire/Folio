@@ -47,6 +47,18 @@ namespace Folio
 	TArray<FKey> DefaultKeysForAction(EFolioNavAction Action);
 
 	/**
+	 * Wraps a directional press that RmlUi could not move focus on, so up from the top of a list lands on its bottom.
+	 *
+	 * Call after the press has been processed, with the element that had focus before it. Wraps only when that
+	 * element still has focus and its nav property for the direction is auto: an explicit none or #id is the
+	 * document's own answer. The wrap stays among the navigable elements of the nearest ancestor holding any, and
+	 * takes the one furthest the other way. folio.Nav.Wrap switches it off.
+	 *
+	 * @return Whether focus moved.
+	 */
+	bool WrapNavigation(Rml::Context& Context, Rml::Input::KeyIdentifier Key, const Rml::Element* Before);
+
+	/**
 	 * Whether the arrow keys navigate.
 	 *
 	 * Arrows reach RmlUi through ToRmlKey rather than ToNavigationKey, because they mean

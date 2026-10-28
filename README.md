@@ -276,6 +276,9 @@ Contributions are accepted only with the right for the author to relicense them,
 
 ## Changelog
 
+### 1.3.1
+* `build_ue_libs.sh`: the engine FreeType path follows `--engine-dir`, so rebuilding against another engine no longer needs `--clean`
+
 ### 1.3.0
 * `<line-graph>`: a line coloured per point between low, mid and high tones, with a dot on the newest point and an average line; see [docs/line_graph.md](docs/line_graph.md)
 * World documents drawn after tonemap can set `bAfterPostProcessMaterials` to draw over the after-tonemap post process materials, so a fade or vignette never covers a menu

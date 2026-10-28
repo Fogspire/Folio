@@ -11,7 +11,13 @@ UE5.8+ supporting both Deferred Rendering and Forward Rendering.
 
 ## Showcase
 
-_Coming Soon_
+_Placeholder showcase items - something better coming soon_
+
+https://github.com/user-attachments/assets/99d463db-cf0a-4f49-a49e-746acc4db9af
+
+https://github.com/user-attachments/assets/b95b546c-987c-4be1-976e-4d67f961374c
+
+<img width="1586" height="993" alt="electron_2026-10-17_15-38-03" src="https://github.com/user-attachments/assets/67319505-389a-4715-9e3d-f6a778825209" />
 
 _Released a game using Folio? Get in touch and it may appear here_
 
@@ -46,6 +52,10 @@ Two other modes put it in the scene to take post-processing if desired.
 https://github.com/user-attachments/assets/19c0910f-c940-40cd-a8e8-3668150aa3a3
 
 ### Surface-Projected UI
+
+https://github.com/user-attachments/assets/43d779a1-2c42-46e6-862f-0fa27a34dcd6
+
+
 
 Documents can be projected onto the surface of a mesh, with input enabled, so that CRT monitor the player can actually use? Already sorted as a byproduct of a proper tech foundation: [CRT terminal tutorial](docs/tutorials/crt_terminal.md)
 

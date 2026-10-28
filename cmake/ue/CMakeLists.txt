@@ -96,13 +96,18 @@ elseif(FOLIO_UE_PLATFORM STREQUAL "Linux")
 else()
 	set(FOLIO_FREETYPE_DEFAULT "${FOLIO_FREETYPE_ROOT}/lib/Win64/x64/Release/freetype.lib")
 endif()
-set(FOLIO_FREETYPE_LIB "${FOLIO_FREETYPE_DEFAULT}"
-	CACHE FILEPATH "Engine FreeType static library to link against")
+# An overridden path is kept, but one still at its old default follows a change of engine or version.
+if(NOT DEFINED FOLIO_FREETYPE_LIB OR FOLIO_FREETYPE_LIB STREQUAL "$CACHE{FOLIO_FREETYPE_LIB_DEFAULT}")
+	set(FOLIO_FREETYPE_LIB "${FOLIO_FREETYPE_DEFAULT}"
+		CACHE FILEPATH "Engine FreeType static library to link against" FORCE)
+endif()
+set(FOLIO_FREETYPE_LIB_DEFAULT "${FOLIO_FREETYPE_DEFAULT}" CACHE INTERNAL "")
 
 if(NOT EXISTS "${FOLIO_FREETYPE_LIB}")
 	message(FATAL_ERROR
 		"Engine FreeType not found at ${FOLIO_FREETYPE_LIB}.\n"
-		"Set FOLIO_FREETYPE_VERSION if this engine ships a different version.")
+		"Set FOLIO_FREETYPE_VERSION if this engine ships a different version, "
+		"or reconfigure with --clean if this build directory was made for another engine.")
 endif()
 
 add_library(Freetype::Freetype STATIC IMPORTED GLOBAL)

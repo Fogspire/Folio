@@ -37,6 +37,7 @@ public:
 		: _DocumentPath()
 		, _DesiredSize(FVector2D(1920.0, 1080.0))
 		, _Interactive(true)
+		, _PassThroughEmptySpace(false)
 		, _ScaleFollow(1.0f)
 		, _Scale(1.0f)
 		, _MinScale(0.0f)
@@ -51,6 +52,9 @@ public:
 
 		/** False for a readout nobody clicks. See SetInteractive. */
 		SLATE_ARGUMENT(bool, Interactive)
+
+		/** True to hand clicks on no element to the game. See SetPassThroughEmptySpace. */
+		SLATE_ARGUMENT(bool, PassThroughEmptySpace)
 
 		/** How much dp follows the viewport. See Folio::ScaleRatio. */
 		SLATE_ARGUMENT(float, ScaleFollow)
@@ -287,6 +291,16 @@ public:
 	bool IsInteractive() const { return bInteractive; }
 
 	/**
+	 * Whether a press that RmlUi resolves to no element is left unhandled, so it reaches the game.
+	 *
+	 * RmlUi still sees the press, so a focused field blurs. The canvas neither captures the mouse nor
+	 * takes focus for it, and the release of that press is left unhandled too. The wheel over an
+	 * element is kept, so scrolling a panel never also zooms the camera behind it.
+	 */
+	void SetPassThroughEmptySpace(bool bInPassThrough) { bPassThroughEmptySpace = bInPassThrough; }
+	bool PassesThroughEmptySpace() const { return bPassThroughEmptySpace; }
+
+	/**
 	 * Gamepad entry points for the input pre-processor, which has an event but no geometry.
 	 *
 	 * Safe because key and analog handling never consults the geometry: a key means the same thing
@@ -367,6 +381,10 @@ private:
 	/** Watches the module for the device changing, so focus can follow it. */
 	FDelegateHandle DeviceChanged;
 	bool bInteractive = true;
+	bool bPassThroughEmptySpace = false;
+
+	/** Buttons whose press went to the game, so their release goes there too. */
+	TSet<FKey> PassedPresses;
 
 	/** Screen space to the context's own pixel space. */
 	FVector2f ToContextSpace(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;

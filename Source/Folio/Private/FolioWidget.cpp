@@ -30,6 +30,7 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 	Canvas = SNew(SFolioCanvas)
 		.DesiredSize(DesiredSize)
 		.Interactive(bInteractive)
+		.PassThroughEmptySpace(bPassThroughEmptySpace)
 		.ScaleFollow(ScaleFollow)
 		.Scale(Scale)
 		.MinScale(MinScale)
@@ -297,6 +298,16 @@ void UFolioWidget::SetInteractive(const bool bInInteractive)
 	if (Canvas.IsValid())
 	{
 		Canvas->SetInteractive(bInInteractive);
+	}
+}
+
+void UFolioWidget::SetPassThroughEmptySpace(const bool bInPassThrough)
+{
+	bPassThroughEmptySpace = bInPassThrough;
+
+	if (Canvas.IsValid())
+	{
+		Canvas->SetPassThroughEmptySpace(bInPassThrough);
 	}
 }
 

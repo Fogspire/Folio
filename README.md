@@ -289,6 +289,9 @@ Contributions are accepted only with the right for the author to relicense them,
 
 ## Changelog
 
+### 1.4.0
+* `UFolioWidget::bPassThroughEmptySpace`: a click on no element goes to the game, so panels can sit over a world the player still clicks; see [docs/hosting.md](docs/hosting.md#panels-over-a-world-the-player-still-clicks)
+
 ### 1.3.2
 * `build_ue_libs.sh`: builds with the MSVC toolset UnrealBuildTool picks rather than the newest installed, which failed to link with unresolved `__std_*` symbols when they differed
 

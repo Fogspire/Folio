@@ -61,6 +61,21 @@ void AMyHud::OnActivationChanged(const bool bIsActive)
 
 Do that as well as turning `Interactive` off, not instead of it: a focusable HUD still swallows clicks while the window is active.
 
+## Panels over a world the player still clicks
+
+An inventory or an action bar the player clicks while also clicking actors in the world: leave `Interactive` on and turn on **`Pass Through Empty Space`**. A press that hits no element goes to the game, with its release, and takes no focus. The wheel over a panel stays with the panel.
+
+The document has to leave its empty space empty. `body` is an element, so a click on it counts as a hit:
+
+```css
+body   { pointer-events: none; }
+.panel { pointer-events: auto; }
+```
+
+On the game side, use `FInputModeGameAndUI` with `SetHideCursorDuringCapture(false)`, and set `bShowMouseCursor` on the player controller. Actor `OnClicked` and `OnBeginCursorOver` also need `bEnableClickEvents` and `bEnableMouseOverEvents`.
+
+**Every click still goes to the document:** the click landed on `body` or a full-screen wrapper. Find what is under the cursor with `folio.Debugger` and give it `pointer-events: none`.
+
 ## How big a HUD draws
 
 `dp` resolves against a ratio, and **`Scale Follow`** decides how much that ratio moves with the viewport:

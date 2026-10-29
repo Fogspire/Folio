@@ -56,6 +56,7 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 	LiveCanvases.AddUnique(this);
 	SetCanTick(true);
 	SetInteractive(InArgs._Interactive);
+	SetPassThroughEmptySpace(InArgs._PassThroughEmptySpace);
 	SetScale(InArgs._ScaleFollow, InArgs._Scale, InArgs._MinScale, InArgs._MaxScale);
 
 	SetSupersample(InArgs._Supersample);
@@ -777,7 +778,17 @@ FReply SFolioCanvas::OnMouseButtonDown(const FGeometry& MyGeometry, const FPoint
 	const FVector2f Local = ToContextSpace(MyGeometry, MouseEvent);
 	const int32 Modifiers = Folio::ToRmlModifiers(MouseEvent.GetModifierKeys());
 	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y), Modifiers);
-	Context->ProcessMouseButtonDown(Button, Modifiers);
+	const bool bHitNothing = Context->ProcessMouseButtonDown(Button, Modifiers);
+
+	// A release that went to the game under capture never comes back here, so a stale entry is cleared
+	// on the next press this canvas claims.
+	const FKey Pressed = MouseEvent.GetEffectingButton();
+	if (bPassThroughEmptySpace && bHitNothing)
+	{
+		PassedPresses.Add(Pressed);
+		return FReply::Unhandled();
+	}
+	PassedPresses.Remove(Pressed);
 
 	/*
 	 * A right click, as its own event.
@@ -824,6 +835,11 @@ FReply SFolioCanvas::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointer
 	Context->ProcessMouseMove(FMath::RoundToInt(Local.X), FMath::RoundToInt(Local.Y), Modifiers);
 	Context->ProcessMouseButtonUp(Button, Modifiers);
 
+	if (PassedPresses.Remove(MouseEvent.GetEffectingButton()) > 0)
+	{
+		return FReply::Unhandled();
+	}
+
 	return FReply::Handled().ReleaseMouseCapture();
 }
 
@@ -843,6 +859,11 @@ FReply SFolioCanvas::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEve
 	// RmlUi scrolls by lines with positive meaning down, which is the opposite sign to Slate.
 	const bool bHandled = !Context->ProcessMouseWheel(-MouseEvent.GetWheelDelta(),
 		Folio::ToRmlModifiers(MouseEvent.GetModifierKeys()));
+
+	if (bPassThroughEmptySpace)
+	{
+		return bHandled || Context->IsMouseInteracting() ? FReply::Handled() : FReply::Unhandled();
+	}
 
 	return bHandled ? FReply::Handled() : FReply::Unhandled();
 }

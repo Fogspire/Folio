@@ -88,6 +88,17 @@ public:
 	bool bInteractive = true;
 
 	/**
+	 * Whether a click that lands on no element goes to the game instead of the document.
+	 *
+	 * For a document that is panels over a world the player still clicks into, like an inventory or an
+	 * action bar. Give the document `body { pointer-events: none; }` and the panels
+	 * `pointer-events: auto;`, because the body is an element and a click on it counts as a hit.
+	 * A press that passes through does not take focus, and its release goes to the game as well.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio", meta = (EditCondition = "bInteractive"))
+	bool bPassThroughEmptySpace = false;
+
+	/**
 	 * How much dp follows the viewport.
 	 *
 	 * 1 is Unreal's UI scale, so the document keeps the same fraction of the screen at every
@@ -222,6 +233,10 @@ public:
 	/** Turns input on or off on a document that is already up. See bInteractive. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void SetInteractive(bool bInInteractive);
+
+	/** Changes bPassThroughEmptySpace on a document that is already up. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void SetPassThroughEmptySpace(bool bInPassThrough);
 
 	/** Applies the scale properties to a document that is already up. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")

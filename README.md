@@ -289,7 +289,7 @@ Contributions are accepted only with the right for the author to relicense them,
 
 ## Changelog
 
-### Unreleased
+### 1.3.2
 * `build_ue_libs.sh`: builds with the MSVC toolset UnrealBuildTool picks rather than the newest installed, which failed to link with unresolved `__std_*` symbols when they differed
 
 ### 1.3.1

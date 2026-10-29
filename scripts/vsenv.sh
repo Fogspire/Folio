@@ -9,7 +9,7 @@
 # later, and a .ps1 never can. When Folio builds on Linux, folio_import_toolchain gains a case here
 # rather than a second script somewhere else.
 #
-# Sets FOLIO_CMAKE, FOLIO_NINJA and FOLIO_VS_PATH.
+# Sets FOLIO_CMAKE, FOLIO_NINJA, FOLIO_VS_PATH and FOLIO_MSVC_TOOLSET.
 
 folio_is_windows() {
 	case "$(uname -s)" in
@@ -35,15 +35,72 @@ folio_program_files_x86() {
 	fi
 }
 
+# The entries of a string array in one of the engine's SDK JSON files.
+folio_sdk_json_array() {
+	sed -n "/\"$2\"[[:space:]]*:[[:space:]]*\[/,/\]/p" "$1" | grep -o '"[0-9][^"]*"' | tr -d '"'
+}
+
+# Whether version $1 lies in the inclusive range $2, written as "min-max".
+folio_version_in_range() {
+	local min="${2%-*}" max="${2#*-}"
+	[[ "$(printf '%s\n%s\n' "$min" "$1" | sort -V | head -1)" == "$min" ]] &&
+		[[ "$(printf '%s\n%s\n' "$1" "$max" | sort -V | head -1)" == "$1" ]]
+}
+
+#
+# The MSVC toolset UnrealBuildTool picks for the given engine, out of the given Visual Studio installs.
+#
+# Follows UBT's own ordering: banned and too-old toolsets are out, then the earliest family in
+# PreferredVisualCppVersions wins, then the highest version. The ban list is matched against cl.exe's
+# product version, as UBT does, since the folder name can sit inside a banned range when the compiler
+# does not. A CompilerVersion set in BuildConfiguration.xml is not seen; pass --toolset for that.
+#
+folio_unreal_msvc_toolset() {
+	local sdk_json="$1/Config/Windows/Windows_SDK.json"
+	shift
+	[[ -f "$sdk_json" ]] || return 1
+
+	local -a preferred banned
+	mapfile -t preferred < <(folio_sdk_json_array "$sdk_json" PreferredVisualCppVersions | tr -d '\r')
+	mapfile -t banned < <(folio_sdk_json_array "$sdk_json" BannedVisualCppVersions | tr -d '\r')
+	local minimum
+	minimum="$(sed -n 's/.*"MinimumVisualCppVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$sdk_json" | head -1)"
+
+	local install dir family cl version range rank
+	for install in "$@"; do
+		for dir in "$install"/VC/Tools/MSVC/*/; do
+			family="$(basename "$dir")"
+			cl="$dir/bin/Hostx64/x64/cl.exe"
+			[[ -f "$cl" ]] || continue
+
+			version="$(powershell.exe -NoProfile -Command "\$v = (Get-Item -LiteralPath '$(cygpath -w "$cl")').VersionInfo; '{0}.{1}.{2}' -f \$v.ProductMajorPart, \$v.ProductMinorPart, \$v.ProductBuildPart" | tr -d '\r')"
+			[[ "$version" == 0.* || -z "$version" ]] && version="$family"
+
+			[[ -n "$minimum" ]] && ! folio_version_in_range "$version" "$minimum-99999" && continue
+			for range in "${banned[@]}"; do
+				folio_version_in_range "$version" "$range" && continue 2
+			done
+
+			rank=0
+			for range in "${preferred[@]}"; do
+				folio_version_in_range "$family" "$range" && break
+				rank=$((rank + 1))
+			done
+			printf '%s\t%s\t%s\n' "$rank" "$version" "$family"
+		done
+	done | sort -t$'\t' -k1,1n -k2,2Vr | head -1 | cut -f3
+}
+
 #
 # Imports the MSVC environment for the given toolset into this shell.
 #
-# 'latest' picks the highest toolset installed, which is what UnrealBuildTool also defaults to.
-# Static libraries that will be linked into an Unreal module must be built with the same one: check
-# UBT's "Toolchain Information" line and pass the version explicitly if it disagrees.
+# 'latest' picks the highest toolset installed. 'unreal' picks the one UnrealBuildTool uses for the
+# engine passed as the second argument, which static libraries linked into an Unreal module must be
+# built with: a newer STL emits calls into runtime helpers the older one's libraries do not have.
 #
 folio_import_msvc() {
 	local toolset="${1:-latest}"
+	local engine_dir="${2:-}"
 
 	if ! folio_is_windows; then
 		folio_die "this build is Windows only. Folio's ThirdParty libraries are MSVC static libraries; there is no Linux toolchain path yet."
@@ -69,7 +126,11 @@ folio_import_msvc() {
 		folio_die "no Visual Studio installation with the C++ desktop workload was found."
 	fi
 
-	if [[ "$toolset" == "latest" ]]; then
+	if [[ "$toolset" == "unreal" ]]; then
+		toolset="$(folio_unreal_msvc_toolset "$engine_dir" "${installs[@]}")" ||
+			folio_die "could not read '$engine_dir/Config/Windows/Windows_SDK.json'. Pass --toolset explicitly."
+		[[ -n "$toolset" ]] || folio_die "no installed MSVC toolset is one UnrealBuildTool accepts. Check $engine_dir/Config/Windows/Windows_SDK.json."
+	elif [[ "$toolset" == "latest" ]]; then
 		# Sorted as versions, not as strings, or 14.9 beats 14.50.
 		toolset="$(
 			for install in "${installs[@]}"; do
@@ -105,6 +166,7 @@ folio_import_msvc() {
 		[[ -f "$tool" ]] || folio_die "missing '$tool'. Add the 'C++ CMake tools for Windows' component to the Visual Studio install."
 	done
 
+	FOLIO_MSVC_TOOLSET="$toolset"
 	echo "Importing MSVC environment (toolset $toolset)..." >&2
 
 	# Some of VsDevCmd's helper scripts invoke vswhere without a path.
@@ -188,6 +250,19 @@ folio_discard_moved_build() {
 	fi
 	if [[ -n "$made_in" && "$compared" != "$here" ]]; then
 		echo "Removing $1, which was configured at $made_in"
+		rm -rf "$1"
+	fi
+}
+
+# Removes a CMake build directory whose cached compiler is not the imported MSVC toolset. CMake keeps
+# the compiler from its first configure while INCLUDE follows the toolset, and the two must agree.
+folio_discard_other_toolset_build() {
+	local cache="$1/CMakeCache.txt"
+	[[ -f "$cache" && -n "${FOLIO_MSVC_TOOLSET:-}" ]] || return 0
+	local compiler
+	compiler="$(sed -n 's/^CMAKE_CXX_COMPILER:FILEPATH=//p' "$cache" | tr -d '\r')"
+	if [[ "$compiler" == */MSVC/* && "$compiler" != */MSVC/"$FOLIO_MSVC_TOOLSET"/* ]]; then
+		echo "Removing $1, which was configured with $compiler"
 		rm -rf "$1"
 	fi
 }

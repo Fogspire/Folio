@@ -77,6 +77,7 @@ if [[ $clean -eq 1 && -d "$build_dir" ]]; then
 fi
 
 folio_discard_moved_build "$build_dir"
+folio_discard_other_toolset_build "$build_dir"
 
 configure_args=(
 	-G Ninja

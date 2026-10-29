@@ -33,7 +33,7 @@ source_dir="$repo_root/cmake/ue"
 stage_dir="$repo_root/Source/ThirdParty"
 
 config=RelWithDebInfo
-toolset=latest
+toolset=unreal
 engine_dir=""
 clean=0
 case "$(uname -s)" in
@@ -76,7 +76,7 @@ host_defines=()
 if folio_is_windows; then
 	# Visual Studio is where cmake and ninja come from even when it is not the compiler. A toolchain
 	# file names its own, so the MSVC search paths are dropped or its headers win over the sysroot's.
-	folio_import_msvc "$toolset"
+	folio_import_msvc "$toolset" "$engine_dir"
 	if [[ -n "$toolchain" ]]; then
 		unset INCLUDE LIB LIBPATH
 	fi
@@ -107,6 +107,7 @@ if [[ $clean -eq 1 && -d "$build_dir" ]]; then
 fi
 
 folio_discard_moved_build "$build_dir"
+folio_discard_other_toolset_build "$build_dir"
 
 configure_args=(
 	"-DCMAKE_MAKE_PROGRAM=$(folio_tool_path "$FOLIO_NINJA")"

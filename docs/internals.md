@@ -235,7 +235,7 @@ Numbers there are inclusive, so a parent scope contains its children.
 
 **The MSVC toolset must match whatever UnrealBuildTool picks, and guessing it was wrong.** This was originally pinned to 14.38.33130 on the assumption that UE 5.8 selects it. It does not: on this machine UBT uses **14.50.35717**, from a Visual Studio 18 BuildTools install, and RmlUi built with 14.38 was being linked into modules built with 14.50. It linked, which is the dangerous part, because RmlUi's interface passes `std::string` and `std::vector` across that boundary and a layout change would corrupt rather than fail.
 
-Both build scripts now default to `-Toolset latest`, which is also UBT's default. When they disagree, UBT's `Toolchain Information` line is the authority; pass the version explicitly.
+`build_ue_libs.sh` defaults to `--toolset unreal`, which reads the engine's `Config/Windows/Windows_SDK.json` and picks the toolset UBT would: banned and too-old versions out, earliest preferred family first, highest version within it. Picking the newest installed toolset instead links an older-STL Unreal module against a newer-STL `rmlui.lib` and fails with unresolved `__std_rotate`, `__std_find_not_ch_1` and similar. A `CompilerVersion` set in `BuildConfiguration.xml` is not read, so UBT's `Toolchain Information` line stays the authority; pass `--toolset` when they disagree. `build.sh` builds the standalone tools and keeps `latest`.
 
 `CMakePresets.json` no longer names a version either. Its toolset strategy is `external`, so CMake never applied the value - it only ever read as documentation, and it documented a toolset that is not installed.
 

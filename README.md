@@ -227,6 +227,9 @@ Folio Studio for building your UI.
 | Folio Studio | Supported | Beta | Beta |
 | `uipreview` | Supported | Not ported | Not ported |
 
+> [!WARNING]
+> **On Windows, `build_ue_libs.sh` builds with the MSVC toolset UnrealBuildTool picks by default.** If your `BuildConfiguration.xml` sets `CompilerVersion`, the script does not read it: pass the same toolset with `--toolset <version>`, using the `MSVC\<version>` folder named on the `Using Visual Studio ... toolchain` line in UBT's log. A mismatch shows up as unresolved `__std_rotate`, `__std_find_not_ch_1` or similar from `rmlui.lib` when linking.
+
 ### Shipping
 
 | Platform | |
@@ -285,6 +288,9 @@ For a commercial license, open an issue or ask the author.
 Contributions are accepted only with the right for the author to relicense them, so a commercial license can cover the whole of Folio.
 
 ## Changelog
+
+### Unreleased
+* `build_ue_libs.sh`: builds with the MSVC toolset UnrealBuildTool picks rather than the newest installed, which failed to link with unresolved `__std_*` symbols when they differed
 
 ### 1.3.1
 * `build_ue_libs.sh`: the engine FreeType path follows `--engine-dir`, so rebuilding against another engine no longer needs `--clean`

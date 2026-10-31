@@ -9,6 +9,15 @@ UE5.8+ supporting both Deferred Rendering and Forward Rendering.
 > [!NOTE]
 > Improved documentation and showcase images, as well as documentation images are pending
 
+## Get started
+
+| | |
+|---|---|
+| **[Hello world](docs/hello_world.md)** | Install the plugin and get a document on screen |
+| **[Folio Studio](docs/studio.md)** | The visual editor |
+| **[UI_CONVENTIONS.md](UI_CONVENTIONS.md)** | What the stylesheet language supports. It is close to CSS and is not CSS; read this before writing any |
+| **[AGENTS.md](AGENTS.md)** | The brief to hand an AI agent asked to build UI with Folio |
+
 ## Showcase
 
 _Placeholder showcase items - something better coming soon_
@@ -206,15 +215,6 @@ Folio Studio for building your UI.
 | Components | Buttons, sliders, toggles, tab bars, lists, panels, scrollbars, a default theme, drifting motes |
 | Authoring | Folio Studio, `uipreview` for checks and screenshots in a build, vector and font baking, view model code generation, VSCode highlighting |
 -->
-
-## Get started
-
-| | |
-|---|---|
-| **[Hello world](docs/hello_world.md)** | Install the plugin and get a document on screen |
-| **[Folio Studio](docs/studio.md)** | The visual editor |
-| **[UI_CONVENTIONS.md](UI_CONVENTIONS.md)** | What the stylesheet language supports. It is close to CSS and is not CSS; read this before writing any |
-| **[AGENTS.md](AGENTS.md)** | The brief to hand an AI agent asked to build UI with Folio |
 
 ## Platform support
 

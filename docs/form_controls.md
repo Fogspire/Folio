@@ -120,6 +120,36 @@ tabset > tabs:first-of-type   { display: flex; }
 tabset > panels:first-of-type { flex: 1 1 auto; }
 ```
 
+### Switching tabs
+
+A click on a tab switches to it, and so does confirm on a focused one, since confirm synthesises a click. Give each `<tab>` `tab-index: auto` (the library's `.tab focusable` does) or confirm has nothing to land on.
+
+**The shoulder buttons do not switch tabs.** `NextTab` and `PreviousTab` are Tab and Shift+Tab: they move focus through the tab order, the same as on a keyboard. LB/RB cycling a tabset from anywhere on the screen is the game's to wire: catch the action and call `SetActiveTab`.
+
+From C++:
+
+```cpp
+auto* Tabs = rmlui_dynamic_cast<Rml::ElementTabSet*>(Document->GetElementById("settings-tabs"));
+Tabs->SetActiveTab((Tabs->GetActiveTab() + 1) % Tabs->GetNumTabs());
+```
+
+Every change raises `tabchange` on the tabset, with the new index as `tab_index`, whether it came from a click or from `SetActiveTab`. That is the place to save the last tab or play a sound:
+
+```html
+<tabset id="settings-tabs" data-event-tabchange="TabChanged(ev.tab_index)">
+```
+
+Nothing is created lazily. Every panel is in the document from load and the hidden ones are only `display: none`, so their bindings stay live.
+
+### The library tab bar
+
+`/folio/lib/tabbar.rcss` styles a tabset with `class="tabs"`, its tabs with `class="tab focusable"` and its panels with `class="tab-panel"`. Two extras:
+
+| | |
+|---|---|
+| `.tab-badge` | a dot inside a tab for unseen or unsaved content |
+| `.tab-shoulder` | a row beside the bar for the LB/RB hint icons; put `<img class="icon" sprite="...">` in it |
+
 ## Forms
 
 `<form>` groups controls and `input type="submit"` raises a submit event, but there is nothing to submit to: no network, no navigation. Listen for the event in C++ or bind it to a data model.

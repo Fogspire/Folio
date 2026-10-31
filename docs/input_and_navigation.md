@@ -9,7 +9,7 @@ Keyboard, gamepad and mouse all work out of the box. A document never learns wha
 | Either analog stick, held | repeats: 0.5 deadzone, 0.4s before the first repeat, 0.12s after |
 | `Enter`, `Space`, gamepad **confirm** face button | activate the focused element |
 | `Escape`, the other face button | back |
-| `Tab`, either shoulder | tab order |
+| `Tab`, either shoulder | tab order (focus, not a tabset's tabs: see **[tabsets](form_controls.md#switching-tabs)**) |
 
 **Letters only navigate when nothing is taking text.** With an `input` or `textarea` focused, W is a W. That is what lets three keyboard schemes coexist without any of them breaking typing.
 

@@ -1,0 +1,131 @@
+<rml>
+<head>
+	<title>Grid inventory</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body
+		{
+			font-family: Inter;
+			font-size: 14dp;
+			color: #c9ced6;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		/* 12 x 6 cells on a 64dp pitch. The lines are the background, so items cover them. */
+		.bag
+		{
+			position: relative;
+			width: 769dp;
+			height: 385dp;
+			background-color: #ffffff08;
+			decorator: repeating-linear-gradient(to right, #ffffff1f 0dp, #ffffff1f 1dp, #ffffff00 1dp, #ffffff00 64dp),
+			           repeating-linear-gradient(to bottom, #ffffff1f 0dp, #ffffff1f 1dp, #ffffff00 1dp, #ffffff00 64dp);
+		}
+
+		/* The cells sit on top: they take every press, drag and drop, and draw focus over the items. */
+		.cells
+		{
+			position: absolute;
+			left: 1dp;
+			top: 1dp;
+			width: 768dp;
+			display: flex;
+			flex-wrap: wrap;
+		}
+
+		/* 63dp and a 1dp gap. Cells that touch tie in the spatial search and focus drifts sideways. */
+		.cell
+		{
+			width: 63dp;
+			height: 63dp;
+			margin: 0 1dp 1dp 0;
+			flex: 0 0 auto;
+			box-sizing: border-box;
+			tab-index: auto;
+			nav: auto;
+		}
+
+		.cell.occupied { drag: drag-drop; }
+		.cell:focus-visible { border: 2dp #ffffffb3; }
+
+		.cell.locked
+		{
+			background-color: #00000066;
+			decorator: linear-gradient(45deg, #ffffff00 49%, #ffffff1f 50%, #ffffff00 51%),
+			           linear-gradient(-45deg, #ffffff00 49%, #ffffff1f 50%, #ffffff00 51%);
+		}
+
+		.item, .ghost
+		{
+			position: absolute;
+			box-sizing: border-box;
+		}
+
+		.item
+		{
+			background-color: #050608;
+			border: 1dp #ffffff33;
+			padding: 6dp;
+		}
+
+		.item.hover { border-color: #ffffffb3; }
+		.item.held  { opacity: 0.35; }
+
+		.item-name  { font-size: 12dp; color: #8a93a3; }
+		.item-count { position: absolute; right: 6dp; bottom: 4dp; }
+
+		.ghost
+		{
+			border: 2dp #9fd3a6;
+			background-color: #9fd3a626;
+		}
+
+		.ghost.blocked
+		{
+			border-color: #e06c75;
+			background-color: #e06c7526;
+		}
+	</style>
+</head>
+<body>
+	<div class="bag" data-model="grid_inventory">
+
+		<div class="item" data-for="it : Items"
+			data-class-held="it.bHeld"
+			data-class-hover="it_index == HoverItem"
+			data-style-left="it.X * 64 + 'dp'"
+			data-style-top="it.Y * 64 + 'dp'"
+			data-style-width="it.W * 64 + 1 + 'dp'"
+			data-style-height="it.H * 64 + 1 + 'dp'">
+			<span class="item-name">{{ it.Name }}</span>
+			<span class="item-count t-numeric" data-if="it.Count &gt; 1" data-noloc>{{ it.Count }}</span>
+		</div>
+
+		<div class="ghost" data-if="bHolding"
+			data-class-blocked="!bGhostFits"
+			data-style-left="GhostX * 64 + 'dp'"
+			data-style-top="GhostY * 64 + 'dp'"
+			data-style-width="GhostW * 64 + 1 + 'dp'"
+			data-style-height="GhostH * 64 + 1 + 'dp'"></div>
+
+		<div class="cells">
+			<div class="cell" data-for="cell : Cells"
+				folio-label="Inventory cell"
+				data-class-occupied="cell.bOccupied"
+				data-class-locked="cell.bLocked"
+				data-event-dragstart="PickUp(it_index)"
+				data-event-dragover="Hover(it_index)"
+				data-event-dragdrop="Drop(it_index)"
+				data-event-dragend="EndDrag()"
+				data-event-mouseover="Hover(it_index)"
+				data-event-focus="Hover(it_index)"
+				data-event-click="Confirm(it_index)"></div>
+		</div>
+	</div>
+</body>
+</rml>

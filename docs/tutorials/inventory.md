@@ -244,4 +244,5 @@ The `--keys` run is how you prove the grid navigates without picking up a contro
 - **[Data binding](../data_binding.md)**: the model side in full.
 - **[Generating a view model](../view_models.md)**: when reflection is not enough.
 - **[A list of ten thousand items](long_lists.md)**: when the list is too long for this approach.
+- **[A grid inventory](grid_inventory.md)**: items that span several cells.
 - **[Drag, drop and resize](../drag_and_resize.md)**: the complete vocabulary.

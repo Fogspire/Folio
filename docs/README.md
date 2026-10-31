@@ -71,6 +71,7 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[A dialogue system](tutorials/dialogue.md)** | A speaker, a line that types itself out, and replies: markup a writer types, names the whole game shares, and where each half enters the document. |
 | **[A CRT terminal in the world](tutorials/crt_terminal.md)** | The whole vocabulary in one build: an oval screen, a text field, a draggable window with a bin and an animated close, onto a curved surface with scan lines. |
 | **[An inventory screen](tutorials/inventory.md)** | A grid, drag and drop between slots, gamepad navigation, and a data model behind it. |
+| **[A grid inventory](tutorials/grid_inventory.md)** | Items that span several cells: grid lines from gradients, a ghost that shows whether a drop fits, locked cells, and one set of commands for mouse, keyboard and pad. |
 | **[A list of ten thousand items](tutorials/long_lists.md)** | Binding a fixed-size window instead of the array, so scrolling allocates nothing at all. |
 | **[A controls screen](tutorials/keybinding.md)** | Rebinding against Enhanced Input's own profile: a press-any-key panel that catches keys the game has bound, and what to do when one is already taken. |
 | **[A helmet HUD that responds to the player](tutorials/visor_hud.md)** | A first-person visor with no art at all: a helmet made of one border, curvature without 3D transforms, two components trailing the camera and the stride, and baking the aperture glow so it stops costing a render target a frame. |

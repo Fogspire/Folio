@@ -747,6 +747,7 @@ select {
 }
 
 .code-tabs {
+	position: relative;
 	display: flex;
 	flex: none;
 	height: 28px;

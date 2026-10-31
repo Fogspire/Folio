@@ -436,3 +436,45 @@ store.set({ status: 'Working…' });
 await wait(8300);
 expect(store.get().status === 'Working…', 'but one for work in progress stays until replaced');
 store.set({ status: '' });
+
+// The language picker redraws the document pseudo-localized, longer and accented, and back.
+const texts = (node = store.get().tree, out = []) => {
+	if (node.text.trim()) out.push(node.text);
+	for (const child of node.children) texts(child, out);
+	return out;
+};
+const sourceText = texts().join('');
+const language = [...document.querySelectorAll('.toolbar label')].find((label) => label.textContent.startsWith('Language')).querySelector('select');
+expect([...language.options].map((option) => option.value).join() === ',pseudo', 'the language picker offers source and pseudo');
+language.value = 'pseudo';
+language.dispatchEvent(new Event('change', { bubbles: true }));
+await wait(300);
+const pseudoText = texts().join('');
+expect(store.get().culture === 'pseudo' && pseudoText.length > sourceText.length * 1.2 && pseudoText !== sourceText, 'pseudo draws the text longer and accented: ' + pseudoText.slice(0, 40));
+session.setCulture('');
+await wait(300);
+expect(texts().join('') === sourceText, 'and source draws it as written');
+
+// However many files are open, the active tab is scrolled into view.
+const project = store.get().project.root;
+const extra = [];
+for (let i = 0; i < 24; ++i) {
+	const file = `${project}/UI/screens/tab_with_a_long_name_${String(i).padStart(2, '0')}.rcss`;
+	await host.writeFile(file, 'body { }\n');
+	extra.push(file);
+}
+for (const file of extra) await session.openFile(file);
+commands.runCommand('panel:code');
+await wait(300);
+const visible = (file) => {
+	const strip = [...document.querySelectorAll('.code-tabs')].find((element) => element.querySelector('.code-tab.active')?.title === file);
+	if (!strip) return false;
+	const tab = strip.querySelector('.code-tab.active').getBoundingClientRect();
+	const box = strip.getBoundingClientRect();
+	return strip.scrollWidth > strip.clientWidth && tab.left >= box.left - 1 && tab.right <= box.right + 1;
+};
+expect(visible(extra[extra.length - 1]), 'the last tab opened is in view on an overflowing strip');
+session.activateFile(extra[0]);
+await wait(100);
+expect(visible(extra[0]), 'and so is the first once it is activated');
+session.closeFiles(extra);

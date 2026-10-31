@@ -11,8 +11,8 @@ import { Inspection, Rect, TreeNode } from '../engine';
 import { basename, extension, stem } from '../paths';
 import { BACKGROUNDS } from '../settings';
 import {
-	advanceTimeline, canvasScale, copyLibraryDocument, engine, findNode, isLibraryDocument, MIN_ZOOM, seekTimeline, select, setEditing, setHover,
-	setRenderScale, setTimelinePlaying, setViewport, setZoom, store, toggleTimeline, updateSettings,
+	advanceTimeline, canvasScale, copyLibraryDocument, documentRootPath, engine, findNode, isLibraryDocument, MIN_ZOOM, seekTimeline, select, setCulture,
+	setEditing, setHover, setRenderScale, setTimelinePlaying, setViewport, setZoom, store, toggleTimeline, updateSettings,
 } from '../session';
 
 const SIZES: [string, number, number][] = [
@@ -263,6 +263,7 @@ function Toolbar({ scale }: { scale: number }) {
 					{[0.5, 0.75, 1, 1.25, 1.5, 2].map((value) => <option key={value} value={value}>{value}×</option>)}
 				</select>
 			</label>
+			<LanguagePicker />
 			<span className="spacer" />
 			<button className={'button' + (timelineOpen ? ' active' : '')} title="Hold the document's clock, and play or scrub it from the first frame (Ctrl+Shift+T)" onClick={toggleTimeline}>
 				Timeline
@@ -277,6 +278,38 @@ function Toolbar({ scale }: { scale: number }) {
 				</select>
 			</label>
 		</div>
+	);
+}
+
+/** The cultures the document's root has translations for, from its UI/loc folder. */
+function availableCultures(projectFiles: string[]): string[] {
+	const root = documentRootPath();
+	if (!root) return [];
+	const prefix = (root + '/UI/loc/').toLowerCase();
+	return projectFiles
+		.filter((file) => file.toLowerCase().startsWith(prefix) && extension(file) === '.json' && !file.slice(prefix.length).includes('/'))
+		.map(stem)
+		.sort();
+}
+
+/** Which language the document is drawn in: its own text, a translation, or pseudo-localized to find layouts that only fit English. */
+function LanguagePicker() {
+	const culture = store.use((state) => state.culture);
+	const projectFiles = store.use((state) => state.projectFiles);
+	// The document decides the root, and so which translations exist.
+	store.use((state) => state.document);
+	const cultures = availableCultures(projectFiles);
+	const missing = culture !== '' && culture !== 'pseudo' && !cultures.includes(culture);
+	return (
+		<label title="The language the document is drawn in. Pseudo lengthens every string by about 40% and accents it, to find layouts that only fit English.">
+			Language
+			<select value={culture} onChange={(event) => setCulture(event.target.value)}>
+				<option value="">Source</option>
+				<option value="pseudo">Pseudo</option>
+				{missing && <option value={culture}>{culture} (missing)</option>}
+				{cultures.map((name) => <option key={name} value={name}>{name}</option>)}
+			</select>
+		</label>
 	);
 }
 

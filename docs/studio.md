@@ -72,6 +72,7 @@ To see what the renderer printed while loading a document, start Studio from a t
 |---|---|
 | Size | The viewport the document is laid out in. A document with `<meta name="folio-size" content="960x640"/>` opens at that size, at Scale 1×. |
 | Scale | The dp ratio. Auto follows the viewport height against 1080, as the game does. |
+| Language | The language the document is drawn in. Source is the text as written, Pseudo lengthens every string by about 40% and accents it to find layouts that only fit English, and each `UI/loc/<culture>.json` is listed by name. See [Localisation](localization.md). |
 | Zoom | How large the canvas is drawn. Zoomed in, the document is drawn with more pixels, as the game draws it on a larger screen, so text stays sharp. Lengths in `dp` and `rem` scale with it; lengths in `px` keep their size, which can move a layout that relies on them. Ctrl+wheel, Ctrl+= and Ctrl+- zoom, Ctrl+0 fits, Ctrl+1 is actual size. |
 | Edit / Play | Edit selects and changes elements. Play sends the mouse and keyboard to the document, so hover, focus, navigation and `data-event-*` behave as in game. |
 

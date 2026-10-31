@@ -36,6 +36,8 @@ let changeTimer: NodeJS.Timeout | null = null;
 let menuState: { updateCheck: boolean; mode: string; keys: Record<string, string | undefined> } = { updateCheck: true, mode: 'edit', keys: {} };
 
 const testing = process.argv.includes('--test');
+// A test window sits off every display, which Chromium otherwise counts as occluded and stops compositing.
+if (testing) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf('--' + name);

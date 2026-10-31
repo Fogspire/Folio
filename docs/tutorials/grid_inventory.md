@@ -2,6 +2,8 @@
 
 Items that take up several cells, dragged and placed on a grid: a rifle is five cells by two, a battery is one. Also called a Tetris or jigsaw inventory. The grid lines, the items, a ghost showing where a held item will land and turning red when it will not fit, locked cells, and the same pick-up-and-place on mouse, keyboard and pad.
 
+![The finished grid inventory in Folio Studio](images/grid_inventory.png)
+
 This tutorial assumes **[an inventory screen](inventory.md)**. That one gives every item one cell and lays the grid out with flexbox, which stops working as soon as an item spans cells.
 
 The finished document is `examples/grid_inventory.rml`, with mock data in `UI/mock/grid_inventory.json`, which the preview mounts by itself.

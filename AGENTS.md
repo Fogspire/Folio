@@ -38,6 +38,18 @@ If the project has its own conventions document, it governs taste and this one g
 
 `Plugins/Folio/rcss/recipes/` has complete working screens - `main_menu.rml`, `pause.rml`, `confirm.rml`, `nameplate.rml`. **Copy one into `UI/screens/` and edit it.** They pass `--strict` and `--a11y` with no findings, so what you start from is already clean.
 
+### 2a. Decide how flat it should be
+
+**Flat is a choice, not the default.** The recipes are flat so they stay neutral; a modern game UI is not. Unless the brief or the game's existing UI calls for flat (pixel art, a retro or terminal look, a screen meant to read as print), give it depth: a menu turned a few degrees on `rotateY`, panels angled toward the camera, a focused item that comes forward. If neither the prompt nor the project makes the style clear, ask the user before building.
+
+```css
+.menu                    { perspective: 1200dp; perspective-origin: 0% 50%; }
+.menu-item               { transform: rotateY(14deg); transition: transform 0.18s cubic-out; }
+.menu-item:focus-visible { transform: rotateY(6deg) translateZ(24dp); }
+```
+
+Keep angles shallow, roughly 5 to 20 degrees, so it reads as a plane in space without foreshortening the text. Put `perspective` on the parent so siblings share one vanishing point. A tilted control needs its `:active` restated with the rotation (see 6a). Costs are in [UI_CONVENTIONS.md](UI_CONVENTIONS.md) §4.
+
 ### 3. Link the library in one line
 
 A template's head merges into any document that links it, so one line brings in the whole library:

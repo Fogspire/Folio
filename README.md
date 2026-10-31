@@ -289,6 +289,12 @@ Contributions are accepted only with the right for the author to relicense them,
 
 ## Changelog
 
+### 1.5.0
+* Studio: a **Language** picker on the canvas draws the document in a `UI/loc` translation or pseudo-localized, to find layouts that only fit English
+* Studio: the active tab stays in view however many files are open, and the wheel scrolls the tab strip
+* Studio: Electron 45
+* Grid inventory tutorial and example, with items spanning several cells; see [docs/tutorials/grid_inventory.md](docs/tutorials/grid_inventory.md)
+
 ### 1.4.0
 * `UFolioWidget::bPassThroughEmptySpace`: a click on no element goes to the game, so panels can sit over a world the player still clicks; see [docs/hosting.md](docs/hosting.md#panels-over-a-world-the-player-still-clicks)
 

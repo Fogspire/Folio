@@ -4,11 +4,23 @@ A pixel-art character on a HUD panel, angled toward the crosshair, that walks wh
 
 https://github.com/user-attachments/assets/faf97aa0-4169-426c-a537-802e8cb1ad27
 
-You need Folio running in a project ([hello world](../hello_world.md)), `uipreview` built, a player pawn that is an `ACharacter`, and your frames as loose PNGs. The packing script needs Pillow (`pip install pillow`).
+You need Folio running in a project ([hello world](../hello_world.md)), `uipreview` built, a player pawn that is an `ACharacter`, and your frames as loose PNGs.
 
 ## 1. Pack the frames into one sheet
 
-A flipbook plays from one texture, and its frames must share one size so the feet stay put between poses. Pack the loose frames, naming each sprite `<clip>_<number>`:
+A flipbook plays from one texture, and its frames must share one size so the feet stay put between poses. Pack the loose frames into one atlas, naming each sprite `<clip>_<number>`: `mario_idle_0`, `mario_walk_0` to `mario_walk_2`, and so on. A clip with one pose still gets a `_0`, so every clip plays the same way.
+
+### Option 1: Folio Studio
+
+![The Sprites panel with Mario's frames packed into an atlas](../images/studio_sprites.png)
+
+1. In [Folio Studio](../studio.md), right-click the frames folder in **Files** and choose **Pack PNGs as Sprites**. For a folder outside `UI/`, click **Frames Folder** in **Sprites** instead.
+2. In **Sprites**, rename each frame in its row. Untick a frame to leave it out; drag rows to reorder the atlas.
+3. Click **Pack**. It writes `UI/art/mario.png`, `UI/art/mario.rcss` and `UI/art/mario.spritepack.json`, which you can click in **Files** to change the pack and pack again.
+
+### Option 2: Python
+
+Needs Pillow (`pip install pillow`).
 
 ```bash
 python Plugins/Folio/Tools/uiart/pack_sprites.py <frames folder> UI/art/mario.png UI/art/mario.rcss \
@@ -21,11 +33,9 @@ python Plugins/Folio/Tools/uiart/pack_sprites.py <frames folder> UI/art/mario.pn
 	--map 12_Mario_Small_Jump_Run=mario_runjump_0 --map 13_Mario_Small_Slide=mario_slide_0
 ```
 
-It prints `14 frames, 16x24 cells at 8x`. A clip with one pose still gets a `_0`, so every clip plays the same way.
+It prints `14 frames, 16x24 cells at 8x`, and also writes `UI/art/mario.spritepack.json`, so Studio can open the same pack.
 
-Or, in [Folio Studio](../studio.md), right-click the frames folder in **Files**, choose **Pack PNGs as Sprites**, rename each frame in **Sprites**, and click **Pack**. The command above also writes `UI/art/mario.spritepack.json`, which Studio opens to pack again.
-
-The script scales the art up 8 times with nearest-neighbour filtering. Folio filters textures smoothly, so 16px art drawn at 112dp straight from the source would blur.
+Both scale the art up 8 times with nearest-neighbour filtering. Folio filters textures smoothly, so 16px art drawn at 112dp straight from the source would blur.
 
 ## 2. Draw one clip
 

@@ -1,6 +1,6 @@
 # Dependency patches
 
-Any `.patch` in `patches/<dependency>/` is applied to that dependency when CMake fetches it, in sorted filename order. This is how a fix that exists upstream but not in the pinned release gets carried, without forking or hand-editing the build tree.
+Any `.patch` in `patches/<dependency>/` is applied to that dependency when CMake fetches it, in sorted filename order. This carries a fix that exists upstream but not in the pinned release, without forking or hand-editing the build tree.
 
 Generate one from a checkout of the dependency with the earlier patches applied, so it holds only the new change:
 
@@ -10,4 +10,4 @@ A new patch is applied to an existing build tree at the next configure. Each app
 
     ./scripts/build.sh --clean
 
-Every patch should say in its commit message why it exists and what upstream state makes it removable, so the pin can be moved forward without archaeology.
+Every patch says in its commit message why it exists and what upstream state makes it removable.

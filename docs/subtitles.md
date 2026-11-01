@@ -2,13 +2,13 @@
 
 A stack of spoken lines at the foot of the frame, newest at the bottom, each on its own clock.
 
-The shape is a long-standing one in shooters, and there is a reason for that: it is the only arrangement that survives two people talking over each other, which is what happens the moment a game gets loud. A few lines at a time, the newest bright and the ones above it dimmed, and each one leaving when it has had its say rather than when the next one arrives.
+It is the only arrangement that survives two people talking over each other. A few lines at a time, the newest bright and the ones above it dimmed, each leaving when it has had its say rather than when the next one arrives.
 
 `rcss/recipes/subtitles.rml` is a complete one. Copy it into your `UI/screens/` and change the palette and the type.
 
 ## The document draws; the queue is yours
 
-This is the split that matters, and the queue is most of the feature. The document reads a list and knows nothing about time, sound or speakers. Everything below lives in your game.
+The queue is most of the feature. The document reads a list and knows nothing about time, sound or speakers. Everything below lives in your game.
 
 ```cpp
 USTRUCT()
@@ -38,7 +38,7 @@ The model itself holds `TArray<FMySubtitleLine> Lines`, a `bool bAny`, and a `fl
 
 ## How long a line holds
 
-**Off the written length, not off the sound.** This is the mistake worth naming: a voice line's audio has a breath in front of it, a tail behind it and often a second of room tone, so a five word line arrives with six seconds of sound attached. Reading it takes as long as reading it takes.
+**Off the written length, not off the sound.** A voice line's audio has a breath in front, a tail behind and often a second of room tone, so a five word line arrives with six seconds of sound attached.
 
 ```cpp
 float ReadingTime(const FString& Text)
@@ -50,13 +50,13 @@ float ReadingTime(const FString& Text)
 }
 ```
 
-Per character rather than per word, because a Japanese or Chinese line has no spaces in it and counting words in one gives a caption that is gone before it has been seen.
+Per character rather than per word, because a Japanese or Chinese line has no spaces, and counting words gives a caption that is gone before it is seen.
 
-**Drop the oldest rather than refusing the newest** when the stack is full. What was just said is always the thing the player most needs, and a queue that fills up and stops is a queue that stops during a fight.
+**Drop the oldest rather than refusing the newest** when the stack is full. The latest line is what the player most needs, and a queue that fills up and stops, stops during a fight.
 
 ## Leaving
 
-**A row taken out of a data array is destroyed on the spot, so a line cannot animate its own removal.** This is the one that catches everybody. Removing the entry the frame its time runs out gives you no exit at all - the element is simply gone, and what you see is a single frame of something and then nothing.
+**A row taken out of a data array is destroyed immediately, so a line cannot animate its own removal.** Removing the entry the frame its time runs out gives no exit at all: one frame of something, then nothing.
 
 Hold it in the list instead:
 
@@ -82,39 +82,39 @@ for (int32 Index = Lines.Num() - 1; Index >= 0; --Index)
 }
 ```
 
-Two consequences worth having:
+Two consequences:
 
-- **A leaving line should stop counting toward the maximum.** Otherwise a new line cuts a departing one's exit short and replaces it with nothing, which is the bug you were fixing.
+- **A leaving line should stop counting toward the maximum.** Otherwise a new line cuts a departing one's exit short.
 - **A leaving line is nobody's newest**, even when it is the only one left, or it holds the bright styling all the way out.
 
 ## Do not dim or fade with opacity
 
-Opacity is inherited in RCSS, unlike CSS, and multiplied into premultiplied vertex colours rather than compositing the subtree as one image. A caption is a dark slab with light type over it, so a fading one blows out to white where the two overlap and is correct at both ends.
+Opacity is inherited in RCSS, unlike CSS, and multiplied into premultiplied vertex colours rather than compositing the subtree as one image. A caption is a dark slab with light type over it, so a fading one blows out to white where the two overlap.
 
 | | |
 |---|---|
 | Ageing a line | A quieter ground and quieter type. `.sub.old { background-color: ... }` |
 | Taking one away | A transform. The recipe wipes with `scaleX`, from the edge the tick is on |
 
-`filter` would composite it properly and costs a render target every frame. A caption stack is not where to spend one.
+`filter` would composite it properly but costs a render target every frame.
 
 ## Colour is not identity
 
-**Always write the speaker's name.** A palette that four people can tell apart at a glance is not one that everybody can, and captions are read by exactly the players least served by leaning on hue. Colour reinforces the name; it never replaces it.
+**Always write the speaker's name.** Captions are read by exactly the players least served by leaning on hue. Colour reinforces the name; it never replaces it.
 
-That also settles what to do when a game has more voices than colours: wrap the palette. Two characters sharing a colour is fine when both are named.
+With more voices than colours, wrap the palette. Two characters sharing a colour is fine when both are named.
 
-**Claim a voice's colour when it comes into the world, not when it speaks.** A colour handed out per line is given back the moment a caption expires, so a character who speaks twice with a pause between is two different people as far as the player can tell. A round robin over the palette, wrapping, held for the lifetime of whatever owns the voice.
+**Claim a voice's colour when it comes into the world, not when it speaks.** A colour handed out per line is given back when the caption expires, so a character who speaks twice with a pause between reads as two people. Use a round robin over the palette, wrapping, held for the lifetime of whatever owns the voice.
 
 ## What the recipe does not do
 
-Two things are worth adding and are deliberately not in it, because they are not what a caption is:
+Two things worth adding, deliberately left out because they are not part of a caption:
 
-- **A direction arrow**, pointing at the speaker. Genuinely useful in a game where hearing someone you cannot see is the point. Rotate it by the flat bearing from the *player's body* to the speaker, taken against the camera's yaw - measuring from the camera puts it several metres behind the player in third person, which is wrong most exactly at close range where it matters.
+- **A direction arrow**, pointing at the speaker. Useful where hearing someone you cannot see is the point. Rotate it by the flat bearing from the *player's body* to the speaker, taken against the camera's yaw. Measuring from the camera puts it several metres behind the player in third person, which is most wrong at close range.
 
-  Build the arrowhead from solid bars. The usual trick of collapsing a box to nothing and letting its borders mitre into a triangle draws correctly at every quarter turn and upside down at every bearing between them.
+  Build the arrowhead from solid bars. Collapsing a box and letting its borders mitre into a triangle draws correctly at every quarter turn and upside down at every bearing between.
 
-- **A marker over the speaker's head**, in the line's colour. See [markers](markers.md); the colour shared between the caption and the head is a link a player reads without being told there is one.
+- **A marker over the speaker's head**, in the line's colour. See [markers](markers.md); the shared colour links caption and head without explanation.
 
 ## Where to go next
 

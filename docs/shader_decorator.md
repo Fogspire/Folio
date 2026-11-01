@@ -8,7 +8,7 @@ Three effects RCSS has no syntax for, reached through one decorator:
 .sheen { decorator: shader("sweep #ffffffb0 0.35 0.3 15"), image(panel); }
 ```
 
-**The set is fixed.** A name Folio does not know warns once and draws nothing. This is not a shader language.
+**The set is fixed.** A name Folio does not know warns once and draws nothing.
 
 | | |
 |---|---|
@@ -18,9 +18,9 @@ Three effects RCSS has no syntax for, reached through one decorator:
 
 ## Additive blending, which is the point
 
-`additive` and `sweep` **add** rather than cover, and that is the whole reason this exists: RCSS has no blend modes and no other route to it.
+`additive` and `sweep` **add** rather than cover; RCSS has no blend modes and no other route to it.
 
-There is no blend state involved. RmlUi composites premultiplied, so a colour written with **zero alpha** adds to whatever is under it:
+No blend state is involved. RmlUi composites premultiplied, so a colour written with **zero alpha** adds to whatever is under it:
 
 ```css
 /* Adds a red wash without darkening anything. */
@@ -33,7 +33,7 @@ That works identically in both renderers, which a real blend state would not.
 
 **Multiple decorators paint in reverse source order: the first named is on top**, exactly like CSS `background-image` layers.
 
-Written the intuitive way round, an effect listed *after* an opaque background is painted underneath it and appears to do nothing:
+An effect listed *after* an opaque background is painted underneath it and appears to do nothing:
 
 ```css
 /* Wrong. The sheen is under the base and invisible. */
@@ -49,9 +49,9 @@ This is the single most common reason a shader decorator "does nothing".
 
 Each effect is evaluated into a small texture rather than run as a fragment shader.
 
-Slate has no seam for a custom fragment shader through `MakeCustomVerts`, and none of these three needs one: they are all a function of position within a box. Baking them keeps both renderers on the same code and means a document using one is not a document that only works in the engine.
+Slate has no seam for a custom fragment shader through `MakeCustomVerts`, and these three are all a function of position within a box. Baking them keeps both renderers on the same code, so a document using one still previews outside the engine.
 
-The consequence is that you cannot add a fourth from a stylesheet. If you need one, it is a change to `FolioRenderInterface::CompileShader` and its preview counterpart, and it has to be written twice.
+You cannot add a fourth from a stylesheet. It is a change to `FolioRenderInterface::CompileShader` and its preview counterpart, written twice.
 
 ## Animating one
 
@@ -71,9 +71,9 @@ The decorator's arguments are not animatable: there is no interpolation between 
 }
 ```
 
-An overlay element with `pointer-events: none` is the usual shape: it can be added, animated and removed without touching the element it decorates.
+An overlay with `pointer-events: none` can be added, animated and removed without touching the element it decorates.
 
-For a sweep that travels, animate a `transform: translateX` on an overlay wider than its container, rather than trying to move the band within the shader.
+For a sweep that travels, animate `transform: translateX` on an overlay wider than its container.
 
 ## Where to go next
 

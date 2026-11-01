@@ -1,12 +1,12 @@
 # A grid inventory
 
-Items that take up several cells, dragged and placed on a grid: a rifle is five cells by two, a battery is one. Also called a Tetris or jigsaw inventory. The grid lines, the items, a ghost showing where a held item will land and turning red when it will not fit, locked cells, and the same pick-up-and-place on mouse, keyboard and pad.
+Items that take up several cells, dragged and placed on a grid: a rifle is five cells by two, a battery is one. Also called a Tetris or jigsaw inventory. The grid lines, the items, a ghost showing where a held item lands and turning red when it does not fit, locked cells, and the same pick-up-and-place on mouse, keyboard and pad.
 
 ![The finished grid inventory in Folio Studio](images/grid_inventory.png)
 
-This tutorial assumes **[an inventory screen](inventory.md)**. That one gives every item one cell and lays the grid out with flexbox, which stops working as soon as an item spans cells.
+Assumes **[an inventory screen](inventory.md)**, whose one-cell-per-item flexbox grid stops working as soon as an item spans cells.
 
-The finished document is `examples/grid_inventory.rml`, with mock data in `UI/mock/grid_inventory.json`, which the preview mounts by itself.
+The finished document is `examples/grid_inventory.rml`, with mock data in `UI/mock/grid_inventory.json`, which the preview mounts.
 
 ---
 
@@ -24,7 +24,7 @@ The finished document is `examples/grid_inventory.rml`, with mock data in `UI/mo
 - **The items** are absolutely positioned, each sized in whole cells.
 - **The cells** are one transparent element per cell, on top of everything. They take every press, drag and drop, and draw focus, so a focused cell shows even inside an item.
 
-Every event lands on a cell, and a cell knows its index. The game turns that index into "which item" and "which cell of it", and the markup never has to.
+Every event lands on a cell, and a cell knows its index. The game turns that index into "which item" and "which cell of it".
 
 ---
 
@@ -98,8 +98,6 @@ Positions and sizes are in cells, not dp. The markup does the multiplying, so a 
 
 **`BlueprintReadOnly` on every property, `BlueprintCallable` on every command.** Folio binds only what is marked; a plain `UPROPERTY()` stays invisible to the markup. A command must return `void` and take only `bool`, numbers, `FString` or `FName`. See **[data binding](../data_binding.md)**.
 
-`Held`, `GrabX` and `GrabY` are private and unmarked on purpose: the document has no use for them.
-
 Bind before loading:
 
 ```cpp
@@ -113,7 +111,7 @@ Document->LoadDocument(TEXT("UI/screens/grid_inventory.rml"));
 
 ## 3. The rules
 
-Five commands carry the whole interaction, on every device.
+Five commands carry the interaction on every device.
 
 ```cpp
 void UGridInventory::Init(int32 LockedFromColumn)
@@ -252,7 +250,7 @@ void UGridInventory::RefreshCells()
 
 A drop that does not fit leaves the item held, which is right for click-to-place: the player tries somewhere else. A drag that ends somewhere it does not fit is put back by `Cancel` (§5).
 
-`Drop` moves; it never swaps or merges. Swapping with the one item under the ghost and merging stacks of the same thing are both game rules and belong in `Drop`, after `Fits` fails.
+`Drop` moves; it never swaps or merges. Swapping with the item under the ghost and merging stacks are game rules and belong in `Drop`, after `Fits` fails.
 
 ---
 
@@ -273,7 +271,7 @@ A drop that does not fit leaves the item held, which is right for click-to-place
 
 Two repeating gradients, one per axis: one dp of line, then 63 of nothing. The width is `12 * 64 + 1` so the last line has room.
 
-A tiled PNG does the same job - `decorator: image(cell.png repeat)` - and is the answer when a cell needs more than a line, such as corner marks. A tile is its pixel size in dp, and a repeating image has to be its own file rather than an atlas sprite. See **[images](../images.md)**.
+A tiled PNG (`decorator: image(cell.png repeat)`) does the same job when a cell needs more than a line, such as corner marks. A tile is its pixel size in dp, and a repeating image has to be its own file rather than an atlas sprite. See **[images](../images.md)**.
 
 ---
 
@@ -322,8 +320,6 @@ A tiled PNG does the same job - `decorator: image(cell.png repeat)` - and is the
 .cell:focus-visible { border: 2dp #ffffffb3; }
 ```
 
-The events map onto the commands like this:
-
 | Event | Command | Who |
 |---|---|---|
 | `dragstart` | `PickUp` | mouse, pressing and moving on an item |
@@ -332,13 +328,13 @@ The events map onto the commands like this:
 | `dragend` | `Cancel` | mouse, any drag ending; a drop that landed has already released, so this only puts back one that did not |
 | `click` | `Confirm` | mouse click, keyboard enter, pad confirm |
 
-So a mouse can drag, or click to pick up and click to put down, and a pad does the second with focus doing the pointing. Nothing in the markup is device-specific.
+A mouse can drag, or click to pick up and click to put down; a pad does the second with focus doing the pointing.
 
 **The 1dp gap is not decoration.** RmlUi's spatial navigation scores a candidate by its distance plus a penalty for being off to the side, and two cells that share an edge are not off to the side at all. Down from the third cell in a row then ties the cells below the second and third, the first in document order wins, and focus walks one column left with every press. With a gap, only the cell straight below has no penalty. The cells start at `1dp` so each gap falls on a grid line.
 
 **`drag: drag-drop` only on occupied cells.** An empty cell has nothing to pick up, and `drag-drop` rather than `drag` is what makes RmlUi look for a drop target at all. See **[drag, drop and resize](../drag_and_resize.md)**.
 
-**Pressing on the cell you picked up from fires both `click` and `dragdrop`.** RmlUi sends `click` whenever the press and release land on the same element, drag or not. `Confirm` drops the item where it was, then `Drop` and `Cancel` find nothing held. The order works out; it is worth knowing before adding a command that is not idempotent.
+**Pressing on the cell you picked up from fires both `click` and `dragdrop`.** RmlUi sends `click` whenever the press and release land on the same element, drag or not. `Confirm` drops the item where it was, then `Drop` and `Cancel` find nothing held. The order works out; keep it in mind before adding a command that is not idempotent.
 
 **Back cancels.** Escape and the pad's back button arrive on the widget, not in the document:
 
@@ -429,7 +425,7 @@ For the item's picture, add an `<img data-attr-sprite="it.Sprite"/>` sized to fi
 
 Colour comes from a class, not from `data-style-*`, so it rethemes from the stylesheet.
 
-The ghost can hang off the edge of the grid, because `GhostX` is wherever the grab point puts it. It is red there, which is the truth.
+The ghost can hang off the edge of the grid, because `GhostX` is wherever the grab point puts it. It is red there.
 
 ---
 
@@ -457,7 +453,7 @@ A cross from two diagonal gradients, no art. `Fits` already refuses a locked cel
 
 The mock has the pistol held and a ghost placed, so one screenshot shows every state. Set `bGhostFits` to `false` in `UI/mock/grid_inventory.json` to see the red one.
 
-The preview binds the commands as no-ops and says so (`I-DATA-EVENTSTUB`), so nothing moves there. What it does prove is the layout and the navigation: the `--keys` report lists each focused cell's rect, and a column that drifts shows up as an `x` that changes on a `down`.
+The preview binds the commands as no-ops and says so (`I-DATA-EVENTSTUB`), so nothing moves there. It proves the layout and the navigation: the `--keys` report lists each focused cell's rect, and a column that drifts shows up as an `x` that changes on a `down`.
 
 ---
 

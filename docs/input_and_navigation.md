@@ -1,23 +1,23 @@
 # Input and navigation
 
-Keyboard, gamepad and mouse all work out of the box. A document never learns what produced a direction - arrows, WASD, IJKL, d-pad and either analog stick all arrive as the same four keys, and all of it is live at once.
+Keyboard, gamepad and mouse all work with no setup. A document never learns what produced a direction: arrows, WASD, IJKL, d-pad and either analog stick all arrive as the same four keys, all live at once.
 
 | | |
 |---|---|
 | Arrow keys, **WASD**, **IJKL** | up, down, left, right |
 | D-pad, and either stick pushed to its extreme | the same four |
 | Either analog stick, held | repeats: 0.5 deadzone, 0.4s before the first repeat, 0.12s after |
-| `Enter`, `Space`, gamepad **confirm** face button | activate the focused element |
+| `Enter`, numpad `Enter`, `Space`, gamepad **confirm** face button | activate the focused element |
 | `Escape`, the other face button | back |
 | `Tab`, either shoulder | tab order (focus, not a tabset's tabs: see **[tabsets](form_controls.md#switching-tabs)**) |
 
-**Letters only navigate when nothing is taking text.** With an `input` or `textarea` focused, W is a W. That is what lets three keyboard schemes coexist without any of them breaking typing.
+**Letters only navigate when nothing is taking text.** With an `input` or `textarea` focused, W is a W.
 
 ## The one rule everything follows from
 
 **`nav` is read from the focused element itself, and it does not inherit.**
 
-When a direction key arrives, RmlUi reads `nav-<direction>` as a *local* property of the element that currently has focus. A container's `nav` is never consulted, and `nav` set on an ancestor is never inherited down.
+When a direction key arrives, RmlUi reads `nav-<direction>` as a *local* property of the focused element. A container's `nav` is never consulted or inherited.
 
 ```css
 /* Does nothing at all. */
@@ -27,21 +27,21 @@ When a direction key arrives, RmlUi reads `nav-<direction>` as a *local* propert
 .menu-item { tab-index: auto; nav: vertical; }
 ```
 
-Three `tab-index: auto` items inside a `.list { nav: vertical; }` container navigate exactly once, into the first item, and then stop dead. If your menu moves one step and freezes, this is why.
+Three `tab-index: auto` items inside a `.list { nav: vertical; }` container navigate exactly once, into the first item, and then stop dead.
 
-**Every focusable element carries its own `nav`**, declared next to its `tab-index: auto` in whatever rule defines the component. The shipped library does this; anything you write must too.
+**Every focusable element carries its own `nav`**, declared next to its `tab-index: auto` in whatever rule defines the component. The shipped library does this.
 
 ## Making something focusable
 
-`tab-index: auto` makes an element focusable, **and nothing else does.** It is a flag, not an ordering - Tab walks document order.
+`tab-index: auto` makes an element focusable, **and nothing else does.** It is a flag, not an ordering: Tab walks document order.
 
 ```css
 .menu-item { tab-index: auto; nav: vertical; }
 ```
 
-`<button>` is not a button. Only `body`, `img`, `handle`, the form controls, `progress` and `tabset` are real element types; everything else - including `button` - is a generic element with no focus behaviour until it gets `tab-index: auto`. See **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** §11.
+`<button>` is not a button. Only `body`, `img`, `handle`, the form controls, `progress` and `tabset` are real element types; everything else, including `button`, is a generic element with no focus behaviour until it gets `tab-index: auto`. See **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** §11.
 
-**Enter, numpad Enter and Space on a focused element synthesise a click.** You get keyboard and gamepad activation for free, and you should not add a separate keydown path for it.
+**Enter, numpad Enter and Space on a focused element synthesise a click.** Do not add a separate keydown path for activation.
 
 ## `nav` values
 
@@ -49,20 +49,19 @@ Three `tab-index: auto` items inside a `.list { nav: vertical; }` container navi
 
 `horizontal` and `vertical` are filters on the **incoming direction**, not on where the search looks. `nav-up: vertical` passes; `nav-up: horizontal` blocks. So the useful form is the single value: `nav: vertical` on a menu item means up and down navigate and left and right do nothing.
 
-**`nav` is a box shorthand** in `up right down left` order, exactly like `margin`. Which makes `nav: vertical horizontal` a trap: it reads as up/down `vertical` and left/right `horizontal`, every one of which passes its own filter - an elaborate way of writing `nav: auto`.
+**`nav` is a box shorthand** in `up right down left` order, like `margin`. So `nav: vertical horizontal` is a trap: it sets up/down `vertical` and left/right `horizontal`, each of which passes its own filter, which is `nav: auto`.
 
 **Axis locking stops focus leaving as well as entering.** A dialog's action row wants `nav: auto` so up returns to the content; a long settings list wants `nav: vertical` so a stray left press does not land in the sidebar. Choose per component, not globally.
 
-**`nav: auto` on `body`.** The document is the focus holder before anything is focused and after focus is lost, and this is what lets the first direction press enter the content. Without it a fresh document is unreachable by controller, and there is no recovery after a mouse click lands on nothing.
+**`nav: auto` on `body`.** The document is the focus holder before anything is focused and after focus is lost, and this lets the first direction press enter the content. Without it a fresh document is unreachable by controller, and there is no recovery after a mouse click lands on nothing.
 
-**Explicit overrides come in pairs.** `nav-down: #b` on `a` does not give you `nav-up: #a` on `b` - navigation is resolved entirely from the source element. A missing id warns at load.
+**Explicit overrides come in pairs.** `nav-down: #b` on `a` does not give you `nav-up: #a` on `b`: navigation is resolved entirely from the source element. A missing id warns at load.
 
 ## Two traps worth knowing before you hit them
 
-**Focus will not leave a region.** The spatial search starts from the focused element's **nearest scroll container**, and any element whose `overflow` is not `visible` on either axis is one. An incidental `overflow: hidden` on a layout wrapper confines focus somewhere you did not intend, and it reads as a navigation bug rather than a styling one. **Look for `overflow` first.**
+**Focus will not leave a region.** The spatial search starts from the focused element's **nearest scroll container**, and any element whose `overflow` is not `visible` on either axis is one. An incidental `overflow: hidden` on a layout wrapper confines focus, and it reads as a navigation bug. **Look for `overflow` first.**
 
-**A modal is only half-trapped by that.** `overflow: hidden` keeps navigation inside the dialog once focus is there, but nothing puts it there. A fresh document has nothing focused, and the first direction press runs the *document's* `nav`, which takes the first tabbable element in document order
-- the content behind the dialog.
+**A modal is only half-trapped by that.** `overflow: hidden` keeps navigation inside the dialog once focus is there, but nothing puts it there. A fresh document has nothing focused, and the first direction press runs the *document's* `nav`, which takes the first tabbable element in document order: the content behind the dialog.
 
 Make the background inert for as long as the dialog is up:
 
@@ -74,7 +73,7 @@ Make the background inert for as long as the dialog is up:
 
 ## Focus styling
 
-**Style `:focus-visible`, never `:focus`.** `:focus-visible` is set by navigation actions specifically, so the focus ring correctly stays hidden during mouse use.
+**Style `:focus-visible`, never `:focus`.** `:focus-visible` is set by navigation actions, so the focus ring stays hidden during mouse use.
 
 ```css
 .focusable:focus-visible { border-color: #f0c674; box-shadow: #f0c67459 0dp 0dp 12dp; }
@@ -88,21 +87,21 @@ Make the background inert for as long as the dialog is up:
 <div class="btn focusable" data-attrif-disabled="!bCanAfford" data-event-click="Buy">Buy</div>
 ```
 
-`:disabled` is set on **any** element with the `disabled` attribute. The attribute also writes `focus: none` onto the element as an inline property, so it leaves navigation and user clicks do not reach it. Bind it with `data-attrif-disabled="expr"`, which adds and removes the attribute; `data-attr-disabled` writes the value as text, and an attribute reading `false` is still there and still disables. The `.is-disabled` class means the same in the component library, for markup that would rather carry a class. Style the look, and add `pointer-events: none` to stop it responding to hover too:
+`:disabled` is set on **any** element with the `disabled` attribute. The attribute also writes `focus: none` onto the element as an inline property, so it leaves navigation and user clicks do not reach it. Bind it with `data-attrif-disabled="expr"`, which adds and removes the attribute; `data-attr-disabled` writes the value as text, and an attribute reading `false` is still there and still disables. The `.is-disabled` class means the same in the component library. Style the look, and add `pointer-events: none` to stop it responding to hover too:
 
 ```css
 :disabled { opacity: 0.6; color: #8a8a99; pointer-events: none; }
 ```
 
-Note that `focus: none` also suppresses `click`, because a click is dispatched to the nearest *focusable* ancestor rather than to what was under the cursor - so a `focus: none` element silently forwards its clicks to whatever contains it. `mousedown`, `mouseup`, `mouseover` and `:hover` still fire on it.
+`focus: none` also suppresses `click`, because a click is dispatched to the nearest *focusable* ancestor, so a `focus: none` element silently forwards its clicks to whatever contains it. `mousedown`, `mouseup`, `mouseover` and `:hover` still fire on it.
 
 ## Wrapping
 
-Pressing past the end of a list wraps to its other end: up on the top row lands on the bottom one. It applies where the focused element's `nav-up`/`nav-down`/`nav-left`/`nav-right` is `auto`, or `vertical`/`horizontal` along that axis (what `nav: vertical` and `nav: horizontal` set), and RmlUi found nothing that way. The wrap stays among the navigable elements of the nearest ancestor that holds any. An explicit `none` or `#id` is left alone, so set `nav-up: none` to stop at an end, or name the far element to wrap a hand-wired row. `folio.Nav.Wrap 0` turns it off.
+Pressing past the end of a list wraps to its other end. It applies where the focused element's `nav-up`/`nav-down`/`nav-left`/`nav-right` is `auto`, or `vertical`/`horizontal` along that axis (what `nav: vertical` and `nav: horizontal` set), and RmlUi found nothing that way. The wrap stays among the navigable elements of the nearest ancestor that holds any. An explicit `none` or `#id` is left alone, so set `nav-up: none` to stop at an end, or name the far element to wrap a hand-wired row. `folio.Nav.Wrap 0` turns it off.
 
 ## Switching schemes off
 
-Each scheme is a switch, settable from `DefaultEngine.ini` or the console with no rebuild:
+Each scheme is a switch, settable from `DefaultEngine.ini` or the console:
 
 `folio.Nav.Arrows` · `folio.Nav.WASD` · `folio.Nav.IJKL` · `folio.Nav.Gamepad`
 
@@ -110,7 +109,7 @@ A game that binds WASD to movement while a HUD is up wants that one off. Turning
 
 ## Binding your own keys
 
-For a game that wants its own scheme, or a rebinding screen. Keys map to **actions**: `Up`, `Down`, `Left`, `Right`, `Confirm`, `Back`, `NextTab`, `PreviousTab`.
+For a game's own scheme or a rebinding screen, keys map to **actions**: `Up`, `Down`, `Left`, `Right`, `Confirm`, `Back`, `NextTab`, `PreviousTab`.
 
 ```cpp
 // A UDataTable of FFolioNavBinding rows (Key, Action).
@@ -123,13 +122,13 @@ UFolioNavLibrary::GetKeysForNavAction(EFolioNavAction::Left);  // to show the pl
 
 With `bReplaceDefaults` the table becomes the **entire** mapping. Without it the rows are additions, so arrows and the pad keep working alongside them.
 
-**A binding wins over the built-in schemes and ignores the `folio.Nav.*` switches** - a project that bound a key meant it.
+**A binding wins over the built-in schemes and ignores the `folio.Nav.*` switches.**
 
-All of it is reachable from Blueprint, and from the console for trying one out: `folio.Nav.Bind Q Left`, `folio.Nav.Bindings`, `folio.Nav.ResetBindings`.
+All of it is reachable from Blueprint, and from the console: `folio.Nav.Bind Q Left`, `folio.Nav.Bindings`, `folio.Nav.ResetBindings`.
 
 ## Which face button confirms
 
-South (A, Cross) confirms by default and east (B, Circle) goes back. Nintendo hardware and Japanese conventions are the other way round, so it is a setting rather than a constant:
+South (A, Cross) confirms by default and east (B, Circle) goes back. Nintendo hardware and Japanese conventions are the other way round:
 
 ```cpp
 FFolioModule::Get().SetConfirmButton(Folio::EConfirmButton::East);
@@ -137,7 +136,7 @@ FFolioModule::Get().SetConfirmButton(Folio::EConfirmButton::East);
 
 or `folio.Nav.SwapConfirmBack 1`. Changing it swaps what the two buttons *do* and updates every open document in the same frame.
 
-**Folio has no platform opinion of its own** - it does not check what it is running on, because the answer depends on region as much as hardware. A port decides and calls the setter.
+**Folio has no platform opinion of its own**, because the answer depends on region as much as hardware. A port decides and calls the setter.
 
 ## Telling a document what the player is holding
 
@@ -146,7 +145,7 @@ Folio tracks the last device used process-wide, so a HUD and a pause menu open t
 | | |
 |---|---|
 | `folio-device-keyboard` `folio-device-mouse` `folio-device-gamepad` | exactly one, the precise device |
-| `folio-input-kbm` `folio-input-gamepad` | exactly one, the coarse question glyph swapping actually asks |
+| `folio-input-kbm` `folio-input-gamepad` | exactly one, the coarse question glyph swapping asks |
 | `folio-confirm-south` `folio-confirm-east` | exactly one, which button confirms |
 
 ```css
@@ -167,13 +166,13 @@ When an expression has to *build* a value, the reserved `folio` data model has `
 </div>
 ```
 
-`folio` is a **reserved model name - do not use it for game data.**
+`folio` is a **reserved model name: do not use it for game data.**
 
-Both routes are pinned in the preview with `--input-device keyboard|mouse|gamepad` and `--confirm-button south|east`, which is how a gamepad screenshot is taken without a gamepad.
+Both routes are pinned in the preview with `--input-device keyboard|mouse|gamepad` and `--confirm-button south|east`, so a gamepad screenshot needs no gamepad.
 
 ## Sounds
 
-**UI sounds are reported, not played.** `FFolioModule::OnUiSound()` fires `Focus`, `Confirm`, `Back` or `Invalid`. Folio owns no sound assets. `Invalid` is a click on something carrying `.is-disabled`, which is the case worth a different noise.
+**UI sounds are reported, not played.** `FFolioModule::OnUiSound()` fires `Focus`, `Confirm`, `Back` or `Invalid`. Folio owns no sound assets. `Invalid` is a click on something carrying `.is-disabled`.
 
 ## If the gamepad does nothing
 
@@ -184,17 +183,17 @@ LogUIActionRouter: [User 0] No focus target for leaf-most node [...], and the wi
                    isn't focusable - focusing the game viewport.
 ```
 
-CommonUI's action router owns focus, and when it reapplies its input config it silently takes focus off a document that had it. One override fixes it for good:
+CommonUI's action router owns focus, and when it reapplies its input config it silently takes focus off a document. One override fixes it:
 
 ```cpp
 UWidget* UMyScreen::GetDesiredFocusTarget() const override { return Document; }
 ```
 
-See **[hosting a document](hosting.md)**. Folio links no CommonUI and behaves the same in a project that has never heard of it - the integration is entirely on the game's side.
+See **[hosting a document](hosting.md)**. Folio links no CommonUI; the integration is entirely on the game's side.
 
 ## If the gamepad confirms the wrong control
 
-CommonUI turns the pad's accept button into a **left mouse click at its software cursor**, so a confirm presses whatever the cursor happens to be sitting over rather than what is focused. It looks exactly like a focus bug and is not one: the giveaway is that keyboard enter works, the pad does not, and Folio's input trace shows nothing at all for the press because it never arrives as a key.
+CommonUI turns the pad's accept button into a **left mouse click at its software cursor**, so a confirm presses whatever the cursor is over rather than what is focused. It looks like a focus bug and is not one: keyboard enter works, the pad does not, and Folio's input trace shows nothing for the press because it never arrives as a key.
 
 Three console variables, all defaulting on, in `DefaultEngine.ini`:
 
@@ -205,15 +204,15 @@ CommonUI.EnableVirtualPointer=0
 CommonUI.SyncCursorToFocusedWidgetOnInputMethodChange=0
 ```
 
-The second turns off the software cursor itself. Leave it on and the stick drives the pointer, which means a player holding only a pad is generating real mouse movement - so hover follows the stick, and anything keyed off which device is in use flickers between pad and mouse several times a second.
+The second turns off the software cursor itself. Leave it on and the stick drives the pointer, so a player holding only a pad generates real mouse movement: hover follows the stick, and anything keyed off which device is in use flickers between pad and mouse several times a second.
 
-The third moves the cursor to the centre of the focused widget every time the player picks up the pad, so that the fake accept click lands on the right control. The focused widget is the canvas, so the centre of it is the centre of the screen, and Slate synthesises a mouse move to get there - far enough that Folio reads it as the player taking the mouse back and hands the device straight to the pointer again. With the first line off there is no fake click left to aim.
+The third moves the cursor to the centre of the focused widget every time the player picks up the pad. The focused widget is the canvas, so that is the centre of the screen, and Slate synthesises a mouse move to get there, far enough that Folio reads it as the player taking the mouse back. With the first line off there is no fake click left to aim.
 
 ## Binding a key while a screen is up
 
-A focused document is where Slate routes input, so a player controller's own bindings do not fire while one is open. A menu button that should close the menu is the usual casualty.
+Slate routes input to a focused document, so a player controller's own bindings do not fire while one is open. A menu button that should close the menu is the usual casualty.
 
-Folio consumes only what a document claims - navigation, confirm and back, whether RmlUi could act on them or not, so none of those reach the pawn behind the screen. Everything else is offered back:
+Folio consumes only what a document claims (navigation, confirm and back, whether RmlUi could act on them or not), so none of those reach the pawn behind the screen. Everything else is offered back:
 
 ```cpp
 Document->OnUnclaimedKey.AddDynamic(this, &AMyHud::HandleUnclaimedKey);

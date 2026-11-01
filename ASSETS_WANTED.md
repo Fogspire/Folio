@@ -1,7 +1,6 @@
 # Assets wanted
 
-Art that markup has asked for and that does not exist yet, collected by `uipreview`.
-Everything between the markers is rewritten on each run; notes below them are kept.
+Art that markup has asked for and that does not exist yet, collected by `uipreview`. Everything between the markers is rewritten on each run; notes below them are kept.
 
 <!-- uipreview:begin -->
 

@@ -1,6 +1,6 @@
 # Generating a view model
 
-A document already declares its binding surface: `data-model="hud"` names the model, `{{ Health }}` names a value, `data-event-click="Reload"` names a command. Writing the matching C++ by hand is transcription, so it is generated.
+A document already declares its binding surface: `data-model="hud"` names the model, `{{ Health }}` names a value, `data-event-click="Reload"` names a command. The matching C++ is generated from it.
 
 ```bash
 ./scripts/viewmodel.sh UI/screens/settings.rml \
@@ -11,16 +11,16 @@ Your module needs `ModelViewViewModel` and `FieldNotification` in its `Build.cs`
 
 ## The two rules that matter
 
-**A base class is generated, never the class you own.** `USettingsViewModelBase` is `Abstract` and holds the fields and the command stubs; `USettingsViewModel : USettingsViewModelBase` is yours and holds the logic. Regenerating the base is then always safe. Generating one file a person is expected to then edit is the version that eventually overwrites somebody's work.
+**A base class is generated, never the class you own.** `USettingsViewModelBase` is `Abstract` and holds the fields and the command stubs; `USettingsViewModel : USettingsViewModelBase` is yours and holds the logic. Regenerating the base is then always safe.
 
-**Types come from the mock, names come from the markup.** `UI/mock/settings.json` already holds typed values, because someone wrote it to see the screen before the game could fill it in. So `"Health": 0.75` is a float and `"bAlive": true` is a bool - no inference from expressions, and no type annotations cluttering the markup.
+**Types come from the mock, names come from the markup.** `UI/mock/settings.json` already holds typed values, so `"Health": 0.75` is a float and `"bAlive": true` is a bool, with no type annotations in the markup.
 
-That makes the two a cross-check, which is most of the value:
+That makes the two a cross-check:
 
 - a name bound in the markup with no mock entry has no type, and is reported
-- a mock entry nothing binds is reported too - expected when a mock is shared between documents, a typo in the markup otherwise
+- a mock entry nothing binds is reported too: expected when a mock is shared between documents, a typo in the markup otherwise
 
-Run with `--strict` to make either an error, which is what a build step wants.
+Run with `--strict` to make either an error, for a build step.
 
 ## Commands
 
@@ -34,20 +34,18 @@ gives `void Damage(float InArg0, const FString& InArg1)` as a `BlueprintImplemen
 
 ## The loop
 
-Generate, then restart the editor. If the project sets this in `DefaultEditorPerProjectUserSettings.ini`, that is the whole instruction:
+Generate, then restart the editor, with this in `DefaultEditorPerProjectUserSettings.ini`:
 
 ```ini
 [/Script/UnrealEd.EditorLoadingSavingSettings]
 bForceCompilationAtStartup=True
 ```
 
-Two things to watch. The generated file has to be on disk before the restart. And a **failed** compile still opens the editor with the class simply absent, which reads as the tool having done nothing - so the generator reports what it wrote, and Folio's binding bridge warns by name when a bound name resolves to nothing.
+The generated file has to be on disk before the restart. A **failed** compile still opens the editor with the class absent, so the generator reports what it wrote, and Folio's binding bridge warns by name when a bound name resolves to nothing.
 
 ## From a schema instead
 
-A mock cannot say everything. It cannot say a string is an `FText`, that a number is an enum, what a row of an array holds, or what a command's parameters are called, and it describes one document where a model often serves several.
-
-A schema can. [Folio Studio](studio.md) keeps one per model in `UI/schema/<model>.json`, and generates the mock from it:
+A mock cannot say a string is an `FText`, that a number is an enum, what a row of an array holds, or what a command's parameters are called, and it describes one document where a model often serves several. A schema can. [Folio Studio](studio.md) keeps one per model in `UI/schema/<model>.json`, and generates the mock from it:
 
 ```json
 {
@@ -102,8 +100,8 @@ Model = NewObject<UPauseMenuModel>(this);
 BindViewModel(UPauseMenuModel::ModelName(), Model);
 ```
 
-A schema with `"source": "reflected"` was written by the Unreal editor from a class that already exists, through **Folio > Export View Model Schemas**. That class is then the source of truth, and there is nothing to generate from it.
+A schema with `"source": "reflected"` was written by the Unreal editor from a class that already exists, through **Folio > Export View Model Schemas**. That class is the source of truth, and there is nothing to generate.
 
 ## What it does not do
 
-It reads the document as text rather than through RmlUi, because `{{ }}` is rewritten into a data view as a document loads - a loaded document no longer knows what was written. The cost is that bindings introduced by a linked template are not seen. Those surface as unused mock entries rather than disappearing silently.
+It reads the document as text rather than through RmlUi, because `{{ }}` is rewritten into a data view as a document loads. So bindings introduced by a linked template are not seen; they surface as unused mock entries.

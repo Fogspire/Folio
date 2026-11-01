@@ -1,6 +1,6 @@
 # Hello world
 
-Getting Folio into a project and a document on screen. About fifteen minutes, most of it waiting on the first build.
+Getting Folio into a project and a document on screen. About fifteen minutes, mostly the first build.
 
 You need an Unreal 5.8 project that already builds, and:
 
@@ -20,16 +20,16 @@ Copy or clone Folio to:
 
 ## 2. Build the libraries Folio needs
 
-Folio uses RmlUi and msdfgen, which are compiled from source against your engine's toolchain rather than shipped as binaries. This is a one-off:
+Folio compiles RmlUi and msdfgen from source against your engine's toolchain. This is a one-off:
 
 ```bash
 cd <YourProject>\Plugins\Folio
 ./scripts/build_ue_libs.sh
 ```
 
-A cold run takes a few minutes and clones dependencies as it goes. If you skip this step the project fails to build with a message telling you to come back and do it, so it is hard to get wrong.
+A cold run takes a few minutes and clones dependencies. Skip it and the project fails to build with a message telling you to run it.
 
-The engine comes from your `.uproject`'s `EngineAssociation`. If that cannot be resolved, point at the engine yourself:
+The engine comes from your `.uproject`'s `EngineAssociation`. If that cannot be resolved, pass it:
 
 ```bash
 ./scripts/build_ue_libs.sh --engine-dir "Z:/Epic Games/Src/5.8/Engine"
@@ -48,11 +48,11 @@ Add Folio to your `.uproject`:
 }
 ```
 
-Then build your editor target as usual. Folio has two modules and no content, so there is nothing else to set up.
+Then build your editor target. Folio has two modules and no content, so nothing else needs setting up.
 
 ## 4. Write a document
 
-Documents live in a **`UI/` folder at the project root**: beside `Content/`, not inside it. They are plain text files, so they belong in source control with your code rather than as assets.
+Documents live in a **`UI/` folder at the project root**: beside `Content/`, not inside it. They are plain text files and belong in source control with your code.
 
 Create `<YourProject>/UI/hello.rml`:
 
@@ -81,11 +81,9 @@ Create `<YourProject>/UI/hello.rml`:
 </rml>
 ```
 
-Three things worth noticing:
-
-- **`/folio/folio.rcss`** is Folio's base stylesheet, resolved inside the plugin wherever it lives. Link it from every document: it sets the sane defaults the rest of the system assumes.
-- **`dp`, not `px`.** A dp scales with the player's UI scale and resolution the way Unreal's own UI does. Reach for `px` only when you genuinely mean one screen pixel.
-- **You have not chosen a font.** Folio falls back to the engine's Roboto, which is why this renders at all. Drop `.ttf` files in `<YourProject>/UI/fonts/` when you want your own; the first one found becomes the default.
+- **`/folio/folio.rcss`** is Folio's base stylesheet, resolved inside the plugin wherever it lives. Link it from every document: it sets the defaults the rest of the system assumes.
+- **`dp`, not `px`.** A dp scales with the player's UI scale and resolution the way Unreal's UI does. Use `px` only when you mean one screen pixel.
+- **You have not chosen a font.** Folio falls back to the engine's Roboto. Drop `.ttf` files in `<YourProject>/UI/fonts/` for your own; the first one found becomes the default.
 
 ## 5. Put it on screen
 
@@ -95,21 +93,21 @@ Start the editor and type in the console:
 folio.ShowWindow UI/hello.rml
 ```
 
-That opens the document in its own window. It needs no PIE session and no game code, which makes it the quickest way to look at something, and the only way if something else in the project is stopping the game from booting. `folio.CloseWindow` closes it.
+The document opens in its own window. It needs no PIE session and no game code, so it works even when something else stops the game from booting. `folio.CloseWindow` closes it.
 
-To see it over a running game instead, start PIE and use:
+To see it over a running game, start PIE and use:
 
 ```
 folio.Show UI/hello.rml
 ```
 
-`folio.Hide` removes it. Neither command takes keyboard focus, so nothing you type goes to the document. That is deliberate: focus is a decision a game makes, and [hosting a document](hosting.md) covers it along with `UFolioWidget`, which is how a screen ships.
+`folio.Hide` removes it. Neither command takes keyboard focus: focus is the game's decision, and [hosting a document](hosting.md) covers it along with `UFolioWidget`, which is how a screen ships.
 
 ## 6. Iterate without the editor
 
-**[Folio Studio](studio.md)** is the place to do this: the document on a canvas drawn by Folio's own renderer, edited visually or as text, on any desktop and with no Unreal running. Run `./scripts/studio.sh` from the plugin.
+**[Folio Studio](studio.md)** draws the document with Folio's own renderer and edits it visually or as text, on any desktop with no Unreal running. Run `./scripts/studio.sh` from the plugin.
 
-The same renderer is also a command-line tool, `uipreview`, which is what checks a document and takes screenshots of it in a build or for an agent. Build it once:
+The same renderer is a command-line tool, `uipreview`, which checks a document and takes screenshots of it in a build or for an agent. Build it once:
 
 ```bash
 ./scripts/build.sh
@@ -121,19 +119,19 @@ Then:
 ./bin/win64/uipreview.exe <YourProject>/UI/hello.rml --root <YourProject>
 ```
 
-`--root` is the path to the project directory, not its name, and every asset the document references is resolved beneath it. Running from inside the plugin that is:
+`--root` is the path to the project directory, not its name; every asset the document references resolves beneath it. From inside the plugin:
 
 ```bash
 ./bin/win64/uipreview.exe ../../UI/hello.rml --root ../..
 ```
 
-A root that does not exist reports the document as unopenable rather than complaining about the root itself, so check it first when a file you can see will not load.
+A root that does not exist reports the document as unopenable, so check it first when a file you can see does not load.
 
-It watches the file and reloads on save, so the loop is edit, save, look: no compiling and no editor restart.
+It watches the file and reloads on save: no compiling and no editor restart.
 
 If you write markup in VSCode, **[its extension](vscode.md)** adds highlighting for `.rml` and `.rcss`.
 
-Two flags worth knowing on day one:
+Two flags to know on day one:
 
 ```bash
 # Treat warnings as errors and run the markup lint checks.
@@ -143,15 +141,15 @@ uipreview.exe ui\hello.rml --root . --strict
 uipreview.exe ui\hello.rml --root . --screenshot hello.png
 ```
 
-Run with `--strict` before you commit a document. It catches unreachable focus, missing sprites and properties that parse but do nothing: the class of mistake that otherwise shows up as a screen that looks *almost* right.
+Run with `--strict` before you commit a document. It catches unreachable focus, missing sprites and properties that parse but do nothing.
 
 ## 7. Make it survive packaging
 
-Documents, stylesheets, fonts and images are **files, not assets**. The cooker knows nothing about them, so unless you say otherwise they are simply absent from a package and every screen comes up empty in a build that worked in the editor.
+Documents, stylesheets, fonts and images are **files, not assets**. The cooker knows nothing about them, so unless you stage them every screen comes up empty in a build that worked in the editor.
 
-You do not have to do this by hand. The **Folio** button in the level editor toolbar has **Set Up Packaging**, which writes every line below to `DefaultGame.ini` and leaves anything already there alone. **Stage Documents Used In This Level** covers the rest: it finds the directories the open level's documents live in, such as `/folio/examples/`, and stages those too.
+The **Folio** button in the level editor toolbar has **Set Up Packaging**, which writes every line below to `DefaultGame.ini` and leaves anything already there alone. **Stage Documents Used In This Level** covers the rest: it finds the directories the open level's documents live in, such as `/folio/examples/`, and stages those too.
 
-The whole of it, if you would rather write it yourself or need to know what the menu item produced:
+What the menu item writes, if you would rather write it yourself:
 
 ```ini
 [/Script/UnrealEd.ProjectPackagingSettings]
@@ -163,17 +161,17 @@ The whole of it, if you would rather write it yourself or need to know what the 
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/fonts")
 ```
 
-The `../` on the staging lines is not a mistake. These paths are resolved against `Content`, not the project root, and the staged path collapses back to the project root, which is exactly where Folio looks at runtime. Drop the `fonts` line if you ship your own faces in `UI/fonts`.
+The `../` on the staging lines is intentional: these paths resolve against `Content`, not the project root, and the staged path collapses back to the project root, where Folio looks at runtime. Drop the `fonts` line if you ship your own faces in `UI/fonts`.
 
-List your own subdirectories rather than `UI` wholesale if the tree holds things a player should not receive. **There is no way to exclude a subdirectory of one you have staged**, which is why Folio's own demo documents live in `Plugins/Folio/examples` rather than under `rcss` - staging the stylesheets a game needs would otherwise stage the demos with them.
+List your own subdirectories rather than `UI` wholesale if the tree holds things a player should not receive. **You cannot exclude a subdirectory of one you have staged**, which is why Folio's demo documents live in `Plugins/Folio/examples` rather than under `rcss`.
 
-The other side of that: **point anything at `/folio/examples/` and it will not be there in a packaged build.** It works in the editor and in a standalone run, which read loose files, and then renders nothing once packaged. Add the line while you are prototyping against them, and take it out before you ship:
+**Anything pointed at `/folio/examples/` is missing from a packaged build.** It works in the editor and in a standalone run, which read loose files, and renders nothing once packaged. Add this line while prototyping against them, and remove it before you ship:
 
 ```ini
 +DirectoriesToAlwaysStageAsUFS=(Path="../Plugins/Folio/examples")
 ```
 
-To check it worked, look for your files in the staging manifest rather than launching the build:
+To check, look for your files in the staging manifest rather than launching the build:
 
 ```powershell
 Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\AutomationTool\Saved\Logs\FinalCopyWin64_UFSFiles.txt" -Pattern "/UI/"
@@ -181,11 +179,11 @@ Select-String -Path "$env:LOCALAPPDATA\..\..\<engine>\Engine\Programs\Automation
 
 ### Changing UI on a device without cooking again
 
-Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` directory in the project (in a staged build that is `<Staged>/<YourProject>/uidev`, beside the `UI` tree) before it reads the package. `-uidev=<path>` points somewhere else. The directory mirrors the project, so `uidev/UI/screens/hud.rml` overrides `UI/screens/hud.rml`, and anything absent falls through to the package: a directory holding one document is enough. This is how UI gets iterated on a console or a Steam Deck. It does not exist in Shipping.
+Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` directory in the project (in a staged build that is `<Staged>/<YourProject>/uidev`, beside the `UI` tree) before it reads the package. `-uidev=<path>` points somewhere else. The directory mirrors the project, so `uidev/UI/screens/hud.rml` overrides `UI/screens/hud.rml`, and anything absent falls through to the package: a directory holding one document is enough. Use it to iterate UI on a console or a Steam Deck. It does not exist in Shipping.
 
 ## Where to go next
 
-- **[What RCSS actually supports](../UI_CONVENTIONS.md).** The authoritative list of what works, what is silently ignored, and what is banned outright. Read it before authoring anything real; RmlUi is close enough to CSS to mislead.
+- **[What RCSS supports](../UI_CONVENTIONS.md).** What works, what is silently ignored, and what is banned. Read it before authoring anything real; RmlUi is close enough to CSS to mislead.
 - **[Hosting a document](hosting.md)**: `UFolioWidget`, focus, and fitting into an existing widget tree.
 - **[Data binding](data_binding.md)**: showing values from your game, and whether a view model is worth it.
 - **[Generating a view model](view_models.md)**: the C++ behind a document's bindings, generated from the document and its mock.
@@ -200,5 +198,5 @@ Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` 
 - **`{{ braces }}` rendered literally.** The document declares `data-model` but nothing is bound. Add `UI/mock/<model>.json` for a design-time stand-in.
 - **The window opens empty.** Check the path: `folio.ShowWindow` resolves relative to the project directory, so `UI/hello.rml`, not `Content/UI/hello.rml` and not an absolute path.
 - **Fine in the editor, empty in a packaged build.** The files were not staged. See step 7.
-- **An edit is ignored in a packaged build.** A stale copy in the `-uidev` override directory. Folio logs a warning naming the directory at startup for exactly this reason.
+- **An edit is ignored in a packaged build.** A stale copy in the `-uidev` override directory. Folio logs a warning naming the directory at startup.
 - **Anything surprising.** [Internals](internals.md) is a ledger of things that have already caught someone out.

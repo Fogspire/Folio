@@ -1,6 +1,6 @@
 # Components, themes and recipes
 
-Folio ships a component library, a default theme and a set of complete screens to copy. Three directories, and the split between them is the one design decision everything else follows from.
+Folio ships a component library, a default theme and a set of complete screens to copy, in three directories.
 
 | | |
 |---|---|
@@ -14,9 +14,7 @@ Load them in that order. A game's rules land last and win by being later.
 
 RCSS has **no custom properties and no `var()`**. A stylesheet cannot hold a variable that a theme replaces.
 
-So a theme is not a swapped value - it is an **override block**, and the later rule wins. Which means a colour written inside a component's own rule can only be overridden by restating that rule in full, and the first game that disagrees with one colour forks the library.
-
-Keeping colour out of `lib/` is what makes the library usable by a game that does not share its palette. It looks arbitrary until you have tried the other way.
+So a theme is an **override block**, and the later rule wins. A colour written inside a component's own rule can only be overridden by restating that rule in full, and the first game that disagrees with one colour forks the library. Keeping colour out of `lib/` lets a game with a different palette use it.
 
 ## Getting the library
 
@@ -26,21 +24,21 @@ Keeping colour out of `lib/` is what makes the library usable by a game that doe
 <link type="text/template" href="/folio/lib/lib.rml"/>
 ```
 
-One line, the whole library. The document does not need to *use* the template - merely linking it merges the head.
+One line, the whole library. The document does not need to *use* the template; linking it merges the head.
 
 Order: template heads merge first, then the document's own head, so a document's `<style>` block always wins over the library. Within the library, later `<link>`s win at equal specificity.
 
 ## What is in it
 
-Ten components, each structure-only:
+Ten components on a shared `base`, each structure-only:
 
-`button` · `panel` · `list` · `modal` · `tabbar` · `toggle` (checkbox, radio, segmented) · `slider` · `field` · `tokens` · `motes`
+`panel` · `button` · `menu` · `list` · `slider` · `prompt` · `toggle` (checkbox, radio, segmented) · `tabbar` · `modal` · `motes`
 
-`motes` is the odd one: a drifting particle field for the background of a menu, with no interaction and nothing to compose into. See **[drifting motes](motes.md)**.
+`motes` is a drifting particle field for a menu background, with no interaction. See **[drifting motes](motes.md)**.
 
-Compose these rather than starting from a bare `div`. They already have the `box-sizing`, the flex bases and the scrollbar geometry right - and each of those is a documented trap in **[layout](layout.md)**. They also carry their own `tab-index: auto` and `nav`, which is the thing most hand-written components forget.
+Compose these rather than starting from a bare `div`. They get the `box-sizing`, the flex bases and the scrollbar geometry right (each a documented trap in **[layout](layout.md)**), and carry their own `tab-index: auto` and `nav`.
 
-The utility classes in `tokens` are the vocabulary the recipes are written in:
+The recipes are written in the token classes from `themes/default.rcss` (`.focusable` is in `lib/base.rcss`):
 
 | | |
 |---|---|
@@ -52,15 +50,11 @@ The utility classes in `tokens` are the vocabulary the recipes are written in:
 
 ## Recipes
 
-`/folio/rcss/recipes/` holds complete, working screens - a main menu, a pause menu, a confirmation dialog, a nameplate. They are **meant to be copied into your own `UI/`, not linked**.
-
-That is deliberate. A recipe is a starting point you own and edit; a linked one is a dependency you cannot change. Nothing in a recipe names Folio's directory except the library link.
-
-All four pass `--strict --a11y` with no findings, and `./scripts/check_recipes.sh` keeps it that way.
+`/folio/rcss/recipes/` holds complete, working screens: a main menu, a pause menu, a confirmation dialog, a controls screen, dialogue, input prompts, a nameplate, a stamina wheel, subtitles, and round shapes (`circle.rml`). **Copy them into your own `UI/`; don't link them.** A linked recipe is a dependency you cannot change. Nothing in a recipe names Folio's directory except the library link.
 
 **A recipe that binds a model needs a mock beside it.** `nameplate.rml` reads `Name` and `Health`, and previews against `UI/mock/nameplate.json` in the plugin. Copy it into your own `UI/mock/` along with the document, or the preview reports the binding as a missing variable.
 
-Every recipe passes `--strict` and `--a11y` with no findings, so what you copy starts clean.
+Every recipe passes `--strict` and `--a11y` with no findings, and `./scripts/check_recipes.sh` keeps it that way.
 
 ## Themes
 
@@ -76,11 +70,11 @@ A theme is `@media (theme: name)` in a stylesheet:
 
 Turn it on with `folio.Theme <name>`, **Set Theme** from Blueprint, or `uipreview --theme <name>`.
 
-**Several themes can be on at once.** They are independent switches, not a list to pick from, so `colour-blind` and `large-text` compose without either stylesheet knowing about the other.
+**Several themes can be on at once.** They are independent switches, so `colour-blind` and `large-text` compose without either knowing about the other.
 
-**A theme is global, not per document.** RmlUi tracks it per context, so Folio walks every context when one changes and remembers it for contexts created later - a screen opened after the switch comes up in the new look rather than the old one.
+**A theme is global, not per document.** RmlUi tracks it per context, so Folio walks every context when one changes and remembers it for contexts created later.
 
-`high-contrast` ships in the default theme. It is an accessibility setting rather than a taste one, so it widens the focus ring as well as brightening it, and stops disabled controls relying on opacity alone.
+`high-contrast` ships in the default theme. It widens the focus ring as well as brightening it, and stops disabled controls relying on opacity alone.
 
 ## Overriding the shipped look
 
@@ -93,15 +87,13 @@ Your stylesheet loads last, so a plain restatement wins:
 .c-accent    { color: #d9a441; }
 ```
 
-Two things worth doing while you are there:
-
-**Keep the token classes and retune them** rather than inventing your own. Every component and every recipe is written against `.c-accent` and `.s-pad-m`; changing what those mean recolours the whole library at once.
+**Keep the token classes and retune them** rather than inventing your own. Every component and recipe is written against `.c-accent` and `.s-pad-m`, so retuning those recolours the whole library.
 
 **Re-run `--a11y` after retuning colours.** The shipped theme passes contrast on every surface it puts text on; your palette has not been checked. `./scripts/check_a11y.sh UI/` does the sweep.
 
 ## Templates for markup
 
-The same template mechanism carries markup, not just stylesheet links, which is how a shared chrome - a screen frame, a header bar - is written once:
+Templates also carry markup, so a shared chrome (a screen frame, a header bar) is written once:
 
 ```html
 <template name="screen" content="content">
@@ -117,7 +109,7 @@ The same template mechanism carries markup, not just stylesheet links, which is 
 
 A document naming that template has its own body substituted into `content`.
 
-Never write an angle-bracketed `head`, `body` or `template` tag inside a comment in a template file. The loader finds those three by raw text search before any XML parsing, so a mention inside a comment is indistinguishable from the real thing and truncates the file at the wrong place.
+Never write an angle-bracketed `head`, `body` or `template` tag inside a comment in a template file. The loader finds those three by raw text search before XML parsing, so a mention inside a comment truncates the file at the wrong place.
 
 ## Where to go next
 

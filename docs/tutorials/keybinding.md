@@ -1,16 +1,14 @@
 # A controls screen
 
-Every action the player can rebind, the keys currently on it, and a press-any-key panel that catches whatever they hit next - including keys the game itself has bound. Written as markup against a model Folio ships, so the screen is a list and four commands.
+Every action the player can rebind, the keys currently on it, and a press-any-key panel that catches whatever they hit next, including keys the game itself has bound. Written as markup against a model Folio ships, so the screen is a list and four commands.
 
-The finished thing is `rcss/recipes/bindings.rml`. Copy it and change how it looks; what follows is why it is shaped that way.
+The finished thing is `rcss/recipes/bindings.rml`. Copy it and change how it looks.
 
 ---
 
 ## 1. Where the bindings come from
 
-**Enhanced Input's own user settings, and nowhere else.** `UEnhancedInputUserSettings` holds the player's key profile, saves it, and is what every other system already reads. A UI that kept its own table would be a second source of truth that has to be reconciled on load, on reset, and after every patch that adds an action.
-
-So `UFolioInputBindings` is a view of that profile rather than a copy of it:
+**Enhanced Input's own user settings, and nowhere else.** `UEnhancedInputUserSettings` holds the player's key profile, saves it, and is what every other system already reads. `UFolioInputBindings` is a view of that profile, not a copy, so there is no second table to reconcile on load, reset or patch:
 
 ```cpp
 Bindings = NewObject<UFolioInputBindings>(this);
@@ -20,9 +18,9 @@ Document->BindViewModel(TEXT("bindings"), Bindings);
 Document->LoadDocument(TEXT("UI/screens/controls.rml"));
 ```
 
-`Bindings` is now an array of rows, each with the mapping name, the action's display name and category, the primary and secondary keys as text, and whether the player has customised it.
+`Bindings` is an array of rows, each with the mapping name, the action's display name and category, the primary and secondary keys as text, and whether the player has customised it.
 
-**An action only appears if it is player mappable.** That is a checkbox on the Input Action asset, or an override in the mapping context. A profile with nothing mappable produces an empty screen and a warning in the log saying so, which is the failure people otherwise spend an afternoon on.
+**An action only appears if it is player mappable.** That is a checkbox on the Input Action asset, or an override in the mapping context. A profile with nothing mappable produces an empty screen and a warning in the log saying so.
 
 ## 2. The list
 
@@ -41,19 +39,17 @@ Document->LoadDocument(TEXT("UI/screens/controls.rml"));
 </div>
 ```
 
-Three things worth copying:
-
-**The keycap is the library's `pg-key`**, the same component a prompt uses. A rebind row and an in-game prompt showing the same key should look identical, and they will not if the screen draws its own box. See **[input prompts](../input_prompts.md)**.
+**The keycap is the library's `pg-key`**, the same component a prompt uses. A rebind row and an in-game prompt for the same key then look identical. See **[input prompts](../input_prompts.md)**.
 
 **An unbound slot is still a control.** `pg-unbound` draws an empty cap rather than nothing, because a row with a blank space in it gives the player nowhere to click to *add* a binding.
 
-**`reset` appears only on a customised row.** `bCustomised` comes from Enhanced Input, so the screen never offers to reset something that is already default.
+**`reset` appears only on a customised row.** `bCustomised` comes from Enhanced Input.
 
 ## 3. Catching the key
 
 `Rebind(mapping, slot)` starts listening. Pass the row's `PrimarySlot` or `SecondarySlot`, not 0 and 1: a row holds the keyboard and the pad keys together, so the column is not the engine slot, and writing to the wrong one replaces the other device's key.
 
-While it waits, `bListening` is true and `Listening` names the action, which is everything a panel needs:
+While it waits, `bListening` is true and `Listening` names the action:
 
 ```html
 <div class="over" data-class-on="bListening">
@@ -62,13 +58,13 @@ While it waits, `bListening` is true and `Listening` names the action, which is 
 </div>
 ```
 
-**The capture is an input pre-processor, not a focused widget.** That is the whole reason it works: the point is to catch keys nothing has asked for. A gamepad face button, a mouse thumb button, a key the game has bound to crouch - a focused widget sees none of those, or sees them after the game has already acted on them. A pre-processor runs before any of it and takes the event.
+**The capture is an input pre-processor, not a focused widget.** A focused widget never sees a gamepad face button, a mouse thumb button or a key the game has bound to crouch, or sees them after the game has acted. A pre-processor runs before any of it and takes the event.
 
 Escape or the pad's view button cancels rather than binding, because a player who has changed their mind needs one key that is never a binding. A key from the other device is swallowed and ignored, so a keyboard page never takes a pad button.
 
 ## 4. When the key is already taken
 
-Silently stealing a key from another action is the behaviour players complain about, so `ConfirmConflict` exists:
+A key already on another action is not stolen silently; the player confirms with `ConfirmConflict`:
 
 ```html
 <div class="over" data-class-on="bConflict">
@@ -78,7 +74,7 @@ Silently stealing a key from another action is the behaviour players complain ab
 </div>
 ```
 
-`ConflictWith` is the *display names* of the actions already on that key, not their mapping names. "Already bound" without saying to what is a warning the player cannot act on.
+`ConflictWith` is the *display names* of the actions already on that key, not their mapping names.
 
 ## 5. The rest of the commands
 
@@ -91,17 +87,17 @@ Silently stealing a key from another action is the behaviour players complain ab
 | `ResetBinding(mapping)` | This device's keys back to the action's default. |
 | `ResetAll()` | Every action, on this device. |
 
-Every one of them applies and saves through Enhanced Input, then re-reads the profile, so the list reflects what was actually stored rather than what was asked for. A mapping the engine refuses - and it can refuse - shows up as the row not changing, with the reason in the log.
+Each applies and saves through Enhanced Input, then re-reads the profile, so the list shows what was stored. A mapping the engine refuses shows up as the row not changing, with the reason in the log.
 
 ## 6. What to check before shipping it
 
 **Rebind something to a key the game uses.** The capture takes the event, so the game must not also act on it while the panel is up. If your pawn moves while you are choosing a key, something is registered ahead of Folio's pre-processor.
 
-**Rebind with a gamepad.** The face buttons have to reach the panel, and on a project with CommonUI that is where an input config can quietly take them first. See **[hosting a document](../hosting.md)**.
+**Rebind with a gamepad.** The face buttons have to reach the panel; with CommonUI, an input config can take them first. See **[hosting a document](../hosting.md)**.
 
-**Clear a binding, then look at the game's prompts.** A prompt for an unbound action should say so rather than showing a stale key - `bBound` on a prompt is false and the row can hide itself.
+**Clear a binding, then look at the game's prompts.** A prompt for an unbound action should say so rather than show a stale key: `bBound` on a prompt is false and the row can hide itself.
 
-**Reset to default, and restart.** Reset writes through to the saved profile; if a restart brings the old binding back, the save did not happen and nothing in the UI would have told you.
+**Reset to default, and restart.** Reset writes through to the saved profile; if a restart brings the old binding back, the save did not happen, and the UI does not tell you.
 
 ## Where to go next
 

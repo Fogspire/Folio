@@ -63,6 +63,16 @@ MEMBER_OF_READERS_CLASS = {
     "docs/tutorials/visor_hud.md#4",
     # Binds the class the block above it has the reader derive from a generated base.
     "docs/view_models.md#1",
+    # Members of the reader's subtitle, inventory and HUD classes, and the setup that constructs them.
+    "docs/subtitles.md#1",
+    "docs/subtitles.md#2",
+    "docs/tutorials/grid_inventory.md#1",
+    "docs/tutorials/grid_inventory.md#2",
+    "docs/tutorials/grid_inventory.md#3",
+    "docs/tutorials/stamina_wheel.md#1",
+    "docs/tutorials/stamina_wheel.md#2",
+    # Its `Document` is the RmlUi document the reader holds, not the UFolioWidget the prelude declares.
+    "docs/form_controls.md#0",
 }
 
 REFLECTED = re.compile(r"\b(UCLASS|USTRUCT|UPROPERTY|UFUNCTION|GENERATED_BODY)\b")

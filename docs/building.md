@@ -4,7 +4,7 @@ For changing Folio itself. Authoring documents needs none of this: see [testing 
 
 ## Build the tools
 
-On Windows, requires **Visual Studio 2022** with the C++ desktop workload. Nothing else needs installing: `build.sh` locates the VS-bundled CMake and Ninja through `vswhere`, so neither has to be on `PATH`. On Mac and Linux, `build.sh` takes `cmake` and `ninja` from `PATH`.
+On Windows, requires **Visual Studio 2022** with the C++ desktop workload. `build.sh` finds the VS-bundled CMake and Ninja through `vswhere`, so neither has to be on `PATH`. On Mac and Linux, `build.sh` takes `cmake` and `ninja` from `PATH`.
 
 ```bash
 ./scripts/build.sh                        # RelWithDebInfo, default
@@ -15,9 +15,9 @@ On Windows, requires **Visual Studio 2022** with the C++ desktop workload. Nothi
 
 Output lands at `bin/win64`, `bin/mac` or `bin/linux`.
 
-The first build clones the dependencies and takes several minutes. Later builds reuse them.
+The first build clones the dependencies and takes several minutes.
 
-`build.sh` runs `check_shader_parity.sh` before compiling, which fails if the HLSL and GLSL distance field shaders have drifted apart. `--skip-shader-parity` to bypass it while editing one side.
+`build.sh` runs `check_shader_parity.sh` first, which fails if the HLSL and GLSL distance field shaders have drifted apart. `--skip-shader-parity` bypasses it while editing one side.
 
 Every configuration writes to the same `bin/<platform>`, so an `--asan` build replaces the normal binaries until you rebuild without it. Instrumented binaries need the MSVC environment on PATH for the sanitizer runtime.
 
@@ -48,7 +48,7 @@ Run the verification harness before and after a change, and diff the two:
 | `scripts/check_doc_samples.sh` | Whether the C++ samples in `docs/` are still in step with the file the build compiles |
 | `scripts/check_invalidation.sh` | Proves an idle document stops doing work |
 
-Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is still intact, so they survive for weeks and then fail on someone else's machine.
+Use `--asan` for any intermittent crash. Lifetime bugs here tend to read freed memory that is still intact, so they survive for weeks and then fail on another machine.
 
 ## Where things are
 

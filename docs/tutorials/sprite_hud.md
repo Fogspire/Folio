@@ -2,7 +2,7 @@
 
 A pixel-art character on a HUD panel, angled toward the crosshair, that walks when the player walks, runs when they sprint, jumps, falls, ducks and skids with them. This builds it with Mario's frames from Super Mario World; use any character's.
 
-<!-- TODO: clip of the panel in game, the player walking, sprinting and jumping. -->
+https://github.com/user-attachments/assets/faf97aa0-4169-426c-a537-802e8cb1ad27
 
 You need Folio running in a project ([hello world](../hello_world.md)), `uipreview` built, a player pawn that is an `ACharacter`, and your frames as loose PNGs. The packing script needs Pillow (`pip install pillow`).
 
@@ -36,7 +36,9 @@ The script scales the art up 8 times with nearest-neighbour filtering. Folio fil
 	<link type="text/rcss" href="/folio/folio.rcss"/>
 	<link type="text/rcss" href="/UI/art/mario.rcss"/>
 	<style>
-		body { background-color: #00000000; width: 100%; height: 100%; pointer-events: none; }
+		body { background-color: #00000000; width
+
+: 100%; height: 100%; pointer-events: none; }
 
 		.plate {
 			position: absolute;

@@ -696,6 +696,162 @@ select {
 	font-size: 11px;
 }
 
+/* Sprites */
+
+.sprites {
+	padding: 10px 0 16px;
+}
+
+.sprites section {
+	margin-bottom: 14px;
+}
+
+.sprites h3 {
+	padding: 0 12px;
+}
+
+.sprites-actions {
+	display: flex;
+	gap: 6px;
+	padding: 0 12px;
+	margin-bottom: 12px;
+}
+
+.sprites-note {
+	margin: 0 0 6px;
+	padding: 0 12px;
+	user-select: text;
+}
+
+.sprites-heading {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding-right: 12px;
+}
+
+.sprites-heading h3 {
+	flex: none;
+}
+
+.sprites-folder {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	direction: rtl;
+	text-align: left;
+}
+
+.sprites-frame {
+	height: 26px;
+	padding-left: 10px;
+	gap: 6px;
+}
+
+.sprites-frame.drop {
+	box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.sprites-frame input[type='checkbox'] {
+	height: auto;
+	margin: 0;
+	flex: none;
+}
+
+.sprites-thumb {
+	flex: none;
+	width: 20px;
+	height: 20px;
+	object-fit: contain;
+	image-rendering: pixelated;
+	text-align: center;
+	color: var(--error);
+}
+
+.sprites-name {
+	flex: 1 1 60%;
+	min-width: 0;
+	height: 20px;
+	padding: 0 5px;
+	font-family: var(--mono);
+	font-size: 11.5px;
+	background: transparent;
+	border-color: transparent;
+}
+
+.sprites-name:hover {
+	border-color: var(--line);
+}
+
+.sprites-name:focus {
+	background: var(--bg-raised);
+}
+
+.sprites-file {
+	flex: 1 1 40%;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-size: 11px;
+}
+
+.sprites-settings {
+	padding: 0 12px;
+}
+
+.sprites-settings h3 {
+	padding: 0;
+}
+
+.sprites-field {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.sprites-field > span {
+	flex: 0 0 70px;
+}
+
+.sprites-field input {
+	flex: 1;
+	min-width: 0;
+	font-family: var(--mono);
+	font-size: 11.5px;
+}
+
+.sprites-preview {
+	position: relative;
+	margin: 0 12px 6px;
+	background-color: #2b2b2b;
+	background-image: conic-gradient(#333 25%, #2b2b2b 0 50%, #333 0 75%, #2b2b2b 0);
+	background-size: 16px 16px;
+}
+
+.sprites-preview canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+	image-rendering: pixelated;
+	cursor: pointer;
+}
+
+.sprites-cell {
+	position: absolute;
+	outline: 1px solid var(--accent);
+	pointer-events: none;
+}
+
+.sprites-problems {
+	margin: 0 12px 10px;
+	padding-left: 16px;
+	color: var(--warning);
+	user-select: text;
+}
+
 /* Library */
 
 .library {

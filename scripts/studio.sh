@@ -174,10 +174,11 @@ run_tests() {
 	# Each scripted test edits files, so each gets a throwaway copy of what it works on.
 	local scratch
 	scratch="$(mktemp -d)"
-	mkdir -p "$scratch/edit/UI/screens" "$scratch/shell/UI/screens" "$scratch/data" "$scratch/activity/UI/screens"
+	mkdir -p "$scratch/edit/UI/screens" "$scratch/shell/UI/screens" "$scratch/data" "$scratch/activity/UI/screens" "$scratch/sprites/UI/screens"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/edit/UI/screens/test.rml"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/shell/UI/screens/test.rml"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/activity/UI/screens/test.rml"
+	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/sprites/UI/screens/test.rml"
 	cp -r "$studio/test/fixtures/data/UI" "$scratch/data/UI"
 	mkdir -p "$scratch/intellisense"
 	cp -r "$studio/test/fixtures/data/UI" "$scratch/intellisense/UI"
@@ -198,6 +199,8 @@ run_tests() {
 	run_scripted intellisense "$scratch/intellisense" UI/screens/pause.rml
 	echo "Activity"
 	run_scripted activity "$scratch/activity" UI/screens/test.rml
+	echo "Sprites"
+	run_scripted sprites "$scratch/sprites" UI/screens/test.rml
 
 	rm -rf "$scratch"
 	[[ $failed -eq 0 ]] || folio_die "scripted tests failed."

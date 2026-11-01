@@ -23,6 +23,8 @@ python Plugins/Folio/Tools/uiart/pack_sprites.py <frames folder> UI/art/mario.pn
 
 It prints `14 frames, 16x24 cells at 8x`. A clip with one pose still gets a `_0`, so every clip plays the same way.
 
+Or, in [Folio Studio](../studio.md), right-click the frames folder in **Files**, choose **Pack PNGs as Sprites**, rename each frame in **Sprites**, and click **Pack**. The command above also writes `UI/art/mario.spritepack.json`, which Studio opens to pack again.
+
 The script scales the art up 8 times with nearest-neighbour filtering. Folio filters textures smoothly, so 16px art drawn at 112dp straight from the source would blur.
 
 ## 2. Draw one clip

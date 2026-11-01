@@ -15,6 +15,7 @@ import { InspectorPanel } from './panels/Inspector';
 import { LibraryPanel } from './panels/Library';
 import { OutlinePanel } from './panels/Outline';
 import { ProblemsPanel } from './panels/Problems';
+import { SpritesPanel } from './panels/Sprites';
 import { TerminalPanel } from './panels/Terminal';
 import { basename } from './paths';
 import { checkForUpdatesNow, openProject, pickProject, revertAll, saveAll, setMode, store, toggleUpdateCheck } from './session';
@@ -30,6 +31,7 @@ const components = {
 	library: LibraryPanel,
 	outline: OutlinePanel,
 	problems: ProblemsPanel,
+	sprites: SpritesPanel,
 	terminal: TerminalPanel,
 };
 

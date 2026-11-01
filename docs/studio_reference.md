@@ -9,6 +9,7 @@ Every panel, mouse action, shortcut and setting in [Folio Studio](studio.md).
 - **Files** lists the project's documents. Click an `.rml` to put it on the canvas, or an image or font to look at it. Right-click a folder for a new document, a new document from a recipe, or a new stylesheet, and a file to delete it.
 - **Properties** edits styles, classes, attributes and text. Each value shows the rule it comes from; click the rule to open it in **Code**.
 - **Library** has elements to drag onto the canvas, and recipes to start a new screen from. Click a recipe to preview it, then **Use** to copy it into `UI/screens/` and open the copy.
+- **Sprites** packs a folder of pixel-art frames into an atlas and its `@spritesheet`. See [pack sprites](#pack-sprites).
 - **Outline** shows the document's elements. Right-click one for cut, copy, paste, duplicate, delete and wrap.
 - **Code** completes as you type: tags, attributes, RCSS properties and their values, classes from every stylesheet the document links, and inside a binding the model's fields, a row's members and its commands. Hover a name for what it does; Ctrl+click a class, id, binding or `href` to go to where it is defined. CSS that RCSS silently ignores, such as `text-shadow` or `transition: opacity 120ms`, is underlined with what to write instead, and so is whatever the renderer or the schema reports.
 - **Data** lists each model the document binds and creates mocks and schemas. See [show a document's data](studio.md#show-a-documents-data).
@@ -62,6 +63,18 @@ Right-click an element, then **Bake to PNG**, to render it alone to an image, so
 - **Background** puts it over white, black, 50% grey or a colour you pick instead of leaving it transparent.
 
 Right-click an `.rml` in **Files** to bake the whole document, or a folder to bake every document in it to a PNG of the same name, into that folder or one you choose. A layer effect has to be baked in the editor with `folio.Bake`; see [bake a layer effect](performance_profiling.md#bake-a-layer-effect).
+
+## Pack sprites
+
+![The Sprites panel with Mario frames packed into an atlas](images/studio_sprites.png)
+
+Right-click a folder of PNG frames in **Files** and choose **Pack PNGs as Sprites**, or click **Frames Folder** in **Sprites** for a folder outside `UI/`. Rename each sprite in its row, untick a frame to leave it out, and drag rows to set the atlas order. Click a cell in the atlas preview to rename its frame. **Pack** writes:
+
+- the atlas PNG, each frame scaled up by **Scale** with sharp pixels, in a cell the size of the largest frame, standing on the cell floor;
+- the stylesheet, an `@spritesheet` declaring the same resolution, so each sprite's natural size is still its original pixel size in dp;
+- `<stylesheet>.spritepack.json` beside it, which remembers the pack. Click it in **Files**, or use **Open Pack**, to change it or pack again after editing the art.
+
+Link the stylesheet and draw a sprite by name: `<img sprite="hero_walk_0"/>` or `decorator: image(hero_walk_0)`. `Tools/uiart/pack_sprites.py --pack <file>.spritepack.json` packs the same sheet from the command line, to the same pixels.
 
 ## Where a style edit is written
 

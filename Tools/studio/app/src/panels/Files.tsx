@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { popup } from '../commands';
 import { showPanel } from '../dock';
 import { host } from '../host';
-import { basename, extension, join, relativeTo, stem } from '../paths';
+import { basename, dirname, extension, join, relativeTo, stem } from '../paths';
 import { askBake, askBakeFolder, copyLibraryDocument, documentsIn, createFile, deleteFile, openDocument, openFile, store } from '../session';
+import { isPackFile, openFolder, openPack } from '../sprites/session';
 
 /** A file about to be made, waiting for its name. */
 interface Creating {
@@ -22,6 +23,7 @@ async function folderMenu(directory: string, begin: (creating: Creating) => void
 		{ id: 'stylesheet', label: 'New Stylesheet…' },
 		{ separator: true },
 		{ id: 'bake', label: 'Bake Documents to PNG…', enabled: documentsIn(directory).length > 0 },
+		{ id: 'sprites', label: 'Pack PNGs as Sprites…', enabled: store.get().projectFiles.some((file) => extension(file) === '.png' && dirname(file).toLowerCase() === directory.toLowerCase()) },
 		{ separator: true },
 		{ id: 'reveal', label: 'Show in the File Manager' },
 		{ id: 'path', label: 'Copy Path' },
@@ -30,6 +32,7 @@ async function folderMenu(directory: string, begin: (creating: Creating) => void
 	else if (chosen === 'stylesheet') begin({ directory, kind: '.rcss', recipe: null });
 	else if (chosen?.startsWith('recipe:')) begin({ directory, kind: '.rml', recipe: chosen.slice('recipe:'.length) });
 	else if (chosen === 'bake') askBakeFolder(directory);
+	else if (chosen === 'sprites') openFolder(directory);
 	else if (chosen === 'reveal') host.reveal(directory);
 	else if (chosen === 'path') navigator.clipboard.writeText(directory);
 }
@@ -128,15 +131,18 @@ function FolderRows({ folder, depth, collapsed, toggle, begin }: RowProps) {
 			))}
 			{folder.files.map((file) => {
 				const isDocument = extension(file) === '.rml';
+				const isPack = isPackFile(file);
 				return (
 					<div
 						key={file}
 						className={'tree-row file' + (file === documentPath ? ' selected' : '') + (file === activeFile ? ' active' : '') + (isDocument ? ' document' : '')}
 						style={{ paddingLeft: 6 + depth * 12 + 14 }}
-						title={isDocument ? 'Show on the canvas' : 'Open'}
+						title={isDocument ? 'Show on the canvas' : isPack ? 'Open in Sprites' : 'Open'}
 						onClick={() => {
 							if (isDocument) {
 								openDocument(file);
+							} else if (isPack) {
+								openPack(file);
 							} else {
 								openFile(file);
 								showPanel('code');
@@ -148,6 +154,7 @@ function FolderRows({ folder, depth, collapsed, toggle, begin }: RowProps) {
 							const chosen = await popup([
 								{ id: 'canvas', label: 'Show on the Canvas', enabled: isDocument },
 								{ id: 'code', label: 'Open in Code' },
+								...(isPack ? [{ id: 'sprites', label: 'Open in Sprites' }] : []),
 								{ id: 'bake', label: 'Bake to PNG…', enabled: isDocument },
 								{ separator: true },
 								{ id: 'reveal', label: 'Show in the File Manager' },
@@ -156,6 +163,7 @@ function FolderRows({ folder, depth, collapsed, toggle, begin }: RowProps) {
 								{ id: 'delete', label: 'Delete' },
 							]);
 							if (chosen === 'delete') deleteFile(file);
+							else if (chosen === 'sprites') openPack(file);
 							else if (chosen === 'bake') {
 								// The whole document, as it lays out at the canvas size.
 								if (store.get().document !== file) await openDocument(file);

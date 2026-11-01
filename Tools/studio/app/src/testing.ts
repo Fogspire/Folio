@@ -6,6 +6,9 @@ import * as edit from './edit/commands';
 import { host } from './host';
 import { monaco } from './monaco';
 import * as session from './session';
+import * as spritePack from './sprites/pack';
+import * as png from './sprites/png';
+import * as spriteSession from './sprites/session';
 
 /**
  * Runs a script handed over on the command line (`--test file.js`) against the live app.
@@ -24,6 +27,7 @@ export async function runTestScript() {
 		dock,
 		data: { ...models, mockFromSchema },
 		monaco,
+		sprites: { ...spriteSession, ...spritePack, ...png },
 		shots: ((await host.state()) as { shots: string | null }).shots,
 		store: session.store,
 		engine: session.engine,

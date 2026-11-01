@@ -2,6 +2,8 @@
 
 A line of dialogue has emphasis in the middle, names that have to read the same everywhere, pacing, and it has to be translatable as **one string**, so a translator can move the emphasis onto whichever word carries it in their language. `<text>` is that string.
 
+![The line drawn: "must" in bold red, "Mountain Temple" in the place colour](images/rich_text.png)
+
 ```html
 <text class="line" data-loc="line_1">You <angry>must</> go to the {tag:Place.Mountain.Temple},
 	I{delay:0.2}...{/} think?</text>

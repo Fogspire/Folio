@@ -48,6 +48,8 @@ Size your own type the same way. `I-A11Y-FIXEDTEXT` is measured rather than infe
 
 Every shipped recipe is checked at 150% as well as at 100%.
 
+![The dialogue recipe at text scale 1, then 1.5](images/text_scale.png)
+
 ## Reduced motion
 
 Vestibular disorders make large movement unpleasant, and a menu that slides, scales and parallaxes is the usual trigger.
@@ -134,6 +136,8 @@ Around one man in twelve has some colour vision deficiency, and the person who d
 ```
 
 Every capture is redrawn as that vision sees it, and the contrast pass runs again on the simulated colours. `W-A11Y-CVD` reports the pairs that pass as drawn and fail as seen. `protanopia`, `deuteranopia`, `tritanopia` and `achromatopsia` are the four, at full severity, using the Machado 2009 transforms.
+
+![Subtitles as drawn, then as deuteranopia sees them: the two speakers' orange and blue stay apart](images/colour_vision.png)
 
 No tool checks meaning carried by colour alone, such as a red bar and a green bar. Add a shape, a label or a position.
 

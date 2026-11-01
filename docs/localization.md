@@ -158,6 +158,8 @@ Before any translation exists, the preview tool inflates and accents every strin
 uipreview.exe ui\screens\settings.rml --root . --culture pseudo --strict
 ```
 
+![A main menu in English and pseudo-localized, every string longer, accented and bracketed](images/pseudo_localization.png)
+
 Pseudo-localization finds the layout that only fits English. It lengthens each string by about 40%, accents the letters and wraps it in brackets: **if the closing bracket is missing, that string is being clipped.** Values arriving through a binding are left alone, so a plain number beside an accented label is not a missed string.
 
 `--strict` turns every warning into a failure, including text with no key. Run it before committing a document.

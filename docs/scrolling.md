@@ -1,5 +1,7 @@
 # Scrolling and scrollbars
 
+![A scrolling inventory list with a styled scrollbar, focus moved down past the first row](images/scrolling.png)
+
 ## The trap
 
 **An `overflow: auto` container needs its scrollbar sized, or it destroys its own layout.**

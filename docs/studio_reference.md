@@ -2,6 +2,8 @@
 
 Every panel, mouse action, shortcut and setting in [Folio Studio](studio.md).
 
+![Folio Studio with a button selected: Files, Canvas, Code, Outline and Properties](images/studio.png)
+
 ## Panels
 
 - **Files** lists the project's documents. Click an `.rml` to put it on the canvas, or an image or font to look at it. Right-click a folder for a new document, a new document from a recipe, or a new stylesheet, and a file to delete it.

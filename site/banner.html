@@ -1,0 +1,77 @@
+<!doctype html>
+<!-- Source of docs/images/site_banner.png, the README's link to the site. Rendered at 1600x360. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: "Archivo"; src: url("assets/fonts/archivo-latin-wdth-normal.woff2") format("woff2"); font-weight: 100 900; font-stretch: 62% 125%; }
+@font-face { font-family: "Bungee"; src: url("assets/fonts/bungee-latin-400-normal.woff2") format("woff2"); }
+html, body { margin: 0; background: #111114; }
+.banner
+{
+	width: 1600px;
+	height: 360px;
+	box-sizing: border-box;
+	padding: 18px;
+	background: #111114;
+}
+.marquee
+{
+	position: relative;
+	height: 100%;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 48px;
+	padding: 0 64px 0 72px;
+	border-radius: 16px;
+	background: radial-gradient(120% 110% at 40% 40%, #fff7d6 0%, #f8c21c 62%);
+	box-shadow: inset 0 0 0 14px #0b0b0d, inset 0 0 0 17px #3a3a40;
+	overflow: hidden;
+}
+h1
+{
+	margin: 0;
+	font: 400 196px/0.9 "Bungee";
+	color: #e1251b;
+	text-transform: uppercase;
+	text-shadow: 1px 1px 0 #111114, 2px 2px 0 #111114, 3px 3px 0 #111114, 4px 4px 0 #111114, 5px 5px 0 #111114, 6px 6px 0 #111114, 7px 7px 0 #111114, 8px 8px 0 #111114, 9px 9px 0 #111114, 10px 10px 0 #111114;
+}
+.go { display: flex; flex-direction: column; align-items: flex-end; gap: 22px; }
+.go p
+{
+	margin: 0;
+	font: 800 46px/1.05 "Archivo";
+	font-stretch: 125%;
+	text-transform: uppercase;
+	color: #111114;
+	text-align: right;
+}
+.button
+{
+	display: inline-flex;
+	align-items: center;
+	gap: 18px;
+	padding: 20px 30px 20px 34px;
+	border-radius: 999px;
+	background: #111114;
+	color: #f6f6f3;
+	font: 700 34px/1 "Archivo";
+	font-stretch: 110%;
+}
+.button svg { width: 34px; height: 34px; fill: none; stroke: #f8c21c; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<div class="banner">
+	<div class="marquee">
+		<h1>Folio</h1>
+		<div class="go">
+			<p>Website and<br>documentation</p>
+			<span class="button">fogspire.github.io/Folio<svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></span>
+		</div>
+	</div>
+</div>
+</body>
+</html>

@@ -4,7 +4,6 @@ Build a working computer terminal on a curved CRT screen in a level: a login for
 
 https://github.com/user-attachments/assets/5beac4d8-5f56-40ff-abe2-ccfbd6184fdd
 
-> [!NOTE]
 > The video was made prior to the creation of Folio Studio
 
 One document and one component. No Blueprint graph, no widget tree; the only C++ points an input action at the component.

@@ -1,6 +1,7 @@
 # Changelog
 
 ## 1.6.0
+* Documentation site, generated from the markdown and published to GitHub Pages: https://fogspire.github.io/Folio/
 * `<flipbook>`: an animated image from a grid sheet or numbered sprites, bindable to pause, seek or pick its frame; see [docs/flipbook.md](docs/flipbook.md)
 * Sprite HUD tutorial: a pixel-art character on an angled HUD panel that copies the player's movement; see [docs/tutorials/sprite_hud.md](docs/tutorials/sprite_hud.md)
 

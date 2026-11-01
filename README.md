@@ -224,6 +224,9 @@ Contributions are accepted only with the right for the author to relicense them,
 
 ## Changelog
 
+### 1.5.1
+* `build_ue_libs.sh` and `build.sh`: opened from Explorer, PowerShell or cmd, the Git Bash window waits for Enter before closing, so the error can be read
+
 ### 1.5.0
 * Studio: a **Language** picker on the canvas draws the document in a `UI/loc` translation or pseudo-localized, to find layouts that only fit English
 * Studio: the active tab stays in view however many files are open, and the wheel scrolls the tab strip

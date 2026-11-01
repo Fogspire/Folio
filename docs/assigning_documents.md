@@ -114,5 +114,5 @@ A level saved when this property was a plain `FString` still loads: the struct r
 ## Where to go next
 
 - **[Hosting a document](hosting.md)**: `UFolioWidget` in an existing widget tree.
-- **[Documents in the world](world_documents.md)**: the world component's own properties.
+- **[World document settings](world_document_settings.md)**: the world component's own properties.
 - **[Nameplates and markers](markers.md)**: the marker component's.

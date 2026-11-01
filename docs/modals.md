@@ -1,6 +1,7 @@
 # Modals and focus trapping
 
-The usual failure: the dialog looks right, the mouse works, and the gamepad walks straight through it into the buttons behind.
+A dialog that keeps mouse, keyboard and gamepad inside it until it closes.
+![A confirmation dialog over a dimmed screen, focus on Keep](images/modals.png)
 
 ## The short version
 
@@ -26,35 +27,7 @@ The usual failure: the dialog looks right, the mouse works, and the gamepad walk
 .modal       { position: absolute; overflow: hidden; }
 ```
 
-All four rules are load-bearing.
-
-## Why `overflow: hidden` on the dialog
-
-The spatial focus search starts from the focused element's **nearest scroll container**, and any element whose `overflow` is not `visible` on either axis is one.
-
-So `overflow: hidden` on the dialog keeps navigation *inside* it once focus is there. Without it, a down press from the last button escapes into whatever is behind.
-
-An incidental `overflow: hidden` on a layout wrapper confines focus the same way. **If focus refuses to leave a region, look for `overflow` first.**
-
-## Why that is only half of it
-
-`overflow: hidden` keeps focus in once it is there. **Nothing puts it there.**
-
-A fresh document has nothing focused. The first direction press runs the *document's* `nav`, which takes the first tabbable element in document order: the content behind the dialog. Without the rest of this, a scripted `down,right,up,left` walks the buttons behind the dialog and never reaches it.
-
-Apply both fixes:
-
-**`autofocus` on the button you want.** Put it on the safe choice, not the destructive one: `Keep`, not `Delete`.
-
-**`focus: none` on the background.** It inherits down the whole subtree, so one class on the screen root makes everything under it unfocusable.
-
-## Why `pointer-events: none` as well
-
-`focus: none` handles navigation. It does not stop a click.
-
-`focus: none` also **suppresses `click`**, because a click is dispatched to the nearest *focusable* ancestor rather than to what was under the cursor, so the element silently forwards its clicks to whatever contains it. `mousedown`, `mouseup`, `mouseover` and `:hover` still fire on it.
-
-`pointer-events: none` takes an element out of hit testing entirely, which is what a modal background needs.
+Each piece is load-bearing. A fresh document has nothing focused, so the first direction press takes the first tabbable element in document order, which is the content behind the dialog: `autofocus` puts focus in the dialog instead (on the safe choice, `Keep`, not `Delete`). `overflow: hidden` keeps it there, because the spatial focus search starts from the focused element's nearest scroll container, and any element whose `overflow` is not `visible` on either axis is one. `focus: none` inherits, so one class on the screen root takes everything behind out of navigation. It does not stop the mouse: a click on a `focus: none` element is forwarded to its nearest focusable ancestor, and `mousedown`, `mouseup`, `mouseover` and `:hover` still fire, so `pointer-events: none` takes the background out of hit testing as well.
 
 ## The scrim
 
@@ -93,6 +66,8 @@ uipreview UI/screens/confirm.rml --root . --keys "down,right,up,left" --shot-eac
 ```
 
 If any shot shows focus behind the dialog, the trapping is wrong. Run it every time: the mouse path works throughout, so it is hard to spot by looking.
+
+An incidental `overflow: hidden` on a layout wrapper confines focus the same way. **If focus refuses to leave a region, look for `overflow` first.**
 
 `rcss/recipes/confirm.rml` is a working dialog with all of this in it.
 

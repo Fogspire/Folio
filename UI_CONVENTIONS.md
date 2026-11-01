@@ -1,4 +1,4 @@
-# Folio: what RCSS actually supports
+# Folio: what RCSS supports
 
 **This document is authoritative for capability.** Anything authoring `.rml` or `.rcss` against Folio, human or model, follows it. Where it conflicts with general CSS/HTML knowledge, this document wins.
 
@@ -275,7 +275,7 @@ FFolioModule::Get().GetFontEngine()->RegisterVariableFace(
 
 All four are resolved from the field's true-distance channel rather than baked into extra glyph textures, so each costs one more quad per glyph and no atlas at all.
 
-**Their reach is bounded, and the bound is in em, not pixels**: currently 0.104em at the default atlas settings. `outline(2px)` is a twentieth of an em on 40dp text; on 13dp text it is a sixth of an em and gets clamped, with a warning naming the limit. Size an effect against the text it decorates.
+**Their reach is bounded, and the bound is in em, not pixels**: 0.104em at the default atlas settings. `outline(2px)` is a twentieth of an em on 40dp text; on 13dp text it is a sixth of an em and gets clamped, with a warning naming the limit. Size an effect against the text it decorates.
 
 The bound is a little under half the field's range rather than exactly half. Past half, the field is saturated: a texel an em away from the glyph holds the same number as one just beyond the edge, so an effect whose edge lands there has no outside to fade into. The last texel is held back to give it one.
 

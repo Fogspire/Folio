@@ -83,72 +83,6 @@ namespace FolioDocSamples
 	inline UWorld* GetWorld() { return World; }
 
 
-	// docs/accessibility.md#0
-	inline void Sample_docs_accessibility_md_0()
-	{
-		UFolioAccessibilityLibrary::ReviewNext();       // and Previous, First, Last
-		UFolioAccessibilityLibrary::ReviewRepeat();     // that again
-		UFolioAccessibilityLibrary::ReviewAll();        // from here to the end of the screen
-		UFolioAccessibilityLibrary::ReviewStop();       // what any other key should also do
-		UFolioAccessibilityLibrary::ReviewActivate();   // press what the cursor is on
-		UFolioAccessibilityLibrary::ReviewMoveFocusHere();
-	}
-
-	// docs/accessibility.md#1
-	inline void Sample_docs_accessibility_md_1()
-	{
-		UFolioAccessibilityLibrary::SetReaderVerbosity(EFolioReaderVerbosity::Low);
-	}
-
-	// docs/accessibility.md#2
-	inline void Sample_docs_accessibility_md_2()
-	{
-		UFolioAccessibilityLibrary::ReadEditWord();    // the word the caret is in
-		UFolioAccessibilityLibrary::ReadEditLine();    // the line it is on
-		UFolioAccessibilityLibrary::SpellEditWord();   // "V, e, g, a"
-	}
-
-	// docs/accessibility.md#3
-	inline void Sample_docs_accessibility_md_3()
-	{
-		UFolioAccessibilityLibrary::SetPunctuation(EFolioPunctuation::All);
-	}
-
-	// docs/accessibility.md#5
-	inline void Sample_docs_accessibility_md_5()
-	{
-		TArray<FString> Screen = UFolioAccessibilityLibrary::DescribeScreen();
-		FString On = UFolioAccessibilityLibrary::GetFocusedControl();   // "Master volume, slider, 60"
-	}
-
-	// docs/accessibility.md#6
-	inline void Sample_docs_accessibility_md_6()
-	{
-		// Native code, so it cannot be left held by an early return.
-		FFolioDocumentTreeRequest Request(TEXT("automation"));
-	}
-
-	// docs/accessibility.md#7
-	inline void Sample_docs_accessibility_md_7()
-	{
-		UFolioAccessibilityLibrary::SetTextScale(1.5f);      // 0.5 to 3, 1 being as authored
-		UFolioAccessibilityLibrary::SetReducedMotion(true);
-		UFolioAccessibilityLibrary::SetHighContrast(true);
-	}
-
-	// docs/accessibility.md#8
-	inline void Sample_docs_accessibility_md_8()
-	{
-		UFolioAccessibilityLibrary::SetScreenEffects(false);
-	}
-
-	// docs/accessibility.md#9
-	inline void Sample_docs_accessibility_md_9()
-	{
-		UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored. Clamped to 0.1 - 10
-		UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
-	}
-
 	// docs/assigning_documents.md#0
 	inline void Sample_docs_assigning_documents_md_0()
 	{
@@ -273,6 +207,27 @@ namespace FolioDocSamples
 		Canvas->MarkDirty(TEXT("my own reason"));
 	}
 
+	// docs/presentation_settings.md#0
+	inline void Sample_docs_presentation_settings_md_0()
+	{
+		UFolioAccessibilityLibrary::SetTextScale(1.5f);      // 0.5 to 3, 1 being as authored
+		UFolioAccessibilityLibrary::SetReducedMotion(true);
+		UFolioAccessibilityLibrary::SetHighContrast(true);
+	}
+
+	// docs/presentation_settings.md#1
+	inline void Sample_docs_presentation_settings_md_1()
+	{
+		UFolioAccessibilityLibrary::SetScreenEffects(false);
+	}
+
+	// docs/presentation_settings.md#2
+	inline void Sample_docs_presentation_settings_md_2()
+	{
+		UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored. Clamped to 0.1 - 10
+		UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
+	}
+
 	// docs/rich_text.md#0
 	inline void Sample_docs_rich_text_md_0()
 	{
@@ -294,6 +249,51 @@ namespace FolioDocSamples
 	{
 		UFolioAccessibilityLibrary::SetTextSpeed(2.0f);      // 1 is as authored
 		UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
+	}
+
+	// docs/screen_reader.md#0
+	inline void Sample_docs_screen_reader_md_0()
+	{
+		UFolioAccessibilityLibrary::ReviewNext();       // and Previous, First, Last
+		UFolioAccessibilityLibrary::ReviewRepeat();     // that again
+		UFolioAccessibilityLibrary::ReviewAll();        // from here to the end of the screen
+		UFolioAccessibilityLibrary::ReviewStop();       // what any other key should also do
+		UFolioAccessibilityLibrary::ReviewActivate();   // press what the cursor is on
+		UFolioAccessibilityLibrary::ReviewMoveFocusHere();
+	}
+
+	// docs/screen_reader.md#1
+	inline void Sample_docs_screen_reader_md_1()
+	{
+		UFolioAccessibilityLibrary::SetReaderVerbosity(EFolioReaderVerbosity::Low);
+	}
+
+	// docs/screen_reader.md#2
+	inline void Sample_docs_screen_reader_md_2()
+	{
+		UFolioAccessibilityLibrary::ReadEditWord();    // the word the caret is in
+		UFolioAccessibilityLibrary::ReadEditLine();    // the line it is on
+		UFolioAccessibilityLibrary::SpellEditWord();   // "V, e, g, a"
+	}
+
+	// docs/screen_reader.md#3
+	inline void Sample_docs_screen_reader_md_3()
+	{
+		UFolioAccessibilityLibrary::SetPunctuation(EFolioPunctuation::All);
+	}
+
+	// docs/screen_reader.md#5
+	inline void Sample_docs_screen_reader_md_5()
+	{
+		TArray<FString> Screen = UFolioAccessibilityLibrary::DescribeScreen();
+		FString On = UFolioAccessibilityLibrary::GetFocusedControl();   // "Master volume, slider, 60"
+	}
+
+	// docs/screen_reader.md#6
+	inline void Sample_docs_screen_reader_md_6()
+	{
+		// Native code, so it cannot be left held by an early return.
+		FFolioDocumentTreeRequest Request(TEXT("automation"));
 	}
 
 	// docs/supersampling.md#0
@@ -353,18 +353,6 @@ namespace FolioDocSamples
 	inline void Sample_docs_tutorials_inventory_md_2()
 	{
 		Slot->AddEventListener("dragdrop", Listener);
-	}
-
-	// docs/tutorials/visor_hud.md#0
-	inline void Sample_docs_tutorials_visor_hud_md_0()
-	{
-		Document->bInteractive = false;
-	}
-
-	// docs/tutorials/visor_hud.md#1
-	inline void Sample_docs_tutorials_visor_hud_md_1()
-	{
-		Motion->SetDocumentSource(Document);
 	}
 
 	// docs/ui_sounds.md#2

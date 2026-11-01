@@ -2,6 +2,8 @@
 
 A quest log, a chat scrollback, a crafting catalogue, a leaderboard. `data-for` over the whole array builds one element per item, and at ten thousand items it builds ten thousand elements and throws most of them away every time the list changes.
 
+![A quest log showing ten rows out of ten thousand, one selected](images/long_lists.png)
+
 The version below does no allocation after the first frame. It is a model-side pattern, not a Folio API: nothing in the markup gives it away.
 
 Read **[the inventory](inventory.md)** first. This is the same `data-for`, bound differently.

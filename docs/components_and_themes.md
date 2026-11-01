@@ -1,6 +1,9 @@
 # Components, themes and recipes
 
-Folio ships a component library, a default theme and a set of complete screens to copy, in three directories.
+One linked file gives a document a navigable component library and a default theme, and the recipes are complete screens to copy.
+![Buttons, toggles, sliders and a tab bar from the library in the default theme](https://github.com/user-attachments/assets/ef980ac9-1261-4860-a97f-0353f136c038)
+
+They live in three places:
 
 | | |
 |---|---|
@@ -8,13 +11,7 @@ Folio ships a component library, a default theme and a set of complete screens t
 | `/folio/themes/default.rcss` | **The tokens, and a skin for every library class.** Every colour lives here. |
 | your game's stylesheet | Anything it disagrees with, and anything naming the game. |
 
-Load them in that order. A game's rules land last and win by being later.
-
-## Why a component carries no colour
-
-RCSS has **no custom properties and no `var()`**. A stylesheet cannot hold a variable that a theme replaces.
-
-So a theme is an **override block**, and the later rule wins. A colour written inside a component's own rule can only be overridden by restating that rule in full, and the first game that disagrees with one colour forks the library. Keeping colour out of `lib/` lets a game with a different palette use it.
+Load them in that order. A game's rules land last and win by being later. RCSS has **no `var()`**, so that order is the whole theming mechanism: a colour inside a component rule could only be overridden by restating the rule in full.
 
 ## Getting the library
 
@@ -28,7 +25,7 @@ One line, the whole library. The document does not need to *use* the template; l
 
 Order: template heads merge first, then the document's own head, so a document's `<style>` block always wins over the library. Within the library, later `<link>`s win at equal specificity.
 
-## What is in it
+## Components
 
 Ten components on a shared `base`, each structure-only:
 

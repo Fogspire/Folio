@@ -2,6 +2,8 @@
 
 A visor that lags a hard turn. A reticle that drifts and settles. A readout that sways with a run. A helmet with mass.
 
+https://github.com/user-attachments/assets/6a28104d-f75e-4d6d-82de-1aaeb25269ce
+
 None of it is expressible in RCSS: a **transition** fires on a state change and runs a fixed curve to completion. This needs a continuous response to a signal that gets kicked again before it settles, which requires velocity carried between frames, and a stylesheet has nowhere to put velocity. So it is a component, and it drives one property.
 
 ## The shortest version

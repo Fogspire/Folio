@@ -31,6 +31,7 @@
 
 		.box {
 			width: 100%;
+			box-sizing: border-box;
 			border: 1dp #3a3a48;
 			border-radius: 10dp;
 		}

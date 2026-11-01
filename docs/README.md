@@ -2,7 +2,16 @@
 
 RmlUi-based UI for Unreal: markup and stylesheets instead of widget graphs, distance-field text and vector art sharp at any size, and a preview tool that lays out identically to the engine.
 
-Read in order if you are new. Everything after **Getting started** stands alone.
+Read **Start here** in order if you are new. Everything after it stands alone.
+
+## The one thing to know first
+
+RmlUi is **not a browser** and RCSS is **not CSS**. Valid-looking CSS parses and then does nothing: `display: grid`, `var()`, `background-image`, `text-shadow`, `calc()`, `120ms`, `rgba(0,0,0,0.5)`. None of those warn.
+
+Two habits cover it:
+
+- Run with `--strict`. Nearly every RCSS mistake is a warning rather than an error, and a check that only looks at errors passes a broken stylesheet.
+- When something does nothing, look it up in **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** before debugging it; it is usually on the banned list.
 
 ## Start here
 
@@ -10,7 +19,8 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 |---|---|
 | **[Hello world](hello_world.md)** | Install the plugin, get a document on screen, cook and ship it. |
 | **[Folio Studio](studio.md)** | A visual editor on Windows, macOS and Linux: select, drag, resize and restyle on the real renderer, with every edit written back as text. |
-| **[Setting up VSCode](vscode.md)** | Highlighting for `.rml` and `.rcss`, if you write markup in VSCode. Its preview is deprecated in favour of Studio. |
+| **[Folio Studio reference](studio_reference.md)** | Every panel, mouse action, shortcut and setting. |
+| **[Setting up VSCode](vscode.md)** | Highlighting for `.rml` and `.rcss`, if you write markup in VSCode. |
 | **[Testing a document](testing_a_document.md)** | `uipreview`, `--strict`, screenshots, and the checks that stop a broken stylesheet shipping. |
 | **[Assigning a document](assigning_documents.md)** | The editor picker, portable paths, and how a wrong one is reported. |
 
@@ -47,7 +57,8 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 
 | | |
 |---|---|
-| **[Documents in the world](world_documents.md)** | A monitor on a desk, a sign on a wall. The three draw modes and the surface setup. |
+| **[Documents in the world](world_documents.md)** | A monitor on a desk, a sign on a wall: putting a document on a surface and clicking it. |
+| **[World document settings](world_document_settings.md)** | Every draw mode, property, call and console command of the world component. |
 | **[Input prompts](input_prompts.md)** | Showing the key a player bound, drawn rather than authored, and swapping when they pick up a pad. |
 | **[Nameplates and markers](markers.md)** | Screen-space documents that follow a world location. |
 | **[Subtitles and closed captions](subtitles.md)** | Stacked captions: several speakers at once, each line on its own clock, a name and colour per speaker, sounds set apart from speech. Why the sound does not decide how long one holds, and why a line has to be held in the list to animate away. |
@@ -57,10 +68,13 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 
 | | |
 |---|---|
-| **[Accessibility](accessibility.md)** | Contrast, hit targets, focus visibility and control names, checked in the build; the screen reader that reads the result; and the text-scale, reduced-motion and high-contrast settings. |
+| **[Accessibility checks](accessibility.md)** | Contrast, text size, hit targets, focus visibility and control names, checked in the build. |
+| **[Screen reader](screen_reader.md)** | The tree NVDA, JAWS or a console narrator reads, the game's own voice, the review cursor and the `folio-*` attributes. |
+| **[Presentation settings](presentation_settings.md)** | Text scale, reduced motion, high contrast, screen effects, text speed and colour-vision simulation. |
 | **[Localisation](localization.md)** | `data-loc`, the gather, and previewing pseudo-loc before translation exists. |
 | **[Performance and profiling](performance_profiling.md)** | `stat Folio`, the invalidation path, and what makes a screen slow. |
-| **[Supersampling](supersampling.md)** | More samples per pixel for a slanted edge: what it must not change, why text is drawn separately, and the downsample that makes it worse than not doing it. |
+| **[Profiling reference](profiling_reference.md)** | Every `stat Folio` row, Insights, CSV and LLM, the invalidation trace and `uipreview` PERF findings. |
+| **[Supersampling](supersampling.md)** | More samples per pixel for a slanted edge: turning it on, what 2x and 4x cost, and why text stays sharp. |
 | **[Console commands](console.md)** | Everything Folio adds to the console, and what each is for. |
 | **[Packaging](hello_world.md)** §7 | Documents are files, not assets: they need staging, or every screen is empty in a build that worked. |
 
@@ -88,12 +102,3 @@ Read in order if you are new. Everything after **Getting started** stands alone.
 | **[What Folio does not do yet](known_gaps.md)** | Every known limit, in one place. Read it before designing around something. |
 | **[Internals](internals.md)** | Build and engine-integration hazards. Not for authoring. |
 | **[Building Folio](building.md)** | Building the tools, the verification harness, and where everything is in the repository. For changing Folio itself. |
-
-## The one thing to know first
-
-RmlUi is **not a browser** and RCSS is **not CSS**. Valid-looking CSS parses and then does nothing: `display: grid`, `var()`, `background-image`, `text-shadow`, `calc()`, `120ms`, `rgba(0,0,0,0.5)`. None of those warn.
-
-Two habits cover it:
-
-- Run with `--strict`. Nearly every RCSS mistake is a warning rather than an error, and a check that only looks at errors passes a broken stylesheet.
-- When something does nothing, look it up in **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** before debugging it; it is usually on the banned list.

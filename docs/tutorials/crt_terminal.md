@@ -2,6 +2,8 @@
 
 Build a working computer terminal on a curved CRT screen in a level: a login form you can type into, radio channels, a pop-up window you can drag, resize and close with an animation, and a bin you can drop files into. Then put it on a mesh with scan lines and a phosphor glow.
 
+https://github.com/user-attachments/assets/43d779a1-2c42-46e6-862f-0fa27a34dcd6
+
 One document and one component. No Blueprint graph, no widget tree; the only C++ points an input action at the component.
 
 The finished thing is `examples/crt_terminal.rml`. Open it beside this page.
@@ -220,7 +222,7 @@ Add a **Folio World Document** component to an actor with the CRT mesh.
 
 Then bind the target to a material. `/Folio/M_FolioSurface` ships with the plugin: instance it, and feed its **Element** texture parameter from the component's `OnSurfaceChanged` event.
 
-Full setup, including the material domain and the crash you get from an oversized `Pixels Per Unit`: **[documents in the world](../world_documents.md)**.
+Full setup, including the assert you get from an oversized `Pixels Per Unit`: **[documents in the world](../world_documents.md)**. The material domain is in **[world document settings](../world_document_settings.md)**.
 
 ### Scan lines in the material
 

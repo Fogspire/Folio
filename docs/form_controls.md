@@ -1,5 +1,10 @@
 # Form controls
 
+Text fields, checkboxes, radios, selects, progress bars and tabsets with real behaviour, and a `<button>` that clicks.
+![A text field, a checked toggle and a volume slider](images/form_controls.png)
+
+## Making `<button>` a button
+
 RML is not HTML. Only these tags are backed by real element types with behaviour:
 
 `body` · `img` · `handle` · `form` `input` `select` `textarea` `label` · `progress` / `progressbar` · `tabset`

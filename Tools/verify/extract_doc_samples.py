@@ -58,9 +58,9 @@ MEMBER_OF_READERS_CLASS = {
     "docs/tutorials/paper_doll.md#9",
     "docs/tutorials/paper_doll.md#10",
     "docs/tutorials/paper_doll.md#11",
+    "docs/tutorials/visor_hud.md#0",
+    "docs/tutorials/visor_hud.md#1",
     "docs/tutorials/visor_hud.md#2",
-    "docs/tutorials/visor_hud.md#3",
-    "docs/tutorials/visor_hud.md#4",
     # Binds the class the block above it has the reader derive from a generated base.
     "docs/view_models.md#1",
     # Members of the reader's subtitle, inventory and HUD classes, and the setup that constructs them.

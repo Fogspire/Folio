@@ -36,7 +36,7 @@ If the project has its own conventions document, it governs taste and this one g
 
 ### 2. Start from a recipe, not from nothing
 
-`Plugins/Folio/rcss/recipes/` has complete working screens (`main_menu.rml`, `pause.rml`, `confirm.rml`, `nameplate.rml`). **Copy one into `UI/screens/` and edit it.** They pass `--strict` and `--a11y` with no findings.
+`Plugins/Folio/rcss/recipes/` has complete working screens (`main_menu.rml`, `pause.rml`, `confirm.rml`, `nameplate.rml` and more). **Copy one into `UI/screens/` and edit it.** They pass `--strict` and `--a11y` with no findings.
 
 ### 2a. Decide how flat it should be
 
@@ -261,7 +261,7 @@ UI/
 | [docs/input_and_navigation.md](docs/input_and_navigation.md) | the `nav` rule and everything from it |
 | [docs/data_binding.md](docs/data_binding.md) | driving a document from gameplay |
 | [docs/testing_a_document.md](docs/testing_a_document.md) | every check and what it catches |
-| [docs/accessibility.md](docs/accessibility.md) | the annotations, the build gate and the screen reader |
+| [docs/accessibility.md](docs/accessibility.md) | the annotations and the build gate; [screen reader](docs/screen_reader.md) and [presentation settings](docs/presentation_settings.md) are their own pages |
 | [docs/rich_text.md](docs/rich_text.md) | `<text>`, terms and the typewriter |
 | [docs/known_gaps.md](docs/known_gaps.md) | every known limit, when something does not work and you need to know whether it can |
 | [docs/form_controls.md](docs/form_controls.md) | the real element types, and why `<button>` is not a button |

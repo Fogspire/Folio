@@ -1,125 +1,40 @@
 # Performance and profiling
 
-Folio reports itself through Unreal's ordinary tools: `stat`, Unreal Insights, CSV captures and LLM all know about it.
+Where a screen's frame time goes, and the fix for each usual cause.
 
-## The quick look: `stat Folio`
+## See what a screen costs
+
+In the editor console, with the screen up:
 
 ```
 stat Folio
 ```
 
-An on-screen breakdown of where Folio's frame goes:
+Three rows answer most questions:
 
-| Row | What it covers |
-|---|---|
-| **Update** | RmlUi's own work: style resolution, layout, data model updates, animations |
-| **Render** | Turning the document into Slate draw elements |
-| **Compile geometry** | Building a mesh RmlUi will reuse. Should be rare after a screen settles |
-| **Draw geometry** | Emitting one compiled mesh. Called a lot; each call should be tiny |
-| **Load texture** | Decoding art. Should be zero except when a screen first opens |
-| **Resolve layers** | The render-target passes behind `filter`, `box-shadow` and `backdrop-filter` |
-| **RT: replay layer** | Replaying one layer's draws on the render thread. Broken down by **RT: layer graph**, **RT: layer buffers** and **RT: layer state** |
-| **Draws** | Draw calls this frame |
-| **Geometry batches** | Batches this frame |
+- **Draws** and **Geometry batches**: climbing means texture switches, art that should share an atlas spread across several.
+- **Compile geometry**: should be rare once a screen settles. Every frame means something is invalidating stable geometry.
+- **Resolve layers**: the offscreen passes behind `box-shadow`, `filter`, `backdrop-filter` and `mask-image`.
 
-**What to look at first.** `Draws` and `Geometry batches` climbing is the usual cause of a slow screen, and it is almost always texture switches: art that should be in one atlas spread across several. That is a packing problem, not a renderer problem.
+`stat Slate` beside it gives the batch count for the whole UI, which is the honest measure of how well Folio's output composites with everything else.
 
-**Compile geometry** repeating every frame means something is invalidating geometry that should be stable. Animating `width`, `height`, `margin` or `padding` does this, because those change layout. Animate `transform`, `opacity` and colour instead; that is the biggest authoring decision affecting Folio's cost.
-
-Slate's own stat:
-
-```
-stat Slate
-```
-
-Its batch count is the honest measure of how well Folio's output composites with everything else.
-
-## Unreal Insights
-
-Folio has its own trace channel, so a capture can ask for it without everything else:
-
-```
--trace=default,folio
-```
-
-Every scope in `stat Folio` appears in the timeline, including those inside the portable core: the distance field generator names its scopes through a hook table, so glyph generation shows up as Folio work rather than an unexplained gap.
-
-For a CSV capture the category is `Folio`. For memory, `-llm` attributes the glyph atlases and RmlUi's allocations to a Folio tag rather than untagged texture memory.
-
-## Idle cost: a document that has not changed does nothing
-
-Folio does not run RmlUi's update and render every frame for every open document. It asks RmlUi when the document next needs attention and skips the frame entirely until then. A static pause menu costs approximately nothing.
-
-`folio.Invalidation` controls it and is **on by default**.
-
-The signal comes from RmlUi, which tracks a running `animation` or `transition`, a blinking caret, a held scroll arrow, a smooth scroll. Folio adds the ones on its side of the boundary: input, loading a document, a resize, a data model change, a stylesheet reload.
-
-### When a document seems frozen
-
-The failure mode is a document that stops updating, and it presents as something small: the caret stopped blinking, a hover state stuck, a HUD number stopped moving.
-
-**First, prove whether invalidation is the cause:**
-
-```
-folio.Invalidation 0
-```
-
-If the symptom goes away, the dirty tracking missed a change. If not, the problem is elsewhere.
-
-**Then find out what Folio thinks:**
-
-```
-folio.Invalidation.Trace 1
-```
-
-Each update logs why it happened and when RmlUi wants the next one:
-
-```
-folio invalidation: updated because 'mouse move', next update in never, until input
-folio invalidation: updated because 'data model', next update in 0.694s
-folio invalidation: updated because 'RmlUi asked', next update in 0.000s
-```
-
-- **`never, until input`**: the document is static. Correct for a settled menu.
-- **`0.000s`**: something is animating, so every frame counts. Correct while a transition runs.
-- **a small delay**: a timer, almost always a caret.
-- **no lines at all after the first few**: the document is idle. If it should not be, something changed it without saying so.
-
-If you change a document from game code in a way Folio cannot see (reaching into the RmlUi DOM directly rather than through a data model) tell it:
-
-```cpp
-Canvas->MarkDirty(TEXT("my own reason"));
-```
-
-The trace prints the reason, so make it name your code.
-
-### Checking it still works
-
-```bash
-./scripts/check_invalidation.sh
-```
-
-Runs a real editor against three documents and asserts **both directions**, because a build where everything idles forever would pass a check that only tested idling:
-
-- a static document updates a handful of times and then stops
-- a document with a running animation updates every frame
-- a document with a focused, blinking caret updates on the blink timer
-
-Run it after anything that touches input, data binding or document loading: those paths raise the dirty flag, and a missed one is a frozen document.
+A document that has not changed is skipped entirely, so a settled menu costs approximately nothing. Every row, Insights, CSV and memory tags are in the [profiling reference](profiling_reference.md).
 
 ## If a screen is slow
 
 In order of likelihood:
 
-1. **Geometry re-uploaded every frame.** Watch `Compile geometry` in `stat Folio`. Usually caused by animating a layout property.
-2. **Animation on the wrong properties.** `width`, `height`, `margin`, `padding` trigger reflow. `transform`, `opacity` and colour do not.
-3. **Poor batching from texture switches.** `Draws` and `Geometry batches` tell you; the fix is atlasing more aggressively, not code.
-4. **Layer effects.** `filter`, `backdrop-filter` and `box-shadow` each need an offscreen pass, which `Resolve layers` measures. A screen using several pays for each. On a full-screen element it is the most expensive thing in the document: see below, and bake it.
+1. **Geometry re-uploaded every frame.** `Compile geometry` repeats every frame. Usually caused by animating a layout property.
+2. **Animation on the wrong properties.** `width`, `height`, `margin` and `padding` trigger reflow. Animate `transform`, `opacity` and colour instead; that is the biggest authoring decision affecting Folio's cost.
+3. **Poor batching from texture switches.** `Draws` and `Geometry batches` tell you. The fix is atlasing more aggressively, not code.
+4. **Layer effects.** Each needs an offscreen pass, which `Resolve layers` measures. See [what a layer effect costs](#what-a-layer-effect-costs).
 5. **A polled data model.** `BindViewModel(..., bPollEveryFrame = true)` re-reads every bound field every frame and stops the document from ever idling. A source implementing `INotifyFieldValueChanged`, which `UMVVMViewModelBase` does, updates on change instead.
+
+Text is rarely the cost. Glyphs are size-independent distance fields, so text at a new size costs no atlas work and `transform: scale` on text costs nothing. Generating a glyph the first time shows up under **Load texture**.
 
 ## What a layer effect costs
 
-`box-shadow`, `filter`, `backdrop-filter` and `mask-image` are each drawn by rendering the element into an offscreen target and reading it back. None of this is visible in a screenshot.
+`box-shadow`, `filter`, `backdrop-filter` and `mask-image` each render the element into an offscreen target and read it back. None of this is visible in a screenshot.
 
 ```css
 /* A damage vignette, and a card's drop shadow. The second one is the expensive mistake. */
@@ -129,81 +44,72 @@ In order of likelihood:
 .slot { width: 236dp; box-shadow: -4dp 5dp 0dp #16130fcc; transition: width 0.14s cubic-out; }
 ```
 
-**Size is not what a layer costs.** The pass is the cost (a target bound, drawn and composited) and it is much the same at any size. Two 236x50dp drop shadows on a HUD measured 1.26 ms of render thread between them, heavier than the full-screen vignette beside them. Count them before you measure them.
+**Count them; size is not the cost.** The pass is (a target bound, drawn and composited), and it is much the same at any size. Two 236x50dp drop shadows on a HUD measured 1.26 ms of render thread between them, heavier than the full-screen vignette beside them.
 
-**The worst place for one is an element that resizes.** The effect is rendered into a texture sized to the element, and the texture is rebuilt whenever that size changes, so a `transition: width` regenerates it every frame the transition runs, for a shadow that did not change shape.
+**Never put one on an element that resizes.** The effect is rendered into a texture sized to the element and rebuilt whenever that size changes, so a `transition: width` regenerates it every frame of the transition.
 
-`uipreview` reports these, and `--strict` gates the first:
+**A settled screen pays nothing.** A document that idles skips the frame. One running animation means the document is drawn every frame, but a layer whose contents did not change reuses its picture from a recent frame, so an animation costs its own layers, not every layer beside it. A layer that samples a render target the game updates itself, such as a scene capture, is drawn every frame.
 
-| | |
-|---|---|
-| `W-PERF-RESIZINGLAYER` | A layer effect on an element whose box is transitioned. The expensive one, and the only one that fails a build |
-| `I-PERF-FULLSCREENLAYER` | A layer effect covering at least 75% of the viewport |
-| `I-PERF-LAYERCOUNT` | How many elements draw one at all |
-| `I-PERF-NEVERIDLES` | An animation that runs forever, so the document is drawn every frame. Layers whose content has not changed are reused from the cache; the rest are paid for every frame |
+`uipreview` reports layer costs; only `W-PERF-RESIZINGLAYER` is a warning, and `--strict` fails on it. The rest are to read next to `stat Folio`. See the [profiling reference](profiling_reference.md#uipreview-performance-findings).
 
-`folio.Bake` warns when it writes a texture over a megapixel without a downscale, since that is memory and a game-thread upload.
+## Bake a layer effect
 
-Only the first is a warning. A vignette or a scrim built the obvious way is a legitimate document, and a texture is not automatically cheaper: see below. The others are to read next to `stat Folio`, not to block anything.
+An effect that does not change should be a texture. A bake renders one element alone, on nothing, cropped to its border box, and writes a PNG with straight alpha.
 
-### A texture is not free either
+1. Bake it in the engine, from the editor console:
 
-Baking moves the cost rather than removing it. A full-screen PNG is decoded, premultiplied and uploaded **on the game thread, inside `Render`, the first frame it is drawn**, and at 1920x1080 that is eight megabytes. Swapping a full-screen `box-shadow` for a full-screen texture can trade a steady render-thread cost for a game-thread spike the first time the effect appears, which lands exactly when something dramatic is happening on screen.
+   ```
+   folio.Bake UI/screens/hud_baker.rml #scorch UI/art/scorch.png 1920 1080
+   ```
 
-So bake soft things small. `folio.Bake` takes a downscale as its last argument, which renders at the size the effect is drawn at and writes a fraction of it:
+   A layer effect has to be baked here: the two renderers draw `box-shadow`, `filter`, `backdrop-filter` and `mask-image` differently. For anything else (gradients, images, colour, borders) `uipreview` is quicker and gives the same result:
+
+   ```bash
+   uipreview UI/screens/panel.rml --root . --bake "#plate=UI/art/plate.png"
+   ```
+
+2. Draw the texture and delete the property that made it:
+
+   ```css
+   #scorch { decorator: image(/UI/art/scorch.png fill); }
+   ```
+
+   States and events still work: `opacity` is what fades, cross-fades and flashes, and `opacity` is free.
+
+3. Keep the source document beside the one that draws the result, so the effect can be changed and re-baked. `examples/screen_edge_baker.rml` and `examples/screen_edge.rml` are the pair. Put `folio-bake-source` on the source's `body` and the layer warning leaves it alone.
+
+For a soft full-screen wash, pass a downscale as the last argument. It renders at the size the effect is drawn at and writes a fraction of it:
 
 ```
 folio.Bake UI/screens/hud_baker.rml #scorch UI/art/scorch.png 1920 1080 4
 ```
 
-That is 480x270: half a megabyte instead of eight, and on a soft wash there is nothing to see. **Do not bake at a small size instead.** A `70dp` blur is a much larger fraction of a 270dp box than of a 1080dp one, so the vignette comes out thicker; render at the real size and downsample after.
-
-**A document that idles pays none of it.** Folio skips the frame entirely when nothing changed, so layers on a settled screen are free. One running animation anywhere in the document means it is drawn every frame, but a layer is only drawn again when its contents changed. Each layer is fingerprinted from everything it draws plus its filters and mask, and a layer whose fingerprint matches one from the last couple of frames reuses that picture. So an animation costs its own layers, not every layer beside it. `folio.Layers.Cache 0` turns this off, `folio.Layers.CacheStats` logs how many layers were drawn and reused, and `stat Folio` shows the same as Layers drawn and Layers reused.
-
-A layer that samples a render target the game updates itself, such as a scene capture, is drawn every frame, because the same recording can be a different picture.
-
-### Bake it, in the engine
-
-An effect that does not change should be a texture. A bake renders one element alone, on nothing, cropped to its border box, and writes it as a PNG with straight alpha.
-
-**A layer effect has to be baked in the engine**, from the editor console:
-
-```
-folio.Bake UI/screens/hud_baker.rml #scorch UI/art/scorch.png 1920 1080
-```
-
-`uipreview --bake` is quicker to reach, but the two renderers do not draw `box-shadow`, `filter`, `backdrop-filter` or `mask-image` identically: the same inset shadow peaks at alpha 16 in the preview and 70 in the engine, with a different falloff. A preview-baked texture drawn in the game is faint and the wrong shape, and reads as bad art. `--bake` refuses those four and prints the `folio.Bake` line to use instead; for everything else (gradients, images, colour, borders) the renderers agree and either will do:
-
-```bash
-uipreview UI/screens/panel.rml --root . --bake "#plate=UI/art/plate.png"
-```
-
-Then draw the texture and delete the property that made it:
-
-```css
-#scorch { decorator: image(/UI/art/scorch.png fill); }
-```
-
-States and events still work, because none of it was the shadow: `opacity` is what fades, cross-fades and flashes, and `opacity` is free.
-
-The VSCode preview puts the `folio.Bake` line for the flagged element on the warning, with a button to copy it. `Folio: Bake Element to PNG` in the palette runs the preview's bake, for elements that do not need the engine.
+That is 480x270: half a megabyte instead of eight, and on a soft wash there is nothing to see.
 
 Anything can be baked: a glow behind a panel, a masked plate, a gradient stack. The element is rendered at full opacity whatever the document rests at, so a layer faded out until the game turns it on still bakes.
 
-**Keep both documents.** The one that describes the effect is how it gets changed and re-baked, so keep it beside the one that draws the result: `examples/screen_edge_baker.rml` and `examples/screen_edge.rml` are the pair. Mark the source with `folio-bake-source` on its `body` and the warning leaves it alone, since its cost is paid once, by a tool.
+## If something is wrong
 
-**Put no state classes on a baker's body.** A bake brings its element up to full opacity, but a running animation drives the property itself and RmlUi does not reliably release one, so a layer caught mid-animation can bake as an empty texture. A baker presents every layer plainly and lets each bake raise its own. Both bakes warn when the element is animating.
+**A caret stopped blinking, a hover state stuck, or a HUD number stopped moving.** The document idled when it should have updated. Run `folio.Invalidation 0`: if the symptom goes away, the dirty tracking missed a change. Then `folio.Invalidation.Trace 1` logs why each update happened (see [reading the trace](profiling_reference.md#reading-the-invalidation-trace)). If game code changes the document in a way Folio cannot see, such as reaching into the RmlUi DOM directly rather than through a data model, tell it, with a reason, which the trace prints:
 
-**`backdrop-filter` cannot be baked.** It blurs what is behind it, so baked alone the texture is empty. Both bakes refuse it. The ways out are outside RCSS: drop it to a plain scrim, or, if the scene behind is frozen while it is up, have the game capture one blurred frame when it opens and draw that as an ordinary texture. Two stacked full-screen ones (a blurred scrim under a blurred modal) pay twice for a frame nobody is looking past.
-
-Baking is a resolution decision. The texture is stretched with `fill`, which is invisible on a soft wash and not on anything with an edge; bake at the size it is drawn at.
-
-## Text is not the expensive part
-
-Glyphs are size-independent distance fields, so text at a new size costs no atlas work, and `transform: scale` on text costs nothing. Generating a glyph the first time is real work and shows up under **Load texture** and in the font report:
-
-```
-folio.Font.Report
+```cpp
+Canvas->MarkDirty(TEXT("my own reason"));
 ```
 
-Faces, variation tuples, page and glyph counts, cache hits and misses. Misses climbing during play means glyphs are being generated at runtime; the fix is prewarming the charset.
+**A document never idles.** The trace says `next update in 0.000s` on every line. Something runs forever: `uipreview` reports it as `I-PERF-NEVERIDLES`, and Folio Studio's **Activity** panel names it. Usually one element still transitioning something invisible, or a polled data model.
+
+**`uipreview --strict` fails with `W-PERF-RESIZINGLAYER`.** A layer effect sits on an element whose box is transitioned. Transition `transform: scaleX()` on a fixed box instead, or bake the effect and animate the texture.
+
+**A baked effect is faint and the wrong shape in game.** It was baked with the preview, where the same inset shadow peaks at alpha 16 instead of the engine's 70, with a different falloff. `uipreview --bake` refuses these with `E-BAKE-NEEDSENGINE` and prints the `folio.Bake` line to use; re-bake with that.
+
+**A bake comes out empty, or `folio bake: '<selector>' is animating`.** A running animation drives the property itself and RmlUi does not reliably release it for the bake. Put no state classes on the baker's `body`: present every layer plainly and let each bake raise its own.
+
+**`folio bake: '<selector>' uses backdrop-filter`.** It blurs what is behind it, so baked alone the texture would be empty, and both bakes refuse it (`E-BAKE-BACKDROP` in `uipreview`). Drop it to a plain scrim or, if the scene behind is frozen while it is up, have the game capture one blurred frame when it opens and draw that as a texture. Two stacked full-screen ones (a blurred scrim under a blurred modal) pay twice.
+
+**A hitch the first frame a baked effect appears, or `folio bake: '<selector>' is <W>x<H>, about <N>MB once loaded`.** A full-screen PNG is decoded, premultiplied and uploaded on the game thread, inside `Render`, the first frame it is drawn: eight megabytes at 1920x1080. Pass a downscale as the last argument of `folio.Bake`.
+
+**A downscaled vignette comes out thicker than the original.** It was baked at a small size instead of downscaled. A `70dp` blur is a much larger fraction of a 270dp box than of a 1080dp one; render at the real size and pass the downscale.
+
+**A baked edge looks soft.** The texture is stretched with `fill`, invisible on a soft wash and visible on anything with an edge. Bake at the size it is drawn at.
+
+**`folio.Font.Report` shows misses climbing during play.** Glyphs are being generated at runtime. Prewarm the charset.

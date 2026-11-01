@@ -2,6 +2,8 @@
 
 A stack of spoken lines at the foot of the frame, newest at the bottom, each on its own clock.
 
+![Stacked captions from two speakers, the newest line brightest](https://github.com/user-attachments/assets/e57a2ac5-a5ba-4da9-a59a-bf414dd95e9c)
+
 It is the only arrangement that survives two people talking over each other. A few lines at a time, the newest bright and the ones above it dimmed, each leaving when it has had its say rather than when the next one arrives.
 
 `rcss/recipes/subtitles.rml` is a complete one. Copy it into your `UI/screens/` and change the palette and the type.

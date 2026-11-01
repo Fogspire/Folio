@@ -1,10 +1,18 @@
 # Supersampling
 
-A document can be rasterised at more than one sample per pixel and filtered back down, which is the only thing that helps a shallow diagonal: background antialiasing is one pixel of coverage, exact and still stepping visibly on an edge that advances a pixel every six.
+A slanted or curved edge drawn smooth instead of stepped, by rasterising a document at more than one sample per pixel and averaging back down.
+
+## Turn it on
 
 ```cpp
 Widget->Supersample = 2;   // 1 to 4, each way
 ```
+
+`Supersample` is also on the widget in the Details panel, under **Folio > Scale**. To try a document both ways without code, `folio.Show <document> 2` puts it on screen at two samples each way.
+
+Then run `folio.Screens`. A supersampled document reports its sample count, the target it draws into and that target's size in MB, for example `supersample 2x into 3840x2160 (32 MB), 41 native glyph runs`.
+
+Layout, line breaking, hit testing and text are the same at every sample count. Only how finely the shapes are rasterised changes. Text is drawn at the screen's own resolution after the rest, because glyphs are distance fields and are already exact.
 
 ## Reach for art first
 
@@ -15,77 +23,11 @@ Supersampling costs a target four times the size for the whole document to smoot
 
 Supersample what is left: a document with many slanted edges that move, or a design still changing too often to keep re-baking.
 
-## The document does not scale
+## Choosing a sample count
 
-The sample count is a property of the **target**, not of the document. The document lays out, shapes, breaks lines, bakes its glyph atlas and hit-tests in screen pixels at every sample count; the layers it draws into are allocated denser, and the replay's transform stretches one space onto the other.
+Use 2. Offer 1 and 2 in a game's settings, default to off, and treat 4 as a debugging curiosity.
 
-Scaling the document instead (multiplying the dp ratio by the sample count) looks equivalent and is not:
-
-- the font atlas is baked at the bigger size, so it costs four times the area and every glyph is resampled on the way to the screen;
-- text metrics, line breaking and rounding happen in a different space, so a line can break differently at a different sample count;
-- hit testing, scroll offsets and any reported size are in that space too, and everything reading them has to know which one it is in.
-
-So the only difference a sample count makes is how finely the same geometry is rasterised. A size report should print the same numbers whatever the sample count; if it does not, the document is being scaled somewhere.
-
-The one thing that follows the target is a blur radius, expressed in document pixels and applied to target pixels. Scale the sigma **and** the kernel's step: a kernel capped at a tap count reaches half as far when the sigma doubles, and a wide shadow then ends in a visible edge rather than fading out.
-
-## Text does not want it
-
-Glyphs are distance fields, exact at any size already, so a round trip through a denser target can only soften them: visibly on a menu, unmissably on body copy.
-
-So text is held out of the target: a glyph run drawn into the surface is recorded rather than rasterised, and drawn to the screen after the composite, at one document pixel to one screen pixel. Because the document never scaled, that is the same geometry, atlas and shader constants an unsupersampled document uses, and the result is identical to the pixel.
-
-Two things put a run back through the target, both because they read the target back:
-
-- text inside a layer: a filter, a shadow, a mask, anything that composites as one image;
-- text under a clip mask, which is a stencil the surface owns and the screen has no equivalent for.
-
-Text something else paints over goes back too, or it would be drawn on top of whatever was meant to cover it. Test each draw as it arrives against the runs waiting:
-
-- test against what a layer **painted**, not the region it was allocated. A layer is sized to the current clip, which for an unclipped element is the whole screen, so allocating-region tests put every run back the first time anything casts a shadow;
-- widen that by the blur, which is the one thing that puts colour outside the geometry that made it;
-- split a covered run **per glyph**. A run is a whole line, so a card overlapping the last word otherwise costs the sentence;
-- put a run back where it arrived, with the clip it arrived under: by the time something is found covering it, the clip in force belongs to the coverer.
-
-A document that ends with a full-screen sheen, scrim or vignette keeps all its text in the target, because all of it is painted over. That is the mechanism working.
-
-## Downsample deliberately
-
-**Do not draw the big target with a quad and let the sampler shrink it.** This trap makes supersampling look worse than none, and it is invisible in code review.
-
-Hardware filtering averages the whole block only when the quad's texture coordinates land exactly on texel corners, which needs the widget's rectangle to be a whole number of pixels, at exactly the sample count, at an integer position. Anywhere else (a fractional window size, a rounded context size, a half-pixel offset) each output pixel reads *one* texel of an unfiltered raster. That is nearest-neighbour decimation: edges come out harder than without supersampling, uniformly across the screen, because the phase error is the same everywhere.
-
-Instead, average the block in a pass of your own: point-sample the N×N texels behind each destination pixel and divide. Then composite that one-sample-per-pixel image with a quad snapped to whole pixels, so the last step is a copy rather than a second resample.
-
-Measured on one screen, counting columns crossing a shallow diagonal with no intermediate pixel (a hard step):
-
-| | hard columns |
-|---|---|
-| no supersampling | 72 |
-| 2×, composited through the sampler | 62 |
-| 2×, resolved in a pass | 26 |
-| 4×, resolved in a pass | 21 |
-
-The middle row is the trap: four samples per pixel bought almost nothing.
-
-## Keep the skirt in screen pixels
-
-A background carries its own antialiasing as geometry: a one pixel skirt of coverage on its outer boundary. Do not express it in *rendered* pixels.
-
-Keeping the skirt one **screen** pixel wide at every sample count means the geometry is identical however densely it is rasterised, so the samples add to the skirt instead of replacing it, and supersampling can never come out harder than not supersampling. The sample count can also change without regenerating geometry. Backgrounds are generated once and cached, so regenerating them means a restyle, which replays entry animations and makes a settings toggle look like a screen reload.
-
-## What it costs
-
-- A target of the viewport times the sample count, squared, plus a one-sample-per-pixel target to resolve into. At 4× that is sixteen times the pixels: measure before offering it.
-- Every layer the document pushes is allocated at the same density, so a shadow at 4× is a sixteen times bigger allocation than it looks. Layer pools hold those between frames.
-- A depth-stencil the size of the layer, if the replay allocates one per resolve. Only a clip mask needs it; check the recorded draws and skip it otherwise, or a document with no masks pays a full-size depth-stencil per layer per frame.
-- One resolve pass and one composite per frame.
-
-So it is a per-document choice: on for a screen of slanted panels, off for one that is mostly text.
-
-## Two is the sample count. Four is not.
-
-The cost is quadratic in the sample count *and* in the resolution, and it is paid per **layer**, not per document. One target of RGBA8:
+The cost is quadratic in the sample count and in the resolution, and it is paid per **layer**, not per document. One RGBA8 target:
 
 | | 1× | 2× | 4× |
 |---|---|---|---|
@@ -93,31 +35,30 @@ The cost is quadratic in the sample count *and* in the resolution, and it is pai
 | 1440p | 15 MB | 59 MB | **236 MB** |
 | 4K | 33 MB | 133 MB | **531 MB** |
 
-Multiply by the number of layers alive at once (the surface, one per element casting a shadow or carrying a filter, plus the scratch a blur or a mask needs). All are pooled between frames, so the peak is what is held. A screen with two shadows at 4K is over 2 GB of render targets, and that is what an operating system memory-pressure warning is: the driver spilling render targets into system memory, which also destroys the frame rate.
+Multiply by the number of layers alive at once: the surface, one per element casting a shadow or carrying a filter, plus the scratch a blur or a mask needs. All are pooled between frames, so the peak is what is held. A screen with two shadows at 4K at 4× is over 2 GB of render targets.
 
-**None of that is solvable.** Sixteen times the pixels is what four samples each way *means*. Measured on a real screen, 2× is worth it and 4× is not:
+Measured on one screen, counting columns crossing a shallow diagonal with no intermediate pixel (a hard step):
 
-- 2× cuts hard edges on a shallow diagonal from 72 columns to 26, for four times the pixels and, at 1080p, 33 MB.
-- 4× takes 26 columns to 21, a difference nobody sees on a menu, for sixteen times the pixels and four times the memory of 2×.
+| | hard columns |
+|---|---|
+| no supersampling | 72 |
+| 2× | 26 |
+| 4× | 21 |
 
-So offer 1 and 2, treat 4 as a debugging curiosity, and default to off. If 4 is offered, warn when the allocation gets large rather than letting a player discover it as a frozen machine.
+2× is worth four times the pixels. 4× takes 26 to 21, a difference nobody sees on a menu, for sixteen times the pixels and four times the memory of 2×.
 
-## Checking it
+On top of the targets, each frame pays one resolve pass and one composite. A document that has not changed since the last frame reuses its target and draws only its text, so a still screen pays once. One that animates or polls a data model every frame pays every frame.
 
-Report, per document: the sample count, the size it laid out against, and how many glyph runs the last paint drew natively. Zero native runs on a screen with words means something is covering all of them: usually a full-screen overlay, occasionally a bounds test that is too coarse.
+It is a per-document choice: on for a screen of slanted panels, off for one that is mostly text.
 
-Offer a switch that puts text back through the target, so the two can be compared in place. The useful comparison is "is the text identical to the same document unsupersampled, and are the edges softer", both measurable from two screenshots.
+## If it looks wrong
 
-## Measuring it
+**Text looks softer with supersampling on.** Text inside a layer (a `filter`, a shadow, a mask, anything that composites as one image), under a clip mask, or under something drawn later goes through the target and is resampled. `folio.Screens` counts the glyph runs drawn at screen resolution: zero on a screen with words means something covers all of them, usually a full-screen sheen, scrim or vignette. Keep text out of layers and above full-screen overlays where the design allows.
 
-A layer is replayed, blurred, masked and resolved on the **render thread**, and a profiling scope on the game-thread function that queued the work ends at the enqueue, so a layer costing milliseconds reports as microseconds. Put a scope and a cycle counter *inside* every render-thread lambda, and a GPU stat scope on the graph builder, or none of it is attributable.
+**You cannot tell whether supersampling is softening text.** `folio.Supersample.NativeText 0` draws everything through the target, text included. Compare a screenshot each way: the text should be identical to the same document unsupersampled, with only the edges softer.
 
-Report the memory too. Layers are allocated at the sample count squared and pooled between frames, so the number that decides whether a sample count is affordable is the total the pool holds, and nothing else on screen shows it. Print the target size and its megabytes beside the sample count.
+**The log says `a supersampled document wants a <W>x<H> target, which is <N> MB`.** The target is over 96 MB, and every layer the document pushes is another one that size. Use 2, or 1 at that resolution.
 
-On one screen at four samples each way, the whole UI came to about a millisecond of GPU time against a twenty millisecond scene, and the layer pool held 316 MB at a 1915x1270 context. Supersampling is fill and memory, and both scale with the square of the sample count *and* with the resolution: four samples at 4K is sixteen times a 33 megapixel document.
+**The operating system warns about memory and the frame rate collapses.** The driver is spilling render targets into system memory. That is 4× at high resolution with a few layers; see the table above and use 2.
 
-## Skip the frame that changed nothing
-
-A supersampled document renders into a target that survives the frame. So a frame in which the document did not change does not need rendering again: composite the existing target and draw only the text, which was never in it.
-
-That needs the layout to report whether it updated, and the held-back runs to be kept from the last render rather than dropped. A still screen then costs the sample count squared once rather than every frame. It only helps documents that go idle: one that polls a data model every frame, or animates, pays in full.
+**You need to measure what it costs.** `stat Folio` shows the resolve as **RT: resolve supersample** and the pool as **Layer targets**; the GPU stat is **Folio supersample**. See the [profiling reference](profiling_reference.md).

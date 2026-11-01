@@ -30,7 +30,7 @@ Non-zero exit means the document is not right.
 
 `--root` is the project directory, and it makes `/UI/...` and `/folio/...` resolve. Getting it wrong is the most common reason nothing appears.
 
-The **[VSCode extension](vscode.md)** runs it beside the document and adds click-to-find-the-rule.
+**[Folio Studio](studio.md)** draws with the same renderer and shows which rule set each property.
 
 ## The checks
 
@@ -145,7 +145,7 @@ In this order:
 2. **Run with `--strict`.** Most of the rest warns.
 3. **Check the units.** `120ms` is not a duration: times are seconds. `rgba(0,0,0,0.5)` is fully transparent: alpha is 0-255. A bare number where a length is expected is a warning, not `px`.
 4. **Check the easing name.** They are RmlUi's, not CSS's: `cubic-out`, not `ease-out`. A misspelled one is read as a property name and the transition silently never fires.
-5. **Click it in the [VSCode preview](vscode.md)** and read the rules that reached it. Often a rule you did not expect won.
+5. **Select it in [Folio Studio](studio.md)** and read the rule each value in **Properties** comes from. Often a rule you did not expect won.
 
 ## Where to go next
 

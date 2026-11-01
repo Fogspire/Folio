@@ -29,7 +29,7 @@ const rcss = require("./rcss");
  * Reported rather than re-derived: uipreview has the laid-out boxes and this does not, and a second
  * implementation of the same rule is a second thing to get wrong.
  */
-const FULLSCREEN_LAYER = /\[W-PERF-FULLSCREENLAYER\]\s+(\S+?):\s+([^]*?)\s+on an element covering\s+(\d+)%/g;
+const FULLSCREEN_LAYER = /\[[IW]-PERF-FULLSCREENLAYER\]\s+(\S+?):\s+([^]*?)\s+on an element covering\s+(\d+)%/g;
 
 function fullScreenLayers(messages) {
 	const out = [];

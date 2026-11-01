@@ -188,7 +188,7 @@ Launch a Development or Test build with `-uidev` and Folio reads from a `uidev` 
 - **[Data binding](data_binding.md)**: showing values from your game, and whether a view model is worth it.
 - **[Generating a view model](view_models.md)**: the C++ behind a document's bindings, generated from the document and its mock.
 - **[Setting up VSCode](vscode.md)**: highlighting and a live preview beside the document, and what the preview is and is not worth trusting.
-- **[Documents in the world](world_documents.md)**: a document on a surface in the level, the three ways it can reach the screen, and why it is not a `UWidgetComponent`.
+- **[Documents in the world](world_documents.md)**: a document on a surface in the level, sharp at any distance.
 - **[Localization](localization.md)**: keying your text, and getting it into Unreal's gather.
 - **[Performance and profiling](performance_profiling.md)**: `stat Folio`, Insights, and why a settled document costs nothing.
 

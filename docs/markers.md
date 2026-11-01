@@ -1,10 +1,10 @@
 # Nameplates and world markers
 
-A document that lives on the screen but follows a place in the world: a name over a head, an objective diamond, a damage number, an interaction prompt, a waypoint.
+A name over a head, an objective diamond or a waypoint that follows a place in the world while staying square to the camera and crisp.
 
-**[Documents in the world](world_documents.md)** puts a document *in* the scene, with perspective and occlusion. A marker stays square to the camera and crisp, and takes only its *position* from the world.
+![A nameplate with a health bar, pointing at its target](images/markers.png)
 
-Markers do not occlude and cannot be occluded. A nameplate behind a wall still draws; to hide one, call `SetVisibility`.
+For a document *in* the scene, with perspective and occlusion, see **[documents in the world](world_documents.md)**.
 
 ## The shortest version
 
@@ -16,8 +16,6 @@ Add a **Folio Marker Document** component to an actor and point it at a document
 | `Size` | `256 x 96` (dp) |
 | `Anchor` | `0.5, 1`: the bottom centre sits on the point |
 | `Screen Offset` | `0, -16`: lift it clear of the head |
-
-Where you can, move the component to the head socket rather than offsetting in screen space: an offset in dp is the same at every distance.
 
 `rcss/recipes/nameplate.rml` is a complete one (name, health bar, tail) to copy into your own `UI/`.
 
@@ -44,7 +42,7 @@ Scaling eases out rather than running at a constant rate, and stops at **`Transi
 
 **`Clamp To Screen Edge`** keeps an off-screen marker at the edge, in the direction of the thing it labels. Right for objectives, wrong for nameplates. Behind the camera the projection mirrors through the origin, and the component corrects for that, so a marker behind you is pinned to the correct edge.
 
-**`Clamp Start Distance` and `Clamp End Distance`** stop a marker being clamped past a distance, in world units, and hide it instead. Zero end is no limit, which is the default. Use it to avoid a rim of arrows for everything a mile behind the player.
+**`Clamp Start Distance` and `Clamp End Distance`** stop a marker being clamped past a distance, in world units, and hide it instead. Zero end is no limit, which is the default.
 
 **`Clamp Transition`** is the same set of choices for that stretch, and applies only while the marker is clamped. A marker that is both far away and clamped goes through both bands and scales once rather than twice.
 
@@ -74,7 +72,7 @@ An idle document is nearly free, and markers are usually idle. A nameplate whose
 
 *Changing* markers are what cost. Thirty health bars all animating is thirty layouts a frame. If that is your case, measure it with `stat Folio` before designing around it, and see **[performance](performance_profiling.md)**.
 
-Markers you cannot see cost nothing to draw and still cost their update. Use the fade distances.
+Markers you cannot see cost nothing to draw and still cost their update.
 
 ## Doing it yourself
 
@@ -92,6 +90,20 @@ if (UGameplayStatics::ProjectWorldToScreen(Controller, WorldLocation, Screen))
 ```
 
 Put a `UFolioWidget` in a canvas panel and drive its slot with that. The component saves writing the projection, culling, scale curve and fade, and getting the DPI conversion wrong.
+
+## If it looks wrong
+
+**A nameplate behind a wall still draws.** Markers do not occlude and cannot be occluded. Call `SetVisibility` to hide one.
+
+**The lift above the head is right up close and wrong far away.** `Screen Offset` is in dp, so it is the same at every distance. Move the component to the head socket instead.
+
+**The nameplate's name and health are empty.** The model was bound after the document loaded, and RmlUi resolves bindings only as a document loads. Call `BindViewModel` before `LoadDocument`, as in [Data](#data).
+
+**A rim of arrows round the screen edge for things far behind the player.** `Clamp To Screen Edge` pins every off-screen marker. Set `Clamp End Distance` so distant ones hide instead.
+
+**Thirty markers cost more than expected.** Markers you cannot see still cost their update. Set the fade distances so far ones stop drawing, and measure animating ones with `stat Folio`.
+
+**Your own placement is right on one monitor and wrong on another.** `ProjectWorldToScreen` returns viewport pixels and a document is laid out in dp. Divide by `GetViewportScale`, as in [doing it yourself](#doing-it-yourself).
 
 ## Where to go next
 

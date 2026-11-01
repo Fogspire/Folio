@@ -2,6 +2,8 @@
 
 A speaker, a line that types itself out, and replies. The line is game data and carries a writer's markup; the names in it come from a table the whole game shares.
 
+![A line of dialogue typing itself out, with emphasis and a highlighted place name](images/dialogue.gif)
+
 Working version: [`rcss/recipes/dialogue.rml`](../../rcss/recipes/dialogue.rml).
 
 ```bash

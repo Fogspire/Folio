@@ -86,7 +86,7 @@ See **[performance and profiling](performance_profiling.md)**.
 | `folio.Accessibility.ScreenEffects [0\|1]` | Whether the layers marked `folio-screen-effect` are drawn: the vignettes, tints and flashes a game paints over the whole view. No argument flips it. |
 | `folio.Accessibility.HighContrast [0\|1]` | The high-contrast theme, under the name a game's setting should call rather than a theme string. |
 
-See **[accessibility](accessibility.md)**.
+See **[screen reader](screen_reader.md)** and **[presentation settings](presentation_settings.md)**.
 
 ## Producing files
 

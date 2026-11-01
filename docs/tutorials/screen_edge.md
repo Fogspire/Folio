@@ -2,6 +2,8 @@
 
 Standing in fire and the corners of the screen glow orange. Something bites you and the whole frame pulses red for a tenth of a second. Health drops under a quarter and a dark red haze sits at the edge until you heal. It reads in peripheral vision, never covers what the player is aiming at, and needs no art.
 
+![Damage and low-health glow at the screen edges](https://github.com/user-attachments/assets/351987e9-c955-482b-938e-00ad7a9f6dd3)
+
 **It is one property.** `box-shadow` with the `inset` keyword paints a soft falloff inward from the element's own border, and an element that is the whole view is a vignette.
 
 ```css
@@ -163,7 +165,7 @@ A fifth goes on the elements rather than the class:
 <div id="hit" class="edge" folio-screen-effect/>
 ```
 
-`folio-screen-effect` lets a player turn all of this off: the wash is a legibility problem, the breathing a motion problem and the hit flash a photosensitivity problem. Folio cannot tell a vignette from a panel, so mark them. See **[accessibility](../accessibility.md#screen-effects)**.
+`folio-screen-effect` lets a player turn all of this off: the wash is a legibility problem, the breathing a motion problem and the hit flash a photosensitivity problem. Folio cannot tell a vignette from a panel, so mark them. See **[presentation settings](../presentation_settings.md#screen-effects)**.
 
 ## 7. Ordering
 
@@ -185,11 +187,11 @@ Keep a permanent dark `#base` at low alpha even in a game with no status effects
 It is the most expensive thing a document can do and looks the same as the cheap version, so `uipreview` warns:
 
 ```
-warning: [W-PERF-FULLSCREENLAYER] #burning: box-shadow on an element covering 100% of the
+screen_edge.rml:0:0: info: [I-PERF-FULLSCREENLAYER] #burning: box-shadow on an element covering 100% of the
 viewport costs a full-screen render target, and it is animating, so that is one every frame.
 ```
 
-Anything covering at least 75% of the viewport with `box-shadow`, `filter`, `backdrop-filter` or `mask-image` gets one, and `--strict` fails on it.
+Anything covering at least 75% of the viewport with `box-shadow`, `filter`, `backdrop-filter` or `mask-image` gets one. It is information, not a warning, so `--strict` passes.
 
 ### Bake it, in the engine
 
@@ -225,8 +227,6 @@ Then draw the textures, and delete the property and the radius that made them:
 **The corners are in the art.** No `border-radius`, no `box-shadow`.
 
 Every state and event works unchanged, because sections 5 and 7 animate `opacity`, which is free. Six quads replace four full-screen passes.
-
-In VSCode the warning carries the `folio.Bake` line for the element it flagged, with a button to copy it.
 
 ### Keep both documents
 

@@ -2,6 +2,8 @@
 
 Moving a window, dropping an icon in a bin, resizing a panel by its corner. All of it works with no code; the parts that need code are named here.
 
+![Draggable, resizable terminal windows and a recycle bin](https://github.com/user-attachments/assets/f1d531cd-b46c-4e55-b437-45c3d3ed54bf)
+
 ## Moving and resizing: no code at all
 
 `<handle>` is a real element type and does both:

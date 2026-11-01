@@ -131,7 +131,7 @@ public:
 	 *
 	 * Deferred renderer only, and only for translucency in the After DOF or After Motion Blur pass, unless
 	 * r.Translucency.StandardSeparated is on. Costs a scene colour copy and six texture reads per pixel.
-	 * See docs/world_documents.md.
+	 * See docs/world_document_settings.md.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
 	bool bBehindTranslucency = false;

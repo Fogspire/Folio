@@ -2,6 +2,8 @@
 
 Slow specks falling behind a menu, at three depths. Nothing in the field is interactive or carries meaning.
 
+![Motes drifting at three depths behind a main menu](images/motes.gif)
+
 ```html
 <link type="text/template" href="/folio/lib/lib.rml"/>
 ```

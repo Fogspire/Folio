@@ -2,6 +2,8 @@
 
 **Custom UI Rendering Framework for Unreal Engine 5.** HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. World-space UI unaffected by TAA/TSR. Surface projected UI. Common game functionality included.
 
+https://github.com/user-attachments/assets/99d463db-cf0a-4f49-a49e-746acc4db9af
+
 Folio is free, source included, and built to be the UI layer of a shipping game, from a solo project to a full production, from indie to AAA.
 
 ## Get started
@@ -17,8 +19,6 @@ Requires Unreal Engine 5.8 or later, with Deferred or Forward rendering.
 | **[Troubleshooting](docs/hello_world.md#if-nothing-appears)** | A document that does not appear; [known gaps](docs/known_gaps.md) for what Folio does not do yet |
 
 ## Showcase
-
-https://github.com/user-attachments/assets/99d463db-cf0a-4f49-a49e-746acc4db9af
 
 https://github.com/user-attachments/assets/b95b546c-987c-4be1-976e-4d67f961374c
 

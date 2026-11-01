@@ -2,13 +2,15 @@
 
 Three effects RCSS has no syntax for, reached through one decorator:
 
+![A gradient panel plain, with an additive flash, scanlines, a diagonal sheen and a horizontal band](images/shader_decorator.png)
+
 ```css
 .hit   { decorator: shader("additive #ff5028c0"), image(panel); }
 .crt   { decorator: shader("scanlines #7fe8ff90 0.16 0.5"), image(panel); }
 .sheen { decorator: shader("sweep #ffffffb0 0.35 0.3 15"), image(panel); }
 ```
 
-**The set is fixed.** A name Folio does not know warns once and draws nothing.
+**The set is fixed**; a stylesheet cannot add to it. A name Folio does not know warns once and draws nothing.
 
 | | |
 |---|---|
@@ -44,14 +46,6 @@ An effect listed *after* an opaque background is painted underneath it and appea
 ```
 
 This is the single most common reason a shader decorator "does nothing".
-
-## Why the set is fixed
-
-Each effect is evaluated into a small texture rather than run as a fragment shader.
-
-Slate has no seam for a custom fragment shader through `MakeCustomVerts`, and these three are all a function of position within a box. Baking them keeps both renderers on the same code, so a document using one still previews outside the engine.
-
-You cannot add a fourth from a stylesheet. It is a change to `FolioRenderInterface::CompileShader` and its preview counterpart, written twice.
 
 ## Animating one
 

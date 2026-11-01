@@ -2,6 +2,8 @@
 
 Stamina represented on a wheel, with partial, extra and temporary wheels. It appears when stamina is spent, empties clockwise with what was just spent trailing in red, turns red and throbs when run dry, and fades a moment after it is full.
 
+![The stamina wheel partly spent, with the spent arc trailing red](https://github.com/user-attachments/assets/211b6d16-67a7-4949-bbad-c6820a86d3eb)
+
 The markup is the `stamina_wheel.rml` recipe. Your game supplies numbers: where the wheel is, and for each ring how much is filled.
 
 ```bash

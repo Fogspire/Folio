@@ -1,6 +1,6 @@
 # UI sounds
 
-Folio reports four moments and plays nothing.
+Folio reports four moments and plays nothing: one handler gives every menu your game's own sounds.
 
 ```cpp
 void UMyAudioSubsystem::Initialize(FSubsystemCollectionBase&)
@@ -37,10 +37,6 @@ void UMyAudioSubsystem::Initialize(FSubsystemCollectionBase&)
 ```
 
 It fires at most once a frame however fast the text types. See [rich text](rich_text.md).
-
-## Why it is a delegate rather than an asset
-
-Folio owns no sound assets: what a menu sounds like is a game decision, and a shipped click is one everyone would have to override. The delegate exists because threading sound through a component library after the fact means touching every component.
 
 ## `Invalid` is the one worth taking seriously
 

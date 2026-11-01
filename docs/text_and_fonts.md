@@ -1,14 +1,16 @@
 # Text and fonts
 
-Folio replaces RmlUi's font engine outright. Glyphs are **MTSDF**: three channels of multi-channel distance field whose median reconstructs sharp corners, plus a true signed distance in alpha that the effects read.
+Sharp text at any size, under `transform: scale`, at 4K and at any DPI, in your own fonts, with outlines, glows and shadows.
 
-So **type scales freely**. One size-independent atlas per face serves 13dp and 96dp identically, and text stays sharp under `transform: scale`, at 4K, and at any DPI.
+![One face from 10 dp to 96 dp, sharp at every size](images/text_and_fonts.png)
+
+Glyphs are distance fields, so one atlas per face serves 13dp and 96dp alike.
 
 ## Getting a face
 
 `font-family` accepts **one** family only, with no fallback stack. The host registers faces, or a stylesheet declares them with `@font-face`.
 
-Folio bundles Inter and Roboto Mono, so `font-family: Inter` works in a new project with no setup. A game adds its own by dropping files in `UI/fonts/`; the preview takes `--font <path>`. **Once `UI/fonts/` has a face in it, the bundled two are not loaded**, so a document naming `Inter` there needs Inter in `UI/fonts/` too.
+Folio bundles Inter and Roboto Mono, so `font-family: Inter` works in a new project with no setup. A game adds its own by dropping files in `UI/fonts/`; the preview takes `--font <path>`.
 
 ```css
 body { font-family: Inter; font-size: 16dp; }
@@ -29,9 +31,7 @@ A family name is one Folio registered, not a filename. The faces come from the f
 
 `src` resolves against the stylesheet. `font-weight` takes `normal`, `bold`, 1 to 1000, or a range for a variable file. `font-style` takes `normal` or `italic`.
 
-**Faces are global, not per document.** The first declaration of a family, style and weight is the one every document gets, for as long as the game runs. A later one naming a different file is ignored with a warning, which `--strict` fails on. A face of the same family, style and weight that the host registered first still wins.
-
-**Nothing renders until a family is named.** RCSS's initial `font-family` is empty, so a document with no family set is blank.
+Faces are global, not per document: the first declaration of a family, style and weight is the one every document gets, for as long as the game runs.
 
 ## Weight
 
@@ -61,19 +61,13 @@ FFolioModule::Get().GetFontEngine()->RegisterVariableFace(
 
 ## Size, and the one real trade-off
 
-Distance-field text has **no hinting and no stem snapping**. At 12-14dp on a 1080p display, stem widths vary slightly more than a hinted rasteriser would give. Above that it is a wash or better.
-
-**Look at your smallest body text on the target display before committing to it.** `--a11y` treats 12dp as a hard floor for the same reason; see **[accessibility](accessibility.md)**.
-
-Two related facts bite in layout:
+Distance-field text has **no hinting and no stem snapping**. At 12-14dp on a 1080p display, stem widths vary slightly more than a hinted rasteriser would give. Above that it is a wash or better. `--a11y` treats 12dp as a hard floor; see **[accessibility](accessibility.md)**.
 
 **Advances are unhinted and scaled linearly from design units**, so text wraps in slightly different places than a hinted rasteriser would.
 
-**Line breaks do not survive a change of dp ratio.** An advance is a whole number of pixels at each size, so doubling the ratio halves the relative rounding error and words move. Never size a container to fit its content exactly at one ratio; check two with `--dp-ratio`.
-
 ## Font effects
 
-Four, and the only way to get a text shadow: `text-shadow` does not exist.
+Four, and the only way to get a text shadow.
 
 ```css
 .title  { font-effect: outline(2dp #000000); }
@@ -86,9 +80,7 @@ All four read the field's true-distance channel, so each costs one more quad per
 
 Widths and offsets take `dp`, `px` or `em`. `dp` keeps its proportion to the text at every UI scale; `px` stays the same number of pixels.
 
-**Their reach is bounded in em, not pixels**: 0.104em at the default atlas settings. `outline(2px)` is a twentieth of an em on 40dp text and well inside it; on 13dp text it is a sixth of an em and gets clamped, with a warning naming the limit.
-
-An effect asked for at three times the cap looks identical to one at the cap. **Size an effect against the text it decorates**, and check small text specifically. To go wider, raise `pxrange` when baking, at a quadratic cost in atlas area.
+**Their reach is bounded in em, not pixels**: 0.104em at the default atlas settings. `outline(2px)` is a twentieth of an em on 40dp text and well inside it; on 13dp text it is a sixth of an em and gets clamped. Size an effect against the text it decorates.
 
 ## Textured text
 
@@ -98,13 +90,7 @@ An effect asked for at three times the cap looks identical to one at the cap. **
 .crt { font-effect: fill-image("/UI/art/scanlines.png" 4dp); }
 ```
 
-A path, a tile size, and an optional colour the pattern is multiplied by.
-
-- **It names a file, not a sprite.** A font effect is built while the stylesheet is parsed and has no route to a spritesheet.
-- **The pattern is anchored to the screen, not to the text.** A scanline stays put while text scrolls under it, which is wrong for anything meant to travel with the words.
-- **It only textures the fill.** It is a front layer over the glyph, so an `outline`, `glow` or `shadow` on the same text stays flat. Where the pattern is transparent the flat `color` shows through, so the two compose.
-
-Not available inside a layer (text under a `filter`, a `mask-image`, or an `opacity` on an ancestor): those paths bind one texture and the pattern is skipped.
+A path, a tile size, and an optional colour the pattern is multiplied by. Where the pattern is transparent the flat `color` shows through, so the two compose.
 
 ## Shaping
 
@@ -120,7 +106,6 @@ Shaping is per script: a string is cut into runs of one script each and each run
 
 `font` `font-family` `font-size` `font-style` `font-weight` `font-kerning` · `font-effect` · `text-align` `text-decoration` `text-transform` `text-overflow` · `letter-spacing` `line-height` · `white-space` `word-break`.
 
-- **`text-align: justify` parses and does nothing.** Justification is not implemented; the line falls back to left.
 - **`line-height` has no `normal`.** Always give a number, length or percentage.
 - **`font-style` has no `oblique`.**
 - **`text-overflow` takes `clip`, `ellipsis`, or a string** to use in place of the ellipsis.
@@ -130,7 +115,35 @@ Shaping is per script: a string is cut into runs of one script each and each run
 
 Glyphs are generated on demand and cached to disk, so only the first run of a face pays for them. `Tools/msdfbake font` pre-bakes a face for a packaged build.
 
-`folio.Font.Report` (or `uipreview --font-report`) prints which faces are loaded, their variation tuples, and what they cost in pages and glyphs. Use it to catch a screen that instantiated nine weights.
+`folio.Font.Report` (or `uipreview --font-report`) prints which faces are loaded, their variation tuples, and what they cost in pages and glyphs.
+
+## If it looks wrong
+
+**A document shows no text at all.** RCSS's initial `font-family` is empty, so nothing renders until a family is named. Set `font-family` on `body`.
+
+**Text set in `Inter` or `Roboto Mono` disappears after you add a font.** Once `UI/fonts/` has a face in it, the bundled two are not loaded. Put Inter in `UI/fonts/` too, or name your own family.
+
+**An `@font-face` has no effect.** The first declaration of a family, style and weight wins for as long as the game runs; a later one naming a different file is ignored with a warning, which `--strict` fails on. A face the host registered first also wins. Give the new face its own family name.
+
+**Small body text looks uneven.** Distance-field text is unhinted, so at 12-14dp on a 1080p display stem widths vary slightly. Look at your smallest text on the target display before committing to it.
+
+**Words wrap differently at another resolution.** Line breaks do not survive a change of dp ratio: an advance is a whole number of pixels at each size, so words move. Never size a container to fit its content exactly at one ratio; check two with `--dp-ratio`.
+
+**`text-shadow` does nothing.** It does not exist. Use `font-effect: shadow(...)`.
+
+**An outline or glow is thinner than asked on small text, and widening it changes nothing.** Effects are capped at 0.104em, and an effect at three times the cap looks identical to one at the cap. The log says `a font effect reaches further than the field describes and was clamped to 0.104 em`. Size the effect to the text, or raise `pxrange` when baking, at a quadratic cost in atlas area.
+
+**`fill-image` cannot find a sprite.** It names a file, not a sprite: a font effect is built while the stylesheet is parsed and has no route to a spritesheet. Give it a path.
+
+**The `fill-image` pattern stays still while the text scrolls.** The pattern is anchored to the screen, not to the text, so it is the wrong tool for anything meant to travel with the words.
+
+**An outline, glow or shadow stays flat under `fill-image`.** It only textures the fill, as a front layer over the glyph.
+
+**`fill-image` disappears inside a `filter`, a `mask-image` or an `opacity` on an ancestor.** Those paths bind one texture and the pattern is skipped.
+
+**`text-align: justify` leaves the text left-aligned.** Justification is not implemented; the value parses and does nothing.
+
+**A screen holds more font pages than expected.** Run `folio.Font.Report` to catch one that instantiated nine weights.
 
 ## Where to go next
 

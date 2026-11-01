@@ -2,6 +2,8 @@
 
 "Hold **E** to file a complaint." **E** has to be whatever the player bound, become a face button the moment they pick up a pad, and look like something without waiting on an artist.
 
+![Keyboard, mouse and gamepad prompts with their action names](images/input_prompts.png)
+
 ## What a prompt is made of
 
 ```cpp

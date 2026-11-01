@@ -43,7 +43,7 @@ enum class EFolioPunctuation : uint8
 /**
  * What a game drives, on top of markup that is already annotated.
  *
- * A document annotated the way docs/accessibility.md describes is walked into a Slate accessibility
+ * A document annotated the way docs/screen_reader.md describes is walked into a Slate accessibility
  * tree whenever a screen reader is listening, with no game code at all. What a game still owns is the
  * setting that turns its own reader on, and the things no element can say by existing.
  */

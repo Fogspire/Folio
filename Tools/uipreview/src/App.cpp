@@ -266,7 +266,7 @@ bool App::Initialise()
 		context->ActivateTheme("no-screen-effects", true);
 	}
 
-	// Its own setting, not part of reduced motion. See docs/accessibility.md.
+	// Its own setting, not part of reduced motion. See docs/presentation_settings.md.
 	Folio::Text::RevealSettings().Speed = options.text_speed;
 	Folio::Text::RevealSettings().bInstant = options.instant_text;
 	if (!context)

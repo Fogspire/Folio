@@ -2,6 +2,8 @@
 
 Every action the player can rebind, the keys currently on it, and a press-any-key panel that catches whatever they hit next, including keys the game itself has bound. Written as markup against a model Folio ships, so the screen is a list and four commands.
 
+![The controls screen: each action, its category, its bound keys and a reset](images/keybinding.png)
+
 The finished thing is `rcss/recipes/bindings.rml`. Copy it and change how it looks.
 
 ---

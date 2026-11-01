@@ -127,7 +127,7 @@ UFolioAccessibilityLibrary::SetInstantText(true);    // every line arrives whole
 
 Instant text skips rather than never starting, so `revealcomplete` still fires and an auto-advance timer waiting on it still runs.
 
-Neither is part of **reduced motion**: somebody can need menus still and dialogue paced, or instant text and every transition intact. See [accessibility](accessibility.md#text-speed).
+Neither is part of **reduced motion**: somebody can need menus still and dialogue paced, or instant text and every transition intact. See [presentation settings](presentation_settings.md#text-speed).
 
 `uipreview --text-speed 4` and `--instant-text` preview both.
 

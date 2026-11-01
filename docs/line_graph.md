@@ -2,6 +2,8 @@
 
 `<line-graph>` draws a line through a series of values, coloured per point and blended smoothly between them, with a dot on the newest value and an optional average line. It is geometry, not elements, so a graph of any length costs one draw.
 
+![A frame-time line coloured red below the average and green above it](images/line_graph.png)
+
 ```html
 <line-graph data-attr-values="g.Values" data-attr-tones="g.Tones" data-attr-average="g.Average" data-attr-length="60"></line-graph>
 ```

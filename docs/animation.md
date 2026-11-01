@@ -1,6 +1,9 @@
 # Animation
 
-Two mechanisms. `transition` reacts to a state change; `@keyframes` with `animation` drives itself.
+Hover states, pulses, entries and exits, written in the stylesheet with no animation code.
+![A header cutting in with a keyframe animation](https://github.com/user-attachments/assets/1a730508-cbdb-4a50-b6aa-4a2e3fa4ed5d)
+
+`transition` reacts to a state change; `@keyframes` with `animation` drives itself.
 
 ```css
 .btn        { transition: background-color 0.12s cubic-out, transform 0.12s cubic-out; }
@@ -70,7 +73,7 @@ A property carrying both a transition and an animation is a related trap: a tran
 
 Write the distance in `dp`. A percentage is only safe on an animation that starts after the first layout (one driven by a class the game adds), and it is not worth the distinction. `transition` is unaffected: it starts from a state change, by which point the element has a box.
 
-## What is cheap
+## Cheap to animate
 
 **Animate `transform`, `opacity`, `color`, `background-color`, `border-color` and `filter`.** None of them triggers reflow.
 
@@ -134,7 +137,7 @@ For a list, generate the classes or use `data-for` with an index and `data-style
 
 `uipreview` renders live and re-runs on save. `--frames` controls how many frames settle before a capture, so the middle of an entry animation screenshots reproducibly.
 
-**In VSCode, open the timeline**: the `timeline` button above the preview, or **Folio: Toggle Timeline**. It renders a frame per step from the document's first, with a scrubber and a play button; the arrow keys step a frame at a time. See **[the extension](vscode.md)**.
+**In [Folio Studio](studio.md), open the Timeline** (`Ctrl+Shift+T`). Play it from the first frame, or drag to any moment, to see an entry animation that otherwise finishes before you look.
 
 On the command line, for a diff or a bug report:
 

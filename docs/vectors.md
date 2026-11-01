@@ -1,6 +1,10 @@
 # Vector art
 
-An icon can come from an SVG instead of a PNG, baked to the same kind of distance field the text uses. Markup does not change: `<img sprite="icon_sword">` and `decorator: image(icon_sword)` work as they do for a raster sprite.
+Icons from SVGs that stay crisp at any magnification, used in markup exactly like a raster sprite.
+
+![The same vector sprite at 400, 200 and 96 dp wide, equally sharp at each](images/vectors.png)
+
+The SVGs are baked to the same kind of distance field the text uses, and `<img sprite="icon_sword">` and `decorator: image(icon_sword)` work as they do for a PNG.
 
 ```bash
 ./bin/win64/msdfbake.exe vector --in art/ui/vector --out UI/art --rcss UI/vectors.rcss --layers
@@ -20,7 +24,7 @@ Everything else stays raster. A vector sprite costs one draw per colour layer wh
 
 **Multi-colour art becomes a stack of silhouettes**, one per fill colour, painted back to front. Still one atlas, at the cost of one draw per layer. Keep the colour count low.
 
-**A stack needs its frame image.** Every layer is absolutely positioned and so adds nothing to its container's height; on its own the container collapses and nothing renders. The baker emits a `<name>_frame` sprite carrying the drawing's proportions, and a hidden `<img>` on it gives the box a height:
+**A stack needs its frame image.** Every layer is absolutely positioned, so the baker emits a `<name>_frame` sprite carrying the drawing's proportions, and a hidden `<img>` on it gives the box a height:
 
 ```html
 <div class="knight-stack" style="width: 240dp">
@@ -32,9 +36,7 @@ Everything else stays raster. A vector sprite costs one draw per colour layer wh
 
 Set the width and let the frame find the height: an image element's intrinsic size is the only aspect ratio RCSS has.
 
-**Set width or height, not both.** They resolve against different bases (the parent's width and height), so a stack sized as a percentage of both squashes whenever the window aspect changes.
-
-**`ninepatch` and `tiled-box` are invalid on a vector atlas.** Non-uniform stretching corrupts the distance metric: corners round off and edges soften. A vector sprite scales uniformly or not at all.
+A vector sprite scales uniformly or not at all, so `ninepatch` and `tiled-box` are invalid on a vector atlas.
 
 **The vector sheet is declared `1x`.** No second resolution to author.
 
@@ -51,9 +53,9 @@ That composes with themes, and can be repainted at runtime.
 
 ## Gradients
 
-A gradient fill is baked to **colour** rather than to a field, onto a second sheet the baker writes alongside the atlas. The field still produces the edge, so the silhouette stays as crisp as any other vector layer; only the fill is a raster, and a gradient upscales almost invisibly. Zoom in on `UI/examples/vector_gradient.rml` to see both.
+A gradient fill is baked to **colour** rather than to a field, onto a second sheet the baker writes alongside the atlas. The field still produces the edge, so the silhouette stays as crisp as any other vector layer; only the fill is a raster, and a gradient upscales almost invisibly.
 
-A gradient layer is a sprite like any other, with no `image-color`. Setting one would multiply the gradient and flatten the drawing to a tint.
+A gradient layer is a sprite like any other, with no `image-color`.
 
 | Affinity fill | |
 |---|---|
@@ -64,9 +66,7 @@ A gradient layer is a sprite like any other, with no `image-color`. Setting one 
 | Mesh | **outline only.** Same, and there is no mesh gradient in SVG to export to |
 | Hatch | it is clipped geometry rather than a gradient, and bakes as flat layers |
 
-For a conical or mesh fill, export it from Affinity as a PNG and use it as a raster sprite; it is a bitmap in the SVG either way.
-
-**The baker warns.** It scans the source for paints it cannot carry and names each one with what to do instead:
+The baker scans the source for paints it cannot carry and names each one with what to do instead:
 
 ```
 msdfbake: warning: conical: art/conical.svg contains <image>
@@ -85,9 +85,7 @@ The same check catches `<pattern>` fills, SVG `<filter>` effects, `<meshgradient
 
 ## Baking is not automatic
 
-**Re-run `msdfbake vector` after changing an SVG.** Nothing watches the source art.
-
-RmlUi caches a texture by its path and never looks at the file again, so a re-baked atlas keeps rendering as it was. Reopening a document picks up anything whose timestamp moved; `folio.ReloadTextures` does it without reopening. `uipreview` handles it through its file watcher.
+**Re-run `msdfbake vector` after changing an SVG.** Nothing watches the source art. Then reopen the document or run `folio.ReloadTextures`; `uipreview` picks it up through its file watcher.
 
 ## Tuning the bake
 
@@ -99,6 +97,24 @@ RmlUi caches a texture by its path and never looks at the file again, so a re-ba
 | `--layers` | Bake multi-colour art as a stack. Without it a drawing is one silhouette and extra fills are discarded with a warning. |
 
 `msdfbake dump --in <atlas> --png out.png` writes the field out as an image, to check a bake looks like the drawing.
+
+## If it looks wrong
+
+**A multi-colour icon renders nothing.** The stack's layers are absolutely positioned and add nothing to the container's height, so without its frame image the container collapses. Add the hidden `<img>` on `<name>_frame`, as in [what a field can represent](#what-a-field-can-represent).
+
+**A vector stack squashes when the window aspect changes.** It is sized as a percentage of both width and height, which resolve against different bases. Set width or height, not both.
+
+**A vector sprite has rounded corners and soft edges under `ninepatch` or `tiled-box`.** Non-uniform stretching corrupts the distance metric. Use a raster sprite for anything that stretches.
+
+**A gradient layer comes out as a flat tint.** It has an `image-color`, which multiplies the gradient. Remove it from that layer.
+
+**A conical or mesh fill bakes as an outline only.** Affinity exports those as an embedded bitmap, which the parser discards. The baker warns: `msdfbake: warning: conical: art/conical.svg contains <image>`. Export that fill as a PNG and use it as a raster sprite.
+
+**A shape is missing from the bake.** `<use>` is dropped by the parser, so an instanced shape goes missing. The baker warns about it, along with `<pattern>`, SVG `<filter>`, `<meshgradient>` and live `<text>`. Expand the instance or convert the text to curves, and pass `--strict` to fail a build on any of them.
+
+**A multi-colour drawing bakes as one flat silhouette.** It was baked without `--layers`. The baker says `msdfbake: warning: <name> has <n> fill colours, and one field holds one silhouette, so every filled path merges into a single shape`. Re-run with `--layers`.
+
+**An edited SVG still shows the old art.** Nothing watches the source, and RmlUi caches a texture by its path. Re-run `msdfbake vector`, then reopen the document or run `folio.ReloadTextures`.
 
 ## Where to go next
 

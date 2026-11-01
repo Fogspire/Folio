@@ -6,13 +6,13 @@ Everything an author needs is in **[the manual](README.md)**, and what Folio can
 
 ## RmlUi version and documentation
 
-**Pinned to RmlUi 6.2** (released 2026-01-11), the latest stable release.
+**Pinned to RmlUi 6.2** (released 2026-01-11).
 
 **The docs site lies about what is in the release.** <https://mikke89.github.io/RmlUiDoc/> is built from RmlUi's `master` with no version banner, so features merged after 6.2 are documented as if they exist. Check `changelog.md` in the pinned source tree, not the website.
 
 Known cases:
 
-- **CSS custom properties and `var()` do not exist in 6.2.** Merged to master 2026-06-07 (PR #947) with follow-up bugs still open (#965 transitions with `var()`, #966 `var()` with dp-ratio changes). `UI/tokens.rcss` therefore expresses design tokens as **concrete classes**, not variables. Revisit at RmlUi 7.0.
+- **CSS custom properties and `var()` do not exist in 6.2.** Merged to master 2026-06-07 (PR #947) with follow-up bugs still open (#965 transitions with `var()`, #966 `var()` with dp-ratio changes). `rcss/themes/default.rcss` therefore expresses design tokens as **concrete classes**, not variables. Revisit at RmlUi 7.0.
 - **`:disabled` is set from the `disabled` attribute on any element** (patch 0006). `:focus`, `:focus-visible`, `:checked`, `:hover`, `:active`, `:nth-child()`, `:not()` and `:scope` are all supported.
 - **`Rml::ReleaseMemoryPools()` does not exist** in 6.2, so the reload path cannot use it.
 
@@ -178,7 +178,7 @@ Most decorators resolve a value as a sprite name first and **silently** fall bac
 
 So `LoadTexture` never returns 0: on failure it returns a generated magenta checkerboard, which **does** suppress RmlUi's own message, so the wording is ours. `LoadTexture` runs **before layout**, so it cannot know the sprite's drawn size; that is captured from the compiled geometry's bounding box at draw time.
 
-**The name arriving at `LoadTexture` is already joined against the document directory.** An undeclared sprite `icon_sword` referenced from `/UI/examples/hud.rml` arrives as `/UI/examples/icon_sword`. So "contains a path separator, therefore a file reference" is wrong: every unresolved sprite looks like that. Classify on the **file extension**: none means a sprite name, one means a file or spritesheet `src` reference.
+**The name arriving at `LoadTexture` is already joined against the document directory.** An undeclared sprite `icon_sword` referenced from `/UI/screens/hud.rml` arrives as `/UI/screens/icon_sword`. So "contains a path separator, therefore a file reference" is wrong: every unresolved sprite looks like that. Classify on the **file extension**: none means a sprite name, one means a file or spritesheet `src` reference.
 
 **Not every decorator reaches `LoadTexture`.** Confirmed by experiment:
 
@@ -289,7 +289,6 @@ Shader type was loaded too late, use ELoadingPhase::PostConfigInit on your modul
 The patch DLL links and the process dies while loading it, so the assert is all there is. Global shader types are registered from static initialisers and the engine seals that list long before a patch arrives; the message's advice does not apply, because the module already loads early enough on a normal start.
 
 Editing the body of an existing shader is fine: the editor picks up a changed `.usf` on its own. Adding, removing or renaming an `IMPLEMENT_GLOBAL_SHADER` needs the editor closed and a full build.
-
 
 ## A fullscreen RDG pass does not use your vertex shader
 
@@ -469,15 +468,12 @@ The script fixes up two things in the build tree, because uipreview has one cont
 
 ```
 UnrealEditor.exe <project>.uproject -game -windowed -resx=1280 -resy=720 -nosplash \
-    -ExecCmds="folio.Gate UI/examples/panel.rml 6"
+    -ExecCmds="folio.Gate /folio/recipes/pause.rml 6"
 ```
 
 The image lands in `Saved/Screenshots/WindowsEditor/FolioGate.png`. Passing means the document renders, the order-200 widget covers its top edge, and the order-50 widget is hidden behind it.
 
 **The command has to poll.** `-ExecCmds` runs during engine init, before there is a game viewport, and a level load clears viewport widgets anyway, so a command that acts immediately finds nothing and logs nothing (or screenshots the loading screen). It waits on `GetWorld()->HasBegunPlay()` and then gives the document a few seconds to load its stylesheet, generate its glyphs and draw.
-
-Verified with `UI/examples/panel.rml`: borders, radii, drop shadows, a vertical gradient, a button and distance-field text, in a running game, composited in the right place.
-
 
 ## Decorators paint in reverse source order
 
@@ -492,7 +488,6 @@ Verified with `UI/examples/panel.rml`: borders, radii, drop shadows, a vertical 
 **Additive blending needs no blend state.** RmlUi composites premultiplied, `src + dst * (1 - a)`, so a colour written with zero alpha adds to what is underneath. One line in the rasteriser.
 
 The trade is a fixed set: `additive`, `scanlines`, `sweep`. An unknown name warns once and draws nothing. Adding another is a function in `FolioShaderEffects.cpp` and nothing else: no shader, no material, no per-renderer work.
-
 
 ## clip-path, honoured rather than dropped
 
@@ -516,7 +511,6 @@ msedge.exe --headless=new --disable-gpu --screenshot=out.png --window-size=760,8
 with a one-line HTML wrapper holding an `<img src="file:///drawing.svg">`, because the headless screenshot of an SVG loaded directly comes out empty.
 
 To find which layer is at fault, render each one alone: a document with one `<img>` per `-ink` class, tinted, laid out in a grid. That showed the clip working (the clipped layers were correctly confined) while the fills were not.
-
 
 ## Three keyboard schemes at once, without breaking typing
 
@@ -816,7 +810,7 @@ Verified at 1280x720, 2560x1440, 5120x2880 and 7680x4320 on a 1440p display: all
 
 Two things have to be right before a comparison means anything:
 
-- **Pin the dp ratio on both.** The preview's ratio follows its viewport by default (`--dp-reference`, 1080), and the engine host is told one directly. Unmatched, every length differs and the images look like a layout bug. `uipreview --dp-ratio 1` against a host updated with a ratio of 1 lines the two up exactly, verified on `UI/examples/panel.rml`, where every text baseline and panel edge agrees.
+- **Pin the dp ratio on both.** The preview's ratio follows its viewport by default (`--dp-reference`, 1080), and the engine host is told one directly. Unmatched, every length differs and the images look like a layout bug. `uipreview --dp-ratio 1` against a host updated with a ratio of 1 lines the two up exactly.
 - **Compare coverage, not RGB.** The engine writes premultiplied colour on a transparent ground; the preview composites onto an opaque one, and does no sRGB conversion where Slate linearises vertex colour and applies display gamma. The same document is a different colour in each and the same shape in both.
 
 `./scripts/compare_renderers.sh` does the comparison without diffing images. Both sides emit the same metrics schema (`uipreview --metrics-report` and `folio.Metrics.Report`), and it compares boxes, font sizes and where every text line landed. Exact, no tolerance to tune, and a failure names the element rather than a pixel count. `Folio::ComputeElementPath` is shared between the two so they cannot disagree about what names an element, which would report a naming difference as a divergence.
@@ -858,3 +852,36 @@ Use `Rml::ObserverPtr<T>`: `Element` derives from `EnableObserverPtr<Element>`, 
 `GetObserverPtr()` returns `ObserverPtr<Element>` even on an `ElementDocument`, because the observable base is `Element`. No covariant version exists: store `ObserverPtr<Element>` and use `GetOwnerDocument()` when a document-only method is needed.
 
 The same rule covers listeners in the other direction. RmlUi calls `OnDetach` on every listener an element still holds when it is destroyed, so a listener freed while still registered crashes inside the document's destructor. `FFolioBehaviours` detaches from its own destructor for that reason.
+
+
+## Accessibility tree and Studio blur parity
+
+The accessibility walk rebuilds the whole tree for a changed document rather than patching it. RmlUi has no change notification covering everything a document can do to itself, and a tree silently one edit behind is worse than no tree, so do not replace the walk with incremental updates.
+
+`scripts/studio.sh parity` reports a known difference for a blur that samples past the viewport edge, such as a full-screen inset `box-shadow`. Desktop OpenGL reads nothing past the edge, while WebGL cannot clamp a texture to a transparent border and reads the edge pixel: up to 14 levels out of 255 on a few edge pixels. Do not chase it as a renderer bug.
+
+
+## Supersampling: the target scales, the document does not
+
+**The sample count is a property of the target.** The document lays out, shapes, breaks lines, bakes its glyph atlas and hit-tests in screen pixels at every sample count; the layers it draws into are allocated denser, and the replay's transform stretches one space onto the other. Multiplying the dp ratio by the sample count looks equivalent and is not: the font atlas bakes at the bigger size (four times the area, every glyph resampled on the way to the screen), line breaking and rounding happen in a different space so a line can break differently, and hit testing, scroll offsets and reported sizes all move into that space. `folio.Screens` should print the same numbers whatever the sample count; if it does not, the document is being scaled somewhere.
+
+**A blur radius is the one thing that follows the target.** It is expressed in document pixels and applied to target pixels. Scale the sigma **and** the kernel's step: a kernel capped at a tap count reaches half as far when the sigma doubles, and a wide shadow then ends in a visible edge rather than fading out.
+
+**Text is held out of the target.** A glyph run drawn into the surface is recorded rather than rasterised, and drawn to the screen after the composite at one document pixel to one screen pixel: the same geometry, atlas and shader constants an unsupersampled document uses, identical to the pixel. A run goes back through the target when it is inside a layer (filter, shadow, mask), under a clip mask (a stencil the surface owns, with no screen equivalent), or under something painted later. Testing each draw against the waiting runs:
+
+- test against what a layer **painted**, not the region it was allocated. A layer is sized to the current clip, which for an unclipped element is the whole screen, so allocated-region tests put every run back the first time anything casts a shadow;
+- widen that by the blur, the one thing that puts colour outside the geometry that made it;
+- split a covered run **per glyph**. A run is a whole line, so a card overlapping the last word otherwise costs the sentence;
+- put a run back where it arrived, with the clip it arrived under: by the time something is found covering it, the clip in force belongs to the coverer.
+
+A document ending with a full-screen sheen, scrim or vignette keeps all its text in the target. That is the mechanism working.
+
+**Resolve in a pass, never through the sampler.** Drawing the big target with a quad and letting bilinear filtering shrink it averages the block only when the quad's texture coordinates land exactly on texel corners: a whole-pixel rectangle, exactly the sample count, at an integer position. Anywhere else (a fractional window size, a rounded context size, a half-pixel offset) each output pixel reads one texel of an unfiltered raster, which is nearest-neighbour decimation and harder edges than no supersampling, uniformly across the screen. `ResolveSupersample` point-samples the NxN block behind each destination pixel and divides, and the result is composited with a quad snapped to whole pixels so the last step is a copy. Hard columns on a shallow diagonal: none 72, 2x through the sampler 62, 2x resolved 26, 4x resolved 21.
+
+**A background's antialiasing skirt is one screen pixel wide at every sample count.** The geometry is then identical however densely it is rasterised, so samples add to the skirt instead of replacing it, and supersampling can never come out harder than not supersampling. It also means a sample count change needs no regeneration: backgrounds are cached, and regenerating them is a restyle, which replays entry animations and makes a settings toggle look like a screen reload.
+
+**A depth-stencil per layer only when a clip mask needs it.** Check the recorded draws and skip it otherwise, or a document with no masks pays a full-size depth-stencil per layer per frame.
+
+**Scope inside the render-thread lambdas.** A layer is replayed, blurred, masked and resolved on the render thread, and a scope on the game-thread function that queued it ends at the enqueue, so milliseconds report as microseconds. Every render-thread lambda carries its own scope and cycle counter, and the graph builder a GPU stat scope. Measured at 4x on one screen: about 1 ms of GPU for the whole UI against a 20 ms scene, with the layer pool holding 316 MB at a 1915x1270 context.
+
+**An unchanged frame reuses the target.** The layout reports whether it updated, and the held-back runs are kept from the last render rather than dropped, so a still screen composites the existing target and draws only its text.

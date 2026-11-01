@@ -23,6 +23,13 @@ folio_die() {
 	exit 1
 }
 
+# Opened from Explorer or PowerShell, a .sh runs in a Git Bash window of its own (as an interactive
+# shell, which a script run from a prompt never is) that closes on exit and takes any error with it.
+folio_hold_own_window() {
+	folio_is_windows && [[ $- == *i* ]] || return 0
+	trap 'folio_exit_status=$?; echo; read -rp "Press Enter to close this window. " _ || true; exit $folio_exit_status' EXIT
+}
+
 # Windows puts a parenthesis in the name, which is not a legal shell identifier, so it cannot be
 # read as $ProgramFiles(x86) and has to come out of the environment by name.
 folio_program_files_x86() {

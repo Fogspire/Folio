@@ -27,6 +27,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/vsenv.sh"
+folio_hold_own_window
 
 repo_root="$(cd "$script_dir/.." && pwd)"
 source_dir="$repo_root/cmake/ue"

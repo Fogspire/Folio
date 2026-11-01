@@ -4,7 +4,7 @@ Getting Folio into a project and a document on screen. About fifteen minutes, mo
 
 You need an Unreal 5.8 project that already builds, and:
 
-- **Windows:** Visual Studio 2022 with the C++ desktop workload. Folio finds the CMake and Ninja that ship with it.
+- **Windows:** Visual Studio 2022 with the C++ desktop workload, and [Git for Windows](https://gitforwindows.org/) for Git Bash. Folio finds the CMake and Ninja that ship with Visual Studio.
 - **macOS:** Xcode, plus CMake and Ninja (`brew install cmake ninja`).
 - **Linux:** the engine's own toolchain, which the engine's `Setup.sh` installs, plus CMake and Ninja.
 
@@ -20,10 +20,10 @@ Copy or clone Folio to:
 
 ## 2. Build the libraries Folio needs
 
-Folio compiles RmlUi and msdfgen from source against your engine's toolchain. This is a one-off:
+Folio compiles RmlUi and msdfgen from source against your engine's toolchain. This is a one-off. On Windows, run it from a Git Bash prompt:
 
 ```bash
-cd <YourProject>\Plugins\Folio
+cd <YourProject>/Plugins/Folio
 ./scripts/build_ue_libs.sh
 ```
 
@@ -34,6 +34,8 @@ The engine comes from your `.uproject`'s `EngineAssociation`. If that cannot be 
 ```bash
 ./scripts/build_ue_libs.sh --engine-dir "Z:/Epic Games/Src/5.8/Engine"
 ```
+
+**A Git Bash window opens and closes straight away.** The script was opened from Explorer, PowerShell or cmd, which gives it a window of its own. It waits for Enter before closing so the error can be read. Run it from a Git Bash prompt to keep the output.
 
 **The editor build fails with unresolved `__std_rotate`, `__std_find_not_ch_1` or similar from `rmlui.lib`.** The libraries were built with a different MSVC toolset than Unreal's. The script uses the toolset UnrealBuildTool picks by default and does not read `CompilerVersion` from `BuildConfiguration.xml`. Rerun it with `--toolset <version>`, using the `MSVC\<version>` folder named on the `Using Visual Studio ... toolchain` line in UBT's log.
 

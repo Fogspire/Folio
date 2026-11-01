@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0
+* Studio: a **Sprites** panel packs a folder of pixel-art frames into an atlas and its `@spritesheet`, with a live preview; see [docs/studio_reference.md](docs/studio_reference.md#pack-sprites)
+* `pack_sprites.py`: writes a `.spritepack.json` beside the stylesheet, and `--pack` packs one again, so Studio and the script share sheets
+
 ## 1.6.0
 * Documentation site, generated from the markdown and published to GitHub Pages: https://fogspire.github.io/Folio/
 * `<flipbook>`: an animated image from a grid sheet or numbered sprites, bindable to pause, seek or pick its frame; see [docs/flipbook.md](docs/flipbook.md)

@@ -1,0 +1,65 @@
+# Changelog
+
+## 1.6.0
+* `<flipbook>`: an animated image from a grid sheet or numbered sprites, bindable to pause, seek or pick its frame; see [docs/flipbook.md](docs/flipbook.md)
+* Sprite HUD tutorial: a pixel-art character on an angled HUD panel that copies the player's movement; see [docs/tutorials/sprite_hud.md](docs/tutorials/sprite_hud.md)
+
+## 1.5.1
+* `build_ue_libs.sh` and `build.sh`: opened from Explorer, PowerShell or cmd, the Git Bash window waits for Enter before closing, so the error can be read
+
+## 1.5.0
+* Studio: a **Language** picker on the canvas draws the document in a `UI/loc` translation or pseudo-localized, to find layouts that only fit English
+* Studio: the active tab stays in view however many files are open, and the wheel scrolls the tab strip
+* Studio: Electron 45
+* Grid inventory tutorial and example, with items spanning several cells; see [docs/tutorials/grid_inventory.md](docs/tutorials/grid_inventory.md)
+
+## 1.4.0
+* `UFolioWidget::bPassThroughEmptySpace`: a click on no element goes to the game, so panels can sit over a world the player still clicks; see [docs/hosting.md](docs/hosting.md#panels-over-a-world-the-player-still-clicks)
+
+## 1.3.2
+* `build_ue_libs.sh`: builds with the MSVC toolset UnrealBuildTool picks rather than the newest installed, which failed to link with unresolved `__std_*` symbols when they differed
+
+## 1.3.1
+* `build_ue_libs.sh`: the engine FreeType path follows `--engine-dir`, so rebuilding against another engine no longer needs `--clean`
+
+## 1.3.0
+* `<line-graph>`: a line coloured per point between low, mid and high tones, with a dot on the newest point and an average line; see [docs/line_graph.md](docs/line_graph.md)
+* World documents drawn after tonemap can set `bAfterPostProcessMaterials` to draw over the after-tonemap post process materials, so a fade or vignette never covers a menu
+* World documents report the pad's back button through `OnBack`
+* Struct members in bound arrays match regardless of case: packaged builds do not keep FName spelling, so `Rows[i].Position` could fail to resolve outside the editor
+
+## 1.2.0
+* Studio: a project reopens with the documents it last had open
+* Editor: **Set Up Packaging** in the Folio toolbar menu stages the UI tree, stylesheets and fonts and cooks Folio's content
+
+## 1.1.0
+* `border-radius` takes percentages and elliptical corners: `50%` on a square is a circle, `a / b` gives the vertical radii, and `border-top-left-radius: a b` sets one corner
+* `:disabled` is set from the `disabled` attribute on any element, which also takes it out of navigation and clicks
+* `@import` and `@font-face`
+* Font effect lengths resolve in `dp` and `em`
+* 3D transforms render
+* Layers are sized to what they draw, and unchanged layers are reused between frames
+* World documents can fade under translucency; hidden ones are skipped in the world pass, and a torn-down one leaves no recordings behind
+* Sampled texels are re-encoded for after-tonemap world documents
+* Array rows bind nested structs
+* Glyph shapes, and reading and setting the active input device
+* Rebinding binds to each row's own slot and keeps bindings to the page's device
+* Gradient bakes are shared between shaders
+* Fixed a generated texture leak
+* Stamina wheel recipe
+* Studio: Activity panel, listing what keeps a document from idling
+* Studio: library components in the Elements palette
+* Studio: bake every document in a folder to PNG, and choose the canvas background
+* Studio: documents with a declared size open at 1x scale
+* Studio: picks up files created or deleted on disk, and remembers collapsed folders per project
+* Studio: offers to rebuild out-of-date Unreal libraries and uipreview
+* Studio: copy from the terminal, and its output is kept after a build
+* Studio: Code completes tags, attributes, RCSS properties and values, classes and bindings, with hover docs and go-to-definition
+* Studio: Code underlines CSS that RCSS ignores, and renderer and schema problems, on their lines
+* Studio: Format Document (Alt+Shift+F) for `.rml` and `.rcss`, optionally on save, on Enter, on paste or when Code loses focus
+* Studio: Preferences and Keyboard Shortcuts are under Edit; Ctrl+Shift+, opens Keyboard Shortcuts, and shortcuts with Shift and punctuation can be bound
+* The Unreal build refuses RmlUi libraries built with other patches
+* A new RmlUi patch applies to an existing build tree; CMake build folders configured at another path are discarded
+
+## 1.0.0
+* Initial release to the general public

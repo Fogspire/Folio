@@ -1,0 +1,17 @@
+{
+  "name": "folio-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node build.mjs --serve"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "github-slugger": "^2.0.0",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.1.2"
+  }
+}

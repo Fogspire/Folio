@@ -8,7 +8,7 @@ You need an Unreal 5.8 project that already builds, and:
 - **macOS:** Xcode, plus CMake and Ninja (`brew install cmake ninja`).
 - **Linux:** the engine's own toolchain, which the engine's `Setup.sh` installs, plus CMake and Ninja.
 
-macOS and Linux are beta; see [platform support](../README.md#platform-support).
+macOS and Linux are beta; see [platform support](overview.md#platform-support).
 
 ## 1. Put the plugin in the project
 

@@ -36,3 +36,7 @@ compile_commands.json
 /shots/
 /reports/
 /*.png
+
+# Docs site build output
+/site/_site/
+/site/node_modules/

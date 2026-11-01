@@ -2,7 +2,7 @@
 
 A document on a surface in the level, a terminal or a sign the player walks up to and uses, sharp at any distance.
 
-https://github.com/user-attachments/assets/43d779a1-2c42-46e6-862f-0fa27a34dcd6
+https://github.com/user-attachments/assets/19c0910f-c940-40cd-a8e8-3668150aa3a3
 
 Every setting, draw mode and console command is in **[world document settings](world_document_settings.md)**.
 

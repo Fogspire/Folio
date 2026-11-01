@@ -58,7 +58,7 @@ https://github.com/user-attachments/assets/19c0910f-c940-40cd-a8e8-3668150aa3a3
 
 ### Surface-Projected UI
 
-https://github.com/user-attachments/assets/43d779a1-2c42-46e6-862f-0fa27a34dcd6
+https://github.com/user-attachments/assets/5beac4d8-5f56-40ff-abe2-ccfbd6184fdd
 
 Documents can be projected onto the surface of a mesh, with input enabled, so that CRT monitor the player can use? Already sorted as a byproduct of a proper tech foundation: [CRT terminal tutorial](tutorials/crt_terminal.md)
 

@@ -2,7 +2,10 @@
 
 Build a working computer terminal on a curved CRT screen in a level: a login form you can type into, radio channels, a pop-up window you can drag, resize and close with an animation, and a bin you can drop files into. Then put it on a mesh with scan lines and a phosphor glow.
 
-https://github.com/user-attachments/assets/43d779a1-2c42-46e6-862f-0fa27a34dcd6
+https://github.com/user-attachments/assets/5beac4d8-5f56-40ff-abe2-ccfbd6184fdd
+
+> [!NOTE]
+> The video was made prior to the creation of Folio Studio
 
 One document and one component. No Blueprint graph, no widget tree; the only C++ points an input action at the component.
 

@@ -4,6 +4,8 @@ A first-person visor: a helmet frame around the view, a curved energy ribbon, a 
 
 https://github.com/user-attachments/assets/6a28104d-f75e-4d6d-82de-1aaeb25269ce
 
+> The video was made prior to Folio supporting real 3D transforms
+
 You need Folio running in a project ([hello world](../hello_world.md)) and `uipreview` built. You write `UI/screens/visor.rml` and check each step with:
 
 ```bash

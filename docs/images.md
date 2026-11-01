@@ -165,5 +165,6 @@ RmlUi caches a texture by its path and never looks at the file again, so a re-pa
 ## Where to go next
 
 - **[Vector art](vectors.md)**: when raster is not enough.
+- **[Flipbooks](flipbook.md)**: frames from a sheet, played in sequence.
 - **[Components and themes](components_and_themes.md)**, where the tint colours belong.
 - **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** §5: the complete decorator vocabulary.

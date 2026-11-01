@@ -158,6 +158,7 @@ That needs a spring, which is a component rather than a stylesheet feature. See 
 ## Where to go next
 
 - **[A HUD that responds to the camera](hud_motion.md)**: springs, for motion a curve cannot describe.
+- **[Flipbooks](flipbook.md)**: frame-by-frame animation from a sheet.
 - **[Drag, drop and resize](drag_and_resize.md)**: `folio-closing` and animated removal.
 - **[Data binding](data_binding.md)**: driving classes from gameplay.
 - **[Performance and profiling](performance_profiling.md)**: when the animation is the cost.

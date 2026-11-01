@@ -35,6 +35,7 @@ Two habits cover it:
 | **[Images and sprites](images.md)** | Spritesheets, the image decorator's fit modes, ninepatch, and when a PNG is the right answer. |
 | **[Vector art](vectors.md)** | SVG baked to distance fields: infinitely scalable icons, the colour-layer stack, and what a field cannot represent. |
 | **[Line graphs](line_graph.md)** | `<line-graph>`: a smooth, per-point coloured line for live readings, with a dot on the newest and an average line. |
+| **[Flipbooks](flipbook.md)** | `<flipbook>`: an image that plays its frames, on its own or paused, seeked and driven from game data. |
 | **[Animation](animation.md)** | Transitions, keyframes, and what is cheap to animate. |
 | **[The shader decorator](shader_decorator.md)** | Additive blending, scanlines and sweeps: the effects RCSS has no syntax for. |
 | **[Drifting motes](motes.md)** | Atmosphere behind a menu, in six quads and no particle system. |
@@ -92,6 +93,7 @@ Two habits cover it:
 | **[A paper doll, and 3D items in a grid](tutorials/paper_doll.md)** | A character in a profile frame and meshes in inventory cells: isolating a capture without a staging area, the premultiply trap, and one rig feeding a page of targets. |
 | **[The coloured screen edge](tutorials/screen_edge.md)** | Standing in fire, taking a hit, running on low health: an inset box-shadow is the whole effect, states cross-fade while events animate, then bake the lot to textures, because a full-screen layer costs a render target every frame. |
 | **[A stamina wheel](tutorials/stamina_wheel.md)** | Stamina represented on a wheel, with partial, extra and temporary wheels. |
+| **[A sprite that copies the player](tutorials/sprite_hud.md)** | A pixel-art character on an angled HUD panel that walks, runs, jumps, ducks and skids with the player: packing frames, a bound `<flipbook>`, and picking the clip from character movement. |
 
 ## Reference
 

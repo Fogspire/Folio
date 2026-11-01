@@ -1303,6 +1303,7 @@
 	],
 	"elements": [
 		"body",
+		"flipbook",
 		"form",
 		"handle",
 		"img",

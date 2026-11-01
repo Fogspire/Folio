@@ -22,6 +22,7 @@
 #include "FolioCore/FolioCoreVersion.h"
 #include "FolioCore/FolioHost.h"
 #include "FolioCore/FolioDecorators.h"
+#include "FolioCore/FolioFlipbook.h"
 #include "FolioCore/FolioLineGraph.h"
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
@@ -76,6 +77,7 @@ App::~App()
 	Folio::ReleaseFolioFontEffects();
 	Folio::ReleaseFolioDecorators();
 	Folio::ReleaseFolioLineGraph();
+	Folio::ReleaseFolioFlipbook();
 	Folio::ReleaseFolioFilters();
 	Folio::Text::ReleaseFolioText();
 
@@ -236,6 +238,7 @@ bool App::Initialise()
 	Folio::RegisterFolioFilters();
 	Folio::RegisterFolioDecorators();
 	Folio::RegisterFolioLineGraph();
+	Folio::RegisterFolioFlipbook();
 	Folio::Text::RegisterFolioText();
 
 	context = Rml::CreateContext("main", Rml::Vector2i(framebuffer_width, framebuffer_height));

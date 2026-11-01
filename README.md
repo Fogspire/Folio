@@ -244,6 +244,7 @@ Contributions are accepted only with the right for the author to relicense them,
 
 ### 1.3.0
 * `<line-graph>`: a line coloured per point between low, mid and high tones, with a dot on the newest point and an average line; see [docs/line_graph.md](docs/line_graph.md)
+* `<flipbook>`: an animated image from a grid sheet or numbered sprites, bindable to pause, seek or pick its frame; see [docs/flipbook.md](docs/flipbook.md)
 * World documents drawn after tonemap can set `bAfterPostProcessMaterials` to draw over the after-tonemap post process materials, so a fade or vignette never covers a menu
 * World documents report the pad's back button through `OnBack`
 * Struct members in bound arrays match regardless of case: packaged builds do not keep FName spelling, so `Rows[i].Position` could fail to resolve outside the editor

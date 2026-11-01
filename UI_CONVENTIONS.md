@@ -571,6 +571,7 @@ RML is not HTML. Only these tags are backed by real element types with behaviour
 | `progress` / `progressbar` | Takes `value`, `max`, `direction` (`top`, `right`, `bottom`, `left`, `clockwise`, `counter-clockwise`) and `start-edge`, plus the `fill-image` property |
 | `tabset` | `<tabset><tabs><tab>…</tab></tabs><panels><panel>…</panel></panels></tabset>`. Sets `:selected` on the active tab and its panel, and `display: none` on the others, as inline properties |
 | `text` | A paragraph of prose whose contents are Folio's markup rather than RML: `<style>x</>`, `{tag:}`, `{delay:}`. Reveals one character at a time under `reveal: typewriter`. See [rich text](docs/rich_text.md) |
+| `flipbook` | An image that plays its frames: `src` or `sprite` cut by `columns`/`rows`, or numbered `sprites`. `fps`, `mode` (`loop`, `once`, `alternate`), `paused`, `frame`, `fit`, `still`, all bindable. Raises `flipbookend`. See [flipbooks](docs/flipbook.md) |
 
 **`<text>` is read raw, and closes as RML.** Its contents are never parsed as elements, which is what lets a translated string carry markup. The element itself still closes with `</text>`; the `</>` shorthand closes a style *inside* it. It holds prose and nothing else: no `<img>`, no binding, no `{{ }}`, because the braces belong to the markup.
 

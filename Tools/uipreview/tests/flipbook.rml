@@ -1,0 +1,52 @@
+<rml>
+<head>
+	<title>flipbook</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			<flipbook> in each of its frame sources and modes. The sheet is a 4x2 grid of 32px frames,
+			a bar one step taller in each, so a filmstrip shows the order and a held frame shows as a
+			repeat.
+		*/
+		@spritesheet flipbook_test
+		{
+			src: /UI/art/flipbook_bars.png;
+			resolution: 1x;
+
+			bars: 0px 0px 128px 64px;
+			bar_0: 0px 0px 32px 32px;
+			bar_1: 32px 0px 32px 32px;
+			bar_2: 64px 0px 32px 32px;
+			bar_3: 96px 0px 32px 32px;
+		}
+		body
+		{
+			font-family: Inter;
+			font-size: 14dp;
+			color: #d8dce4;
+			background-color: #16161c;
+			padding: 24dp;
+			width: 100%;
+			height: 100%;
+			box-sizing: border-box;
+			display: flex;
+			flex-wrap: wrap;
+			align-content: flex-start;
+		}
+		.cell { display: flex; flex-direction: column; align-items: center; margin: 0 24dp 24dp 0; }
+		.cell flipbook { image-color: #4aa3df; }
+		.sized { width: 64dp; height: 64dp; }
+		.cell flipbook.wide { width: 128dp; height: 64dp; }
+		.label { margin-top: 6dp; }
+	</style>
+</head>
+<body>
+	<div class="cell"><flipbook class="sized" src="/UI/art/flipbook_bars.png" columns="4" rows="2" fps="10"/><div class="label" data-noloc>grid loop</div></div>
+	<div class="cell"><flipbook class="sized" sprite="bars" columns="4" rows="2" frames="6" fps="10" mode="alternate"/><div class="label" data-noloc>sprite alternate 6</div></div>
+	<div class="cell"><flipbook class="sized" sprites="bar_" fps="10" mode="once"/><div class="label" data-noloc>numbered once</div></div>
+	<div class="cell"><flipbook class="sized" src="/UI/art/flipbook_bars.png" columns="4" rows="2" paused frame="5"/><div class="label" data-noloc>paused on 5</div></div>
+	<div class="cell"><flipbook class="wide" src="/UI/art/flipbook_bars.png" columns="4" rows="2" fps="10" fit="contain"/><div class="label" data-noloc>contain</div></div>
+	<div class="cell"><flipbook class="wide" src="/UI/art/flipbook_bars.png" columns="4" rows="2" fps="10" fit="cover"/><div class="label" data-noloc>cover</div></div>
+	<div class="cell"><flipbook src="/UI/art/flipbook_bars.png" columns="4" rows="2"/><div class="label" data-noloc>natural size</div></div>
+</body>
+</rml>

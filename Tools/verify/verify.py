@@ -387,6 +387,37 @@ def main() -> int:
             else:
                 harness.ok(f"{name} does not")
 
+    # A flipbook steps on the document clock: at 10 fps and a 50ms filmstrip each frame shows for exactly
+    # two captures after the first, and eight frames repeat every sixteen. Reduced motion holds one frame.
+    print("Flipbook")
+    timing = tests_dir / "flipbook_timing.rml"
+    if not timing.is_file():
+        harness.fail("missing flipbook_timing.rml")
+    else:
+        def filmstrip_hashes(label: str, *flags: str) -> list[str]:
+            directory = out / f"flipbook.{label}"
+            harness.run([str(timing), "--no-assets-wanted", "--size", "160x120", "--dp-ratio", "1",
+                         "--filmstrip", str(directory), "--filmstrip-frames", "20", "--dt", "50", *flags])
+            return [hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(directory.glob("frame-*.png"))]
+
+        played = filmstrip_hashes("play")
+        if len(played) != 20:
+            harness.fail(f"flipbook filmstrip wrote {len(played)} frames, expected 20")
+        else:
+            held = all(played[i] == played[i + 1] for i in range(1, 19, 2))
+            stepped = all(played[i] != played[i + 1] for i in range(0, 19, 2))
+            looped = played[1] == played[17] and played[0] != played[1]
+            if held and stepped and looped:
+                harness.ok("steps once per frame and loops")
+            else:
+                harness.fail("flipbook frames do not step at their fps")
+
+        still = filmstrip_hashes("still", "--reduced-motion")
+        if len(set(still)) == 1:
+            harness.ok("reduced motion holds a frame")
+        else:
+            harness.fail("flipbook still plays under reduced motion")
+
     # --- Presentation settings --------------------------------------------------------------
 
     # Larger text, less movement and a different colour vision change how a screen looks. None of

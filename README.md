@@ -1,15 +1,12 @@
 # Folio
 
-**Custom UI Rendering Framework for Unreal Engine 5.** HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. World-space UI unaffected by TAA/TSR. Surface projected UI. Lots of common game functionality out of the box.
+**Custom UI Rendering Framework for Unreal Engine 5.** HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. World-space UI unaffected by TAA/TSR. Surface projected UI. Common game functionality included.
 
 Folio is free, source included, and built to be the UI layer of a shipping game, from a solo project to a full production, from indie to AAA.
 
-UE5.8+ supporting both Deferred Rendering and Forward Rendering.
-
-> [!NOTE]
-> Improved documentation and showcase images, as well as documentation images are pending
-
 ## Get started
+
+Requires Unreal Engine 5.8 or later, with Deferred or Forward rendering.
 
 | | |
 |---|---|
@@ -17,10 +14,9 @@ UE5.8+ supporting both Deferred Rendering and Forward Rendering.
 | **[Folio Studio](docs/studio.md)** | The visual editor |
 | **[UI_CONVENTIONS.md](UI_CONVENTIONS.md)** | What the stylesheet language supports. It is close to CSS and is not CSS; read this before writing any |
 | **[AGENTS.md](AGENTS.md)** | The brief to hand an AI agent asked to build UI with Folio |
+| **[Troubleshooting](docs/hello_world.md#if-nothing-appears)** | A document that does not appear; [known gaps](docs/known_gaps.md) for what Folio does not do yet |
 
 ## Showcase
-
-_Placeholder showcase items - something better coming soon_
 
 https://github.com/user-attachments/assets/99d463db-cf0a-4f49-a49e-746acc4db9af
 
@@ -40,7 +36,7 @@ A minute of markup results in polished animated menus. The same thing in UMG or 
 
 No binary `.uasset` - it diffs, merges, and reviews like code, because it is code. No competing for p4 locks or git conflicts.
 
-<!-- TODO Folio Studio image -->
+<img width="1584" height="935" alt="Folio Studio" src="https://github.com/user-attachments/assets/c4e83c80-b060-46f5-be5e-6ad856ce07c7" />
 
 ### Unparalleled Clarity + Limitless Scaling
 
@@ -64,19 +60,13 @@ https://github.com/user-attachments/assets/19c0910f-c940-40cd-a8e8-3668150aa3a3
 
 https://github.com/user-attachments/assets/43d779a1-2c42-46e6-862f-0fa27a34dcd6
 
+Documents can be projected onto the surface of a mesh, with input enabled, so that CRT monitor the player can use? Already sorted as a byproduct of a proper tech foundation: [CRT terminal tutorial](docs/tutorials/crt_terminal.md)
 
-
-Documents can be projected onto the surface of a mesh, with input enabled, so that CRT monitor the player can actually use? Already sorted as a byproduct of a proper tech foundation: [CRT terminal tutorial](docs/tutorials/crt_terminal.md)
-
-Surface projected documents are affected by post-processing. Any game that wants surface-projected UI with the same exceptional crispness should not use TAA/TSR - the ideal path is forward rendering with MSAA
-
-<!-- TODO CRT screen image/video -->
+Surface projected documents are affected by post-processing. Any game that wants surface-projected UI with the same exceptional crispness should not use TAA/TSR - the ideal path is forward rendering with MSAA.
 
 ### Screen-Space UI Projected to World
 
 Folio ships with a ready-made screen-space UI component that projects into world space. This includes a ton of parameters to reproduce common game functionality, such as keeping your nameplates clamped to the edge of a screen within a certain threshold.
-
-<!-- TODO image of nameplate and maybe params -->
 
 ### Real 3D Transforms
 
@@ -111,13 +101,11 @@ Merely a single line of text for each element.
 
 All waiting for you in Folio Studio, either as a recipe or a tutorial. Don't waste time reproducing functionality common to many games, like UMG/Slate expects.
 
-Nameplates. Dialogue. Stamina Wheel. 3D Paper Doll. Subtitles. Bound Input Reading.
-
 https://github.com/user-attachments/assets/397efa14-864e-40bd-b1ec-4de47caf4c0e
 
 ### Input and Menu Navigation
 
-Keyboard and gamepad navigation works out-of-the-box, including rebinding. Want to support WASD, IJKL for left-handed users, mouse, and gamepad? Unless you are the developer responsible for CommonUI, of course you do! And if you have added Folio to your project, you already have it.
+Keyboard and gamepad navigation works out-of-the-box, including rebinding. Want to support WASD, IJKL for left-handed users, mouse, and gamepad? If you have added Folio to your project, you already have it.
 
 Folio provides spatial navigation, focus, modals, input prompts that swap when the player picks up a gamepad, with no focus code to write.
 
@@ -127,13 +115,11 @@ Bind any `UObject` by reflection: `{{ Health }}` in text, lists from arrays, com
 
 ### Virtual Reality Support
 
-World documents render correctly under instanced stereo, verified with Unreal's emulated stereo. It has not yet been run on a headset. Full VR support is intended, so please raise an [issue](https://github.com/Fogspire/Folio/issues) if anything doesn't work as expected. If it does work as expected, please reach out anyway so this can be confirmed.
+World documents render correctly under instanced stereo, verified with Unreal's emulated stereo. It has not yet been run on a headset. Full VR support is intended, so raise an [issue](https://github.com/Fogspire/Folio/issues) if anything doesn't work as expected. If it does work as expected, reach out anyway so this can be confirmed.
 
 ### AI Enabled Prototyping
 
 A short prompt can come back as a finished working screen. Hand it [AGENTS.md](AGENTS.md). May benefit from also handing it a concept image if available.
-
-<!-- TODO example prompt+image -->
 
 ## Production Features
 
@@ -157,7 +143,7 @@ Main menu, pause menu, confirmation dialog, modal focus trapping, a controls scr
 
 Nameplates, world markers, bound input display.
 
-Damage and low-health screen effects
+Damage and low-health screen effects.
 
 <img width="1286" height="760" alt="mpc-hc64_2026-10-15_10-02-24" src="https://github.com/user-attachments/assets/351987e9-c955-482b-938e-00ad7a9f6dd3" />
 
@@ -168,8 +154,6 @@ https://github.com/user-attachments/assets/6a28104d-f75e-4d6d-82de-1aaeb25269ce
 ### Dialogue
 
 A fading typewriter effect. Rich text with emphasis inside one translatable line. Shared names for places via localized lookup tables.
-
-<!-- TODO gif -->
 
 ### Stamina Wheel
 
@@ -197,25 +181,6 @@ Buttons, sliders, toggles, tab bars, lists, panels, scroll bars, drifting motes.
 
 <img width="363" height="326" alt="electron_2026-10-15_09-47-53" src="https://github.com/user-attachments/assets/ef980ac9-1261-4860-a97f-0353f136c038" />
 
-### Authoring
-
-Folio Studio for building your UI.
-
-<img width="1584" height="935" alt="image" src="https://github.com/user-attachments/assets/c4e83c80-b060-46f5-be5e-6ad856ce07c7" />
-
-<!--
-| | |
-|---|---|
-| Menus | Main menu, pause menu, confirmation dialog, modal focus trapping, a controls screen that rebinds against Enhanced Input |
-| HUD | Nameplates and world markers, bound input display, a helmet HUD that lags and settles with the camera, damage and low-health screen edges |
-| Dialogue | A typewriter, rich text with emphasis inside one translatable line, shared names for places and characters, a full dialogue system |
-| Inventory | A grid with drag and drop, 3D items in cells, a paper doll, a list of ten thousand items that allocates nothing while scrolling |
-| In the world | A CRT terminal with draggable, resizable windows and a text field, an LCD terminal |
-| Captions | Stacked closed captions in the classic shooter style: several speakers at once, each line on its own timer, the newest bright and older lines dimmed, a name and colour per speaker, and sounds set apart from speech |
-| Components | Buttons, sliders, toggles, tab bars, lists, panels, scrollbars, a default theme, drifting motes |
-| Authoring | Folio Studio, `uipreview` for checks and screenshots in a build, vector and font baking, view model code generation, VSCode highlighting |
--->
-
 ## Platform support
 
 ### Developing
@@ -226,9 +191,6 @@ Folio Studio for building your UI.
 | Building its libraries (`build_ue_libs.sh`) | Supported | Beta | Beta |
 | Folio Studio | Supported | Beta | Beta |
 | `uipreview` | Supported | Not ported | Not ported |
-
-> [!WARNING]
-> **On Windows, `build_ue_libs.sh` builds with the MSVC toolset UnrealBuildTool picks by default.** If your `BuildConfiguration.xml` sets `CompilerVersion`, the script does not read it: pass the same toolset with `--toolset <version>`, using the `MSVC\<version>` folder named on the `Using Visual Studio ... toolchain` line in UBT's log. A mismatch shows up as unresolved `__std_rotate`, `__std_find_not_ch_1` or similar from `rmlui.lib` when linking.
 
 ### Shipping
 
@@ -243,34 +205,7 @@ Folio is developed on Windows. The aim is for it to work as well everywhere else
 
 ---
 
-To build Folio's tools or work on Folio itself, see [Building Folio](docs/building.md).
-
-## Backend and dependency choices
-
-**Backend: GLFW + OpenGL 3.3**, which is what upstream documents first. `RmlUi_Renderer_GL3` is the only shipped renderer implementing the full 6.x feature set (render layers, filters, clip masks, shaders); GL2 and the SDL renderer silently drop box-shadow, filters and gradients. GLFW additionally allows a hidden window, which is how screenshots are captured without a visible one.
-
-**Dependencies come from CMake `FetchContent` rather than vcpkg**, which upstream suggests. vcpkg would need bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi port tracks whatever its baseline pins rather than the exact release we want, and its triplets fix the CRT and toolset, which fights the UE build where RmlUi has to use the same toolset as Unreal. FetchContent builds from source with whatever toolset we set, pinned to a commit hash in `cmake/Pins.cmake`, with nothing installed globally.
-
-Local fixes to a dependency go in `patches/<dependency>/*.patch` and are applied at fetch time. See `patches/README.md`.
-
-### Dependencies
-
-Fetched by CMake at configure time, each pinned to an exact commit. No package manager, no submodules, nothing installed globally.
-
-| Dependency | Version |
-|---|---|
-| [RmlUi](https://github.com/mikke89/RmlUi) | 6.2 |
-| [GLFW](https://github.com/glfw/glfw) | 3.4 |
-| [FreeType](https://github.com/freetype/freetype) | 2.13.3 |
-| [HarfBuzz](https://github.com/harfbuzz/harfbuzz) | 2.4.0, matching the copy Unreal ships |
-| [nlohmann/json](https://github.com/nlohmann/json) | 3.11.3 |
-| [lodepng](https://github.com/lvandeve/lodepng) | pinned commit |
-| [msdfgen](https://github.com/Chlumsky/msdfgen) | 1.12 |
-| [nanosvg](https://github.com/memononen/nanosvg) | pinned commit, vector baking only |
-
-Skia's path operations are vendored in `Source/ThirdParty/SkiaSimplify/` rather than fetched. msdfgen needs them to union a glyph's overlapping contours before generating a field: without that, a stem and a bowl that intersect produce an inconsistent field, and the median reconstructs a false edge through the middle of a solid stroke.
-
-**RmlUi is pinned to 6.2 and that pin is deliberate.** The docs site at <https://mikke89.github.io/RmlUiDoc/> is built from RmlUi's `master` branch and carries no version banner, so it documents features that are not in any release. `docs/internals.md` records the specific ones that bite.
+To build Folio's tools or work on Folio itself, see [Building Folio](docs/building.md). Dependencies and their pins are listed in [Internals](docs/internals.md#dependencies-come-from-fetchcontent-not-vcpkg).
 
 ## License
 

@@ -26,6 +26,27 @@ Known cases:
 
 **The backend is forked** into `Tools/uipreview/src/backend/` rather than used as shipped, because the upstream one constructs its `RenderInterface_GL3` in a file-static struct with no seam to substitute a subclass, creates its window without letting us set `GLFW_VISIBLE`, and does end-frame and buffer-swap atomically (screenshot capture has to happen between the two). The fork records its upstream commit in a header comment and stays minimally diverged so diffs remain readable across an RmlUi bump.
 
+## Dependencies come from FetchContent, not vcpkg
+
+Fetched by CMake at configure time, each pinned to an exact commit in `cmake/Pins.cmake`. No package manager, no submodules, nothing installed globally.
+
+| Dependency | Version |
+|---|---|
+| [RmlUi](https://github.com/mikke89/RmlUi) | 6.2 |
+| [GLFW](https://github.com/glfw/glfw) | 3.4 |
+| [FreeType](https://github.com/freetype/freetype) | 2.13.3 |
+| [HarfBuzz](https://github.com/harfbuzz/harfbuzz) | 2.4.0, matching the copy Unreal ships |
+| [nlohmann/json](https://github.com/nlohmann/json) | 3.11.3 |
+| [lodepng](https://github.com/lvandeve/lodepng) | pinned commit |
+| [msdfgen](https://github.com/Chlumsky/msdfgen) | 1.12 |
+| [nanosvg](https://github.com/memononen/nanosvg) | pinned commit, vector baking only |
+
+Upstream RmlUi suggests vcpkg. vcpkg needs bootstrapping and roughly a gigabyte of tooling before a first build, its RmlUi port tracks whatever its baseline pins rather than the exact release, and its triplets fix the CRT and toolset, which fights the UE build where RmlUi has to use the same toolset as Unreal. FetchContent builds from source with whatever toolset is set.
+
+Local fixes to a dependency go in `patches/<dependency>/*.patch` and are applied at fetch time. See `patches/README.md`.
+
+Skia's path operations are vendored in `Source/ThirdParty/SkiaSimplify/` rather than fetched. msdfgen needs them to union a glyph's overlapping contours before generating a field: without that, a stem and a bowl that intersect produce an inconsistent field, and the median reconstructs a false edge through the middle of a solid stroke.
+
 ## Which advanced rendering features Folio implements
 
 **Target: all of them.** Everything except the non-blur backdrop filters is in. Status table at the end of this section.

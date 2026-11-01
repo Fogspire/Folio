@@ -35,6 +35,8 @@ The engine comes from your `.uproject`'s `EngineAssociation`. If that cannot be 
 ./scripts/build_ue_libs.sh --engine-dir "Z:/Epic Games/Src/5.8/Engine"
 ```
 
+**The editor build fails with unresolved `__std_rotate`, `__std_find_not_ch_1` or similar from `rmlui.lib`.** The libraries were built with a different MSVC toolset than Unreal's. The script uses the toolset UnrealBuildTool picks by default and does not read `CompilerVersion` from `BuildConfiguration.xml`. Rerun it with `--toolset <version>`, using the `MSVC\<version>` folder named on the `Using Visual Studio ... toolchain` line in UBT's log.
+
 ## 3. Enable the plugin
 
 Add Folio to your `.uproject`:

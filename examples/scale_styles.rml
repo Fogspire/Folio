@@ -1,0 +1,80 @@
+<rml>
+<head>
+	<title>Scale styles</title>
+	<meta name="folio-size" content="1020x560"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body
+		{
+			font-family: Inter;
+			font-size: 14dp;
+			color: #c9ced6;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			flex-wrap: wrap;
+			align-content: center;
+			justify-content: center;
+		}
+
+		.panel { display: block; width: 300dp; margin: 8dp; padding: 10dp; background-color: #ffffff0a; }
+		.caption { display: block; margin-bottom: 6dp; }
+		.stage { display: block; position: relative; height: 200dp; }
+
+		scale { position: absolute; left: 0dp; top: 0dp; }
+		scale .minor { color: #4fd87980; path-width: 2dp; }
+		scale .major { color: #4fd879; path-width: 3dp; }
+		scale .label { font-size: 13dp; color: #8eeaa6; }
+
+		.dial .major { path-width: 4dp; }
+		.dial .label { font-size: 18dp; }
+		.needle { position: absolute; left: 0dp; top: 0dp; color: #f5d76e; path-width: 4dp; path-cap: round; }
+		.band { position: absolute; left: 0dp; top: 0dp; path-width: 0dp; path-fill: #e5534bc0; }
+		.track { position: absolute; left: 0dp; top: 0dp; color: #4fd87920; path-width: 10dp; }
+
+		.out .major { color: #4ea1f3; }
+		.out .label { color: #4ea1f3; }
+		.ruler .label { font-size: 11dp; }
+	</style>
+</head>
+<body data-model="scale_styles">
+	<div class="panel">
+		<span class="caption" data-noloc>arc, ticks in, numbers inside</span>
+		<div class="stage">
+			<path class="track" data-attr-d="1 | arc(150, 100, 100, -135, 135)"/>
+			<path class="band" data-attr-d="Redline | wedge(150, 100, 100, 90, 135, 94)"/>
+			<scale class="dial" kind="arc" from="0" to="12" step="0.5" major="2" centre="150 100" radius="94"
+				start-angle="-135" end-angle="135" minor-length="8" major-length="14" label-offset="32"/>
+			<path class="needle" data-attr-d="Needle"/>
+		</div>
+	</div>
+
+	<div class="panel out">
+		<span class="caption" data-noloc>arc, ticks out, a quarter turn</span>
+		<div class="stage">
+			<scale kind="arc" from="0" to="90" step="5" major="15" centre="70 170" radius="110" start-angle="0" end-angle="90"
+				side="out" label-offset="28" label-anchor="start"/>
+		</div>
+	</div>
+
+	<div class="panel">
+		<span class="caption" data-noloc>vertical tape, uneven marks, both sides</span>
+		<div class="stage">
+			<scale from="-60" to="330" start="120 190" end="120 10" side="left" major-values="-60 0 50 100 140 200 300"
+				major-length="12" labels="none"/>
+			<scale from="-60" to="330" start="160 190" end="160 10" major-values="-60 0 50 100 140 200 300"
+				minor-values="-30 25 75 120 170 250" major-length="12" minor-length="7" label-offset="20" label-anchor="start"/>
+		</div>
+	</div>
+
+	<div class="panel ruler">
+		<span class="caption" data-noloc>horizontal, centred ticks, decimals</span>
+		<div class="stage">
+			<scale from="0" to="1" step="0.05" major="0.25" start="20 60" end="280 60" side="centre" minor-length="8"
+				major-length="20" label-offset="22" label-decimals="2"/>
+			<scale from="10" to="-10" step="1" major="5" start="20 150" end="280 150" side="left" label-offset="22"/>
+		</div>
+	</div>
+</body>
+</rml>

@@ -35,6 +35,8 @@ Two habits cover it:
 | **[Images and sprites](images.md)** | Spritesheets, the image decorator's fit modes, ninepatch, and when a PNG is the right answer. |
 | **[Vector art](vectors.md)** | SVG baked to distance fields: infinitely scalable icons, the colour-layer stack, and what a field cannot represent. |
 | **[Line graphs](line_graph.md)** | `<line-graph>`: a smooth, per-point coloured line for live readings, with a dot on the newest and an average line. |
+| **[Paths](path.md)** | `<path>`: SVG path data stroked and filled, with joins, caps and arcs, bound to data for gauges and needles. |
+| **[Scales](scale.md)** | `<scale>`: a gauge's ticks and numbers along a line or an arc, from a range and a step. |
 | **[Flipbooks](flipbook.md)** | `<flipbook>`: an image that plays its frames, on its own or paused, seeked and driven from game data. |
 | **[Animation](animation.md)** | Transitions, keyframes, and what is cheap to animate. |
 | **[The shader decorator](shader_decorator.md)** | Additive blending, scanlines and sweeps: the effects RCSS has no syntax for. |

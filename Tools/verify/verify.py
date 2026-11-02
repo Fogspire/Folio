@@ -24,6 +24,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -48,6 +49,10 @@ SHOTS = (
     ("vector_strokes.rml", "620x700", "1"),
     ("textured_text.rml", "620x480", "1"),
     ("shader_decorator.rml", "640x620", "1"),
+    ("path_edges.rml", "1340x700", "2"),
+    ("path_dash.rml", "640x540", "2"),
+    ("path_styles.rml", "2040x1440", "2"),
+    ("scale_styles.rml", "2040x1120", "2"),
 )
 
 DEVICE_CASES = (("keyboard", "south"), ("mouse", "south"), ("gamepad", "south"), ("gamepad", "east"))
@@ -100,6 +105,8 @@ def main() -> int:
                         help="a previous --out directory; metrics reports are compared against it and "
                              "differences listed. Without it the run only records")
     parser.add_argument("--skip-shader-parity", action="store_true")
+    parser.add_argument("--update-references", action="store_true",
+                        help="copy each screenshot that has a reference over it; read the images before committing them")
     parser.add_argument("--visual-tests", action="store_true",
                         help="also run RmlUi's own visual test suite. Off by default: 109 documents take "
                              "longer than the rest of the harness put together")
@@ -131,6 +138,7 @@ def main() -> int:
         "menu": {"args": ["--data", hud_json]},
         "missing_assets": {"expect": 5},
         "effect_edges": {"expect": 5},
+        "path_errors": {"expect": 5},
     }
 
     # --- Shader parity ----------------------------------------------------------------------
@@ -236,10 +244,26 @@ def main() -> int:
 
         harness.run([str(document), "--size", size, "--dp-ratio", ratio,
                      "--no-assets-wanted", "--screenshot", str(png)])
-        if png.is_file():
-            harness.ok(name)
-        else:
+        if not png.is_file():
             harness.fail(f"no screenshot for {name}")
+            continue
+        # A screenshot with a reference must still match it, pixel for pixel: one renderer drew both, and a missing tick
+        # is a handful of pixels. The tolerance absorbs a driver's rounding, not a moved edge.
+        reference = tests_dir / "references" / name
+        if not reference.is_file():
+            harness.ok(name)
+        elif args.update_references:
+            shutil.copyfile(png, reference)
+            harness.ok(f"{name} recorded as the reference")
+        else:
+            compared = subprocess.run([sys.executable, str(repo / "Tools/verify/compare_images.py"), str(reference),
+                                       str(png), "--gate", "rgba", "--tolerance", "24",
+                                       "--out", str(out / f"{document.stem}@{ratio}.diff.png")],
+                                      capture_output=True, text=True)
+            if compared.returncode == 0:
+                harness.ok(f"{name} matches its reference")
+            else:
+                harness.fail(f"{name} differs from Tools/uipreview/tests/references/{name}: {(compared.stdout + compared.stderr).strip()}")
 
     # --- Input device -----------------------------------------------------------------------
 
@@ -284,6 +308,22 @@ def main() -> int:
                 harness.fail(f"{label} - {'; '.join(wrong)}")
             else:
                 harness.ok(label)
+
+    # --- Path hit testing -------------------------------------------------------------------
+
+    # A path takes a click only where it is drawn, so its box centre lands on the path or falls through to what is under.
+    print("Path hit testing")
+    hit_doc = tests_dir / "path_hit.rml"
+    if not hit_doc.is_file():
+        harness.fail("missing path_hit.rml")
+    else:
+        for target, expected in (("ring", "under"), ("disc", "disc"), ("holed", "under")):
+            result = harness.run([str(hit_doc), "--size", "800x400", "--dp-ratio", "2", "--no-assets-wanted",
+                                  "--keys", f"click:#{target}"])
+            if f"key=click:#{target} focus=#{expected} " in result.stdout:
+                harness.ok(f"a click on #{target} lands on #{expected}")
+            else:
+                harness.fail(f"a click on #{target} should land on #{expected}")
 
     # --- Stylesheets -------------------------------------------------------------------------
 

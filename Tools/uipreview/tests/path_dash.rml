@@ -1,0 +1,29 @@
+<rml>
+<head>
+	<title>Path dashes</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { width: 100%; height: 100%; background-color: #101010; color: #e0e0e0; }
+		path { display: block; position: absolute; left: 0dp; top: 0dp; path-width: 4dp; }
+		.even { path-dash: 12dp 6dp; }
+		.odd { path-dash: 10 4 2; }
+		.dots { path-dash: 0 10dp; path-cap: round; path-width: 6dp; }
+		.offset { path-dash: 12dp 6dp; path-dash-offset: 9dp; }
+		.corner { path-dash: 30dp 8dp; path-join: round; path-width: 8dp; }
+		.ring { path-dash: 8dp 4dp; path-width: 3dp; }
+		.pixels { path-dash: 6px 6px; }
+		.zero { path-dash: 0 0; }
+	</style>
+</head>
+<body>
+	<!-- Even, odd (doubled), round dots, an offset, a dash carried round a corner, a closed ring, pixel units, a zero pattern drawn solid. -->
+	<path class="even" d="M 20 20 H 300"/>
+	<path class="odd" d="M 20 40 H 300"/>
+	<path class="dots" d="M 20 60 H 300"/>
+	<path class="offset" d="M 20 80 H 300"/>
+	<path class="corner" d="M 20 110 H 160 V 200 H 60"/>
+	<path class="ring" d="M 220 160 a 40 40 0 1 0 80 0 a 40 40 0 1 0 -80 0 z"/>
+	<path class="pixels" d="M 20 230 H 300"/>
+	<path class="zero" d="M 20 250 H 300"/>
+</body>
+</rml>

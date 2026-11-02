@@ -848,6 +848,58 @@
 				"length_percent"
 			]
 		},
+		"path-cap": {
+			"default": "butt",
+			"inherited": false,
+			"keywords": [
+				"butt",
+				"round",
+				"square"
+			],
+			"parsers": []
+		},
+		"path-dash": {
+			"default": "none",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"string"
+			]
+		},
+		"path-dash-offset": {
+			"default": "0dp",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"length"
+			]
+		},
+		"path-fill": {
+			"default": "transparent",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"color"
+			]
+		},
+		"path-join": {
+			"default": "miter",
+			"inherited": false,
+			"keywords": [
+				"miter",
+				"round",
+				"bevel"
+			],
+			"parsers": []
+		},
+		"path-width": {
+			"default": "1dp",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"length"
+			]
+		},
 		"perspective": {
 			"default": "none",
 			"inherited": false,
@@ -1373,8 +1425,10 @@
 		"input",
 		"label",
 		"line-graph",
+		"path",
 		"progress",
 		"progressbar",
+		"scale",
 		"select",
 		"tabset",
 		"text",

@@ -1,0 +1,21 @@
+<rml>
+<head>
+	<title>Path hit test</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { width: 100%; height: 100%; color: #e0e0e0; }
+		.under { position: absolute; left: 0dp; top: 0dp; width: 400dp; height: 200dp; tab-index: auto; }
+		path { display: block; position: absolute; top: 0dp; width: 100dp; height: 100dp; tab-index: auto; path-width: 6dp; }
+		#ring { left: 0dp; }
+		#disc { left: 120dp; path-fill: #e0e0e0; path-width: 0dp; }
+		#holed { left: 240dp; path-fill: #e0e0e0; path-width: 0dp; }
+	</style>
+</head>
+<body>
+	<!-- Each path's box centre is clicked. The ring and the hole leave it empty, so the click lands on what is under. -->
+	<div class="under" id="under" folio-label="Under"/>
+	<path id="ring" folio-label="Ring" viewbox="0 0 100 100" d="M 10 50 a 40 40 0 1 0 80 0 a 40 40 0 1 0 -80 0"/>
+	<path id="disc" folio-label="Disc" viewbox="0 0 100 100" d="M 10 50 a 40 40 0 1 0 80 0 a 40 40 0 1 0 -80 0"/>
+	<path id="holed" folio-label="Holed" viewbox="0 0 100 100" fill-rule="evenodd" d="M 10 50 a 40 40 0 1 0 80 0 a 40 40 0 1 0 -80 0 M 30 50 a 20 20 0 1 0 40 0 a 20 20 0 1 0 -40 0"/>
+</body>
+</rml>

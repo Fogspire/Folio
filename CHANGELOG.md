@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+* `<path>`: SVG path data drawn as an antialiased stroke and fill, with joins, caps, dashes, arcs, nonzero and even-odd fills and a view box. `d` binds to data, and the `arc` and `wedge` transforms build it from a value. Clicks land only on the drawn shape; see [docs/path.md](docs/path.md)
+* RmlUi patch `0008-property-id-cap.patch` raises the element property limit from 128 to 254. Run `scripts/build_ue_libs.sh` for each platform you ship
+* `<scale>`: a gauge's ticks and numbers along a line or an arc; see [docs/scale.md](docs/scale.md)
+* Verify compares the path and scale screenshots against references in `Tools/uipreview/tests/references`; `--update-references` records them again
+
 ## 1.8.0
 * `<line-graph>`: `min`/`max` so values stay in their own units, fills (solid, hatch, crosshatch, columns, rows, dots) that fade and take the line's tones, a `baseline` to fill either side of, points on every value, and `smooth` and `step` curves; see [docs/line_graph.md](docs/line_graph.md)
 * Weapon falloff tutorial: a line graph from a mock JSON file to game code; see [docs/tutorials/weapon_falloff.md](docs/tutorials/weapon_falloff.md)

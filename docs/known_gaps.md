@@ -42,6 +42,14 @@ Every known limit, each with what to do instead. What *does* work is in **[UI_CO
 
 **A gradient fill is a raster.** Linear, radial and elliptical fills are evaluated per texel, so the fill softens under extreme magnification while the silhouette's edge stays exact. Nothing to do; gradients upscale almost invisibly.
 
+## Paths
+
+**A path is one flat colour per stroke and fill.** No gradients. For shaded art, use a vector sprite or a PNG.
+
+**A crossing translucent stroke darkens where it overlaps itself.** Each pass over the same pixels blends again, unlike SVG, which composites the stroke once. Opaque strokes are unaffected, and a fill is drawn once wherever it overlaps itself.
+
+**A hairpin turn shows faint light specks inside the stroke.** Where the two sides of a sharp turn overlap, their antialiased edges brighten each other slightly. Nothing to do; it is under a tenth of the stroke's brightness.
+
 ## Accessibility
 
 **World and marker documents reach only the game's own reader.** `UFolioWorldDocument` and `UFolioMarkerDocument` have no widget tree for NVDA or a console narrator; screen documents do. The review cursor still reads them and `folio.Accessibility.Dump` lists them; for a terminal the player uses, put its interface on a screen document while in use.

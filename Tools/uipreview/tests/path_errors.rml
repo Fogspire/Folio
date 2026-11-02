@@ -1,0 +1,17 @@
+<rml>
+<head>
+	<title>Path errors</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { width: 100%; height: 100%; color: #e0e0e0; }
+		path { display: block; position: absolute; left: 0dp; top: 0dp; width: 200dp; height: 100dp; path-width: 4dp; }
+	</style>
+</head>
+<body>
+	<!-- Each must warn, so --strict exits 5. The first still draws the line before the bad token. -->
+	<path d="M 10 10 L 100 10 X 5"/>
+	<path d="10 10 L 20 20"/>
+	<path d="M 10 50 A 5 5 0 2 1 40 50"/>
+	<path viewbox="0 0 10" d="M 0 0 L 10 10"/>
+</body>
+</rml>

@@ -24,6 +24,8 @@
 #include "FolioCore/FolioDecorators.h"
 #include "FolioCore/FolioFlipbook.h"
 #include "FolioCore/FolioLineGraph.h"
+#include "FolioCore/FolioPath.h"
+#include "FolioCore/FolioScale.h"
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
@@ -77,6 +79,8 @@ App::~App()
 	Folio::ReleaseFolioFontEffects();
 	Folio::ReleaseFolioDecorators();
 	Folio::ReleaseFolioLineGraph();
+	Folio::ReleaseFolioPath();
+	Folio::ReleaseFolioScale();
 	Folio::ReleaseFolioFlipbook();
 	Folio::ReleaseFolioFilters();
 	Folio::Text::ReleaseFolioText();
@@ -238,6 +242,8 @@ bool App::Initialise()
 	Folio::RegisterFolioFilters();
 	Folio::RegisterFolioDecorators();
 	Folio::RegisterFolioLineGraph();
+	Folio::RegisterFolioPath();
+	Folio::RegisterFolioScale();
 	Folio::RegisterFolioFlipbook();
 	Folio::Text::RegisterFolioText();
 

@@ -36,10 +36,11 @@ except ImportError:
 
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
-# Channel count by PNG colour type. Palette and 16-bit are rejected rather than half supported -
-# nothing in this project writes them, and guessing at one is how a comparison silently compares
-# the wrong bytes.
+# Channel count by PNG colour type. 16-bit is rejected rather than half supported: guessing at it is how
+# a comparison silently compares the wrong bytes. A palette image (type 3) is expanded to RGBA, because
+# the screenshot writer picks one for any image with few enough colours.
 CHANNELS = {0: 1, 2: 3, 4: 2, 6: 4}
+PALETTE = 3
 
 
 class FormatError(Exception):
@@ -55,6 +56,8 @@ def read_png(path: pathlib.Path) -> tuple[int, int, int, bytearray]:
 
     position = 8
     compressed = bytearray()
+    palette = b""
+    transparency = b""
     width = height = depth = colour = interlace = None
 
     while position + 8 <= len(data):
@@ -67,11 +70,18 @@ def read_png(path: pathlib.Path) -> tuple[int, int, int, bytearray]:
             width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
         elif kind == b"IDAT":
             compressed += chunk
+        elif kind == b"PLTE":
+            palette = chunk
+        elif kind == b"tRNS":
+            transparency = chunk
         elif kind == b"IEND":
             break
 
     if width is None:
         raise FormatError(f"{path} has no header")
+    if colour == PALETTE and not interlace:
+        return width, height, 4, expand_palette(zlib.decompress(bytes(compressed)), width, height, depth,
+                                                palette, transparency, path)
     if depth != 8:
         raise FormatError(f"{path} is {depth}-bit; only 8 is supported")
     if interlace:
@@ -84,10 +94,33 @@ def read_png(path: pathlib.Path) -> tuple[int, int, int, bytearray]:
                                             width, height, channels, path)
 
 
+def expand_palette(raw: bytes, width: int, height: int, depth: int, palette: bytes, transparency: bytes,
+                   path: pathlib.Path) -> bytearray:
+    """Palette indices, at 1, 2, 4 or 8 bits, to 8-bit RGBA."""
+    if depth not in (1, 2, 4, 8):
+        raise FormatError(f"{path} is a {depth}-bit palette image, which does not exist")
+    stride = (width * depth + 7) // 8
+    # Filters work on whole bytes, so a packed row unfilters as one channel of stride / width pixels.
+    rows = unfilter(raw, stride, height, 1, path, bytes_per_pixel=1)
+    out = bytearray(width * height * 4)
+    mask = (1 << depth) - 1
+    for y in range(height):
+        row = rows[y * stride:(y + 1) * stride]
+        for x in range(width):
+            bit = x * depth
+            index = (row[bit // 8] >> (8 - depth - bit % 8)) & mask
+            target = (y * width + x) * 4
+            out[target:target + 3] = palette[index * 3:index * 3 + 3]
+            out[target + 3] = transparency[index] if index < len(transparency) else 255
+    return out
+
+
 def unfilter(raw: bytes, width: int, height: int, channels: int,
-             path: pathlib.Path) -> bytearray:
+             path: pathlib.Path, bytes_per_pixel: int | None = None) -> bytearray:
     """Undoes the per-row filter PNG applies before compressing."""
     stride = width * channels
+    if bytes_per_pixel is not None:
+        channels = bytes_per_pixel
     out = bytearray(height * stride)
     previous = bytearray(stride)
     read = 0

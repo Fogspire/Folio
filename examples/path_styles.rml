@@ -1,0 +1,122 @@
+<rml>
+<head>
+	<title>Path styles</title>
+	<meta name="folio-size" content="1020x720"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body
+		{
+			font-family: Inter;
+			font-size: 14dp;
+			color: #c9ced6;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			flex-wrap: wrap;
+			align-content: center;
+			justify-content: center;
+		}
+
+		.panel { display: block; width: 300dp; margin: 8dp; padding: 10dp; background-color: #ffffff0a; }
+		.label { display: block; margin-bottom: 6dp; }
+		.stage { display: block; position: relative; height: 140dp; }
+
+		path { display: block; position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; }
+
+		.joins path { path-width: 14dp; color: #4ea1f3; }
+		.joins .round { path-join: round; color: #57d38c; }
+		.joins .bevel { path-join: bevel; color: #f5d76e; }
+
+		.caps path { path-width: 16dp; color: #c9ced6; }
+		.caps .round { path-cap: round; }
+		.caps .square { path-cap: square; }
+		.caps .guide { path-width: 1dp; color: #e5534b; }
+
+		.arcs path { path-width: 3dp; }
+
+		.curves path { color: #57d38c; path-width: 3dp; path-join: round; path-cap: round; }
+		.curves .controls { color: #ffffff30; path-width: 1dp; }
+
+		.gauge path { color: #2f8a4e; path-width: 3dp; }
+		.gauge .track { color: #4fd87918; path-width: 14dp; }
+		.gauge .value { color: #4fd879a0; path-width: 14dp; }
+		.gauge .ticks { color: #4fd879; path-width: 4dp; }
+		.gauge .chevron { color: #f5d76e; path-width: 5dp; path-join: miter; }
+
+		.fills path { path-width: 0dp; path-fill: #4ea1f3; }
+		.fills .evenodd { path-fill: #f5d76e; }
+		.fills .outlined { path-fill: #57d38c40; color: #57d38c; path-width: 2dp; path-join: round; }
+
+		.bound path { color: #f5d76e; path-width: 2dp; }
+		.bound .frame { color: #ffffff30; path-width: 1dp; }
+	</style>
+</head>
+<body data-model="path_styles">
+	<div class="panel joins">
+		<span class="label" data-noloc>miter, round, bevel</span>
+		<div class="stage">
+			<path d="M 20 60 L 60 20 L 100 60 L 140 20 L 180 60 L 220 20 L 260 60"/>
+			<path class="round" d="M 20 95 L 60 55 L 100 95 L 140 55 L 180 95 L 220 55 L 260 95"/>
+			<path class="bevel" d="M 20 130 L 60 90 L 100 130 L 140 90 L 180 130 L 220 90 L 260 130"/>
+		</div>
+	</div>
+
+	<div class="panel caps">
+		<span class="label" data-noloc>butt, round, square</span>
+		<div class="stage">
+			<path d="M 40 30 H 240"/>
+			<path class="round" d="M 40 70 H 240"/>
+			<path class="square" d="M 40 110 H 240"/>
+			<path class="guide" d="M 40 10 V 130 M 240 10 V 130"/>
+		</div>
+	</div>
+
+	<div class="panel arcs">
+		<span class="label" data-noloc>arc flags 00, 01, 10, 11</span>
+		<div class="stage">
+			<path style="color: #e5534b;" d="M 40 70 a 50 35 0 0 0 60 0"/>
+			<path style="color: #57d38c;" d="M 40 70 a 50 35 0 0 1 60 0"/>
+			<path style="color: #4ea1f3;" d="M 180 70 a 50 35 30 1 0 60 0"/>
+			<path style="color: #f5d76e;" d="M 180 70 a 50 35 30 1 1 60 0"/>
+		</div>
+	</div>
+
+	<div class="panel curves">
+		<span class="label" data-noloc>C S Q T, and closed shapes</span>
+		<div class="stage">
+			<path class="controls" d="M 20 60 L 50 0 M 90 120 L 120 60 M 160 60 L 200 0 L 240 60"/>
+			<path d="M 20 60 C 50 0 90 120 120 60 S 140 0 160 60 Q 200 0 240 60 T 280 60"/>
+			<path d="m 40 90 h 60 v 30 h -60 z m 100 0 l 30 30 l 30 -30 z m 70 15 a 15 15 0 1 0 30 0 a 15 15 0 1 0 -30 0"/>
+		</div>
+	</div>
+
+	<div class="panel gauge">
+		<span class="label" data-noloc>view box, scaled to the stage</span>
+		<div class="stage">
+			<path class="track" viewbox="0 0 326 326" d="M 64.0 262.0 A 140 140 0 1 1 262.0 262.0"/>
+			<path class="value" viewbox="0 0 326 326" data-attr-d="Speed | arc(163, 163, 140, -135, 135)"/>
+			<path class="ticks" viewbox="0 0 326 326" d="M 86.6 239.4 L 75.3 250.7 M 55.0 163.0 L 39.0 163.0 M 86.6 86.6 L 75.3 75.3 M 163.0 55.0 L 163.0 39.0 M 239.4 86.6 L 250.7 75.3 M 271.0 163.0 L 287.0 163.0 M 239.4 239.4 L 250.7 250.7"/>
+			<path class="chevron" viewbox="0 0 326 326" d="M 140 150 L 163 173 L 186 150"/>
+		</div>
+	</div>
+
+	<div class="panel fills">
+		<span class="label" data-noloc>fill: nonzero, evenodd, a hole, outlined</span>
+		<div class="stage">
+			<path d="M 50 10 L 74 84 L 12 38 L 88 38 L 26 84 Z"/>
+			<path class="evenodd" fill-rule="evenodd" d="M 140 10 L 164 84 L 102 38 L 178 38 L 116 84 Z"/>
+			<path class="evenodd" fill-rule="evenodd" d="M 200 47 a 37 37 0 1 0 74 0 a 37 37 0 1 0 -74 0 M 220 47 a 17 17 0 1 0 34 0 a 17 17 0 1 0 -34 0"/>
+			<path class="outlined" d="M 20 100 h 80 l 20 30 h -120 z M 150 130 l 30 -30 l 30 30 l 30 -30 l 30 30 z"/>
+		</div>
+	</div>
+
+	<div class="panel bound">
+		<span class="label" data-noloc>d bound to a value</span>
+		<div class="stage">
+			<path class="frame" d="M 20 20 H 260 V 120 H 20 Z"/>
+			<path data-attr-d="'M 20 ' + (120 - Level) + ' H 260'"/>
+		</div>
+	</div>
+</body>
+</rml>

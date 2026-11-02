@@ -1,4 +1,5 @@
 #include "FolioObjectModel.h"
+#include "FolioCore/FolioPath.h"
 
 #include "FolioModule.h"
 
@@ -474,6 +475,7 @@ bool FFolioObjectModel::Mount(Rml::Context* Context, const FString& InModelName,
 		UE_LOG(LogFolio, Warning, TEXT("could not create data model '%s'"), *InModelName);
 		return false;
 	}
+	Folio::RegisterPathTransforms(Constructor);
 
 	Source = InSource;
 	ModelName = InModelName;

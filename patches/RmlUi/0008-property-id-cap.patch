@@ -1,0 +1,21 @@
+From: Folio <folio@localhost>
+Subject: [PATCH] Room for 254 properties
+
+RmlUi caps element properties at 128 including its own 97, and Folio's custom properties (line graph,
+path, text reveal) fill the rest, so the next one registered fails with "Maximum number of allowed
+properties exceeded". PropertyId is already a uint8_t, so the cap rises to 0xff, matching ShorthandId.
+PropertyIdSet's bitset grows from 16 to 32 bytes.
+
+Removable once upstream raises the cap or makes it configurable.
+
+--- a/Include/RmlUi/Core/ID.h
++++ b/Include/RmlUi/Core/ID.h
+@@ -169,7 +169,7 @@
+ 	FirstCustomId = NumDefinedIds,
+ 
+ 	// The maximum number of IDs. This limits the number of possible custom IDs to MaxNumIds - FirstCustomId.
+-	MaxNumIds = 128
++	MaxNumIds = 0xff
+ };
+ 
+ enum class MediaQueryId : uint8_t {

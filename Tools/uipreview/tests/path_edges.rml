@@ -1,0 +1,58 @@
+<rml>
+<head>
+	<title>Path edges</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { width: 100%; height: 100%; background-color: #101010; color: #e0e0e0; }
+		path { display: block; position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; path-width: 12dp; }
+		.round { path-join: round; path-cap: round; }
+		.square { path-cap: square; }
+		.thin { path-width: 0.3dp; }
+		.none { path-width: 0dp; }
+		.faint { color: #e0e0e060; path-width: 24dp; path-join: round; }
+		.box { width: 0dp; height: 0dp; }
+		.fill { path-width: 0dp; path-fill: #e0e0e0; }
+		.fill-faint { path-width: 0dp; path-fill: #e0e0e060; }
+		.fill-stroked { path-width: 4dp; path-fill: #4060e0; color: #e0e0e0; }
+	</style>
+</head>
+<body>
+	<!-- Hairpin: a full reversal with each join. -->
+	<path d="M 20 40 L 120 40 L 20 46"/>
+	<path class="round" d="M 20 90 L 120 90 L 20 96"/>
+	<path d="M 20 140 L 120 140 L 20 140"/>
+	<!-- Zero-length subpaths: nothing for butt, a dot for round, a square for square. -->
+	<path d="M 160 40 Z"/>
+	<path class="round" d="M 160 90 L 160 90"/>
+	<path class="square" d="M 160 140 z"/>
+	<!-- Coincident points, a closed two-point path, a mitre past the limit, short segments under a wide stroke. -->
+	<path d="M 200 40 L 200 40 L 260 40 L 260 40 L 300 60"/>
+	<path d="M 200 90 L 300 90 Z"/>
+	<path d="M 200 140 L 300 150 L 200 160"/>
+	<path d="M 200 200 l 2 3 l 2 -3 l 2 3 l 2 -3 l 2 3"/>
+	<!-- Subpixel width, zero width, a translucent self-crossing stroke. -->
+	<path class="thin" d="M 340 40 L 440 60"/>
+	<path class="none" d="M 340 90 L 440 90"/>
+	<path class="faint" d="M 340 140 C 460 260 460 60 340 180"/>
+	<!-- Compact number forms and implicit repeats; drawing on after Z; a loop that returns to its start. -->
+	<path d="M480,40l20-10.5.5,10 20-10.5.5,10h20v20H480z l10 10"/>
+	<path d="M 520 140 c 60 -60 -60 -60 0 0"/>
+	<!-- A zero-size box without a view box still draws from its corner; with one it draws nothing. -->
+	<path class="box" d="M 580 40 h 60"/>
+	<path class="box" viewbox="0 0 10 10" d="M 580 90 h 60"/>
+	<!-- Arcs with zero radius, tiny radii scaled up, and a zero-length arc. -->
+	<path d="M 580 140 A 0 10 0 0 1 640 140 M 580 170 A 1 1 0 0 1 640 170 M 600 200 A 10 10 0 0 1 600 200"/>
+	<!-- Fills: a bowtie, a ring wound both ways, the same ring by even-odd, an open contour, overlapping squares, a
+	     degenerate sliver, a translucent self-overlap that must not darken, and fill under a stroke. -->
+	<path class="fill" d="M 20 260 L 100 320 L 100 260 L 20 320 Z"/>
+	<path class="fill" d="M 120 290 a 30 30 0 1 0 60 0 a 30 30 0 1 0 -60 0 M 135 290 a 15 15 0 1 1 30 0 a 15 15 0 1 1 -30 0"/>
+	<path class="fill" fill-rule="evenodd" d="M 200 290 a 30 30 0 1 0 60 0 a 30 30 0 1 0 -60 0 M 215 290 a 15 15 0 1 0 30 0 a 15 15 0 1 0 -30 0"/>
+	<path class="fill" d="M 280 260 L 340 260 L 310 320"/>
+	<path class="fill-faint" d="M 360 260 h 40 v 40 h -40 z M 380 280 h 40 v 40 h -40 z"/>
+	<path class="fill" d="M 440 260 L 500 260 L 440 260.2 Z M 440 280 L 440 280 L 500 300"/>
+	<path class="fill-faint" d="M 520 260 L 600 320 L 600 260 L 520 320 Z"/>
+	<path class="fill-stroked" d="M 620 260 h 40 v 60 h -40 z"/>
+	<path d=""/>
+	<path/>
+</body>
+</rml>

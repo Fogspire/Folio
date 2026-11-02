@@ -1,4 +1,5 @@
 #include "DataModel.h"
+#include "FolioCore/FolioPath.h"
 
 #include "Diagnostics.h"
 
@@ -141,6 +142,7 @@ bool JsonDataModel::MountEmpty(Rml::Context* context, const std::string& model_n
 		diagnostics.Report(Severity::Error, "E-DATA-MODEL", "could not create data model '" + model_name + "'");
 		return false;
 	}
+	Folio::RegisterPathTransforms(constructor);
 
 	auto slot = std::make_unique<ordered_json>(ordered_json::object());
 	constructor.BindCustomDataVariable("preview", definitions->For(*slot));
@@ -190,6 +192,7 @@ bool JsonDataModel::Mount(Rml::Context* context, const std::string& model_name, 
 		diagnostics.Report(Severity::Error, "E-DATA-MODEL", "could not create data model '" + model_name + "'");
 		return false;
 	}
+	Folio::RegisterPathTransforms(constructor);
 
 	// Documents are expected to be able to bind run information regardless of what the mock
 	// file happens to contain, and a slot cannot be added once the model is built.

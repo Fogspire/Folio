@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+* `<meta name="folio-interactive" content="false"/>` in a document's head turns its input off whatever the host sets, so a HUD's markup keeps it from taking focus; see [docs/hosting.md](docs/hosting.md#a-hud-is-not-a-screen)
+* `folio.Input.ForceNonInteractive`: turns input off on every screen document, to rule Folio out when input is lost after alt-tab
+* `GetDocumentMeta`: reads any `<meta>` value from a document's head
+* A change to `bInteractive` made while `folio.Debugger` is visible is kept when it hides
+
 ## 1.9.0
 * `<path>`: SVG path data drawn as an antialiased stroke and fill, with joins, caps, dashes, arcs, nonzero and even-odd fills and a view box. `d` binds to data, and the `arc` and `wedge` transforms build it from a value. Clicks land only on the drawn shape; see [docs/path.md](docs/path.md)
 * RmlUi patch `0008-property-id-cap.patch` raises the element property limit from 128 to 254. Run `scripts/build_ue_libs.sh` for each platform you ship

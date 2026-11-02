@@ -86,7 +86,7 @@ void UFolioWidget::SynchronizeProperties()
 	 *
 	 * Only the visible case, so a document hidden or collapsed by whatever hosts it stays that way.
 	 */
-	if (Canvas.IsValid() && !bInteractive && Canvas->GetVisibility() == EVisibility::Visible)
+	if (Canvas.IsValid() && !Canvas->IsInteractive() && Canvas->GetVisibility() == EVisibility::Visible)
 	{
 		Canvas->SetVisibility(EVisibility::HitTestInvisible);
 	}

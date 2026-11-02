@@ -63,6 +63,7 @@ See **[documents in the world](world_documents.md)**.
 | `folio.Layers.CacheStats` | Logs how many layers were drawn and how many reused since the last call. |
 | `folio.Layers.CacheTrace [frames]` | Logs every layer drawn rather than reused over the next frames, with what changed since the frame before: place, filters, mask, or which draw and which part (texture, positions, uvs, colours). A layer whose draw gets a new texture every frame is usually a gradient whose stops are bound to a value that keeps moving. |
 | `folio.Input.Trace` | Every input event as it reaches a document, and what consumed it. |
+| `folio.Input.ForceNonInteractive [0\|1]` | Turns input off on every screen document. If input is still lost after alt-tab with this on, something other than Folio took focus. |
 | `folio.Font.Report` | Which faces are loaded, their variation tuples, and what they cost in atlas pages and glyphs. Finds a screen that quietly instantiated nine weights. |
 | `folio.Font.ClearCache` | Drops the generated fields and regenerates, to prove a bake rather than a cache. |
 | `folio.Screens` | What every screen document is laid out against, and, for a supersampled one, the sample count and how many glyph runs the last paint drew at the screen's own resolution. |

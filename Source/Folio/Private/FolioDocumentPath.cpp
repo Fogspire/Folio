@@ -9,6 +9,7 @@
 #include "Misc/FileHelper.h"
 #include "UObject/PropertyTag.h"
 #include "Misc/Paths.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 #if WITH_EDITOR
 #include "Components/ActorComponent.h"
@@ -195,12 +196,14 @@ bool UFolioDocumentPathLibrary::DocumentExists(const FString& DocumentPath)
 	return !Resolved.IsEmpty() && FPaths::FileExists(Resolved);
 }
 
-bool UFolioDocumentPathLibrary::GetDeclaredDocumentSize(const FString& DocumentPath, FVector2D& OutSize)
+bool UFolioDocumentPathLibrary::GetDocumentMeta(const FString& DocumentPath, const FString& Name, FString& OutContent)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_GetDocumentMeta);
+
 	const FString Resolved = ResolveDocumentPath(DocumentPath);
 
 	FString Markup;
-	if (Resolved.IsEmpty() || !FFileHelper::LoadFileToString(Markup, *Resolved))
+	if (Name.IsEmpty() || Resolved.IsEmpty() || !FFileHelper::LoadFileToString(Markup, *Resolved))
 	{
 		return false;
 	}
@@ -212,7 +215,7 @@ bool UFolioDocumentPathLibrary::GetDeclaredDocumentSize(const FString& DocumentP
 		Markup.LeftInline(HeadEnd);
 	}
 
-	const int32 Anchor = Markup.Find(TEXT("folio-size"), ESearchCase::IgnoreCase);
+	const int32 Anchor = Markup.Find(Name, ESearchCase::IgnoreCase);
 	if (Anchor == INDEX_NONE)
 	{
 		return false;
@@ -249,8 +252,17 @@ bool UFolioDocumentPathLibrary::GetDeclaredDocumentSize(const FString& DocumentP
 		return false;
 	}
 
-	FString Value = Markup.Mid(Open + 1, Close - Open - 1);
-	Value.TrimStartAndEndInline();
+	OutContent = Markup.Mid(Open + 1, Close - Open - 1).TrimStartAndEnd();
+	return true;
+}
+
+bool UFolioDocumentPathLibrary::GetDeclaredDocumentSize(const FString& DocumentPath, FVector2D& OutSize)
+{
+	FString Value;
+	if (!GetDocumentMeta(DocumentPath, TEXT("folio-size"), Value))
+	{
+		return false;
+	}
 
 	FString Width;
 	FString Height;

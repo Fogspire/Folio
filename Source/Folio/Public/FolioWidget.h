@@ -83,6 +83,9 @@ public:
 	 * reactivated, so a HUD that can hold focus takes it on alt-tab and the game stops receiving input
 	 * with nothing in the log to say why. Off also makes the widget hit-test invisible, so clicks
 	 * reach the game rather than being swallowed by a readout that does nothing with them.
+	 *
+	 * A document with `<meta name="folio-interactive" content="false"/>` in its head is
+	 * non-interactive whatever this says, so a HUD's markup can turn it off for every host.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
 	bool bInteractive = true;

@@ -3,13 +3,16 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "FolioDocumentPath.h"
+#include "FolioModule.h"
 #include "FolioWorldDocument.h"
+#include "SFolioCanvas.h"
 
 #include "Misc/DataValidation.h"
 
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "HAL/IConsoleManager.h"
 
 namespace
 {
@@ -94,6 +97,48 @@ bool FFolioDeclaredSizeTest::RunTest(const FString&)
 
 	TestFalse(TEXT("a document that does not exist"),
 		UFolioDocumentPathLibrary::GetDeclaredDocumentSize(TEXT("UI/nothing_here.rml"), Size));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioDocumentInteractiveTest, "Folio.Document.Interactive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFolioDocumentInteractiveTest::RunTest(const FString&)
+{
+	if (!FFolioModule::IsAvailable() || !FFolioModule::Get().IsRmlInitialised())
+	{
+		AddError(TEXT("RmlUi is not initialised"));
+		return false;
+	}
+
+	const FScopedDocument Hud(TEXT("folio_test_hud.rml"),
+		Document(TEXT("<meta name=\"folio-interactive\" content=\"false\"/>")));
+	const FScopedDocument Menu(TEXT("folio_test_menu.rml"), Document(TEXT("")));
+
+	const TSharedRef<SFolioCanvas> Canvas = SNew(SFolioCanvas).DocumentPath(Hud.Relative);
+
+	TestFalse(TEXT("a document that declares false is not interactive"), Canvas->IsInteractive());
+
+	Canvas->SetInteractive(true);
+	TestFalse(TEXT("the host cannot turn a declared HUD back on"), Canvas->IsInteractive());
+
+	Canvas->SetDebuggerHold(true);
+	TestTrue(TEXT("the debugger's hold wins"), Canvas->IsInteractive());
+	Canvas->SetDebuggerHold(false);
+	TestFalse(TEXT("and lets go"), Canvas->IsInteractive());
+
+	Canvas->LoadDocument(Menu.Relative);
+	TestTrue(TEXT("a document that says nothing is interactive"), Canvas->IsInteractive());
+
+	IConsoleVariable* Force = IConsoleManager::Get().FindConsoleVariable(TEXT("folio.Input.ForceNonInteractive"));
+	if (TestNotNull(TEXT("the CVar exists"), Force))
+	{
+		Force->Set(true, ECVF_SetByCode);
+		TestFalse(TEXT("the CVar turns a live canvas off"), Canvas->IsInteractive());
+		Force->Set(false, ECVF_SetByCode);
+		TestTrue(TEXT("and back on"), Canvas->IsInteractive());
+	}
 
 	return true;
 }

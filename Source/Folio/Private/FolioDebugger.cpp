@@ -13,23 +13,15 @@ namespace Folio::Debug
 	{
 		SFolioCanvas* HostCanvas = nullptr;
 
-		/**
-		 * What the host's interactivity was before the debugger took it.
-		 *
-		 * The debugger's own documents live in the canvas's context, so they are only clickable if the
-		 * canvas takes the mouse - and a HUD sets `bInteractive = false`, which makes the widget
-		 * hit-test invisible so the game behind it can be played through. Attaching to one gives you a
-		 * debugger you can see and cannot use, with every click landing in the game.
-		 */
-		bool bRestoreInteractive = true;
 		bool bTookMouse = false;
 
 		/**
 		 * Takes the mouse for the debugger, or gives it back.
 		 *
-		 * Tied to the debugger being *visible* rather than attached, because taking it is not free: the
-		 * canvas is hit-test invisible so that the game behind a HUD can be played through, and holding
-		 * that open would leave firing dead until somebody thought to detach.
+		 * The debugger's own documents live in the canvas's context, so they are only clickable if the
+		 * canvas takes the mouse, and a HUD's canvas is hit-test invisible so the game behind it can be
+		 * played through. Tied to the debugger being *visible* rather than attached, so firing is dead
+		 * only while it is on screen.
 		 */
 		void TakeMouse(SFolioCanvas* Canvas, const bool bTake)
 		{
@@ -38,30 +30,16 @@ namespace Folio::Debug
 				return;
 			}
 
-			if (bTake)
+			bTookMouse = bTake;
+
+			if (bTake && !Canvas->IsInteractive())
 			{
-				bRestoreInteractive = Canvas->IsInteractive();
-				bTookMouse = true;
-				Canvas->SetInteractive(true);
-
-				if (!bRestoreInteractive)
-				{
-					UE_LOG(LogFolio, Display,
-						TEXT("the debugger has taken the mouse from this document, which was not taking "
-							"it. Anything behind it - firing, looking - stops until 'folio.Debugger off'."));
-				}
-
-				return;
+				UE_LOG(LogFolio, Display,
+					TEXT("the debugger has taken the mouse from this document, which was not taking "
+						"it. Anything behind it - firing, looking - stops until 'folio.Debugger off'."));
 			}
 
-			bTookMouse = false;
-
-			// Put back what the document asked for. A game that changed its mind while the debugger was
-			// up loses that change, which is the lesser wrong against leaving a HUD eating every click.
-			if (!bRestoreInteractive)
-			{
-				Canvas->SetInteractive(false);
-			}
+			Canvas->SetDebuggerHold(bTake);
 		}
 
 		/** A canvas outlives nothing here: it is only a host while it is still in the live set. */
@@ -128,7 +106,6 @@ namespace Folio::Debug
 		}
 
 		HostCanvas = nullptr;
-		bRestoreInteractive = true;
 	}
 
 	void SetVisible(const bool bVisible)

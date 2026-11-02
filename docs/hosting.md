@@ -34,17 +34,23 @@ A source implementing `INotifyFieldValueChanged` (as `UMVVMViewModelBase` does) 
 
 ## A HUD is not a screen
 
-**Turn `Interactive` off for anything the player does not interact with.** A HUD is a readout drawn over a game that is still being played, and it must never be a focus target:
+**Turn input off for anything the player does not interact with.** A HUD is a readout drawn over a game that is still being played, and it must never be a focus target. Declare it in the document's head, so every host gets it:
+
+```html
+<meta name="folio-interactive" content="false"/>
+```
+
+Or set it on the widget:
 
 ```cpp
 Document->bInteractive = false;   // or SetInteractive(false) on one already up
 ```
 
-Leave it on and the HUD is focusable: **alt-tab away and back, and the player can no longer move.** Slate restores focus to a focusable widget when the window is reactivated, the HUD is the widget it finds, and the pawn stops receiving input with nothing in the log. It also swallows every click that lands on it.
+The document's `false` wins over the widget's `true`. Leave input on and the HUD is focusable: **alt-tab away and back, and the player can no longer move.** Slate restores focus to a focusable widget when the window is reactivated, the HUD is the widget it finds, and the pawn stops receiving input with nothing in the log. It also swallows every click that lands on it.
 
 Off makes the canvas unfocusable and hit-test invisible, so the mouse and the keyboard pass through to the game. Painting, HUD motion, data binding and hot reload are unaffected; it gives up only input.
 
-**If input is still lost on alt-tab with the HUD non-interactive, the HUD is not what took it.** Anything else on the viewport (a UMG widget added with `AddToPlayerScreen`, a CommonUI layer) is a candidate. Reassert focus when the window comes back:
+**If input is still lost on alt-tab with the HUD non-interactive, the HUD is not what took it.** To rule Folio out, run `folio.Input.ForceNonInteractive 1`, which turns input off on every screen document. Anything else on the viewport (a UMG widget added with `AddToPlayerScreen`, a CommonUI layer) is a candidate. Reassert focus when the window comes back:
 
 ```cpp
 FSlateApplication::Get().OnApplicationActivationStateChanged().AddUObject(

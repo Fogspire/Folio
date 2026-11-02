@@ -145,6 +145,15 @@ public:
 	static bool GetDeclaredDocumentSize(const FString& DocumentPath, FVector2D& OutSize);
 
 	/**
+	 * The trimmed `content` of `<meta name="<Name>" content="...">` in the document's head.
+	 *
+	 * Read from the file, because RmlUi keeps nothing of a head but its title, links and styles.
+	 * Returns false when the document does not exist or has no such tag with a non-empty content.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	static bool GetDocumentMeta(const FString& DocumentPath, const FString& Name, FString& OutContent);
+
+	/**
 	 * Logs why a document did not load, naming what was tried.
 	 *
 	 * A path that resolves to nothing renders nothing, which is indistinguishable from a document that

@@ -286,9 +286,24 @@ public:
 	 * Off makes the widget hit-test invisible and unfocusable, so the mouse and the keyboard pass
 	 * through to whatever is behind. Everything else - painting, motion, data binding, hot reload -
 	 * is unaffected.
+	 *
+	 * This is the host's request. The canvas is interactive only if the document agrees as well
+	 * (`<meta name="folio-interactive" content="false"/>` says it does not) and
+	 * `folio.Input.ForceNonInteractive` is off. The debugger's hold overrides all three.
 	 */
 	void SetInteractive(bool bInInteractive);
+
+	/** Whether the canvas takes input right now, after the document, the CVar and the debugger. */
 	bool IsInteractive() const { return bInteractive; }
+
+	/** Whether the loaded document left input on. True with no document or no declaration. */
+	bool IsDocumentInteractive() const { return bDocumentInteractive; }
+
+	/** Makes the canvas interactive whatever else says, for the debugger's own documents to be clickable. */
+	void SetDebuggerHold(bool bHold);
+
+	/** Recomputes interactivity from its inputs. Called when the CVar changes. */
+	void RefreshInteractive();
 
 	/**
 	 * Whether a press that RmlUi resolves to no element is left unhandled, so it reaches the game.
@@ -380,7 +395,15 @@ private:
 
 	/** Watches the module for the device changing, so focus can follow it. */
 	FDelegateHandle DeviceChanged;
+
+	/** Reads the loaded document's `folio-interactive` declaration. */
+	void ReadDocumentInteractive();
+
+	/** The effective value, from the four below. */
 	bool bInteractive = true;
+	bool bHostInteractive = true;
+	bool bDocumentInteractive = true;
+	bool bDebuggerHold = false;
 	bool bPassThroughEmptySpace = false;
 
 	/** Buttons whose press went to the game, so their release goes there too. */

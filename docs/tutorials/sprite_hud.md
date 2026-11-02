@@ -254,7 +254,7 @@ Play: walk and he walks, sprint and he runs, jump and he jumps and falls, strafe
 - **A thin line flickers along one edge of the sprite.** Frames packed edge to edge bleed into each other under filtering. The packer leaves a gap; a sheet from another tool needs one too.
 - **He slides between poses.** The frames are different sizes. Pack them into equal cells, standing on the cell's bottom edge.
 - **He never runs.** Your sprint speed is below the threshold. Log `Speed` while sprinting and set the threshold under it, or read your movement component's sprint state.
-- **The player cannot turn the camera after alt-tab.** `bInteractive` is still `true`.
+- **The player cannot turn the camera after alt-tab.** `bInteractive` is still `true`, and the document does not declare `folio-interactive` false.
 
 ## Next
 

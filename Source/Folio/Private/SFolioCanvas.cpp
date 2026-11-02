@@ -1,6 +1,7 @@
 #include "SFolioCanvas.h"
 
 #include "FolioAccessibility.h"
+#include "FolioDocumentPath.h"
 #include "FolioInsights.h"
 
 #include "FolioModule.h"
@@ -15,6 +16,7 @@
 #include "Rendering/SlateRenderer.h"
 #include "Framework/Application/SlateUser.h"
 #include "GameFramework/InputSettings.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Element.h>
@@ -37,6 +39,30 @@ namespace
 			"size already, so the round trip only softens them. Zero draws everything through the "
 			"target, which is what to compare against if text looks wrong."),
 		ECVF_Default);
+
+#if !UE_BUILD_SHIPPING
+	TAutoConsoleVariable<bool> CVarForceNonInteractive(
+		TEXT("folio.Input.ForceNonInteractive"), false,
+		TEXT("Makes every screen document non-interactive, whatever its host or markup asks. If input "
+			"still goes missing after alt-tab with this on, something other than Folio is taking focus."),
+		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
+		{
+			for (SFolioCanvas* Canvas : LiveCanvases)
+			{
+				Canvas->RefreshInteractive();
+			}
+		}),
+		ECVF_Default);
+#endif
+
+	bool IsForcedNonInteractive()
+	{
+#if !UE_BUILD_SHIPPING
+		return CVarForceNonInteractive.GetValueOnGameThread();
+#else
+		return false;
+#endif
+	}
 }
 
 const TArray<SFolioCanvas*>& SFolioCanvas::GetLiveCanvases()
@@ -93,7 +119,11 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 			AccessibleChildren.Empty();
 		}
 	};
-	Host.OnDocumentLoaded = [this](Rml::ElementDocument* Loaded) { Sounds.Attach(Loaded); };
+	Host.OnDocumentLoaded = [this](Rml::ElementDocument* Loaded)
+	{
+		Sounds.Attach(Loaded);
+		ReadDocumentInteractive();
+	};
 
 	// Slate caches draw elements for a non-volatile widget inside an invalidation root, so a paint has
 	// to be asked for rather than assumed. Outside one this costs nothing and Slate paints regardless.
@@ -115,7 +145,42 @@ SFolioCanvas::~SFolioCanvas()
 
 void SFolioCanvas::SetInteractive(const bool bInInteractive)
 {
-	bInteractive = bInInteractive;
+	bHostInteractive = bInInteractive;
+	RefreshInteractive();
+}
+
+void SFolioCanvas::SetDebuggerHold(const bool bHold)
+{
+	bDebuggerHold = bHold;
+	RefreshInteractive();
+}
+
+void SFolioCanvas::ReadDocumentInteractive()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_ReadDocumentInteractive);
+
+	bDocumentInteractive = true;
+
+	FString Value;
+	if (UFolioDocumentPathLibrary::GetDocumentMeta(Host.GetDocumentPath(), TEXT("folio-interactive"), Value))
+	{
+		if (Value.Equals(TEXT("false"), ESearchCase::IgnoreCase))
+		{
+			bDocumentInteractive = false;
+		}
+		else if (!Value.Equals(TEXT("true"), ESearchCase::IgnoreCase))
+		{
+			UE_LOG(LogFolio, Warning, TEXT("'%s' declares folio-interactive '%s', which is not true or false. Ignoring it."),
+				*Host.GetDocumentPath(), *Value);
+		}
+	}
+
+	RefreshInteractive();
+}
+
+void SFolioCanvas::RefreshInteractive()
+{
+	bInteractive = bDebuggerHold || (bHostInteractive && bDocumentInteractive && !IsForcedNonInteractive());
 
 	// Hit-test invisible rather than merely unfocusable: the mouse has to reach the game behind a HUD
 	// as well, and a leaf widget that answers a hit test still swallows a click it does nothing with.

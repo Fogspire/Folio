@@ -84,7 +84,7 @@ Every known limit, each with what to do instead. What *does* work is in **[UI_CO
 
 ## Authoring
 
-**The debugger takes the mouse while it is visible.** `folio.Debugger` forces its host canvas interactive, so firing and looking stop, and the log says so. Hide it or run `folio.Debugger off`; a change to `bInteractive` made while it is up is lost when it hides.
+**The debugger takes the mouse while it is visible.** `folio.Debugger` forces its host canvas interactive, so firing and looking stop, and the log says so. Hide it or run `folio.Debugger off`.
 
 **Baking is not automatic.** `msdfbake` does not watch its source art. Re-run it after changing an SVG or a font, then `folio.ReloadTextures` to pick up the new atlas without reopening the document.
 

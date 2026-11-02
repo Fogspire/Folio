@@ -479,8 +479,63 @@
 				"color"
 			]
 		},
+		"graph-curve": {
+			"default": "linear",
+			"inherited": false,
+			"keywords": [
+				"linear",
+				"smooth",
+				"step"
+			],
+			"parsers": []
+		},
 		"graph-dot-size": {
 			"default": "6dp",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"length"
+			]
+		},
+		"graph-fill-fade": {
+			"default": "0",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"number"
+			]
+		},
+		"graph-fill-opacity": {
+			"default": "0",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"number"
+			]
+		},
+		"graph-fill-pattern": {
+			"default": "solid",
+			"inherited": false,
+			"keywords": [
+				"solid",
+				"hatch",
+				"crosshatch",
+				"columns",
+				"rows",
+				"dots"
+			],
+			"parsers": []
+		},
+		"graph-fill-spacing": {
+			"default": "6dp",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"length"
+			]
+		},
+		"graph-fill-width": {
+			"default": "1dp",
 			"inherited": false,
 			"keywords": [],
 			"parsers": [
@@ -517,6 +572,14 @@
 			"keywords": [],
 			"parsers": [
 				"color"
+			]
+		},
+		"graph-point-size": {
+			"default": "0dp",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"length"
 			]
 		},
 		"height": {

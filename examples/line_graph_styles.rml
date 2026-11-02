@@ -1,0 +1,125 @@
+<rml>
+<head>
+	<title>Line graph styles</title>
+	<meta name="folio-size" content="1020x720"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body
+		{
+			font-family: Inter;
+			font-size: 14dp;
+			color: #c9ced6;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			flex-wrap: wrap;
+			align-content: center;
+			justify-content: center;
+		}
+
+		.panel { display: block; width: 300dp; margin: 8dp; padding: 10dp; background-color: #ffffff0a; }
+		.label { display: block; margin-bottom: 6dp; }
+
+		line-graph { display: block; height: 110dp; border-bottom: 1dp #ffffff30; graph-dot-size: 0; }
+
+		.heat line-graph { graph-dot-size: 7dp; }
+
+		.fade line-graph
+		{
+			graph-curve: smooth;
+			graph-fill-opacity: 0.5;
+			graph-fill-fade: 1;
+			graph-low-color: #4ea1f3;
+			graph-mid-color: #f5d76e;
+			graph-high-color: #e5534b;
+		}
+
+		.points line-graph { graph-mid-color: #c9ced6; graph-line-width: 1dp; graph-point-size: 8dp; }
+
+		.smooth line-graph { graph-curve: smooth; graph-mid-color: #57d38c; graph-fill-opacity: 0.15; graph-point-size: 6dp; }
+
+		.hatch line-graph { graph-mid-color: #f2efc8; graph-fill-opacity: 0.6; graph-fill-pattern: hatch; graph-fill-spacing: 7dp; }
+
+		.crosshatch line-graph
+		{
+			graph-curve: smooth;
+			graph-mid-color: #4ea1f3;
+			graph-fill-opacity: 0.45;
+			graph-fill-pattern: crosshatch;
+			graph-fill-spacing: 9dp;
+		}
+
+		.dots line-graph
+		{
+			graph-curve: smooth;
+			graph-low-color: #4ea1f3;
+			graph-mid-color: #f5d76e;
+			graph-high-color: #e5534b;
+			graph-fill-opacity: 0.9;
+			graph-fill-fade: 0.8;
+			graph-fill-pattern: dots;
+			graph-fill-spacing: 7dp;
+			graph-fill-width: 3dp;
+		}
+
+		.step line-graph
+		{
+			graph-curve: step;
+			graph-mid-color: #f5d76e;
+			graph-fill-opacity: 0.5;
+			graph-fill-pattern: columns;
+			graph-fill-spacing: 5dp;
+			graph-fill-width: 2dp;
+		}
+
+		.baseline line-graph
+		{
+			graph-curve: smooth;
+			graph-fill-opacity: 0.35;
+			graph-low-color: #e5534b;
+			graph-mid-color: #c9ced6;
+			graph-high-color: #57d38c;
+			graph-average-color: #ffffff40;
+		}
+	</style>
+</head>
+<body data-model="line_graph_styles">
+	<div class="panel heat">
+		<span class="label">Heat, average, newest dot</span>
+		<line-graph data-attr-values="Fps" data-attr-tones="FpsTones" average="55" min="0" max="70" length="30"></line-graph>
+	</div>
+	<div class="panel fade">
+		<span class="label">Smooth, heat fill fading out</span>
+		<line-graph data-attr-values="Temp" data-attr-tones="TempTones" min="30" max="80"></line-graph>
+	</div>
+	<div class="panel points">
+		<span class="label">Points</span>
+		<line-graph data-attr-values="Hits" min="0" max="10"></line-graph>
+	</div>
+	<div class="panel smooth">
+		<span class="label">Smooth, points, light fill</span>
+		<line-graph data-attr-values="Score" min="0" max="50"></line-graph>
+	</div>
+	<div class="panel hatch">
+		<span class="label">Hatch</span>
+		<line-graph data-attr-values="Hits" min="0" max="10"></line-graph>
+	</div>
+	<div class="panel crosshatch">
+		<span class="label">Crosshatch</span>
+		<line-graph data-attr-values="Score" min="0" max="50"></line-graph>
+	</div>
+	<div class="panel dots">
+		<span class="label">Dots, heat, fading</span>
+		<line-graph data-attr-values="Temp" data-attr-tones="TempTones" min="30" max="80"></line-graph>
+	</div>
+	<div class="panel step">
+		<span class="label">Step, columns</span>
+		<line-graph data-attr-values="Ammo" min="0" max="32"></line-graph>
+	</div>
+	<div class="panel baseline">
+		<span class="label">Baseline at zero, heat either side</span>
+		<line-graph data-attr-values="Balance" data-attr-tones="BalanceTones" min="-12" max="12" baseline="0" average="0"></line-graph>
+	</div>
+</body>
+</rml>

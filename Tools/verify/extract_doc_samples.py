@@ -44,6 +44,8 @@ MEMBER_OF_READERS_CLASS = {
     "docs/tutorials/long_lists.md#1",
     # The bob component the tutorial has the reader write, and the hosting block that builds it.
     "docs/tutorials/keybinding.md#0",
+    # The weapon card's refresh, a member of the view model the tutorial has the reader write.
+    "docs/tutorials/weapon_falloff.md#0",
     "docs/tutorials/screen_edge.md#0",
     "docs/tutorials/screen_edge.md#1",
     "docs/tutorials/paper_doll.md#0",

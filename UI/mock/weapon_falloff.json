@@ -1,0 +1,8 @@
+{
+	"Name": "BATTLE RIFLE",
+	"Calibre": "7.62 x 51 mm",
+	"Range": "861.0 m",
+	"Damage": "48 48 48 48 48 48 44 37 29 21 15 12 12 12 12 12",
+	"MaxDamage": 60,
+	"MinDamage": 12
+}

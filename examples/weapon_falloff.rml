@@ -1,0 +1,46 @@
+<rml>
+<head>
+	<title>Weapon falloff</title>
+	<meta name="folio-size" content="420x280"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body
+		{
+			font-family: Inter;
+			font-size: 14dp;
+			color: #e8ece4;
+			background-color: #0d1015;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.card { display: block; width: 360dp; padding: 12dp; background-color: #00000080; }
+		.name { display: block; font-size: 22dp; font-weight: bold; }
+		.axis { display: block; font-size: 12dp; color: #a8b0a0; text-align: right; }
+
+		line-graph
+		{
+			display: block;
+			height: 140dp;
+			border-left: 1dp #e8ece480;
+			border-bottom: 1dp #e8ece480;
+			graph-mid-color: #f2efc8;
+			graph-average-color: #e8ece460;
+			graph-dot-size: 0;
+			graph-curve: smooth;
+			graph-fill-opacity: 0.35;
+		}
+	</style>
+</head>
+<body>
+	<div class="card" data-model="weapon_falloff">
+		<span class="name">{{ Name }}</span>
+		<line-graph data-attr-values="Damage" data-attr-average="MinDamage" data-attr-max="MaxDamage"></line-graph>
+		<span class="axis">{{ Range }}</span>
+		<span class="name">{{ Calibre }}</span>
+	</div>
+</body>
+</rml>

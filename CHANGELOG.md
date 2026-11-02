@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+* `<line-graph>`: `min`/`max` so values stay in their own units, fills (solid, hatch, crosshatch, columns, rows, dots) that fade and take the line's tones, a `baseline` to fill either side of, points on every value, and `smooth` and `step` curves; see [docs/line_graph.md](docs/line_graph.md)
+* Weapon falloff tutorial: a line graph from a mock JSON file to game code; see [docs/tutorials/weapon_falloff.md](docs/tutorials/weapon_falloff.md)
+
 ## 1.7.0
 * Studio: a **Sprites** panel packs a folder of pixel-art frames into an atlas and its `@spritesheet`, with a live preview; see [docs/studio_reference.md](docs/studio_reference.md#pack-sprites)
 * `pack_sprites.py`: writes a `.spritepack.json` beside the stylesheet, and `--pack` packs one again, so Studio and the script share sheets

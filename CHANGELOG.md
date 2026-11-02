@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.10.0
 * `<meta name="folio-interactive" content="false"/>` in a document's head turns its input off whatever the host sets, so a HUD's markup keeps it from taking focus; see [docs/hosting.md](docs/hosting.md#a-hud-is-not-a-screen)
 * `folio.Input.ForceNonInteractive`: turns input off on every screen document, to rule Folio out when input is lost after alt-tab
 * `GetDocumentMeta`: reads any `<meta>` value from a document's head

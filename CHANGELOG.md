@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.8.0
 * `<line-graph>`: `min`/`max` so values stay in their own units, fills (solid, hatch, crosshatch, columns, rows, dots) that fade and take the line's tones, a `baseline` to fill either side of, points on every value, and `smooth` and `step` curves; see [docs/line_graph.md](docs/line_graph.md)
 * Weapon falloff tutorial: a line graph from a mock JSON file to game code; see [docs/tutorials/weapon_falloff.md](docs/tutorials/weapon_falloff.md)
 

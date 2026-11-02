@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.9.0
 * `<path>`: SVG path data drawn as an antialiased stroke and fill, with joins, caps, dashes, arcs, nonzero and even-odd fills and a view box. `d` binds to data, and the `arc` and `wedge` transforms build it from a value. Clicks land only on the drawn shape; see [docs/path.md](docs/path.md)
 * RmlUi patch `0008-property-id-cap.patch` raises the element property limit from 128 to 254. Run `scripts/build_ue_libs.sh` for each platform you ship
 * `<scale>`: a gauge's ticks and numbers along a line or an arc; see [docs/scale.md](docs/scale.md)

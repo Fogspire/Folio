@@ -370,6 +370,12 @@ bool FFolioDocumentHost::BindObjectModel(const FString& ModelName, UObject* Sour
 		return false;
 	}
 
+	// A mock only stands in until the game binds the name. Its document needs a reload to see the swap.
+	if (DataModels.Remove(ModelName) > 0)
+	{
+		Context->RemoveDataModel(Folio::ToRmlString(ModelName));
+	}
+
 	TUniquePtr<FFolioObjectModel> Model = MakeUnique<FFolioObjectModel>();
 	if (!Model->Mount(Context, ModelName, Source, bPollEveryFrame))
 	{

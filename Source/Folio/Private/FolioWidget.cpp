@@ -150,7 +150,7 @@ bool UFolioWidget::BindViewModel(const FString& ModelName, UObject* Source, cons
 
 	if (!Canvas.IsValid())
 	{
-		// The widget has not been built yet, which is the ordinary case from a construction script.
+		// The widget has not been built yet, which is the ordinary case from OnInitialized.
 		// RebuildWidget applies this before it loads the document.
 		return true;
 	}

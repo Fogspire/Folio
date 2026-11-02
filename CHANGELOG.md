@@ -1,14 +1,14 @@
 # Changelog
 
-## Unreleased
-* `examples/gauge.rml`: a speed dial built from `<scale>`, `arc`, `wedge` and a bound needle
-* The front page shows data-driven vector gauges; [docs/vectors.md](docs/vectors.md) opens with which kind of art to use
-
 ## 1.9.0
 * `<path>`: SVG path data drawn as an antialiased stroke and fill, with joins, caps, dashes, arcs, nonzero and even-odd fills and a view box. `d` binds to data, and the `arc` and `wedge` transforms build it from a value. Clicks land only on the drawn shape; see [docs/path.md](docs/path.md)
 * RmlUi patch `0008-property-id-cap.patch` raises the element property limit from 128 to 254. Run `scripts/build_ue_libs.sh` for each platform you ship
 * `<scale>`: a gauge's ticks and numbers along a line or an arc; see [docs/scale.md](docs/scale.md)
 * Verify compares the path and scale screenshots against references in `Tools/uipreview/tests/references`; `--update-references` records them again
+* `examples/gauge.rml`: a speed dial built from `<scale>`, `arc`, `wedge` and a bound needle
+* The front page shows data-driven vector gauges; [docs/vectors.md](docs/vectors.md) opens with which kind of art to use
+* `BindViewModel` after a document has loaded replaces a mock model of the same name instead of failing with "Data model name already exists"
+* [docs/hosting.md](docs/hosting.md): bind in a User Widget's On Initialized, since Construct runs after the document loads
 
 ## 1.8.0
 * `<line-graph>`: `min`/`max` so values stay in their own units, fills (solid, hatch, crosshatch, columns, rows, dots) that fade and take the line's tones, a `baseline` to fill either side of, points on every value, and `smooth` and `step` curves; see [docs/line_graph.md](docs/line_graph.md)

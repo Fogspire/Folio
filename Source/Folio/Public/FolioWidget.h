@@ -151,9 +151,10 @@ public:
 	 * The document reads them as it would any model: <body data-model="player"> and {{ health }}.
 	 *
 	 * Callable at any point, including before the widget is built, which is the ordinary case in a
-	 * Blueprint construction script. A document resolves its bindings when it loads, so this is the
-	 * one call that must happen first - the widget defers loading until its bindings are in, and
-	 * rebuilds the document if one is already up.
+	 * User Widget's OnInitialized: Construct and PreConstruct run after this widget is built. A
+	 * document resolves its bindings when it loads, so this is the one call that must happen first -
+	 * the widget defers loading until its bindings are in, and rebuilds the document if one is
+	 * already up, replacing any mock of the same name.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API bool BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);

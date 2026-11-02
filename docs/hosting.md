@@ -28,7 +28,7 @@ Document->BindViewModel(TEXT("player"), PlayerViewModel);
 
 A source implementing `INotifyFieldValueChanged` (as `UMVVMViewModelBase` does) pushes changes as its fields change. Any other source is re-read once a frame, which costs work per bound field, so prefer a view model.
 
-**Bind before the document loads.** RmlUi resolves a document's bindings as it loads and offers no way to attach a model afterwards. `BindViewModel` is callable at any point, including before the widget is built (the widget defers loading until its bindings are in, and rebuilds the document if one is already up), so a Blueprint construction script is the natural place. Binding after the screen is visible does not make `{{ braces }}` start resolving.
+**Bind before the document loads.** The widget loads its document when it is built, after applying every binding made so far. In a User Widget, bind in **Event On Initialized**, or between **Create Widget** and **Add to Viewport**: **Event Construct** and **Event Pre Construct** run after child widgets are built, so the document has already loaded. A later bind still works, but rebuilds the document and logs `arrived after ... had loaded`. A bound model replaces the `UI/mock/` file of the same name.
 
 [Data binding](data_binding.md) covers the document side.
 

@@ -1,5 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { popup, REPO_URL, SITE_URL } from '../commands';
 import { host } from '../host';
 import { dirname, join } from '../paths';
 import { store } from '../session';
@@ -47,6 +48,18 @@ function parseIndex(index: string): { path: string; title: string; section: stri
 		}
 	}
 	return pages;
+}
+
+/** The page's address on GitHub. Paths are relative to docs/, so `../UI_CONVENTIONS.md` is the repo root. */
+function githubUrl(path: string): string {
+	return `${REPO_URL}/blob/main/${normalise('docs/' + path)}`;
+}
+
+/** The page on the docs site, mapped the way `site/build.mjs` names its output. */
+function siteUrl(path: string): string {
+	const page = normalise('docs/' + path);
+	if (page === 'docs/overview.md') return SITE_URL;
+	return SITE_URL + page.replace(/(^|\/)README\.md$/, '$1index.html').replace(/\.md$/, '.html');
 }
 
 async function readText(path: string): Promise<string | null> {
@@ -135,6 +148,15 @@ export function DocsPanel() {
 									onClick={() => {
 										setCurrent(entry.path);
 										setAnchor('');
+									}}
+									onContextMenu={async (event) => {
+										event.preventDefault();
+										const chosen = await popup([
+											{ id: 'copy-link', label: 'Copy Link' },
+											{ id: 'open-site', label: 'Open in Browser' },
+										]);
+										if (chosen === 'copy-link') navigator.clipboard.writeText(githubUrl(entry.path));
+										else if (chosen === 'open-site') host.openExternal(siteUrl(entry.path));
 									}}
 								>
 									{entry.title}

@@ -11,6 +11,9 @@ import {
 	answerDialog, askBake, canvasScale, checkForUpdatesNow, findNode, openFile, openProject, pickProject, revertAll, saveAll, select, setEditing, setMode, setZoom, store, toggleTimeline, toggleUpdateCheck,
 } from './session';
 
+export const REPO_URL = 'https://github.com/Fogspire/Folio';
+export const SITE_URL = 'https://fogspire.github.io/Folio/';
+
 export interface MenuItem {
 	id?: string;
 	label?: string;
@@ -170,7 +173,7 @@ export function runCommand(command: string, argument?: string) {
 		case 'create-shortcuts':
 			host.createShortcuts().then((made) => store.set({ status: typeof made === 'string' ? made : made.length ? 'Created ' + made.join(', ') : 'Nowhere to put a shortcut' }));
 			return;
-		case 'open-repo': return void host.openExternal('https://github.com/Fogspire/Folio');
+		case 'open-repo': return void host.openExternal(REPO_URL);
 		case 'select-parent': return void (selection !== null && parentOf(selection) !== null && select(parentOf(selection)));
 		case 'deselect': return select(null);
 		case 'reset-layout': return resetLayout();

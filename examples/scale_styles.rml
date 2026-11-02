@@ -35,7 +35,7 @@
 
 		.out .major { color: #4ea1f3; }
 		.out .label { color: #4ea1f3; }
-		.ruler .label { font-size: 11dp; }
+		.ruler .label { font-size: 12dp; }
 	</style>
 </head>
 <body data-model="scale_styles">

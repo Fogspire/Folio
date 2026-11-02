@@ -1,0 +1,37 @@
+<rml>
+<head>
+	<title>Gauge</title>
+	<meta name="folio-size" content="440x440"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body { width: 100%; height: 100%; background-color: #0d1015; font-family: Inter; color: #c9ced6; }
+		.face { position: absolute; left: 0dp; top: 0dp; width: 440dp; height: 440dp; }
+		.face path, .face scale { position: absolute; left: 0dp; top: 0dp; }
+
+		.track    { color: #ffffff12; path-width: 14dp; }
+		.value    { color: #4fd879; path-width: 14dp; }
+		.redline  { path-fill: #e5534b; path-width: 0dp; }
+		.dial .minor { color: #ffffff40; path-width: 2dp; }
+		.dial .major { color: #e8ecf0; path-width: 4dp; }
+		.dial .label { font-size: 24dp; color: #e8ecf0; }
+		.needle   { color: #f5d76e; path-width: 6dp; path-cap: round; transform-origin: 220dp 220dp; }
+		.hub      { color: #f5d76e; path-fill: #0d1015; path-width: 4dp; }
+
+		.readout { position: absolute; left: 0dp; top: 300dp; width: 440dp; text-align: center; font-size: 44dp; color: #e8ecf0; }
+		.unit { position: absolute; left: 0dp; top: 352dp; width: 440dp; text-align: center; font-size: 14dp; letter-spacing: 4dp; color: #ffffff88; }
+	</style>
+</head>
+<body data-model="gauge">
+	<div class="face">
+		<path class="track" data-attr-d="1 | arc(220, 220, 180, -135, 135)"/>
+		<path class="value" data-attr-d="(Speed / 12) | arc(220, 220, 180, -135, 135)"/>
+		<path class="redline" data-attr-d="1 | wedge(220, 220, 196, 90, 135, 190)"/>
+		<scale class="dial" kind="arc" from="0" to="12" step="0.5" major="1" labels="0 2 4 6 8 10 12" centre="220 220"
+			radius="160" start-angle="-135" end-angle="135" minor-length="8" major-length="16" label-offset="42"/>
+		<path class="needle" d="M 220 220 V 92" data-style-transform="'rotate(' + (Speed / 12 * 270 - 135) + 'deg)'"/>
+		<path class="hub" d="M 210 220 a 10 10 0 1 0 20 0 a 10 10 0 1 0 -20 0"/>
+		<div class="readout" data-noloc>{{ Speed | format(1) }}</div>
+		<div class="unit" data-noloc>MAG</div>
+	</div>
+</body>
+</rml>

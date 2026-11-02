@@ -1,6 +1,6 @@
 # Folio
 
-**Custom UI Rendering Framework for Unreal Engine 5.** HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. World-space UI unaffected by TAA/TSR. Surface projected UI. Common game functionality included.
+**Custom UI Rendering Framework for Unreal Engine 5.** HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. Data-driven vector gauges written as plain text. World-space UI unaffected by TAA/TSR. Surface projected UI. Common game functionality included.
 
 https://github.com/user-attachments/assets/99d463db-cf0a-4f49-a49e-746acc4db9af
 
@@ -27,6 +27,21 @@ https://github.com/user-attachments/assets/b95b546c-987c-4be1-976e-4d67f961374c
 _Released a game using Folio? Get in touch and it may appear here_
 
 ## Why Folio
+
+### Data-Driven Vector Gauges in Markup
+
+Dials, tapes, arcs, needles and filled shapes are plain text, bound straight to game data with no game code. `<scale>` lays out a gauge's ticks and numbers, and `arc` and `wedge` turn a value into the shape that follows it. Each path is one draw, sharp at any size and angle.
+
+![A speed dial at 7.6: green value arc, white ticks and numbers, red redline band, yellow needle](images/gauge.png)
+
+```html
+<scale kind="arc" from="0" to="12" step="0.5" major="1" centre="220 220" radius="160" start-angle="-135" end-angle="135"/>
+<path class="value" data-attr-d="(Speed / 12) | arc(220, 220, 180, -135, 135)"/>
+<path class="redline" data-attr-d="1 | wedge(220, 220, 196, 90, 135, 190)"/>
+<path class="needle" d="M 220 220 V 92" data-style-transform="'rotate(' + (Speed / 12 * 270 - 135) + 'deg)'"/>
+```
+
+The whole gauge is `examples/gauge.rml`. See [paths](path.md) and [scales](scale.md).
 
 ### Fully Text Based
 

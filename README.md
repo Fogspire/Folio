@@ -2,7 +2,7 @@
 
 <a href="https://fogspire.github.io/Folio/"><img src="docs/images/site_banner.png" alt="Folio website and documentation: fogspire.github.io/Folio" width="100%"></a>
 
-**Custom UI Rendering Framework for Unreal Engine 5.** HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. World-space UI unaffected by TAA/TSR. Surface projected UI. Common game functionality included.
+**Custom UI Rendering Framework for Unreal Engine 5.** HTML/CSS-style markup provides rapid development and iteration. Polished results in minutes with Folio instead of days with UMG/Slate. Infinitely scalable; sharp at every size. Data-driven vector gauges written as plain text. World-space UI unaffected by TAA/TSR. Surface projected UI. Common game functionality included.
 
 https://github.com/user-attachments/assets/99d463db-cf0a-4f49-a49e-746acc4db9af
 

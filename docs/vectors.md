@@ -2,6 +2,16 @@
 
 Icons from SVGs that stay crisp at any magnification, used in markup exactly like a raster sprite.
 
+## Which kind of art to use
+
+| What you're drawing | Use | Why |
+|---|---|---|
+| Lines, arcs, outlines and flat shapes: gauges, needles, range rings, brackets, arrows | [`<path>`](path.md), and [`<scale>`](scale.md) for ticks and numbers | Sharp at any size and angle, one draw, and the shape can follow game data. Written as text, so an agent can draw it. |
+| An icon or drawing that must stay sharp when magnified: a HUD icon also shown full screen, a world-space panel the player walks up to, a scale animation | A vector sprite (this page) | Exact edges at any size. One draw per colour layer. |
+| Everything else: painted art, portraits, textures, photos, anything with shading, art only ever seen at one size | A raster sprite ([images](images.md)) | The cheapest: a whole sheet is one draw. |
+
+## Baking SVGs to sprites
+
 ![The same vector sprite at 400, 200 and 96 dp wide, equally sharp at each](images/vectors.png)
 
 The SVGs are baked to the same kind of distance field the text uses, and `<img sprite="icon_sword">` and `decorator: image(icon_sword)` work as they do for a PNG.
@@ -11,12 +21,6 @@ The SVGs are baked to the same kind of distance field the text uses, and `<img s
 ```
 
 That packs the SVGs' fields into an atlas and writes a `@spritesheet` block between markers in `UI/vectors.rcss`. Link that stylesheet.
-
-## When
-
-Use it for art that has to survive **extreme magnification**: a HUD icon that also appears on a full-screen map, a world-space surface the player can walk up to, a `transform: scale` animation.
-
-Everything else stays raster. A vector sprite costs one draw per colour layer where a whole raster sheet costs one, and most icons are never seen at more than one size. See **[images](images.md)**.
 
 ## What a field can represent
 

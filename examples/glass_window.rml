@@ -1,0 +1,194 @@
+<rml>
+<head>
+	<title>Glass window</title>
+	<meta name="folio-size" content="1000x620"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body {
+			font-family: Inter;
+			font-size: 15dp;
+			color: #1c2430;
+			width: 100%;
+			height: 100%;
+			position: relative;
+			overflow: hidden;
+			background-color: #0b3d91;
+			decorator: radial-gradient(circle at 22% 30%, #3fa9ff 0%, #3fa9ff00 38%),
+			           radial-gradient(circle at 80% 75%, #22d3a6 0%, #22d3a600 30%),
+			           linear-gradient(160deg, #1166d8, #062a6e);
+		}
+
+		/* Busy shapes behind the windows, so the blur has something to soften. */
+		.stripe {
+			position: absolute;
+			width: 1400dp;
+			height: 26dp;
+			transform: rotate(-24deg);
+			background-color: #ffffff2e;
+		}
+		.wallpaper-text {
+			position: absolute;
+			left: 60dp;
+			top: 300dp;
+			font-size: 120dp;
+			font-weight: 700;
+			color: #ffffff40;
+		}
+
+		.window {
+			position: absolute;
+			border-radius: 8dp 8dp 4dp 4dp;
+			border: 1dp #0a1a3299;
+			padding: 0 7dp 7dp 7dp;
+			display: flex;
+			flex-direction: column;
+
+			background-color: #7fb2e533;
+			backdrop-filter: blur(8dp);
+			box-shadow: #00000080 0 6dp 24dp 0, #ffffff80 0 0 0 1dp inset;
+			/* The first decorator is drawn on top: streak, then gloss. */
+			decorator: shader("sweep #ffffff26 0.3 0.35 -25"),
+			           vertical-gradient(#ffffff59 #ffffff0d);
+		}
+
+		.back  { left: 70dp;  top: 50dp;  width: 520dp; height: 300dp; }
+		.front { left: 300dp; top: 170dp; width: 620dp; height: 380dp; }
+
+		.titlebar {
+			height: 32dp;
+			display: flex;
+			align-items: center;
+		}
+
+		.title {
+			flex: 1 1 auto;
+			padding-left: 4dp;
+			color: #0d1b2e;
+			font-weight: 600;
+		}
+
+		.captions { display: flex; }
+
+		.cap {
+			width: 30dp;
+			height: 19dp;
+			margin-left: 1dp;
+			border: 1dp #213a5ccc;
+			border-radius: 4dp;
+			decorator: vertical-gradient(#e6f0fbd0 #8fb0d6d0);
+			color: #ffffff;
+			font-size: 13dp;
+			font-weight: 700;
+			text-align: center;
+			line-height: 17dp;
+		}
+		.cap:hover { decorator: vertical-gradient(#f4fbffe0 #7fd0ffe0); }
+		.cap.close {
+			width: 46dp;
+			border-color: #5a0f0acc;
+			decorator: vertical-gradient(#f2a196 #c7342a);
+		}
+		.cap.close:hover { decorator: vertical-gradient(#ffbcb2 #e8463a); }
+
+		/* Glyphs drawn as boxes, so no icon font is needed. */
+		.glyph-min {
+			width: 10dp;
+			height: 3dp;
+			margin: 10dp auto 0 auto;
+			background-color: #ffffff;
+			border: 1dp #213a5c;
+		}
+		.glyph-max {
+			width: 10dp;
+			height: 7dp;
+			margin: 4dp auto 0 auto;
+			border: 1dp #213a5c;
+			border-top-width: 3dp;
+			background-color: #ffffff00;
+		}
+
+		.toolbar {
+			height: 34dp;
+			display: flex;
+			align-items: center;
+			margin-bottom: 6dp;
+		}
+		.toolbar .spacer { flex: 1 1 auto; }
+
+		.search {
+			width: 220dp;
+			height: 24dp;
+			padding: 0 8dp;
+			line-height: 22dp;
+			border: 1dp #8ea6c4;
+			border-radius: 2dp;
+			background-color: #ffffffe6;
+			color: #6b7a8c;
+			font-style: italic;
+		}
+
+		/* The client area is opaque, so only the frame around it is glass. */
+		.client {
+			flex: 1 1 auto;
+			border: 1dp #5a7290;
+			background-color: #fbfcfe;
+			padding: 14dp;
+		}
+
+		.row {
+			height: 26dp;
+			line-height: 26dp;
+			padding-left: 8dp;
+			border-bottom: 1dp #e6ecf3;
+		}
+		.row.selected {
+			border-radius: 3dp;
+			border: 1dp #84acdd;
+			decorator: vertical-gradient(#eaf3fd #cfe3fa);
+		}
+	</style>
+</head>
+<body>
+	<div class="stripe" style="left: -200dp; top: 120dp;"/>
+	<div class="stripe" style="left: -200dp; top: 260dp;"/>
+	<div class="stripe" style="left: -200dp; top: 420dp;"/>
+	<div class="wallpaper-text">FOLIO</div>
+
+	<div class="window back">
+		<div class="titlebar">
+			<div class="title">Documents</div>
+			<div class="captions">
+				<div class="cap"><div class="glyph-min"/></div>
+				<div class="cap"><div class="glyph-max"/></div>
+				<div class="cap close">X</div>
+			</div>
+		</div>
+		<div class="client">
+			<div class="row">Notes.txt</div>
+			<div class="row">Budget.xls</div>
+			<div class="row">Holiday.jpg</div>
+		</div>
+	</div>
+
+	<div class="window front">
+		<div class="titlebar">
+			<div class="title">Libraries</div>
+			<div class="captions">
+				<div class="cap"><div class="glyph-min"/></div>
+				<div class="cap"><div class="glyph-max"/></div>
+				<div class="cap close">X</div>
+			</div>
+		</div>
+		<div class="toolbar">
+			<div class="spacer"/>
+			<div class="search">Search Libraries</div>
+		</div>
+		<div class="client">
+			<div class="row selected">Documents</div>
+			<div class="row">Music</div>
+			<div class="row">Pictures</div>
+			<div class="row">Videos</div>
+		</div>
+	</div>
+</body>
+</rml>

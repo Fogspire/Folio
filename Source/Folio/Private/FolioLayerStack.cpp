@@ -34,6 +34,17 @@ namespace
 		TEXT("Size each layer to what it actually draws rather than to the region it was pushed for, which ")
 		TEXT("is the whole screen for an element with no clip. Off allocates the full region."));
 
+	TAutoConsoleVariable<int32> CVarLayerHalfFloat(
+		TEXT("folio.Layers.HalfFloat"), 2,
+		TEXT("Which layers are 16-bit float rather than 8-bit. 8 bits hold linear values, which band visibly in a ")
+		TEXT("soft, dark gradient such as a wide glow or shadow; float costs twice the memory. 0: none. 1: every ")
+		TEXT("layer. 2 (default): layers carrying glow, drop-shadow or a shader filter. Applies from the next allocation."));
+
+	TAutoConsoleVariable<int32> CVarLayerPoolBudget(
+		TEXT("folio.Layers.PoolBudgetMB"), 128,
+		TEXT("Most memory, in megabytes, that idle layer targets may hold for reuse. Past it the longest idle ")
+		TEXT("are freed. 0 frees every target as soon as it is idle; -1 keeps all of them."));
+
 	/** Shrunk only when the drawn area is under this share of the layer, so a near-full layer keeps its pooled size. */
 	constexpr float TightenBelow = 0.6f;
 
@@ -87,13 +98,11 @@ FFolioLayerStack::~FFolioLayerStack()
 
 void FFolioLayerStack::Reset()
 {
-	for (const TPair<FIntPoint, TStrongObjectPtr<UTextureRenderTarget2D>>& Pooled : Pool)
-	{
-		DEC_MEMORY_STAT_BY(STAT_FolioLayerMemory, int64(Pooled.Key.X) * int64(Pooled.Key.Y) * 4);
-	}
+	DEC_MEMORY_STAT_BY(STAT_FolioLayerMemory, PoolBytes);
 
 	Stack.Empty();
 	Pool.Empty();
+	PoolBytes = 0;
 	Cache.Empty();
 	Cached.Empty();
 	PrintsOfResults.Empty();
@@ -109,7 +118,8 @@ FFolioLayerStack::FCacheStats FFolioLayerStack::TakeCacheStats()
 }
 
 bool FFolioLayerStack::PrintOf(const FLayer& Layer, const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask, uint64& OutPrint)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask,
+	const TConstArrayView<Folio::FLayerPass> Passes, uint64& OutPrint)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_PrintLayer);
 
@@ -136,6 +146,18 @@ bool FFolioLayerStack::PrintOf(const FLayer& Layer, const float BlurSigma,
 	{
 		Print = HashValue(Filter.Kind, Print);
 		Print = HashValue(Filter.Amount, Print);
+	}
+	for (const Folio::FLayerPass& Pass : Passes)
+	{
+		if (Pass.IsAnimated())
+		{
+			if (Traced)
+			{
+				Traced->Uncacheable = FString::Printf(TEXT("its shader filter %s animates"), *Pass.Name.ToString());
+			}
+			return false;
+		}
+		Print = HashValue(Pass.Hash(), Print);
 	}
 	if (Traced)
 	{
@@ -435,7 +457,7 @@ FIntRect FFolioLayerStack::DocumentRectOf(const FLayer& Layer)
 	return FIntRect(Layer.Origin, Layer.Origin + DocumentSizeOf(Layer));
 }
 
-void FFolioLayerStack::Prepare(FLayer& Layer, const float Margin, const bool bMayShrink)
+void FFolioLayerStack::Prepare(FLayer& Layer, const float Margin, const bool bMayShrink, const bool bWide)
 {
 	if (Layer.Target.IsValid())
 	{
@@ -522,7 +544,7 @@ void FFolioLayerStack::Prepare(FLayer& Layer, const float Margin, const bool bMa
 		}
 	}
 
-	Layer.Target.Reset(Obtain(Layer.Size));
+	Layer.Target.Reset(Obtain(Layer.Size, bWide));
 }
 
 FVector4f FFolioLayerStack::MaskTransformFor(const FIntRect& Source, const float SourceScale,
@@ -555,29 +577,67 @@ void FFolioLayerStack::TakeRectOf(FLayer& Layer, UTextureRenderTarget2D* Result)
 	Layer.Size = Rect->Size() * LayerScale;
 }
 
-UTextureRenderTarget2D* FFolioLayerStack::Obtain(const FIntPoint Size)
+int64 FFolioLayerStack::BytesOf(const UTextureRenderTarget2D* Target)
 {
-	TArray<TStrongObjectPtr<UTextureRenderTarget2D>> Available;
-	Pool.MultiFind(Size, Available);
+	const int64 PerTexel = Target->RenderTargetFormat == RTF_RGBA16f ? 8 : 4;
+	return int64(Target->SizeX) * int64(Target->SizeY) * PerTexel;
+}
 
-	if (Available.Num() > 0 && Available[0].IsValid())
+void FFolioLayerStack::TrimPool()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_TrimLayerPool);
+
+	const int32 BudgetMB = CVarLayerPoolBudget.GetValueOnGameThread();
+	if (BudgetMB < 0)
 	{
-		TStrongObjectPtr<UTextureRenderTarget2D> Found = Available[0];
-		Pool.RemoveSingle(Size, Found);
-		Found->UpdateResourceImmediate(true);
+		return;
+	}
 
-		return Found.Get();
+	const int64 Budget = int64(BudgetMB) * 1024 * 1024;
+	while (PoolBytes > Budget && !Pool.IsEmpty())
+	{
+		int32 Oldest = 0;
+		for (int32 Index = 1; Index < Pool.Num(); ++Index)
+		{
+			if (Pool[Index].ReleasedFrame < Pool[Oldest].ReleasedFrame)
+			{
+				Oldest = Index;
+			}
+		}
+
+		const int64 Bytes = BytesOf(Pool[Oldest].Target.Get());
+		PoolBytes -= Bytes;
+		DEC_MEMORY_STAT_BY(STAT_FolioLayerMemory, Bytes);
+		Pool[Oldest].Target->ReleaseResource();
+		Pool.RemoveAtSwap(Oldest);
+	}
+}
+
+UTextureRenderTarget2D* FFolioLayerStack::Obtain(const FIntPoint Size, const bool bWide)
+{
+	const int32 HalfFloat = CVarLayerHalfFloat.GetValueOnGameThread();
+	const ETextureRenderTargetFormat Format = HalfFloat == 1 || (HalfFloat == 2 && bWide) ? RTF_RGBA16f : RTF_RGBA8;
+
+	for (int32 Index = 0; Index < Pool.Num(); ++Index)
+	{
+		UTextureRenderTarget2D* Candidate = Pool[Index].Target.Get();
+		if (Candidate && Candidate->SizeX == Size.X && Candidate->SizeY == Size.Y
+			&& Candidate->RenderTargetFormat == Format)
+		{
+			TStrongObjectPtr<UTextureRenderTarget2D> Found = Pool[Index].Target;
+			PoolBytes -= BytesOf(Candidate);
+			Pool.RemoveAtSwap(Index);
+			Found->UpdateResourceImmediate(true);
+
+			return Found.Get();
+		}
 	}
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_AllocateLayer);
 	SCOPE_CYCLE_COUNTER(STAT_FolioAllocateTarget);
 
-	// Four bytes a texel, and a sample count multiplies the texels by itself. Reported because that
-	// is the number that decides whether a sample count is affordable, and nothing else shows it.
-	INC_MEMORY_STAT_BY(STAT_FolioLayerMemory, int64(Size.X) * int64(Size.Y) * 4);
-
 	UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>();
-	Target->RenderTargetFormat = RTF_RGBA8;
+	Target->RenderTargetFormat = Format;
 
 	// Premultiplied transparent, not opaque black: a layer that starts black fringes every
 	// edge it later composites over.
@@ -587,6 +647,10 @@ UTextureRenderTarget2D* FFolioLayerStack::Obtain(const FIntPoint Size)
 	Target->InitAutoFormat(Size.X, Size.Y);
 	Target->UpdateResourceImmediate(true);
 
+	// A sample count multiplies the texels by itself. Reported because that is the number that decides
+	// whether a sample count is affordable, and nothing else shows it.
+	INC_MEMORY_STAT_BY(STAT_FolioLayerMemory, BytesOf(Target));
+
 	return Target;
 }
 
@@ -595,8 +659,34 @@ void FFolioLayerStack::Release(UTextureRenderTarget2D* Target)
 	// A cached result is still somebody's picture; the cache returns it to the pool when it drops it.
 	if (Target && !Cached.Contains(Target))
 	{
-		Pool.Add(FIntPoint(Target->SizeX, Target->SizeY), TStrongObjectPtr<UTextureRenderTarget2D>(Target));
+		FPooled& Pooled = Pool.AddDefaulted_GetRef();
+		Pooled.Target.Reset(Target);
+		Pooled.ReleasedFrame = GFrameCounter;
+		PoolBytes += BytesOf(Target);
+		TrimPool();
 	}
+}
+
+float FFolioLayerStack::MarginFor(const float BlurSigma, const TConstArrayView<Folio::FLayerPass> Passes)
+{
+	float Margin = BlurSigma > 0.0f ? FMath::CeilToFloat(3.0f * BlurSigma) + 2.0f : 2.0f;
+	for (const Folio::FLayerPass& Pass : Passes)
+	{
+		Margin += FMath::CeilToFloat(Pass.Reach());
+	}
+	return Margin;
+}
+
+void FFolioLayerStack::RunPasses(UTextureRenderTarget2D* Target, const TConstArrayView<Folio::FLayerPass> Passes,
+	const float PixelScale)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_RunLayerPasses);
+
+	for (const Folio::FLayerPass& Pass : Passes)
+	{
+		bAnimatedPassDrawn = bAnimatedPassDrawn || Pass.IsAnimated();
+	}
+	Folio::ApplyLayerPasses(Target, Passes, PixelScale);
 }
 
 bool FFolioLayerStack::Push(const FIntPoint Size, const FIntPoint Origin)
@@ -779,7 +869,8 @@ void FFolioLayerStack::EnableClipMask(const bool bEnable)
 }
 
 UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask, FIntPoint* OutOrigin)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask, FIntPoint* OutOrigin,
+	const TConstArrayView<Folio::FLayerPass> Passes)
 {
 	if (Stack.IsEmpty())
 	{
@@ -789,7 +880,7 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	FLayer& Layer = Stack.Last();
 
 	uint64 Print = 0;
-	const bool bPrinted = PrintOf(Layer, BlurSigma, Colour, Mask, Print);
+	const bool bPrinted = PrintOf(Layer, BlurSigma, Colour, Mask, Passes, Print);
 	if (bPrinted)
 	{
 		// A caller that cannot be told where the result sits needs it covering the layer's whole region.
@@ -820,7 +911,7 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 	const FIntPoint PushedClip = Layer.ClipSize;
 	const FIntPoint PushedOrigin = Layer.Origin;
 
-	Prepare(Layer, BlurSigma > 0.0f ? FMath::CeilToFloat(3.0f * BlurSigma) + 2.0f : 2.0f, OutOrigin != nullptr);
+	Prepare(Layer, MarginFor(BlurSigma, Passes), OutOrigin != nullptr, !Passes.IsEmpty());
 	ResolveAndRecycle(Layer);
 
 	Folio::ApplyColourFilters(Layer.Target.Get(), Colour);
@@ -833,6 +924,8 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 		const float LayerScale = ScaleOf(Layer);
 		Folio::BlurRenderTarget(Layer.Target.Get(), BlurSigma * LayerScale, LayerScale);
 	}
+
+	RunPasses(Layer.Target.Get(), Passes, ScaleOf(Layer));
 
 	// Last, because the mask decides what survives: masking before a blur would let the blur bleed
 	// back over what the mask had just cut away.
@@ -863,7 +956,8 @@ UTextureRenderTarget2D* FFolioLayerStack::DetachCurrent(const float BlurSigma,
 }
 
 void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask,
+	const TConstArrayView<Folio::FLayerPass> Passes)
 {
 	if (Stack.Num() < 2)
 	{
@@ -873,7 +967,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	FLayer& Source = Stack.Last();
 
 	uint64 Print = 0;
-	const bool bPrinted = PrintOf(Source, BlurSigma, Colour, Mask, Print);
+	const bool bPrinted = PrintOf(Source, BlurSigma, Colour, Mask, Passes, Print);
 	if (bPrinted)
 	{
 		if (UTextureRenderTarget2D* Reused = FindCached(Print))
@@ -894,7 +988,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 	}
 	INC_DWORD_STAT(STAT_FolioLayersDrawn);
 
-	Prepare(Source, BlurSigma > 0.0f ? FMath::CeilToFloat(3.0f * BlurSigma) + 2.0f : 2.0f, /*bMayShrink*/ true);
+	Prepare(Source, MarginFor(BlurSigma, Passes), /*bMayShrink*/ true, !Passes.IsEmpty());
 	ResolveAndRecycle(Source);
 
 	// Colour before blur, which is the order CSS gives and the order that matters: blurring a
@@ -914,7 +1008,7 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 
 		if (SourceScale > 1 && Document.X > 0 && Document.Y > 0)
 		{
-			if (UTextureRenderTarget2D* Small = Obtain(Document))
+			if (UTextureRenderTarget2D* Small = Obtain(Document, !Passes.IsEmpty()))
 			{
 				Folio::ResolveSupersample(Source.Target.Get(), Small, SourceScale);
 				Composited = Small;
@@ -926,6 +1020,8 @@ void FFolioLayerStack::CompositeDown(const bool bBlend, const float BlurSigma,
 		const float BlurScale = Composited == Source.Target.Get() ? ScaleOf(Source) : 1.0f;
 		Folio::BlurRenderTarget(Composited, BlurSigma * BlurScale, BlurScale);
 	}
+
+	RunPasses(Composited, Passes, Composited == Source.Target.Get() ? ScaleOf(Source) : 1.0f);
 
 	Folio::FMaskOptions MaskOptions;
 	MaskOptions.MaskTransform = MaskTransformFor(DocumentRectOf(Source),

@@ -1543,12 +1543,18 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	float Sigma = 0.0f;
 	bool bOutside = false;
 	TArray<Folio::FColourFilter> Colour;
+	TArray<Folio::FLayerPass> Passes;
 	UTextureRenderTarget2D* Mask = nullptr;
 
 	for (const Rml::CompiledFilterHandle Handle : AppliedFilters)
 	{
 		if (const FFilter* Filter = Filters.Find(Handle))
 		{
+			if (Filter->Pass.IsSet())
+			{
+				Passes.Add(Filter->Pass.GetValue());
+			}
+
 			Sigma = FMath::Max(Sigma, Filter->Sigma);
 			bOutside = bOutside || Filter->bOutside;
 
@@ -1580,21 +1586,30 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	{
 		PendingBackdropSigma = Sigma;
 		bPendingBackdropOutside = bOutside;
+		PendingBackdropPasses = MoveTemp(Passes);
 		return;
 	}
 
-	if (PendingBackdropSigma > 0.0f)
+	if (PendingBackdropSigma > 0.0f || !PendingBackdropPasses.IsEmpty())
 	{
-		BlurBackdrop(PendingBackdropSigma, bPendingBackdropOutside);
+		if (PendingBackdropSigma > 0.0f)
+		{
+			BlurBackdrop(PendingBackdropSigma, bPendingBackdropOutside);
+		}
+		if (!PendingBackdropPasses.IsEmpty())
+		{
+			FilterBackdrop(MoveTemp(PendingBackdropPasses));
+		}
 		PendingBackdropSigma = 0.0f;
 		bPendingBackdropOutside = false;
+		PendingBackdropPasses.Reset();
 		return;
 	}
 
 	// Below the bottom layer is Slate, not another target.
 	if (Layers.Num() <= 1)
 	{
-		CompositeLayerToSlate(Sigma, Colour, Mask);
+		CompositeLayerToSlate(Sigma, Colour, Mask, Passes);
 		return;
 	}
 
@@ -1605,11 +1620,62 @@ void FFolioRenderInterface::CompositeLayers(const Rml::LayerHandle Source, const
 	// Widened by the blur, which is the one thing that puts colour outside the geometry that made it.
 	if (const FSlateRect Painted = Layers.CurrentContentRect(); Painted.IsValid())
 	{
-		FlushCoveredFields(Sigma > 0.0f ? Painted.ExtendBy(FMargin(3.0f * Sigma)) : Painted,
-			/*DepthFromTop*/ 1);
+		float Spread = 3.0f * Sigma;
+		for (const Folio::FLayerPass& Pass : Passes)
+		{
+			Spread += Pass.Reach();
+		}
+		FlushCoveredFields(Spread > 0.0f ? Painted.ExtendBy(FMargin(Spread)) : Painted, /*DepthFromTop*/ 1);
 	}
 
-	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma, Colour, Mask);
+	Layers.CompositeDown(BlendMode == Rml::BlendMode::Blend, Sigma, Colour, Mask, Passes);
+}
+
+void FFolioRenderInterface::FilterBackdrop(TArray<Folio::FLayerPass> Passes)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_FilterBackdrop);
+
+	if (!ElementList || Passes.IsEmpty())
+	{
+		return;
+	}
+
+	// The region is the element, which is what the second composite of the pair is clipped to.
+	const FVector2f Origin = bScissorEnabled
+		? FVector2f(float(ScissorRegion.Left()), float(ScissorRegion.Top()))
+		: FVector2f(0.0f, 0.0f);
+	const FVector2f Size = bScissorEnabled
+		? FVector2f(float(ScissorRegion.Width()), float(ScissorRegion.Height()))
+		: FVector2f(float(ContextSize.X), float(ContextSize.Y));
+
+	const FSlateRenderTransform Transform = Geometry.GetAccumulatedRenderTransform();
+	const FVector2f TopLeft = TransformPoint(Transform, Origin);
+	const FVector2f BottomRight = TransformPoint(Transform, Origin + Size);
+	const FIntRect Window(FMath::FloorToInt(TopLeft.X), FMath::FloorToInt(TopLeft.Y),
+		FMath::CeilToInt(BottomRight.X), FMath::CeilToInt(BottomRight.Y));
+
+	// The backbuffer is in window pixels, and the arguments in the document's.
+	const float PixelScale = Size.X > 0.0f ? float(Window.Width()) / Size.X : 1.0f;
+
+	for (const Folio::FLayerPass& Pass : Passes)
+	{
+		bAnimatedBackdropDrawn = bAnimatedBackdropDrawn || Pass.IsAnimated();
+	}
+
+	// A layer of its own on both sides. Slate orders a layer's elements by type rather than by submission, so
+	// sharing one with the backdrop it reads can run it before that backdrop is drawn.
+	++LayerId;
+
+	// The render thread draws it up to a frame behind, so one frame of holding is not enough.
+	HeldBackdrops.RemoveAll([](const FHeldBackdrop& Held) { return GFrameCounter - Held.Frame > 2; });
+	if (TSharedPtr<ICustomSlateElement, ESPMode::ThreadSafe> Element =
+		Folio::DrawBackdropPasses(*ElementList, LayerId, Window, MoveTemp(Passes), PixelScale))
+	{
+		HeldBackdrops.Add({ GFrameCounter, MoveTemp(Element) });
+	}
+
+	++LayerId;
+	MaxLayerId = FMath::Max(MaxLayerId, LayerId);
 }
 
 void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
@@ -1724,10 +1790,11 @@ void FFolioRenderInterface::BlurBackdrop(const float Sigma, const bool bOutside)
 }
 
 void FFolioRenderInterface::CompositeLayerToSlate(const float BlurSigma,
-	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask)
+	const TArrayView<const Folio::FColourFilter> Colour, UTextureRenderTarget2D* Mask,
+	const TConstArrayView<Folio::FLayerPass> Passes)
 {
 	FIntPoint At = LayerOrigin;
-	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma, Colour, Mask, &At);
+	UTextureRenderTarget2D* Target = Layers.DetachCurrent(BlurSigma, Colour, Mask, &At, Passes);
 	if (!Target || !ElementList || !FSlateApplication::IsInitialized())
 	{
 		return;
@@ -1916,6 +1983,68 @@ Rml::CompiledFilterHandle FFolioRenderInterface::CompileFilter(const Rml::String
 		}
 
 		Filter.Colour = Colour;
+	}
+	else if (Name == "glow" || Name == "drop-shadow")
+	{
+		// Both come in as a straight colour; drop-shadow with an offset, glow with a strength.
+		Folio::FLayerPass Pass;
+		Pass.Kind = Folio::FLayerPass::EKind::Halo;
+
+		Rml::Colourb Colour(255, 255, 255, 255);
+		Rml::Vector2f Offset(0.0f, 0.0f);
+		for (const auto& [Key, Value] : Parameters)
+		{
+			if (Key == "color") { Value.GetInto(Colour); }
+			else if (Key == "offset") { Value.GetInto(Offset); }
+			else if (Key == "sigma") { Value.GetInto(Pass.Sigma); }
+			else if (Key == "strength") { Value.GetInto(Pass.Strength); }
+		}
+
+		// The halo's tint is applied in the layer's linear space, like every vertex colour.
+		Pass.Colour = FLinearColor::FromSRGBColor(FColor(Colour.red, Colour.green, Colour.blue, Colour.alpha));
+		Pass.Offset = FVector2f(Offset.x, Offset.y);
+		Filter.Pass = MoveTemp(Pass);
+	}
+	else if (Name == "shader")
+	{
+		Rml::String ShaderName;
+		Rml::String EncodedArgs;
+		for (const auto& [Key, Value] : Parameters)
+		{
+			if (Key == "name") { Value.GetInto(ShaderName); }
+			else if (Key == "args") { Value.GetInto(EncodedArgs); }
+		}
+
+		Folio::FLayerPass Pass;
+		Pass.Kind = Folio::FLayerPass::EKind::Shader;
+		Pass.Name = FName(UTF8_TO_TCHAR(ShaderName.c_str()));
+
+		std::vector<Folio::FShaderFilterArg> Args;
+		Folio::DecodeShaderFilterArgs(EncodedArgs, Args);
+		Pass.Args = Folio::ToFilterArgs(Args);
+		Pass.Filter = Folio::FindShaderFilter(Pass.Name);
+
+		for (FFolioFilterArg& Arg : Pass.Args)
+		{
+			if (Arg.Kind == FFolioFilterArg::EKind::Colour)
+			{
+				Arg.Colour = FLinearColor::FromSRGBColor(Arg.Colour.ToFColor(/*bSRGB*/ false));
+			}
+		}
+
+		if (!Pass.Filter.IsValid())
+		{
+			static TSet<FName> Reported;
+			if (!Reported.Contains(Pass.Name))
+			{
+				Reported.Add(Pass.Name);
+				UE_LOG(LogFolio, Warning,
+					TEXT("shader filter '%s' is not registered, so the element draws unfiltered. Register it with ")
+					TEXT("Folio::RegisterShaderFilter before the document loads."), *Pass.Name.ToString());
+			}
+		}
+
+		Filter.Pass = MoveTemp(Pass);
 	}
 	else
 	{

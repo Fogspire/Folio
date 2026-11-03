@@ -149,8 +149,9 @@ namespace Folio
 			{
 				bWarned = true;
 				LogWarning(Format("a font effect reaches further than the field describes and was "
-					"clamped to %.3f em. Raise pxrange to go wider, at a quadratic cost in atlas "
-					"area", double(MaxEm)));
+					"clamped to %.3f em. For a wide glow or shadow use `filter: glow(...)` or "
+					"`filter: drop-shadow(...)` on the element instead, or raise pxrange, at a quadratic "
+					"cost in atlas area", double(MaxEm)));
 			}
 		}
 

@@ -22,6 +22,7 @@ DEFINE_STAT(STAT_FolioLayerBuffers);
 DEFINE_STAT(STAT_FolioLayerState);
 DEFINE_STAT(STAT_FolioBlur);
 DEFINE_STAT(STAT_FolioColourFilter);
+DEFINE_STAT(STAT_FolioLayerPasses);
 DEFINE_STAT(STAT_FolioMaskFilter);
 DEFINE_STAT(STAT_FolioSupersample);
 DEFINE_STAT(STAT_FolioWorldSurfaces);

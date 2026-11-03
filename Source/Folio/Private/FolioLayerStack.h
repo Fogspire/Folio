@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "FolioDrawList.h"
+#include "FolioLayerPasses.h"
 #include "FolioRmlUi.h"
 #include "FolioUIShader.h"
 #include "Rendering/RenderingCommon.h"
@@ -137,7 +138,8 @@ public:
 
 	/** Resolves the current layer and composites it into the one below. */
 	void CompositeDown(bool bBlend, float BlurSigma,
-		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr);
+		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr,
+		TConstArrayView<Folio::FLayerPass> Passes = {});
 
 	/**
 	 * Resolves the current layer, hands its target to the caller and replaces it.
@@ -151,7 +153,15 @@ public:
 	 */
 	UTextureRenderTarget2D* DetachCurrent(float BlurSigma = 0.0f,
 		TArrayView<const Folio::FColourFilter> Colour = {}, UTextureRenderTarget2D* Mask = nullptr,
-		FIntPoint* OutOrigin = nullptr);
+		FIntPoint* OutOrigin = nullptr, TConstArrayView<Folio::FLayerPass> Passes = {});
+
+	/** Whether a pass that animates ran since the last call, so the document has to draw again next frame. */
+	bool TakeAnimatedPassDrawn()
+	{
+		const bool bDrawn = bAnimatedPassDrawn;
+		bAnimatedPassDrawn = false;
+		return bDrawn;
+	}
 
 	void Reset();
 
@@ -214,7 +224,7 @@ private:
 	 * size of the context, so without this a 60dp masked ring costs a full-screen target, a clear, a
 	 * replay and a mask pass, every frame it changes.
 	 */
-	void Prepare(FLayer& Layer, float Margin, bool bMayShrink);
+	void Prepare(FLayer& Layer, float Margin, bool bMayShrink, bool bWide = false);
 
 	/** The document pixels a layer covers, in the space below it. */
 	static FIntRect DocumentRectOf(const FLayer& Layer);
@@ -226,7 +236,7 @@ private:
 	void TakeRectOf(FLayer& Layer, UTextureRenderTarget2D* Result) const;
 
 	/** The same without the layer, for a target that is a step in a composite rather than a layer. */
-	UTextureRenderTarget2D* Obtain(FIntPoint Size);
+	UTextureRenderTarget2D* Obtain(FIntPoint Size, bool bWide = false);
 
 	void Release(UTextureRenderTarget2D* Target);
 
@@ -252,7 +262,13 @@ private:
 	 * different picture next frame.
 	 */
 	bool PrintOf(const FLayer& Layer, float BlurSigma, TArrayView<const Folio::FColourFilter> Colour,
-		UTextureRenderTarget2D* Mask, uint64& OutPrint);
+		UTextureRenderTarget2D* Mask, TConstArrayView<Folio::FLayerPass> Passes, uint64& OutPrint);
+
+	/** The margin a layer is grown by when it is shrunk to what it drew: room for the blur and the passes. */
+	static float MarginFor(float BlurSigma, TConstArrayView<Folio::FLayerPass> Passes);
+
+	/** Runs the passes over a finished layer, and notes whether one animates. */
+	void RunPasses(UTextureRenderTarget2D* Target, TConstArrayView<Folio::FLayerPass> Passes, float PixelScale);
 
 	/** What one draw of a traced layer was, broken down so a miss can say which part changed. */
 	struct FTracedDraw
@@ -332,7 +348,26 @@ private:
 	void ResolveAndRecycle(FLayer& Layer);
 
 	TArray<FLayer> Stack;
-	TMultiMap<FIntPoint, TStrongObjectPtr<UTextureRenderTarget2D>> Pool;
+
+	/** A free target, and when it went back, so the pool can drop the longest idle first. */
+	struct FPooled
+	{
+		TStrongObjectPtr<UTextureRenderTarget2D> Target;
+		uint64 ReleasedFrame = 0;
+	};
+
+	TArray<FPooled> Pool;
+
+	/** What the pool's targets hold, in bytes. */
+	int64 PoolBytes = 0;
+
+	/** Drops idle targets, longest idle first, until the pool fits folio.Layers.PoolBudgetMB. */
+	void TrimPool();
+
+	/** What a target of this size costs in the format layers are allocated in now. */
+	static int64 BytesOf(const UTextureRenderTarget2D* Target);
+
+	bool bAnimatedPassDrawn = false;
 
 	int32 Scale = 1;
 };

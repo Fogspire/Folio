@@ -1,6 +1,7 @@
 #include "FolioMaskShader.h"
 
 #include "FolioInsights.h"
+#include "FolioLayerPasses.h"
 
 #include "Engine/TextureRenderTarget2D.h"
 #include "GlobalRenderResources.h"
@@ -53,8 +54,7 @@ namespace Folio
 
 					// A pass cannot read and write the same texture, so the masked result lands in a
 					// scratch and is copied back - the same shape the colour filters use.
-					const FRDGTextureDesc ScratchDesc = FRDGTextureDesc::Create2D(Size, PF_B8G8R8A8,
-						FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
+					const FRDGTextureDesc ScratchDesc = Folio::ScratchDescFor(Colour);
 					FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioMaskScratch"));
 
 					FFolioMaskPS::FParameters* Pass = GraphBuilder.AllocParameters<FFolioMaskPS::FParameters>();

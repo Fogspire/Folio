@@ -156,6 +156,18 @@ public:
 	/** Highest Slate layer used this frame, so the caller can continue above the document. */
 	int32 GetMaxLayerId() const { return MaxLayerId; }
 
+	/**
+	 * Whether a shader filter that animates drew since the last call.
+	 *
+	 * The document's own state has not changed, so nothing else would schedule another frame for it.
+	 */
+	bool TakeAnimatedFilterDrawn()
+	{
+		const bool bDrawn = bAnimatedBackdropDrawn || Layers.TakeAnimatedPassDrawn();
+		bAnimatedBackdropDrawn = false;
+		return bDrawn;
+	}
+
 	/** Layers drawn and reused from the cache since the last call. */
 	FFolioLayerStack::FCacheStats TakeLayerCacheStats() { return Layers.TakeCacheStats(); }
 
@@ -345,10 +357,26 @@ private:
 	 * correctly and is then dropped, so the element and everything inside it renders as nothing.
 	 */
 	void CompositeLayerToSlate(float BlurSigma, TArrayView<const Folio::FColourFilter> Colour = {},
-		class UTextureRenderTarget2D* Mask = nullptr);
+		class UTextureRenderTarget2D* Mask = nullptr, TConstArrayView<Folio::FLayerPass> Passes = {});
 
 	/** backdrop-filter: blur, through Slate's post-process element, which reads the backbuffer. */
 	void BlurBackdrop(float Sigma, bool bOutside);
+
+	/** backdrop-filter: shader(...), through a custom Slate element that reads and rewrites the backbuffer. */
+	void FilterBackdrop(TArray<Folio::FLayerPass> Passes);
+
+	/** Carried between the two composites backdrop-filter issues, so the clipped one does the work. */
+	TArray<Folio::FLayerPass> PendingBackdropPasses;
+
+	bool bAnimatedBackdropDrawn = false;
+
+	/** Backdrop passes Slate has been handed. It holds them weakly, so they live here until drawn. */
+	struct FHeldBackdrop
+	{
+		uint64 Frame = 0;
+		TSharedPtr<class ICustomSlateElement, ESPMode::ThreadSafe> Element;
+	};
+	TArray<FHeldBackdrop> HeldBackdrops;
 
 	/** Carried between the two composites backdrop-filter issues, so the clipped one does the work. */
 	float PendingBackdropSigma = 0.0f;
@@ -504,6 +532,9 @@ private:
 		bool bOutside = false;
 		/** Set for the eight per-texel filters, which run on the resolved layer before the blur. */
 		TOptional<Folio::FColourFilter> Colour;
+
+		/** Set for glow, drop-shadow and a game's shader filter, which run as passes of their own after the blur. */
+		TOptional<Folio::FLayerPass> Pass;
 
 		/**
 		 * The layer a mask-image was drawn into, held until the filter is released.

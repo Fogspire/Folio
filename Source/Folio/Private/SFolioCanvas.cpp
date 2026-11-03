@@ -366,6 +366,11 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	// Before the context update, so a value read this frame lays out this frame.
 	Host.TickDataModels();
 
+	if (bFilterAnimating)
+	{
+		Host.MarkDirty(TEXT("animated shader filter"));
+	}
+
 	// A held stick becomes repeated presses here, where there is a clock. Suppressed while a text field
 	// has focus, for the same reason letters are not directions there.
 	if (!IsTakingText())
@@ -656,7 +661,9 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 		{
 			if (!bReuse)
 			{
+				Renderer->TakeAnimatedFilterDrawn();
 				Context->Render();
+				bFilterAnimating = Renderer->TakeAnimatedFilterDrawn();
 
 				NativeTextRuns = Renderer->NumDeferredFields();
 				Renderer->EndSurface();
@@ -739,7 +746,9 @@ int32 SFolioCanvas::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 	bSurfaceValid = false;
 
 	Renderer->BeginFrame(OutDrawElements, Paint, LayerId, ContextSize);
+	Renderer->TakeAnimatedFilterDrawn();
 	Context->Render();
+	bFilterAnimating = Renderer->TakeAnimatedFilterDrawn();
 	Renderer->EndFrame();
 
 	PaintAccessibility(Args, AllottedGeometry, CullingRect, OutDrawElements, LayerId, InWidgetStyle,

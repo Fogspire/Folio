@@ -450,6 +450,9 @@ private:
 	/** Set by the tick that updated the document, and cleared by the paint that re-rendered it. */
 	mutable bool bSurfaceDirty = true;
 
+	/** Set by a paint that drew an animated shader filter, so the next tick updates the document again. */
+	mutable bool bFilterAnimating = false;
+
 	/**
 	 * The glyph runs the last surface held back.
 	 *

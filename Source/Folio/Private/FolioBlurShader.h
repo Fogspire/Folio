@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GlobalShader.h"
+#include "RenderGraphFwd.h"
 #include "ShaderParameterStruct.h"
 
 class FRHICommandListImmediate;
@@ -48,4 +49,13 @@ namespace Folio
 	 * stepping keeps the kernel covering the same distance in the document either way.
 	 */
 	void BlurRenderTarget(class UTextureRenderTarget2D* Target, float Sigma, float Step = 1.0f);
+
+	/**
+	 * The same blur recorded into a graph the caller is building, in place on Texture.
+	 *
+	 * Extent is how many sigmas the kernel reaches. Two is invisible under a shadow; a glow, blended in linear
+	 * light and multiplied by its strength, shows the edge anything short of four leaves.
+	 */
+	void AddBlurPasses(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, float Sigma, float Step = 1.0f,
+		float Extent = 2.0f);
 }

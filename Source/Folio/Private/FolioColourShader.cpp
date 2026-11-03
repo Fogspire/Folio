@@ -1,6 +1,7 @@
 #include "FolioColourShader.h"
 
 #include "FolioInsights.h"
+#include "FolioLayerPasses.h"
 
 #include "Engine/TextureRenderTarget2D.h"
 #include "GlobalRenderResources.h"
@@ -66,8 +67,7 @@ namespace Folio
 					FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder,
 						Resource->GetRenderTargetTexture(), TEXT("FolioLayer"));
 
-					const FRDGTextureDesc ScratchDesc = FRDGTextureDesc::Create2D(Size, PF_B8G8R8A8,
-						FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
+					const FRDGTextureDesc ScratchDesc = Folio::ScratchDescFor(TargetTexture);
 					FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioColourScratch"));
 
 					// Ping-ponged, because a pass cannot read and write the same texture. An odd number of

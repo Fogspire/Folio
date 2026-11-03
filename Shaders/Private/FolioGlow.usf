@@ -1,0 +1,40 @@
+// glow and drop-shadow, around the blur that sits between the two modes.
+//
+// Mode 0 takes the layer's coverage, offset, and tints it: the halo before it is blurred.
+// Mode 1 puts the blurred halo behind the original layer, with its coverage multiplied by strength.
+//
+// Premultiplied throughout, like every other layer pass.
+
+#include "/Engine/Public/Platform.ush"
+
+Texture2D SourceTexture;
+Texture2D HaloTexture;
+SamplerState SourceSampler;
+
+float4 GlowColour;
+
+// xy: offset in UV. z: strength. w: mode.
+float4 GlowParameters;
+
+float2 InvSize;
+
+float4 MainPS(float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	const float2 UV = SvPosition.xy * InvSize;
+
+	if (GlowParameters.w < 0.5f)
+	{
+		// Outside the layer is transparent, not the clamped edge texel smeared inwards.
+		const float2 From = UV - GlowParameters.xy;
+		const bool bInside = all(From >= 0.0f) && all(From <= 1.0f);
+		const float Coverage = bInside ? SourceTexture.SampleLevel(SourceSampler, From, 0).a : 0.0f;
+		return GlowColour * Coverage;
+	}
+
+	const float4 Halo = HaloTexture.SampleLevel(SourceSampler, UV, 0);
+	const float Alpha = saturate(Halo.a * GlowParameters.z);
+	const float4 Strengthened = Halo.a > 0.0f ? Halo * (Alpha / Halo.a) : float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+	const float4 Source = SourceTexture.SampleLevel(SourceSampler, UV, 0);
+	return Source + Strengthened * (1.0f - Source.a);
+}

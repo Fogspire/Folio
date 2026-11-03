@@ -1,0 +1,20 @@
+// The `heat` example shader filter: a horizontal ripple, like air over a fire.
+//
+// The engine twin of examples/filters/heat.frag, and the reference for writing a pass of your own.
+
+#include "/Engine/Public/Platform.ush"
+
+Texture2D SourceTexture;
+SamplerState SourceSampler;
+
+float2 InvSize;
+
+// x: amplitude in texels. y: ripples down the element. z: ripples per second. w: time in seconds.
+float4 HeatParameters;
+
+float4 MainPS(float4 SvPosition : SV_POSITION) : SV_Target0
+{
+	float2 UV = SvPosition.xy * InvSize;
+	UV.x += HeatParameters.x * InvSize.x * sin((UV.y * HeatParameters.y + HeatParameters.w * HeatParameters.z) * 6.2831853f);
+	return SourceTexture.SampleLevel(SourceSampler, UV, 0);
+}

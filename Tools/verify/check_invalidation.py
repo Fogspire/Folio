@@ -49,6 +49,9 @@ CASES = (
          min_updates=200, max_updates=10 ** 9, expect_delay="0.000s"),
     Case("caret", "folio.NavTest", "/folio/examples/crt_terminal.rml", 20,
          min_updates=10, max_updates=400, expect_delay="timer"),
+    # RmlUi asks for nothing here, so only the animated filter keeps the document drawing.
+    Case("shader filter", "folio.Filters.RegisterExamples, folio.Show", "/folio/examples/shader_filters.rml", 20,
+         min_updates=200, max_updates=10 ** 9, expect_delay="never"),
 )
 
 

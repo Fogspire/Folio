@@ -33,6 +33,7 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: layer buffers"), STAT_FolioLayerBuffers, STA
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: layer state"), STAT_FolioLayerState, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: blur"), STAT_FolioBlur, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: colour filter"), STAT_FolioColourFilter, STATGROUP_Folio, );
+DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: layer passes"), STAT_FolioLayerPasses, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: mask"), STAT_FolioMaskFilter, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: resolve supersample"), STAT_FolioSupersample, STATGROUP_Folio, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("RT: world surfaces"), STAT_FolioWorldSurfaces, STATGROUP_Folio, );

@@ -1,6 +1,7 @@
 #include "FolioBlurShader.h"
 
 #include "FolioInsights.h"
+#include "FolioLayerPasses.h"
 
 #include "Engine/TextureRenderTarget2D.h"
 #include "FolioModule.h"
@@ -19,13 +20,17 @@ namespace
 	constexpr int32 MaxTaps = 32;
 
 	void AddBlurPass(FRDGBuilder& GraphBuilder, FRDGTextureRef Source, FRDGTextureRef Destination,
-		const FVector2f Direction, const float Sigma, const FIntPoint Size, const float Step)
+		const FVector2f Direction, const float Sigma, const FIntPoint Size, float Step, const float Extent)
 	{
+		// A kernel cut off short of its extent ends in a visible edge, so past the tap cap the taps spread
+		// out rather than stopping early.
+		Step = FMath::Max(Step, Sigma * Extent / MaxTaps);
+
 		// The shader works in taps rather than in pixels, so a step is expressed by widening what one
 		// tap covers and narrowing sigma to match. The two cancel: the same curve over the same
 		// distance, sampled less finely.
 		const float TapSigma = Sigma / FMath::Max(Step, 1.0f);
-		const int32 Taps = FMath::Clamp(FMath::CeilToInt(TapSigma * 2.0f), 1, MaxTaps);
+		const int32 Taps = FMath::Clamp(FMath::CeilToInt(TapSigma * Extent), 1, MaxTaps);
 
 		FFolioBlurPS::FParameters* Parameters = GraphBuilder.AllocParameters<FFolioBlurPS::FParameters>();
 		// The RDG texture goes in as an RDG parameter. Reaching for GetRHI() here is what the
@@ -50,6 +55,25 @@ namespace
 
 namespace Folio
 {
+	void AddBlurPasses(FRDGBuilder& GraphBuilder, FRDGTextureRef Texture, const float Sigma, const float Step,
+		const float Extent)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Folio_AddBlurPasses);
+
+		if (!Texture || Sigma <= 0.0f)
+		{
+			return;
+		}
+
+		const FIntPoint Size = Texture->Desc.Extent;
+
+		// Separable: horizontal into a scratch target, vertical back into the texture.
+		FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDescFor(Texture), TEXT("FolioBlurScratch"));
+
+		AddBlurPass(GraphBuilder, Texture, Scratch, FVector2f(1.0f, 0.0f), Sigma, Size, Step, Extent);
+		AddBlurPass(GraphBuilder, Scratch, Texture, FVector2f(0.0f, 1.0f), Sigma, Size, Step, Extent);
+	}
+
 	void BlurRenderTarget(UTextureRenderTarget2D* Target, const float Sigma, const float Step)
 	{
 		if (!Target || Sigma <= 0.0f)
@@ -63,10 +87,8 @@ namespace Folio
 			return;
 		}
 
-		const FIntPoint Size(Target->SizeX, Target->SizeY);
-
 		ENQUEUE_RENDER_COMMAND(FolioBlur)(
-			[Resource, Size, Sigma, Step](FRHICommandListImmediate& RHICmdList)
+			[Resource, Sigma, Step](FRHICommandListImmediate& RHICmdList)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Blur);
 				SCOPE_CYCLE_COUNTER(STAT_FolioBlur);
@@ -78,14 +100,7 @@ namespace Folio
 
 					FRDGTextureRef TargetTexture = RegisterExternalTexture(GraphBuilder,
 						Resource->GetRenderTargetTexture(), TEXT("FolioLayer"));
-
-					// Separable: horizontal into a scratch target, vertical back into the layer.
-					const FRDGTextureDesc ScratchDesc = FRDGTextureDesc::Create2D(Size, PF_B8G8R8A8,
-						FClearValueBinding::Transparent, TexCreate_RenderTargetable | TexCreate_ShaderResource);
-					FRDGTextureRef Scratch = GraphBuilder.CreateTexture(ScratchDesc, TEXT("FolioBlurScratch"));
-
-					AddBlurPass(GraphBuilder, TargetTexture, Scratch, FVector2f(1.0f, 0.0f), Sigma, Size, Step);
-					AddBlurPass(GraphBuilder, Scratch, TargetTexture, FVector2f(0.0f, 1.0f), Sigma, Size, Step);
+					AddBlurPasses(GraphBuilder, TargetTexture, Sigma, Step);
 				}
 
 				GraphBuilder.Execute();

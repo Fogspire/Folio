@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.11.0
 * `filter: shader("name args")` and `backdrop-filter: shader(...)` run a GPU pass the game registers with `Folio::RegisterShaderFilter`; the preview and Studio run `UI/filters/<name>.frag` in its place. See [docs/shader_filters.md](docs/shader_filters.md)
 * `filter: glow(<colour> <radius> <strength>)`: a halo of any size, where a font effect stops at 0.1em
 * `filter: drop-shadow` draws in the engine

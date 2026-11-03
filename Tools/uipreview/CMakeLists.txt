@@ -11,6 +11,7 @@ add_library(uipreview_core STATIC
 	src/ElementPath.cpp
 	src/FileInterface.cpp
 	src/FileWatcher.cpp
+	src/FilterProgram.cpp
 	src/FontCache.cpp
 	src/InputScript.cpp
 	src/JsonReport.cpp

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FilterProgram.h"
 #include "MsdfProgram.h"
 
 #include "FolioCore/FolioShaderEffects.h"
@@ -8,6 +9,7 @@
 #include "RmlUi_Renderer_GL3.h"
 
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -35,6 +37,14 @@ public:
 
 	/** Recognises Folio's own filter names; everything else goes to the base. */
 	Rml::CompiledFilterHandle CompileFilter(const Rml::String& name, const Rml::Dictionary& parameters) override;
+
+	/** Whether a shader filter that reads the time drew since the last call. */
+	bool TakeAnimatedFilterDrawn()
+	{
+		const bool drawn = animated_filter_drawn;
+		animated_filter_drawn = false;
+		return drawn;
+	}
 
 	/** Folio's own named effects; anything else is the base class's gradients. */
 	Rml::CompiledShaderHandle CompileShader(const Rml::String& name, const Rml::Dictionary& parameters) override;
@@ -122,6 +132,23 @@ private:
 
 	/** Carried between the two composites backdrop-filter issues, so the second does the work. */
 	bool pending_outside = false;
+
+	/** glow and a game's shader filter, which the base cannot draw and hands back through RenderCustomFilter. */
+	struct CustomFilter {
+		bool halo = false;
+		float colour[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+		float sigma = 0.0f;
+		float strength = 1.0f;
+
+		std::string shader;
+		std::vector<Folio::FShaderFilterArg> args;
+	};
+
+	std::map<Rml::CompiledFilterHandle, std::unique_ptr<CustomFilter>> custom_filters;
+	FilterProgram filter_program;
+	bool animated_filter_drawn = false;
+
+	void RenderCustomFilter(void* user_data, unsigned int source_texture, int width, int height) override;
 
 	/** Fill patterns by path, loaded once. Textured text names a file rather than a sprite: a font
 	    effect is built while the stylesheet parses and has no way to reach a spritesheet. */

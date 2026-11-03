@@ -11,6 +11,7 @@
 
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/FileInterface.h>
+#include <RmlUi/Core/SystemInterface.h>
 
 #include <lodepng.h>
 
@@ -461,6 +462,31 @@ void PreviewRenderInterface::ReleaseAtlasHandle(Folio::FMsdfHandle handle)
 Rml::CompiledFilterHandle PreviewRenderInterface::CompileFilter(const Rml::String& name,
 	const Rml::Dictionary& parameters)
 {
+	if (name == "glow" || name == "shader")
+	{
+		auto filter = std::make_unique<CustomFilter>();
+		if (name == "glow")
+		{
+			const Rml::ColourbPremultiplied colour = Rml::Get(parameters, "color", Rml::Colourb(255, 255, 255, 255)).ToPremultiplied();
+			filter->halo = true;
+			filter->colour[0] = colour.red / 255.0f;
+			filter->colour[1] = colour.green / 255.0f;
+			filter->colour[2] = colour.blue / 255.0f;
+			filter->colour[3] = colour.alpha / 255.0f;
+			filter->sigma = Rml::Get(parameters, "sigma", 0.0f);
+			filter->strength = Rml::Get(parameters, "strength", 1.0f);
+		}
+		else
+		{
+			filter->shader = Rml::Get(parameters, "name", Rml::String());
+			Folio::DecodeShaderFilterArgs(Rml::Get(parameters, "args", Rml::String()), filter->args);
+		}
+
+		const Rml::CompiledFilterHandle handle = CompileCustomFilter(filter.get());
+		custom_filters[handle] = std::move(filter);
+		return handle;
+	}
+
 	if (name != "outside-blur")
 		return RenderInterface_GL3::CompileFilter(name, parameters);
 
@@ -478,6 +504,21 @@ void PreviewRenderInterface::ReleaseFilter(Rml::CompiledFilterHandle filter)
 {
 	outside_blurs.erase(filter);
 	RenderInterface_GL3::ReleaseFilter(filter);
+	custom_filters.erase(filter);
+}
+
+void PreviewRenderInterface::RenderCustomFilter(void* user_data, unsigned int source_texture, int width, int height)
+{
+	const CustomFilter& filter = *static_cast<const CustomFilter*>(user_data);
+	if (filter.halo)
+	{
+		filter_program.DrawHalo(source_texture, width, height, filter.colour, 0.0f, 0.0f, filter.sigma, filter.strength);
+		return;
+	}
+
+	const float time = float(Rml::GetSystemInterface()->GetElapsedTime());
+	if (filter_program.DrawShader(filter.shader, filter.args, source_texture, width, height, time, 1.0f))
+		animated_filter_drawn = true;
 }
 
 void PreviewRenderInterface::EnableScissorRegion(bool enable)

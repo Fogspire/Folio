@@ -1,0 +1,97 @@
+From: Folio
+Subject: [PATCH] GL3 backend: let a derived renderer draw its own filters
+
+    RmlUi's GL3 renderer runs a fixed set of filters, and its layer framebuffers are private, so a
+    renderer built on it cannot add one: the filter needs the layer as input and the post-process
+    target as output, and neither is reachable.
+
+    This adds a Custom filter type that carries an opaque pointer and calls a virtual with the
+    source texture while the destination framebuffer is bound, then restores the state the base
+    caches. Nothing changes for a renderer that does not use it.
+
+    Needed by uipreview and Folio Studio to draw Folio's glow filter and the preview shaders for
+    a game's shader filters. Removable if upstream grows an extension point for filters.
+---
+diff --git a/Backends/RmlUi_Renderer_GL3.h b/Backends/RmlUi_Renderer_GL3.h
+index 90ee864..f8af824 100644
+--- a/Backends/RmlUi_Renderer_GL3.h
++++ b/Backends/RmlUi_Renderer_GL3.h
+@@ -84,6 +84,15 @@ public:
+ 	const Rml::Matrix4f& GetTransform() const;
+ 	void ResetProgram();
+ 
++protected:
++	// A filter drawn by a derived class. The handle is released through ReleaseFilter like any other.
++	Rml::CompiledFilterHandle CompileCustomFilter(void* user_data);
++
++	// Draws a custom filter. Reads the premultiplied layer from source_texture and writes every pixel of the
++	// framebuffer that is bound on entry, which is the same size. Blending is off. Any program, vertex array
++	// or texture binding may be changed.
++	virtual void RenderCustomFilter(void* user_data, unsigned int source_texture, int width, int height);
++
+ private:
+ 	void UseProgram(ProgramId program_id);
+ 	int GetUniformLocation(UniformId uniform_id) const;
+diff --git a/Backends/RmlUi_Renderer_GL3.cpp b/Backends/RmlUi_Renderer_GL3.cpp
+index 93442e8..aae495c 100644
+--- a/Backends/RmlUi_Renderer_GL3.cpp
++++ b/Backends/RmlUi_Renderer_GL3.cpp
+@@ -1472,7 +1472,7 @@ void RenderInterface_GL3::SetTransform(const Rml::Matrix4f* new_transform)
+ 	program_transform_dirty.set();
+ }
+ 
+-enum class FilterType { Invalid = 0, Passthrough, Blur, DropShadow, ColorMatrix, MaskImage };
++enum class FilterType { Invalid = 0, Passthrough, Blur, DropShadow, ColorMatrix, MaskImage, Custom };
+ struct CompiledFilter {
+ 	FilterType type;
+ 
+@@ -1488,8 +1488,21 @@ struct CompiledFilter {
+ 
+ 	// ColorMatrix
+ 	Rml::Matrix4f color_matrix;
++
++	// Custom
++	void* user_data;
+ };
+ 
++Rml::CompiledFilterHandle RenderInterface_GL3::CompileCustomFilter(void* user_data)
++{
++	CompiledFilter filter = {};
++	filter.type = FilterType::Custom;
++	filter.user_data = user_data;
++	return reinterpret_cast<Rml::CompiledFilterHandle>(new CompiledFilter(std::move(filter)));
++}
++
++void RenderInterface_GL3::RenderCustomFilter(void* /*user_data*/, unsigned int /*source_texture*/, int /*width*/, int /*height*/) {}
++
+ Rml::CompiledFilterHandle RenderInterface_GL3::CompileFilter(const Rml::String& name, const Rml::Dictionary& parameters)
+ {
+ 	CompiledFilter filter = {};
+@@ -1872,6 +1885,27 @@ void RenderInterface_GL3::RenderFilters(Rml::Span<const Rml::CompiledFilterHandl
+ 			glEnable(GL_BLEND);
+ 		}
+ 		break;
++		case FilterType::Custom:
++		{
++			glDisable(GL_BLEND);
++
++			const Gfx::FramebufferData& source = render_layers.GetPostprocessPrimary();
++			const Gfx::FramebufferData& destination = render_layers.GetPostprocessSecondary();
++			glBindFramebuffer(GL_FRAMEBUFFER, destination.framebuffer);
++
++			RenderCustomFilter(filter.user_data, source.color_tex_buffer, source.width, source.height);
++
++			// The derived class may have bound anything, so the cached state no longer describes GL's.
++			glBindVertexArray(0);
++			glActiveTexture(GL_TEXTURE0);
++			glBindFramebuffer(GL_FRAMEBUFFER, destination.framebuffer);
++			active_program = ProgramId::None;
++			UseProgram(ProgramId::Passthrough);
++
++			render_layers.SwapPostprocessPrimarySecondary();
++			glEnable(GL_BLEND);
++		}
++		break;
+ 		case FilterType::Invalid:
+ 		{
+ 			Rml::Log::Message(Rml::Log::LT_WARNING, "Unhandled render filter %d.", (int)type);

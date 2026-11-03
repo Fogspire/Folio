@@ -754,7 +754,15 @@ void App::RenderFrame()
 	behaviours.UpdateScrollState();
 	Backend::BeginFrame();
 	context->Render();
+	KeepAnimatedFiltersDrawing();
 	Backend::EndFrame();
+}
+
+void App::KeepAnimatedFiltersDrawing()
+{
+	// The document has not changed, so nothing else would ask for the next frame.
+	if (render_interface && render_interface->TakeAnimatedFilterDrawn())
+		context->RequestNextUpdate(0.0);
 }
 
 void App::Advance(double time_seconds)
@@ -769,6 +777,7 @@ void App::StepLive(double time_seconds)
 	Advance(time_seconds);
 	Backend::BeginFrame();
 	context->Render();
+	KeepAnimatedFiltersDrawing();
 	Backend::EndFrame();
 }
 

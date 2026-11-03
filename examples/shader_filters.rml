@@ -1,0 +1,94 @@
+<rml>
+<head>
+	<title>Glow and shader filters</title>
+	<meta name="folio-size" content="960x540"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body
+		{
+			font-family: Inter;
+			font-size: 16dp;
+			color: #e8e8f0;
+			background-color: #121218;
+			width: 100%;
+			height: 100%;
+			padding: 48dp;
+			box-sizing: border-box;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+
+		.title
+		{
+			font-size: 72dp;
+			font-weight: bold;
+			color: #ffe2b8;
+			letter-spacing: 6dp;
+			filter: glow(#ff7a1a 28dp 2.5);
+		}
+
+		.row
+		{
+			display: flex;
+			flex-direction: row;
+			margin-top: 56dp;
+		}
+
+		.tile
+		{
+			width: 180dp;
+			height: 96dp;
+			margin: 0 24dp;
+			border-radius: 12dp;
+			background-color: #2a2a36;
+			border: 2dp #8a8aa0;
+			text-align: center;
+			line-height: 92dp;
+			font-size: 18dp;
+		}
+
+		/* An outline glows as brightly as a filled shape once the strength lifts its thin coverage. */
+		.ring { background-color: transparent; border: 2dp #9be7ff; filter: glow(#38c8ff 18dp 4); }
+
+		.shadow { filter: drop-shadow(#000000c0 0 10dp 12dp); }
+
+		/* A game's pass. The engine runs what the game registered as "heat"; previews run examples/filters/heat.frag. */
+		.heat { background-color: #3a2418; border: 2dp #ff9a4a; filter: shader("heat 8dp 2 1.5"); }
+
+		.stripes
+		{
+			position: relative;
+			margin-top: 56dp;
+			width: 640dp;
+			height: 160dp;
+			decorator: repeating-linear-gradient(90deg, #2b6cb0, #2b6cb0 16dp, #f0c674 16dp, #f0c674 32dp);
+		}
+
+		/* The same pass over what is behind the panel rather than over the panel itself. */
+		.lens
+		{
+			position: absolute;
+			left: 160dp;
+			top: 32dp;
+			width: 320dp;
+			height: 96dp;
+			border: 2dp #ffffff80;
+			backdrop-filter: shader("heat 12dp 2 0.5");
+			text-align: center;
+			line-height: 92dp;
+		}
+	</style>
+</head>
+<body>
+	<div class="title" data-noloc>FOLIO</div>
+	<div class="row">
+		<div class="tile ring" data-noloc>glow</div>
+		<div class="tile shadow" data-noloc>drop-shadow</div>
+		<div class="tile heat" data-noloc>shader</div>
+	</div>
+	<div class="stripes">
+		<div class="lens" data-noloc>backdrop-filter</div>
+	</div>
+</body>
+</rml>

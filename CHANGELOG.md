@@ -9,6 +9,7 @@
 * `folio.Layers.HalfFloat`: layers carrying a glow, drop shadow or shader filter are 16-bit float, so dark soft gradients stop banding
 * `folio.Layers.PoolBudgetMB`: idle layer targets past the budget are freed, longest idle first
 * Blur scratch targets keep the layer's format, and a blur wider than the tap cap spreads its taps instead of ending in an edge
+* `IFolioShaderFilter` is exported, so a filter written in a game module links
 
 ## 1.10.0
 * `<meta name="folio-interactive" content="false"/>` in a document's head turns its input off whatever the host sets, so a HUD's markup keeps it from taking focus; see [docs/hosting.md](docs/hosting.md#a-hud-is-not-a-screen)

@@ -6,6 +6,8 @@ A halo of any size around text, icons or panels, a drop shadow, and your own GPU
 
 `examples/shader_filters.rml` is this screen.
 
+On a document in the world, these need the **Surface** [draw mode](world_document_settings.md#draw-modes); After Tonemap and In Scene draw the element unfiltered.
+
 ## Glow and drop shadow
 
 ```css
@@ -81,6 +83,8 @@ void main()
 **The element draws unfiltered in the engine, and the log says `shader filter 'heat' is not registered`.** The document compiled the filter before `RegisterShaderFilter` ran. Register in `StartupModule`, or reload the document after registering.
 
 **The preview draws it unfiltered and logs `has no preview program`.** Add `UI/filters/<name>.frag`.
+
+**A world document draws the element unfiltered, and the log says it `used a layer effect`.** After Tonemap and In Scene have no offscreen target to filter in. Set the document's **Draw Mode** to **Surface**, or move the element to a document drawn to the screen.
 
 **The effect is cut off in a straight line.** The layer is grown by the pass's reach, which is three times its largest length argument. Override `GetReach` to return how far, in document pixels, the pass draws past the element.
 

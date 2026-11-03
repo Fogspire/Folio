@@ -62,7 +62,7 @@ struct FFolioShaderFilterInputs
  *
  * Passes run on the render thread, inside Folio's own graph: add passes to the builder and return.
  */
-class IFolioShaderFilter
+class FOLIO_API IFolioShaderFilter
 {
 public:
 	virtual ~IFolioShaderFilter() = default;

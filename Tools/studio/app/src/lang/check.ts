@@ -31,15 +31,16 @@ function checkValue(name: string, value: string, at: number, out: Finding[]) {
 		flag(CSS_EASINGS, 'CSS easings do not exist. Use RmlUi\'s, such as `cubic-out` or `quadratic-in-out`.');
 	}
 	flag(/rgba\(\s*[^,)]+,\s*[^,)]+,\s*[^,)]+,\s*(?:0?\.\d+|1\.0*)\s*\)/, '`rgba()` alpha is 0-255, so this is nearly transparent. Write `#rrggbbaa`.');
-	flag(/\b(?:var|calc|clamp|min|max)\(/, 'RCSS has no CSS functions: write the value itself.');
+	flag(/\b(?:clamp|min|max)\(/, 'RCSS has `calc()` and `var()`, not this: write it with `calc()` or as the value itself.');
 	if (name === 'line-height') flag(/^\s*normal\s*$/, '`line-height` has no `normal`: give a number.');
 	if (name === 'font-family') flag(/,/, 'One family only: there is no fallback stack.');
 	if (name === 'z-index') flag(/^\s*none\s*$/, '`z-index` takes `auto` or a number.');
 	if (name === 'text-align') flag(/\bjustify\b/, '`justify` parses and does nothing: justification is not implemented.', 'info');
 	if (name === 'position') flag(/\bsticky\b/, 'There is no `sticky`: use `fixed` or `absolute`.');
-	if (name === 'display') flag(/\b(?:grid|inline-grid|contents)\b/, 'Not a display RCSS has: use flexbox.');
+	if (name === 'display') flag(/\b(?:inline-grid|contents)\b/, 'Not a display RCSS has: use `grid` or flexbox.');
 	if (name === 'filter') flag(/\boutside-blur\(/, '`outside-blur` is a `backdrop-filter`.');
-	if (/^(?:align|justify)-/.test(name)) flag(/(?<![-\w])(?:start|end|normal)(?![-\w])/, 'Use `flex-start`, `flex-end` or `stretch`.');
+	if (/^(?:align|justify)-(?:items|self)$/.test(name)) flag(/(?<![-\w])normal(?![-\w])/, 'There is no `normal`: use `stretch`.');
+	else if (/^(?:align|justify)-/.test(name)) flag(/(?<![-\w])(?:start|end|normal)(?![-\w])/, 'Use `flex-start`, `flex-end` or `stretch`.');
 
 	if (isEffectProperty(name)) {
 		const known = new Set(functionsFor(name === 'filter' ? 'backdrop-filter' : name));
@@ -78,10 +79,8 @@ function checkBody(text: string, bodyStart: number, bodyEnd: number, out: Findin
 			out.push({ from: declaration.start, to: nameEnd, severity: 'warning', message: `'${name}' does not exist in RCSS and does nothing. ${BANNED[name]}` });
 			continue;
 		}
-		if (name.startsWith('--')) {
-			if (!isProperty(name)) out.push({ from: declaration.start, to: nameEnd, severity: 'warning', message: 'There are no custom properties: use classes in a token stylesheet.' });
-			continue;
-		}
+		// A custom property, read through var(). Its value means nothing until then.
+		if (name.startsWith('--')) continue;
 		if (!isProperty(name)) {
 			out.push({ from: declaration.start, to: nameEnd, severity: 'warning', message: `Unknown property '${name}'. It is ignored.` });
 			continue;

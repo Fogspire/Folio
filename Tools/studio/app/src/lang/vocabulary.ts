@@ -29,13 +29,14 @@ export const vocabulary = data as Vocabulary;
 
 /** CSS that parses as nothing in RCSS, with what to write instead. */
 export const BANNED: Record<string, string> = {
-	'grid': 'Use flexbox.',
-	'grid-template-columns': 'Use flexbox.',
-	'grid-template-rows': 'Use flexbox.',
-	'grid-template-areas': 'Use flexbox.',
-	'grid-area': 'Use flexbox.',
-	'grid-column': 'Use flexbox.',
-	'grid-row': 'Use flexbox.',
+	'grid': 'Use `grid-template-columns` and `grid-template-rows`.',
+	'grid-template': 'Use `grid-template-columns` and `grid-template-rows`.',
+	'grid-template-areas': 'There are no named areas: place items with `grid-column` and `grid-row`.',
+	'grid-area': 'Use `grid-column` and `grid-row`.',
+	'grid-column-start': 'Use `grid-column: <start> / <end>`.',
+	'grid-column-end': 'Use `grid-column: <start> / <end>`.',
+	'grid-row-start': 'Use `grid-row: <start> / <end>`.',
+	'grid-row-end': 'Use `grid-row: <start> / <end>`.',
 	'grid-gap': 'Use `gap`.',
 	'background-image': 'Use `decorator: image(...)`.',
 	'background-size': 'Use the image decorator\'s fit modes.',

@@ -40,7 +40,9 @@
 				"flex-end",
 				"center",
 				"baseline",
-				"stretch"
+				"stretch",
+				"start",
+				"end"
 			],
 			"parsers": []
 		},
@@ -53,7 +55,9 @@
 				"flex-end",
 				"center",
 				"baseline",
-				"stretch"
+				"stretch",
+				"start",
+				"end"
 			],
 			"parsers": []
 		},
@@ -318,7 +322,8 @@
 				"table-row-group",
 				"table-column",
 				"table-column-group",
-				"table-cell"
+				"table-cell",
+				"grid"
 			],
 			"parsers": []
 		},
@@ -582,6 +587,63 @@
 				"length"
 			]
 		},
+		"grid-auto-columns": {
+			"default": "auto",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"string"
+			]
+		},
+		"grid-auto-flow": {
+			"default": "row",
+			"inherited": false,
+			"keywords": [
+				"row",
+				"column"
+			],
+			"parsers": []
+		},
+		"grid-auto-rows": {
+			"default": "auto",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"string"
+			]
+		},
+		"grid-column": {
+			"default": "auto",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"string"
+			]
+		},
+		"grid-row": {
+			"default": "auto",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"string"
+			]
+		},
+		"grid-template-columns": {
+			"default": "none",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"string"
+			]
+		},
+		"grid-template-rows": {
+			"default": "none",
+			"inherited": false,
+			"keywords": [],
+			"parsers": [
+				"string"
+			]
+		},
 		"height": {
 			"default": "auto",
 			"inherited": false,
@@ -610,6 +672,29 @@
 				"space-between",
 				"space-around",
 				"space-evenly"
+			],
+			"parsers": []
+		},
+		"justify-items": {
+			"default": "stretch",
+			"inherited": false,
+			"keywords": [
+				"stretch",
+				"start",
+				"end",
+				"center"
+			],
+			"parsers": []
+		},
+		"justify-self": {
+			"default": "auto",
+			"inherited": false,
+			"keywords": [
+				"auto",
+				"stretch",
+				"start",
+				"end",
+				"center"
 			],
 			"parsers": []
 		},
@@ -1361,13 +1446,15 @@
 		"brightness",
 		"contrast",
 		"drop-shadow",
+		"glow",
 		"grayscale",
 		"hue-rotate",
 		"invert",
 		"opacity",
 		"outside-blur",
 		"saturate",
-		"sepia"
+		"sepia",
+		"shader"
 	],
 	"fontEffects": [
 		"blur",

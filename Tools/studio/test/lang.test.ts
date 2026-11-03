@@ -143,7 +143,8 @@ describe('checks', () => {
 	const messages = (text: string) => checkRcss(text).map((finding) => text.slice(finding.from, finding.to));
 
 	it('flags what RCSS silently ignores', () => {
-		expect(messages('.a { text-shadow: none; colr: red; display: grid; }')).toEqual(['text-shadow', 'colr', 'grid']);
+		expect(messages('.a { text-shadow: none; colr: red; display: inline-grid; }')).toEqual(['text-shadow', 'colr', 'inline-grid']);
+		expect(messages('.a { width: clamp(1dp, 2dp, 3dp); }')).toEqual(['clamp(']);
 		expect(messages('.a { transition: opacity 120ms ease-out; }')).toEqual(['120ms', 'ease-out']);
 		expect(messages('.a { color: rgba(0, 0, 0, 0.5); }')).toEqual(['rgba(0, 0, 0, 0.5)']);
 		expect(messages('.a { decorator: imag(x.png); }')).toEqual(['imag']);
@@ -153,6 +154,9 @@ describe('checks', () => {
 
 	it('passes what is right', () => {
 		expect(checkRcss('.a { display: flex; align-items: flex-start; transition: opacity 0.12s cubic-out; decorator: dashed-border(#fff 1dp); border-radius: 50%; }')).toEqual([]);
+		expect(checkRcss('.a { --accent: #ff8800; color: var(--accent, #fff); width: calc(100% - 12dp); }')).toEqual([]);
+		expect(checkRcss('.a { display: grid; grid-template-columns: repeat(3, 1fr); grid-column: 1 / span 2; justify-items: center; align-items: start; }')).toEqual([]);
+		expect(checkRcss('.a { filter: glow(#ff8800 12dp 2) shader("heat 4dp"); }')).toEqual([]);
 	});
 
 	it('checks a document\'s style blocks, style attributes and <text>', () => {

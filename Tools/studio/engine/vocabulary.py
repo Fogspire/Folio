@@ -97,12 +97,13 @@ def main() -> int:
     # Folio registers several names through one loop or helper, so those are read from the literals it passes.
     folio_decorators = [name for block in re.findall(r"for \(const char\* Name : \{([^}]*)\}", decorators) for name in re.findall(STRING, block)]
     folio_effects = re.findall(r"\bAdd\(\s*" + STRING, effects)
+    folio_filters = re.findall(r"\bAdd\(\s*" + STRING, filters)
 
     vocabulary = {
         "properties": dict(sorted(properties.items())),
         "shorthands": dict(sorted(shorthands.items())),
         "decorators": sorted(set(instanced(factory, "Decorator") + folio_decorators)),
-        "filters": sorted(set(instanced(factory, "Filter") + instanced(filters, "Filter"))),
+        "filters": sorted(set(instanced(factory, "Filter") + instanced(filters, "Filter") + folio_filters)),
         "fontEffects": sorted(set(instanced(factory, "FontEffect") + folio_effects)),
         # Shared by transition and animation, which parse through their own keyword table.
         "animationKeywords": re.findall(r"\{\s*" + STRING + r"\s*,\s*\{(?:KeywordType|Tween)", animation),

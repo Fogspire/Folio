@@ -6,7 +6,7 @@ Read **Start here** in order if you are new. Everything after it stands alone.
 
 ## The one thing to know first
 
-RmlUi is **not a browser** and RCSS is **not CSS**. Valid-looking CSS parses and then does nothing: `display: grid`, `var()`, `background-image`, `text-shadow`, `calc()`, `120ms`, `rgba(0,0,0,0.5)`. None of those warn.
+RmlUi is **not a browser** and RCSS is **not CSS**. Valid-looking CSS parses and then does nothing: `background-image`, `text-shadow`, `clamp()`, `120ms`, `rgba(0,0,0,0.5)`. None of those warn.
 
 Two habits cover it:
 
@@ -40,6 +40,7 @@ Two habits cover it:
 | **[Flipbooks](flipbook.md)** | `<flipbook>`: an image that plays its frames, on its own or paused, seeked and driven from game data. |
 | **[Animation](animation.md)** | Transitions, keyframes, and what is cheap to animate. |
 | **[The shader decorator](shader_decorator.md)** | Additive blending, scanlines and sweeps: the effects RCSS has no syntax for. |
+| **[Glow and shader filters](shader_filters.md)** | A halo of any size, drop shadows, and your own GPU pass over an element or what is behind it. |
 | **[Drifting motes](motes.md)** | Atmosphere behind a menu, in six quads and no particle system. |
 | **[Scrolling and scrollbars](scrolling.md)** | One serious trap, and why an incidental `overflow` confines focus. |
 

@@ -61,6 +61,9 @@ See **[documents in the world](world_documents.md)**.
 | `folio.Invalidation.Trace` | Why a document is not idling. A screen that never settles is usually one element still transitioning something invisible. |
 | `folio.Layers.Cache` | Whether a layer whose content has not changed reuses its picture from an earlier frame. On by default; turn it off to tell whether a stale effect is the cache. |
 | `folio.Layers.CacheStats` | Logs how many layers were drawn and how many reused since the last call. |
+| `folio.Layers.HalfFloat [0\|1\|2]` | Which layers are 16-bit float rather than 8-bit: none, all, or (the default) those carrying a glow, drop shadow or shader filter. 8 bits band in a soft, dark gradient; float costs twice the memory. |
+| `folio.Layers.PoolBudgetMB <n>` | Most memory idle layer targets keep for reuse, default 128. The longest idle are freed past it. `0` frees each as soon as it is idle, `-1` keeps them all. |
+| `folio.Filters.RegisterExamples` | Registers the example shader filter `heat`, so `examples/shader_filters.rml` draws in the engine. |
 | `folio.Layers.CacheTrace [frames]` | Logs every layer drawn rather than reused over the next frames, with what changed since the frame before: place, filters, mask, or which draw and which part (texture, positions, uvs, colours). A layer whose draw gets a new texture every frame is usually a gradient whose stops are bound to a value that keeps moving. |
 | `folio.Input.Trace` | Every input event as it reaches a document, and what consumed it. |
 | `folio.Input.ForceNonInteractive [0\|1]` | Turns input off on every screen document. If input is still lost after alt-tab with this on, something other than Folio took focus. |

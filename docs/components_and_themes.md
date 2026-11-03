@@ -1,7 +1,7 @@
 # Components, themes and recipes
 
 One linked file gives a document a navigable component library and a default theme, and the recipes are complete screens to copy.
-![Buttons, toggles, sliders and a tab bar from the library in the default theme](https://github.com/user-attachments/assets/ef980ac9-1261-4860-a97f-0353f136c038)
+![A main menu titled FOLIO with library buttons over drifting motes](images/components.gif)
 
 They live in three places:
 
@@ -11,7 +11,7 @@ They live in three places:
 | `/folio/themes/default.rcss` | **The tokens, and a skin for every library class.** Every colour lives here. |
 | your game's stylesheet | Anything it disagrees with, and anything naming the game. |
 
-Load them in that order. A game's rules land last and win by being later. RCSS has **no `var()`**, so that order is the whole theming mechanism: a colour inside a component rule could only be overridden by restating the rule in full.
+Load them in that order. A game's rules land last and win by being later, which is how the shipped theme is overridden: a colour inside a component rule could only be overridden by restating the rule in full.
 
 ## Getting the library
 
@@ -85,6 +85,20 @@ Your stylesheet loads last, so a plain restatement wins:
 ```
 
 **Keep the token classes and retune them** rather than inventing your own. Every component and recipe is written against `.c-accent` and `.s-pad-m`, so retuning those recolours the whole library.
+
+### Custom properties in your own stylesheets
+
+`--name: value` and `var(--name, fallback)` work as in CSS: declared on any rule, inherited by everything inside, and resolved per element, so a class on a container retints all of it.
+
+```css
+body           { --accent: #4fa3ff; --gap: 8dp; }
+.faction-red   { --accent: #ff5a4a; }
+.title         { color: var(--accent); }
+.row           { margin-bottom: var(--gap); width: calc(100% - 2 * var(--gap)); }
+.badge         { border: 2dp var(--edge, #ffffff40); }
+```
+
+The shipped library and theme do not use them: retune the token classes. A `var()` with no value and no fallback leaves the property at its inherited or initial value. Transitions do not animate a value that comes from `var()`.
 
 **Re-run `--a11y` after retuning colours.** The shipped theme passes contrast on every surface it puts text on; your palette has not been checked. `./scripts/check_a11y.sh UI/` does the sweep.
 

@@ -24,7 +24,11 @@ Every known limit, each with what to do instead. What *does* work is in **[UI_CO
 
 **Line breaks move with the dp ratio.** Advances are unhinted and rounded per size, so words move between ratios. Never size a container to fit its text exactly at one ratio; check two with `--dp-ratio`.
 
-**Font effects reach about 0.104em.** An `outline`, `glow`, `shadow` or `blur` past that clamps, with a warning naming the limit. Re-bake with a higher `pxrange` for more, at a quadratic cost in atlas area.
+**Font effects reach about 0.104em.** An `outline`, `glow`, `shadow` or `blur` past that clamps, with a warning naming the limit. For more, use `filter: glow(...)` or `filter: drop-shadow(...)` on the element, or re-bake with a higher `pxrange` at a quadratic cost in atlas area.
+
+**Shader filters preview as GLSL you write.** A `filter: shader(...)` pass is the game's engine code; `uipreview` and Studio run `UI/filters/<name>.frag` instead, or draw the element unfiltered without one. See [shader filters](shader_filters.md).
+
+**Grid is a subset.** No named lines or areas, `dense`, `subgrid` or `inline-grid`, and `fr` tracks ignore their content's size. See [layout](layout.md).
 
 **A revealing `<text>` rebuilds its geometry every frame while it types.** It returns to cached geometry when the last character lands, and nothing enforces a limit. Fine for a dialogue box; avoid a screen full of them typing at once.
 

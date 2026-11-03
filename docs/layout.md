@@ -1,6 +1,6 @@
 # Layout and panels
 
-Flexbox, and almost nothing else. RCSS has no grid, no `calc()`, no `aspect-ratio` and no custom properties.
+Flexbox, grid, `calc()` and tables. No `aspect-ratio`.
 
 ## Copy a screen before you lay one out
 
@@ -27,7 +27,9 @@ The document `body` is laid out shrink-to-fit against the context regardless of 
 
 ## Units
 
-`px` `dp` `%` `em` `rem` `vw` `vh` `in` `cm` `mm` `pt` `pc`, `deg` and `rad`, `x` for resolution, and unitless numbers. No `ch`, `ex`, `fr`, `vmin` or `vmax`.
+`px` `dp` `%` `em` `rem` `vw` `vh` `in` `cm` `mm` `pt` `pc`, `deg` and `rad`, `x` for resolution, and unitless numbers. `fr` in grid tracks only. No `ch`, `ex`, `vmin` or `vmax`.
+
+`calc()` adds lengths and one percentage, multiplies and divides by numbers, and nests: `width: calc(100% - 2 * 12dp)`, `margin-left: calc((100% - 40dp) / 2)`. It works anywhere a length or percentage does. No `clamp()`, `min()` or `max()`.
 
 **Use `dp` for anything that should scale with the player's UI scale setting.** Reserve `px` for hairlines and for values that must not scale.
 
@@ -37,7 +39,7 @@ A bare number where a length is expected is a **parse warning, not an implied `p
 
 Fully supported. `flex` `flex-basis` `flex-direction` `flex-flow` `flex-grow` `flex-shrink` `flex-wrap`, `align-content` `align-items` `align-self`, `justify-content`, `gap` `row-gap` `column-gap`.
 
-Two value-level differences from CSS: use `flex-start` / `flex-end` / `stretch`, not `start` / `end` / `normal`. And percentage `row-gap` **and** `column-gap` both resolve against the containing block's *height* (an RmlUi quirk, not a typo).
+Two value-level differences from CSS: `justify-content` and `align-content` take `flex-start` / `flex-end`, not `start` / `end`, and nothing takes `normal`. And percentage `row-gap` **and** `column-gap` both resolve against the containing block's *height* (an RmlUi quirk, not a typo).
 
 ### The one that catches everyone
 
@@ -54,6 +56,32 @@ A basis of `0` makes the item's hypothetical main size zero, and in a container 
 ```
 
 `flex: 1 1 0` is correct on the **horizontal** axis, where one cell absorbs the leftover width of a row. Rule of thumb: `auto` for vertical fills, `0` for horizontal shares.
+
+## Grid
+
+```css
+.inventory { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8dp; }
+.sidebar   { grid-column: -2 / -1; grid-row: 1 / span 3; }
+.wide      { grid-column: span 2; }
+```
+
+![An inventory grid with a slot spanning two columns and two rows, laid out by display: grid](images/grid_theme.png)
+
+`examples/grid_theme.rml` is this screen.
+
+Items without a `grid-column` or `grid-row` fill the next free cells, row by row (`grid-auto-flow: column` fills down instead). Rows past the template take `grid-auto-rows`.
+
+| Property | Takes |
+|---|---|
+| `grid-template-columns`, `grid-template-rows` | lengths, percentages, `calc()`, `fr`, `auto`, `minmax(a, b)`, `repeat(n, tracks)` |
+| `grid-auto-columns`, `grid-auto-rows` | track sizes for tracks past the template, cycled |
+| `grid-auto-flow` | `row`, `column` |
+| `grid-column`, `grid-row` | `<line>`, `span <n>`, `<start> / <end>`; negative lines count from the end |
+| `justify-items`, `justify-self` | `stretch`, `start`, `end`, `center` |
+| `align-items`, `align-self` | `stretch`, `start`, `end`, `center` (and the flex names) |
+| `gap`, `row-gap`, `column-gap` | as in flexbox |
+
+Differences from CSS: `fr` tracks ignore their content's width, as CSS's `minmax(0, 1fr)` does, so `1fr 1fr` is always two equal halves. No named lines, `grid-template-areas`, `grid-area`, the `-start`/`-end` longhands, `dense`, `subgrid` or `inline-grid`.
 
 ## Round shapes
 
@@ -117,12 +145,11 @@ The full list is in **[UI_CONVENTIONS.md](../UI_CONVENTIONS.md)** §2. The layou
 
 | Instead of | Use |
 |---|---|
-| `display: grid`, every `grid-*` | flexbox, or `display: table` for real tables |
-| `calc()`, `clamp()`, `min()`, `max()` | precomputed values, or flexbox for proportional sizing |
+| `grid-template-areas`, `grid-area`, `inline-grid` | `grid-column` and `grid-row` |
+| `clamp()`, `min()`, `max()` | `calc()`, or flexbox for proportional sizing |
 | `aspect-ratio` | an image's intrinsic size, or fixed dimensions |
 | `position: sticky` | `fixed` or `absolute` |
 | `::before` / `::after` / `content` | a real element |
-| `var()` and `--custom-properties` | concrete classes in a token stylesheet; see **[themes](components_and_themes.md)** |
 
 None of these warn; they parse and do nothing.
 

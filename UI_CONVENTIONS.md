@@ -14,9 +14,13 @@ A game layered on Folio has its own conventions document for house style. That o
 
 This is the complete set. **A property not on this list does not exist.**
 
-**Layout & box model** `display` (inline, block, inline-block, flow-root, flex, inline-flex, table, inline-table, table-row-group, table-row, table-column-group, table-column, table-cell, none) · `position` (static, relative, absolute, fixed) · `top` `right` `bottom` `left` `inset` · `float` `clear` · `width` `height` `min-width` `max-width` `min-height` `max-height` · `margin` (+ per-edge) · `padding` (+ per-edge) · `box-sizing` · `overflow` `overflow-x` `overflow-y` · `overscroll-behavior` · `clip` · `z-index` · `vertical-align`
+**Layout & box model** `display` (inline, block, inline-block, flow-root, flex, inline-flex, grid, table, inline-table, table-row-group, table-row, table-column-group, table-column, table-cell, none) · `position` (static, relative, absolute, fixed) · `top` `right` `bottom` `left` `inset` · `float` `clear` · `width` `height` `min-width` `max-width` `min-height` `max-height` · `margin` (+ per-edge) · `padding` (+ per-edge) · `box-sizing` · `overflow` `overflow-x` `overflow-y` · `overscroll-behavior` · `clip` · `z-index` · `vertical-align`
 
 **Flexbox**: fully supported, and the primary layout tool `flex` `flex-basis` `flex-direction` `flex-flow` `flex-grow` `flex-shrink` `flex-wrap` · `align-content` `align-items` `align-self` · `justify-content` · `gap` `row-gap` `column-gap`
+
+**Grid** `grid-template-columns` `grid-template-rows` `grid-auto-columns` `grid-auto-rows` `grid-auto-flow` · `grid-column` `grid-row` · `justify-items` `justify-self`, and the flexbox `gap` and `align-items`/`align-self`. See [docs/layout.md](docs/layout.md) for the subset
+
+**Values** `calc()` anywhere a length or percentage goes · `--custom-properties` and `var(--name, fallback)`, inherited and resolved per element
 
 **Colour & surface** `color` · `background-color` · `background` (colour only) · `opacity` · `border-width` (+ per-edge) · `border-color` (+ per-edge) · `border` and `border-top`/`-right`/`-bottom`/`-left` (width + colour only) · `border-radius` (+ per-corner, percentages, `/` for elliptical corners) · `box-shadow` · `image-color` · `decorator` · `mask-image` · `filter` · `backdrop-filter`
 
@@ -58,8 +62,7 @@ RmlUi has no user-agent stylesheet, so every element starts from these. Folio's 
 
 | Instead of | Use |
 |---|---|
-| `display: grid` and all `grid-*` properties | flexbox |
-| `var()` and `--custom-properties` | concrete classes in a token stylesheet |
+| `grid-template-areas`, `grid-area`, `grid-template`, the `grid-*-start`/`-end` longhands, `inline-grid` | `grid-column` and `grid-row` |
 | `background-image`, `background-size`, `background-position`, `background-repeat` | `decorator: image(...)` |
 | `border-style` | `border` gives width and colour and is always solid; `decorator: dashed-border(...)` or `dotted-border(...)` for the other two |
 | `text-shadow` | `font-effect: shadow(...)` |
@@ -68,9 +71,9 @@ RmlUi has no user-agent stylesheet, so every element starts from these. Folio's 
 | `position: sticky` | `fixed` or `absolute` |
 | `::before` / `::after` / `content` | a real element |
 | `aspect-ratio`, `writing-mode`, `list-style-*`, `font-variant`, `font-stretch` | no equivalent: restructure |
-| `calc()`, `clamp()`, `min()`, `max()` | precomputed values, or flexbox for proportional sizing |
+| `clamp()`, `min()`, `max()` | `calc()`, or flexbox for proportional sizing |
 | `:has()` | restructure, or set a class from C++ |
-| `start` / `end` / `normal` in flex properties | `flex-start` / `flex-end` / `stretch` |
+| `start` / `end` in `justify-content` and `align-content`, `normal` anywhere | `flex-start` / `flex-end` / `stretch` |
 
 **Value-level restrictions that are easy to miss:**
 
@@ -156,7 +159,7 @@ Anything not on these lists does not exist. A misspelled name is a warning, neve
 
 **Multiple decorators paint in reverse source order**: the first named is on top, like CSS `background-image` layers. An effect listed after an opaque background is painted underneath it and appears to do nothing.
 
-**`filter` and `backdrop-filter`** take: `blur`, `drop-shadow`, `brightness`, `contrast`, `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate`.
+**`filter` and `backdrop-filter`** take: `blur`, `drop-shadow`, `brightness`, `contrast`, `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate`, and Folio's own `glow(<colour> <radius> <strength>)` and `shader("<name> <args>")`, a GPU pass the game registers. See [docs/shader_filters.md](docs/shader_filters.md).
 
 **`backdrop-filter` additionally takes `outside-blur`, which is Folio's own.** Where `blur` softens what is behind an element, `outside-blur` softens everything the element is not: the modal scrim, where the screen goes soft and the dialog stays sharp:
 
@@ -219,10 +222,12 @@ Every one of these depends on a render-interface feature: layers, clip masks, fi
 | Text, at any size or transform scale | Works. See §6 |
 | `font-effect`, all four | Works, in both renderers, resolved from the field. Bounded in reach: see §6 |
 | `filter`: `brightness`, `contrast`, `grayscale`, `invert`, `opacity`, `saturate`, `sepia`, `hue-rotate` | Works. Applied to the resolved layer in the order named, before any blur |
+| `filter`: `glow`, `drop-shadow`, `shader` | Works, after the colour filters and the blur, in the order named. A `shader` the game did not register draws the element unfiltered |
+| `backdrop-filter: shader` | Works for documents on the screen. The region is a rectangle |
 | `mask-image` | Works. The masked subtree and the mask decorator are each drawn into a layer and composited, so text under a mask goes through the layer path rather than straight to the target. `examples/mask_image.rml` covers every decorator that can be a mask |
-| **`backdrop-filter` other than `blur` and `outside-blur`** | **Banned.** These parse, log once and render nothing in engine |
+| **`backdrop-filter` other than `blur`, `outside-blur` and `shader`** | **Banned.** These parse, log once and render nothing in engine |
 
-A surface drawn through a layer lands about 3/255 darker than the same colour drawn directly, from the 8-bit sRGB round trip through the render target. Visible only side by side.
+A surface drawn through an 8-bit layer lands about 3/255 darker than the same colour drawn directly, from the round trip through the render target. Visible only side by side. Layers carrying a glow, drop shadow or shader filter are 16-bit float (`folio.Layers.HalfFloat`).
 
 ### `@media` features
 
@@ -279,7 +284,7 @@ All four are resolved from the field's true-distance channel rather than baked i
 
 The bound is a little under half the field's range rather than exactly half. Past half, the field is saturated: a texel an em away from the glyph holds the same number as one just beyond the edge, so an effect whose edge lands there has no outside to fade into. The last texel is held back to give it one.
 
-Clamping is hard: an effect asked for at three times the cap looks identical to one at the cap. To go wider, raise `pxrange` when baking, at a quadratic cost in atlas area.
+Clamping is hard: an effect asked for at three times the cap looks identical to one at the cap. To go wider, use `filter: glow(...)` or `filter: drop-shadow(...)` on the element, or raise `pxrange` when baking, at a quadratic cost in atlas area.
 
 ### Textured text
 
@@ -653,7 +658,7 @@ Anything past those three actions is the game's: listen for `dragdrop` in C++, o
 
 A theme is `@media (theme: name)` in a stylesheet, turned on with `folio.Theme <name>` or **Set Theme** from Blueprint, and `uipreview --theme <name>` previews one.
 
-**A theme is an override block, not a swapped value.** RCSS has no `var()`, so a stylesheet holds both looks and the later rule wins. So a component may not contain a colour: a colour in the component's own rule can only be overridden by restating that rule in full, and the first game to disagree forks the library.
+**A theme is an override block, not a swapped value.** The shipped library uses no `var()`, so a stylesheet holds both looks and the later rule wins. So a component may not contain a colour: a colour in the component's own rule can only be overridden by restating that rule in full, and the first game to disagree forks the library.
 
 | | |
 |---|---|

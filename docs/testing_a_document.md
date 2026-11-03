@@ -141,7 +141,7 @@ It reports max and mean difference for colour and for alpha **separately**, how 
 
 In this order:
 
-1. **Look it up in [UI_CONVENTIONS.md](../UI_CONVENTIONS.md).** It is usually on the banned list: `display: grid`, `var()`, `background-image`, `text-shadow`, `outline`, `calc()`, `::before`.
+1. **Look it up in [UI_CONVENTIONS.md](../UI_CONVENTIONS.md).** It is usually on the banned list: `background-image`, `text-shadow`, `outline`, `clamp()`, `::before`.
 2. **Run with `--strict`.** Most of the rest warns.
 3. **Check the units.** `120ms` is not a duration: times are seconds. `rgba(0,0,0,0.5)` is fully transparent: alpha is 0-255. A bare number where a length is expected is a warning, not `px`.
 4. **Check the easing name.** They are RmlUi's, not CSS's: `cubic-out`, not `ease-out`. A misspelled one is read as a property name and the transition silently never fires.

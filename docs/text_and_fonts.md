@@ -131,7 +131,7 @@ Glyphs are generated on demand and cached to disk, so only the first run of a fa
 
 **`text-shadow` does nothing.** It does not exist. Use `font-effect: shadow(...)`.
 
-**An outline or glow is thinner than asked on small text, and widening it changes nothing.** Effects are capped at 0.104em, and an effect at three times the cap looks identical to one at the cap. The log says `a font effect reaches further than the field describes and was clamped to 0.104 em`. Size the effect to the text, or raise `pxrange` when baking, at a quadratic cost in atlas area.
+**An outline or glow is thinner than asked on small text, and widening it changes nothing.** Effects are capped at 0.104em, and an effect at three times the cap looks identical to one at the cap. The log says `a font effect reaches further than the field describes and was clamped to 0.104 em`. Size the effect to the text, use `filter: glow(...)` on the element for a wide halo (see [shader filters](shader_filters.md)), or raise `pxrange` when baking, at a quadratic cost in atlas area.
 
 **`fill-image` cannot find a sprite.** It names a file, not a sprite: a font effect is built while the stylesheet is parsed and has no route to a spritesheet. Give it a path.
 

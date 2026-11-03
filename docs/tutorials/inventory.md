@@ -68,7 +68,7 @@ See **[data binding](../data_binding.md)**.
 
 **`&gt;` inside an attribute.** It is XML: a bare `>` in an attribute value is a parse error.
 
-The grid itself is flexbox with wrapping, because there is no `display: grid`:
+The grid itself is flexbox with wrapping, so the slot count per row follows the panel's width:
 
 ```css
 .grid {
@@ -231,7 +231,7 @@ The `--keys` run proves the grid navigates without a controller; a grid that nav
 
 - shaping a model so the markup falls out of it (§1)
 - `data-for`, `it_index`, and `data-attr-*` versus `{{ }}` (§2)
-- a wrapping flex grid, since there is no `display: grid` (§2)
+- a wrapping flex grid (§2)
 - spatial navigation over a grid, and where `nav` goes (§3)
 - complementary `data-if`, and `.size` on an array (§4)
 - where Folio's drag support ends and the game's rules begin (§5)

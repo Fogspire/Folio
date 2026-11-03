@@ -43,6 +43,33 @@ Dials, tapes, arcs, needles and filled shapes are plain text, bound straight to 
 
 The whole gauge is `examples/gauge.rml`. See [paths](path.md) and [scales](scale.md).
 
+### Your Own Shaders, One Line of Markup
+
+Register a GPU pass once in C++, then put it on any element, or on whatever is behind one, by name. Glows reach as far as you ask, not a tenth of an em. A still element runs its pass once and reuses the result, so a glowing title on a settled menu costs nothing per frame.
+
+![A FOLIO title with an orange glow, an outlined tile with a cyan glow, a tile with a drop shadow, a tile rippled by a shader filter, and a striped strip rippling behind a panel with a backdrop shader filter](images/shader_filters.gif)
+
+```css
+.title { filter: glow(#ff7a1a 28dp 2.5); }
+.panel { filter: shader("heat 8dp 2 1.5"); }
+.lens  { backdrop-filter: shader("heat 12dp 2 0.5"); }
+```
+
+The preview and Folio Studio run a GLSL stand-in for your pass, so designers see the effect without Unreal. See [glow and shader filters](shader_filters.md).
+
+### Grid, calc() and var()
+
+`display: grid` with `fr` tracks, spans and auto-placement; `calc(100% - 2 * 12dp)` wherever a length goes; custom properties, so one class on a container retints everything inside. See [layout](layout.md#grid) and [themes](components_and_themes.md#custom-properties-in-your-own-stylesheets).
+
+![Two identical inventory grids, one blue and one red: a large slot spanning two columns and two rows, outlined full slots, and a bar sized with calc. The red one differs only by a class that sets two custom properties](images/grid_theme.png)
+
+```css
+.panel { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
+.big   { grid-column: span 2; grid-row: span 2; background-color: var(--accent); }
+.bar   { width: calc(100% - 4 * var(--gap)); }
+.red   { --accent: #ff5a4a; --slot: #2a1c1e; }
+```
+
 ### Fully Text Based
 
 Build your entire UI in **[Folio Studio](studio.md)**, a cross-platform WYSIWYG editor that draws with the same renderer the game does, without your designer needing to install Unreal.
@@ -82,6 +109,10 @@ Surface projected documents are affected by post-processing. Any game that wants
 ### Screen-Space UI Projected to World
 
 Folio ships with a ready-made screen-space UI component that projects into world space. This includes a ton of parameters to reproduce common game functionality, such as keeping your nameplates clamped to the edge of a screen within a certain threshold.
+
+![A nameplate reading Sentry Drone with a health bar, pinned to a point over the ocean ahead of a cockpit](images/world_markers.jpg)
+
+See [world markers](markers.md).
 
 ### Real 3D Transforms
 
@@ -182,6 +213,8 @@ https://github.com/user-attachments/assets/6a28104d-f75e-4d6d-82de-1aaeb25269ce
 
 A fading typewriter effect. Rich text with emphasis inside one translatable line. Shared names for places via localized lookup tables.
 
+![A dialogue box typing out: You must go to the Mountain Temple, I... think? with must in red and the place name in blue](images/dialogue.gif)
+
 ### Stamina Wheel
 
 <img width="417" height="275" alt="UnrealEditor-Win64-DebugGame_2026-10-17_22-11-22" src="https://github.com/user-attachments/assets/211b6d16-67a7-4949-bbad-c6820a86d3eb" />
@@ -189,6 +222,8 @@ A fading typewriter effect. Rich text with emphasis inside one translatable line
 ### Inventory
 
 A grid with drag and drop, 3D items in cells, a paper doll, a list of ten thousand items that allocates nothing while scrolling.
+
+![An inventory grid with items of different sizes, a rifle spanning four cells, and a highlighted drop target](images/inventory.png)
 
 ### Terminals
 
@@ -206,7 +241,7 @@ Stacked closed captions in the classic shooter style. Several speakers at once, 
 
 Buttons, sliders, toggles, tab bars, lists, panels, scroll bars, drifting motes. All readily accessible from [Folio Studio](studio.md)'s library.
 
-<img width="363" height="326" alt="electron_2026-10-15_09-47-53" src="https://github.com/user-attachments/assets/ef980ac9-1261-4860-a97f-0353f136c038" />
+![A main menu titled FOLIO with Continue, New Game, Options and Quit buttons over drifting motes](images/components.gif)
 
 ## Platform support
 

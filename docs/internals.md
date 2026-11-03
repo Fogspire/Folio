@@ -12,7 +12,7 @@ Everything an author needs is in **[the manual](README.md)**, and what Folio can
 
 Known cases:
 
-- **CSS custom properties and `var()` do not exist in 6.2.** Merged to master 2026-06-07 (PR #947) with follow-up bugs still open (#965 transitions with `var()`, #966 `var()` with dp-ratio changes). `rcss/themes/default.rcss` therefore expresses design tokens as **concrete classes**, not variables. Revisit at RmlUi 7.0.
+- **CSS custom properties and `var()` do not exist in 6.2.** Folio carries its own in `patches/RmlUi/0010-calc-var-grid.patch`, along with `calc()` and `display: grid`. Upstream merged a different `var()` to master 2026-06-07 (PR #947); at RmlUi 7.0, drop Folio's and check its tests (`Tools/uipreview/tests/var.rml`, `calc.rml`, `grid.rml`) still pass. `rcss/themes/default.rcss` expresses design tokens as concrete classes.
 - **`:disabled` is set from the `disabled` attribute on any element** (patch 0006). `:focus`, `:focus-visible`, `:checked`, `:hover`, `:active`, `:nth-child()`, `:not()` and `:scope` are all supported.
 - **`Rml::ReleaseMemoryPools()` does not exist** in 6.2, so the reload path cannot use it.
 
@@ -77,7 +77,9 @@ The Unreal render interface implements the complete RmlUi 6.x optional feature s
 | `box-shadow` | Done |
 | Text, font effects, vector sprites | Done. Distance fields through a UI-domain material |
 | `mask-image` | Done. `SaveLayerAsMaskImage` resolves the mask into its own layer and the composite multiplies by it |
-| `backdrop-filter` other than blur | Accepted and ignored. The backdrop belongs to Slate, and the only thing Slate will do to it in place is blur |
+| `filter: drop-shadow`, `glow`, `shader` | Done. Passes over the resolved layer after the blur, in `FolioLayerPasses`; a layer carrying one is 16-bit float |
+| `backdrop-filter: shader` | Done, through a Slate custom element that copies the backbuffer region, runs the passes and copies it back |
+| `backdrop-filter` other than blur and shader | Accepted and ignored |
 | `decorator: shader(...)` | Done. additive, scanlines and sweep, rasterised rather than shaded |
 
 ### box-shadow, and why the layer path draws with RHI rather than FCanvas
@@ -388,7 +390,7 @@ The glow and blur branch's lower bound is clamped to zero for a different reason
 
 Every sprite in a `--layers` bake is `position: absolute`, so none contributes to the container's height. Give the container only a width and nothing renders, which reads as a broken bake rather than a collapsed box.
 
-RCSS has no `aspect-ratio` and no `calc()`, so no stylesheet can turn a width into the right height. The only thing in RmlUi that carries a ratio is an image element's intrinsic size.
+RCSS has no `aspect-ratio`, and `calc()` cannot read a box's own width, so no stylesheet can turn a width into the right height. The only thing in RmlUi that carries a ratio is an image element's intrinsic size.
 
 So the baker emits a `<name>_frame` sprite per drawing, holding the drawing's proportions, and a `.<name>-frame` rule that is `visibility: hidden` (it keeps its box and never draws). A hidden `<img>` on it is the first child of the stack, and the width alone is then enough.
 
@@ -860,6 +862,16 @@ The accessibility walk rebuilds the whole tree for a changed document rather tha
 
 `scripts/studio.sh parity` reports a known difference for a blur that samples past the viewport edge, such as a full-screen inset `box-shadow`. Desktop OpenGL reads nothing past the edge, while WebGL cannot clamp a texture to a transparent border and reads the edge pixel: up to 14 levels out of 255 on a few edge pixels. Do not chase it as a renderer bug.
 
+
+## Slate holds a custom element weakly, and orders a layer by element type
+
+`backdrop-filter: shader(...)` is an `ICustomSlateElement`. `MakeCustom` keeps only a weak pointer, so an element nobody else holds is gone before batching and never draws, without a warning. The render interface keeps each one for two frames, since the render thread draws up to a frame behind.
+
+Within one Slate layer, elements are batched by type rather than in submission order, so a custom element sharing the layer with the geometry it reads runs before that geometry is drawn and filters an empty backdrop. It gets a layer of its own on both sides.
+
+## An 8-bit layer holds linear values
+
+`RTF_RGBA8` with `bForceLinearGamma = false` is not sRGB here: the target stores linear values in 8 bits, so dark values have few levels. A wide glow shows rings of steps, and its tail past three sigma is still a visible jump in linear light. Layers carrying a glow, drop shadow or shader filter are allocated `RTF_RGBA16f`, and the glow's kernel and reach are four sigma.
 
 ## Supersampling: the target scales, the document does not
 

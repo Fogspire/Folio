@@ -96,7 +96,7 @@ A bar across the bottom of the helmet is `left: 380dp; right: 380dp` and no widt
 }
 ```
 
-RCSS has no `calc()`, so the two numbers have to agree by hand. Render at `--size 2560x1080`: the energy readout stays centred.
+The two numbers have to agree; `calc()` can derive one from the other. Render at `--size 2560x1080`: the energy readout stays centred.
 
 ## 4. Bow the energy ribbon
 

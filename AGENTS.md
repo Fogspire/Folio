@@ -6,7 +6,9 @@ You have been asked to build UI for a project that has this plugin. Read this pa
 
 **RmlUi is not a browser and RCSS is not CSS.** Valid-looking CSS parses cleanly and then does nothing, with no warning:
 
-`display: grid` · `var()` and `--custom-properties` · `background-image` · `text-shadow` · `outline` · `calc()` · `::before` / `::after` / `content` · `aspect-ratio` · `position: sticky` · `object-fit` · `border-style` · `:has()`
+`grid-template-areas` · `background-image` · `text-shadow` · `outline` · `clamp()` / `min()` / `max()` · `::before` / `::after` / `content` · `aspect-ratio` · `position: sticky` · `object-fit` · `border-style` · `:has()`
+
+`display: grid`, `calc()` and `var()` with `--custom-properties` do work, with limits listed in [docs/layout.md](docs/layout.md).
 
 And these are wrong in ways that look right:
 
@@ -78,7 +80,7 @@ Nothing measures this: `body` is almost always `100%`, so a laid-out document on
 | `/folio/themes/default.rcss` | the tokens and the skin |
 | the game's own stylesheet | anything it disagrees with |
 
-RCSS has no `var()`, so a theme is an override block and the later rule wins. **Never put a colour in a component rule**: it can then only be overridden by restating the rule in full.
+The library uses no `var()`, so a theme is an override block and the later rule wins. **Never put a colour in a component rule**: it can then only be overridden by restating the rule in full.
 
 Use the token classes (`.c-accent`, `.t-title`, `.s-pad-m`, `.focusable`) and retune what they mean, rather than inventing parallel ones.
 
@@ -187,7 +189,7 @@ See [docs/performance_profiling.md](docs/performance_profiling.md).
 
 ## Quick reference
 
-**Layout** is flexbox. No grid, no `calc()`, no `aspect-ratio`. `dp` for anything that should scale with the player's UI scale; `px` only for hairlines.
+**Layout** is flexbox, or `display: grid` for a real grid. `calc()` mixes a percentage with lengths. No `aspect-ratio`. `dp` for anything that should scale with the player's UI scale; `px` only for hairlines.
 
 **Colour** is hex with hex alpha: `#1f1f28`, `#0000007f`.
 
@@ -195,7 +197,7 @@ See [docs/performance_profiling.md](docs/performance_profiling.md).
 
 **Images** are sprites from a `@spritesheet`, drawn with `<img sprite="...">` or `decorator: image(...)`. Tint single-colour art with `image-color` rather than shipping four variants. A texture the game registers is named `folio://<name>` and works anywhere a source does: that is how a scene capture, a paper doll or a rendered item reaches a document.
 
-**Text** is distance-field and scales freely. Font effects reach about 0.104em, so an outline on small text gets clamped.
+**Text** is distance-field and scales freely. Font effects reach about 0.104em, so an outline on small text gets clamped. A wider glow or shadow is `filter: glow(#ff8800 24dp 2)` or `filter: drop-shadow(...)` on the element, which costs a layer. A game's own GPU effect is `filter: shader("name args")`; see [docs/shader_filters.md](docs/shader_filters.md).
 
 **Prose with emphasis in it goes in a `<text>`**, whose contents are Folio's markup rather than RML: `You <angry>must</> go to the {tag:Place.Mountain.Temple}`. That is one translatable string with one `data-loc`. `reveal: typewriter` types it out. See [docs/rich_text.md](docs/rich_text.md).
 

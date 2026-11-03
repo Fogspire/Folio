@@ -126,12 +126,9 @@
 		const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 		const mark = (text, terms) =>
 		{
-			let out = esc(text);
-			for (const t of terms)
-			{
-				out = out.replace(new RegExp(`(${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
-			}
-			return out;
+			// One pass, longest first, so a term inside another ("shader" in "shaders") is not marked twice.
+			const alternatives = [...terms].sort((a, b) => b.length - a.length).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+			return esc(text).replace(new RegExp(`(${alternatives.join('|')})`, 'gi'), '<mark>$1</mark>');
 		};
 		const snippet = (text, terms) =>
 		{
@@ -150,6 +147,8 @@
 				return;
 			}
 			const terms = q.split(/\s+/).filter(Boolean);
+			// A plural matches its singular too, so "shaders" finds a page that only says "shader".
+			const forms = terms.map((t) => t.length > 3 && t.endsWith('s') && !t.endsWith('ss') ? [t, t.slice(0, -1)] : [t]);
 			const data = await load();
 			results = data.map((e) =>
 			{
@@ -157,14 +156,19 @@
 				const p = e.p.toLowerCase();
 				const x = e.x.toLowerCase();
 				let score = 0;
-				for (const t of terms)
+				for (const variants of forms)
 				{
-					const s = (h.includes(t) ? 6 : 0) + (p.includes(t) ? 3 : 0) + (x.includes(t) ? 1 : 0);
-					if (!s)
+					let best = 0;
+					for (const t of variants)
+					{
+						const s = (h.includes(t) ? 6 : 0) + (p.includes(t) ? 3 : 0) + (x.includes(t) ? 1 : 0);
+						best = Math.max(best, s ? s + (h.startsWith(t) ? 2 : 0) : 0);
+					}
+					if (!best)
 					{
 						return null;
 					}
-					score += s + (h.startsWith(t) ? 2 : 0);
+					score += best;
 				}
 				if (h === q)
 				{
@@ -176,8 +180,8 @@
 			selected = results.length ? 0 : -1;
 			list.innerHTML = results.length
 				? results.map(({ e }, i) => `<li role="option" id="sr-${i}" aria-selected="${i === selected}"><a href="${root}${e.u}">`
-					+ `<span class="sr-where">${esc(e.p)}</span><span class="sr-head">${mark(e.h, terms)}</span>`
-					+ `<span class="sr-text">${mark(snippet(e.x, terms), terms)}</span></a></li>`).join('')
+					+ `<span class="sr-where">${esc(e.p)}</span><span class="sr-head">${mark(e.h, forms.flat())}</span>`
+					+ `<span class="sr-text">${mark(snippet(e.x, forms.flat()), forms.flat())}</span></a></li>`).join('')
 				: `<li class="sr-empty">Nothing matches “${esc(input.value.trim())}”. Try a property, an element or a console command.</li>`;
 			list.hidden = false;
 			input.setAttribute('aria-expanded', 'true');

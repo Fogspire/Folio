@@ -1,0 +1,2304 @@
+From: Folio
+Subject: [PATCH] calc(), custom properties with var(), and display: grid
+
+    Three things RCSS lacks that a stylesheet written by someone who knows CSS reaches for first.
+
+    calc(): a sum of lengths and one percentage, parsed into a coefficient per unit and interned. The
+    lengths resolve when values are computed and the percentage at layout, through a Calc type on
+    LengthPercentage(Auto) whose value indexes the resolved pair. A sum of one unit is an ordinary value,
+    so calc(2 * 8dp) still animates.
+
+    var(): `--name: value` is kept per declaration block as written and inherited by lookup up the tree.
+    A declaration using var() is held unparsed, with the shorthand it came from, and parsed against the
+    element when its values are computed. A change to an element's custom properties dirties every
+    property below it that uses var(). Rules holding only custom properties are indexed like any other.
+
+    display: grid: grid-template-columns and -rows (lengths, percentages, fr, auto, minmax, repeat),
+    grid-auto-columns and -rows, grid-auto-flow, grid-column and grid-row (lines, negative lines, span),
+    justify-items and justify-self, and the existing gap and align-items. Sparse auto-placement; no named
+    lines or areas, dense packing or subgrid. fr has no content minimum, as minmax(0, 1fr). align-items
+    and align-self also accept start and end.
+
+    Removable once upstream has all three.
+---
+diff --git a/Include/RmlUi/Core/ComputedValues.h b/Include/RmlUi/Core/ComputedValues.h
+index 98b3a53..12f4bf3 100644
+--- a/Include/RmlUi/Core/ComputedValues.h
++++ b/Include/RmlUi/Core/ComputedValues.h
+@@ -50,7 +50,7 @@ namespace Style {
+ 		LengthPercentageAuto::Type width_type : 2, height_type : 2;
+ 
+ 		LengthPercentageAuto::Type margin_top_type : 2, margin_right_type : 2, margin_bottom_type : 2, margin_left_type : 2;
+-		LengthPercentage::Type padding_top_type : 1, padding_right_type : 1, padding_bottom_type : 1, padding_left_type : 1;
++		LengthPercentage::Type padding_top_type : 2, padding_right_type : 2, padding_bottom_type : 2, padding_left_type : 2;
+ 		LengthPercentageAuto::Type top_type : 2, right_type : 2, bottom_type : 2, left_type : 2;
+ 
+ 		NumberAuto::Type z_index_type : 1;
+@@ -140,15 +140,15 @@ namespace Style {
+ 			has_mask_image(false), has_filter(false), has_backdrop_filter(false), has_box_shadow(false), text_overflow(TextOverflow::Clip)
+ 		{}
+ 
+-		LengthPercentage::Type min_width_type : 1, max_width_type : 1;
+-		LengthPercentage::Type min_height_type : 1, max_height_type : 1;
++		LengthPercentage::Type min_width_type : 2, max_width_type : 2;
++		LengthPercentage::Type min_height_type : 2, max_height_type : 2;
+ 
+-		LengthPercentage::Type perspective_origin_x_type : 1, perspective_origin_y_type : 1;
+-		LengthPercentage::Type transform_origin_x_type : 1, transform_origin_y_type : 1;
++		LengthPercentage::Type perspective_origin_x_type : 2, perspective_origin_y_type : 2;
++		LengthPercentage::Type transform_origin_x_type : 2, transform_origin_y_type : 2;
+ 		bool has_local_transform : 1, has_local_perspective : 1;
+ 
+ 		LengthPercentageAuto::Type flex_basis_type : 2;
+-		LengthPercentage::Type row_gap_type : 1, column_gap_type : 1;
++		LengthPercentage::Type row_gap_type : 2, column_gap_type : 2;
+ 
+ 		VerticalAlign::Type vertical_align_type : 4;
+ 		Drag drag : 3;
+diff --git a/Include/RmlUi/Core/ID.h b/Include/RmlUi/Core/ID.h
+index 4573cb2..f40dcfe 100644
+--- a/Include/RmlUi/Core/ID.h
++++ b/Include/RmlUi/Core/ID.h
+@@ -157,6 +157,16 @@ enum class PropertyId : uint8_t {
+ 	FlexWrap,
+ 	JustifyContent,
+ 
++	GridTemplateColumns,
++	GridTemplateRows,
++	GridAutoColumns,
++	GridAutoRows,
++	GridAutoFlow,
++	GridColumn,
++	GridRow,
++	JustifyItems,
++	JustifySelf,
++
+ 	NavUp,
+ 	NavRight,
+ 	NavDown,
+diff --git a/Include/RmlUi/Core/PropertyDictionary.h b/Include/RmlUi/Core/PropertyDictionary.h
+index 999c9f8..1b3a9e9 100644
+--- a/Include/RmlUi/Core/PropertyDictionary.h
++++ b/Include/RmlUi/Core/PropertyDictionary.h
+@@ -44,13 +44,20 @@ public:
+ 	/// Set the source of all properties in the dictionary to the given one.
+ 	void SetSourceOfAllProperties(const SharedPtr<const PropertySource>& property_source);
+ 
++	/// Custom properties, `--name: value`, held as the text written. They take part in Import and Merge like any other.
++	void SetCustomProperty(const String& name, const Property& property);
++	const Property* GetCustomProperty(const String& name) const;
++	const UnorderedMap<String, Property>& GetCustomProperties() const { return custom_properties; }
++
+ private:
+ 	// Sets a property on the dictionary and its specificity if there is no name conflict, or its
+ 	// specificity (given by the parameter, not read from the property itself) is at least equal to
+ 	// the specificity of the conflicting property.
+ 	void SetProperty(PropertyId id, const Property& property, int specificity);
++	void SetCustomProperty(const String& name, const Property& property, int specificity);
+ 
+ 	PropertyMap properties;
++	UnorderedMap<String, Property> custom_properties;
+ };
+ 
+ } // namespace Rml
+diff --git a/Include/RmlUi/Core/PropertySpecification.h b/Include/RmlUi/Core/PropertySpecification.h
+index 30cce7d..6579f3b 100644
+--- a/Include/RmlUi/Core/PropertySpecification.h
++++ b/Include/RmlUi/Core/PropertySpecification.h
+@@ -88,6 +88,14 @@ public:
+ 	/// @return True if all properties were parsed successfully, false otherwise.
+ 	bool ParseShorthandDeclaration(PropertyDictionary& dictionary, ShorthandId shorthand_id, const String& property_value) const;
+ 
++	/// Parses the value of a property held back because it used var(), once its var() have been substituted.
++	/// @param[in] unresolved The held property, which says whether it came from a shorthand.
++	/// @param[in] substituted Its value with every var() replaced.
++	bool ParseUnresolvedProperty(Property& result, PropertyId property_id, const Property& unresolved, const String& substituted) const;
++
++	/// Whether a value uses var(), and so cannot be parsed until an element resolves it.
++	static bool UsesVar(const String& value);
++
+ 	/// Sets all undefined properties in the dictionary to their defaults.
+ 	/// @param dictionary[in-out] The dictionary to set the default values on.
+ 	void SetPropertyDefaults(PropertyDictionary& dictionary) const;
+diff --git a/Include/RmlUi/Core/StyleTypes.h b/Include/RmlUi/Core/StyleTypes.h
+index 1830a39..8dd265c 100644
+--- a/Include/RmlUi/Core/StyleTypes.h
++++ b/Include/RmlUi/Core/StyleTypes.h
+@@ -5,14 +5,15 @@
+ namespace Rml {
+ namespace Style {
+ 
++	// Calc is a percentage plus a length, from calc(). Its value is an index for ResolveValue, not a number.
+ 	struct LengthPercentageAuto {
+-		enum Type : uint8_t { Auto, Length, Percentage } type = Length;
++		enum Type : uint8_t { Auto, Length, Percentage, Calc } type = Length;
+ 		float value = 0;
+ 		LengthPercentageAuto() {}
+ 		LengthPercentageAuto(Type type, float value = 0) : type(type), value(value) {}
+ 	};
+ 	struct LengthPercentage {
+-		enum Type : uint8_t { Length, Percentage } type = Length;
++		enum Type : uint8_t { Length, Percentage, Calc } type = Length;
+ 		float value = 0;
+ 		LengthPercentage() {}
+ 		LengthPercentage(Type type, float value = 0) : type(type), value(value) {}
+@@ -42,7 +43,8 @@ namespace Style {
+ 		TableRowGroup,
+ 		TableColumn,
+ 		TableColumnGroup,
+-		TableCell
++		TableCell,
++		Grid
+ 	};
+ 	enum class Position : uint8_t { Static, Relative, Absolute, Fixed };
+ 
+diff --git a/Include/RmlUi/Core/Unit.h b/Include/RmlUi/Core/Unit.h
+index b29ba51..474e841 100644
+--- a/Include/RmlUi/Core/Unit.h
++++ b/Include/RmlUi/Core/Unit.h
+@@ -50,6 +50,8 @@ enum class Unit {
+ 	FONTEFFECT = 1 << 25,    // font-effect; fetch as <FontEffectsPtr>
+ 	COLORSTOPLIST = 1 << 26, // color stop list; fetch as <ColorStopList>
+ 	BOXSHADOWLIST = 1 << 27, // shadow list; fetch as <BoxShadowList>
++	CALC = 1 << 28,          // calc() of lengths and a percentage; fetch as <float>, an index only Calc understands
++	UNRESOLVED = 1 << 29,    // a value using var(), held as written until an element resolves it; fetch as <String>
+ 
+ 	LENGTH = PX | DP | VW | VH | EM | REM | PPI_UNIT,
+ 	LENGTH_PERCENT = LENGTH | PERCENT,
+diff --git a/Source/Core/CMakeLists.txt b/Source/Core/CMakeLists.txt
+index 3ac5fac..6bc0cea 100644
+--- a/Source/Core/CMakeLists.txt
++++ b/Source/Core/CMakeLists.txt
+@@ -12,6 +12,8 @@ add_library(rmlui_core
+ 	Clock.h
+ 	CompiledFilterShader.cpp
+ 	ComputedValues.cpp
++	Calc.cpp
++	Calc.h
+ 	ComputeProperty.cpp
+ 	ComputeProperty.h
+ 	Context.cpp
+diff --git a/Source/Core/Calc.cpp b/Source/Core/Calc.cpp
+new file mode 100644
+index 0000000..5e5e9a0
+--- /dev/null
++++ b/Source/Core/Calc.cpp
+@@ -0,0 +1,373 @@
++#include "Calc.h"
++#include "../../Include/RmlUi/Core/Log.h"
++#include "../../Include/RmlUi/Core/Property.h"
++#include "../../Include/RmlUi/Core/StringUtilities.h"
++#include "ComputeProperty.h"
++#include <cstring>
++#include <stdlib.h>
++
++namespace Rml {
++namespace Calc {
++
++	namespace {
++
++		struct UnitName {
++			const char* name;
++			Unit unit;
++		};
++
++		// Longest suffix first, so "rem" is not read as "em".
++		const UnitName unit_names[] = {
++			{"rem", Unit::REM},
++			{"px", Unit::PX},
++			{"dp", Unit::DP},
++			{"vw", Unit::VW},
++			{"vh", Unit::VH},
++			{"em", Unit::EM},
++			{"in", Unit::INCH},
++			{"cm", Unit::CM},
++			{"mm", Unit::MM},
++			{"pt", Unit::PT},
++			{"pc", Unit::PC},
++			{"%", Unit::PERCENT},
++		};
++
++		// One slot per unit a term can carry. NUMBER is a plain factor, and must cancel out of a length.
++		const Unit term_units[] = {Unit::NUMBER, Unit::PERCENT, Unit::PX, Unit::DP, Unit::VW, Unit::VH, Unit::EM, Unit::REM, Unit::INCH,
++			Unit::CM, Unit::MM, Unit::PT, Unit::PC};
++		constexpr int NumTermUnits = int(sizeof(term_units) / sizeof(term_units[0]));
++
++		struct Expression {
++			float coefficients[NumTermUnits] = {};
++
++			bool IsNumber() const
++			{
++				for (int i = 1; i < NumTermUnits; i++)
++					if (coefficients[i] != 0.f)
++						return false;
++				return true;
++			}
++			bool operator==(const Expression& other) const { return std::memcmp(coefficients, other.coefficients, sizeof(coefficients)) == 0; }
++		};
++
++		struct Registry {
++			Vector<Expression> expressions;
++			Vector<Resolved> resolved;
++		};
++
++		Registry& GetRegistry()
++		{
++			static Registry registry;
++			return registry;
++		}
++
++		char Lower(char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; }
++
++		int SlotOf(Unit unit)
++		{
++			for (int i = 0; i < NumTermUnits; i++)
++				if (term_units[i] == unit)
++					return i;
++			return -1;
++		}
++
++		class Parser {
++		public:
++			explicit Parser(const String& in_text) : text(in_text) {}
++
++			bool Parse(Expression& out)
++			{
++				if (!ParseSum(out))
++					return false;
++				SkipSpace();
++				return position == text.size();
++			}
++
++		private:
++			const String& text;
++			size_t position = 0;
++
++			void SkipSpace()
++			{
++				while (position < text.size() && StringUtilities::IsWhitespace(text[position]))
++					position++;
++			}
++
++			bool Consume(char c)
++			{
++				SkipSpace();
++				if (position < text.size() && text[position] == c)
++				{
++					position++;
++					return true;
++				}
++				return false;
++			}
++
++			bool ConsumeWord(const char* word)
++			{
++				SkipSpace();
++				const size_t length = std::strlen(word);
++				if (text.size() - position < length)
++					return false;
++				for (size_t i = 0; i < length; i++)
++					if (Lower(text[position + i]) != word[i])
++						return false;
++				position += length;
++				return true;
++			}
++
++			bool ParseSum(Expression& out)
++			{
++				if (!ParseProduct(out))
++					return false;
++				for (;;)
++				{
++					SkipSpace();
++					if (position >= text.size() || (text[position] != '+' && text[position] != '-'))
++						return true;
++					const float sign = text[position] == '+' ? 1.f : -1.f;
++					position++;
++
++					Expression right;
++					if (!ParseProduct(right))
++						return false;
++					for (int i = 0; i < NumTermUnits; i++)
++						out.coefficients[i] += sign * right.coefficients[i];
++				}
++			}
++
++			bool ParseProduct(Expression& out)
++			{
++				if (!ParseFactor(out))
++					return false;
++				for (;;)
++				{
++					SkipSpace();
++					if (position >= text.size() || (text[position] != '*' && text[position] != '/'))
++						return true;
++					const bool divide = text[position] == '/';
++					position++;
++
++					Expression right;
++					if (!ParseFactor(right))
++						return false;
++
++					// One side of a product is a plain number, and only a plain number divides.
++					if (divide)
++					{
++						if (!right.IsNumber() || right.coefficients[0] == 0.f)
++							return false;
++						for (float& coefficient : out.coefficients)
++							coefficient /= right.coefficients[0];
++					}
++					else if (right.IsNumber())
++					{
++						for (float& coefficient : out.coefficients)
++							coefficient *= right.coefficients[0];
++					}
++					else if (out.IsNumber())
++					{
++						const float factor = out.coefficients[0];
++						out = right;
++						for (float& coefficient : out.coefficients)
++							coefficient *= factor;
++					}
++					else
++						return false;
++				}
++			}
++
++			bool ParseFactor(Expression& out)
++			{
++				SkipSpace();
++				if (position >= text.size())
++					return false;
++
++				if (text[position] == '-' || text[position] == '+')
++				{
++					const float sign = text[position] == '-' ? -1.f : 1.f;
++					position++;
++					if (!ParseFactor(out))
++						return false;
++					for (float& coefficient : out.coefficients)
++						coefficient *= sign;
++					return true;
++				}
++
++				if (ConsumeWord("calc("))
++				{
++					position--;
++				}
++
++				if (Consume('('))
++					return ParseSum(out) && Consume(')');
++
++				const char* start = text.c_str() + position;
++				char* end = nullptr;
++				const float number = strtof(start, &end);
++				if (end == start)
++					return false;
++				position += size_t(end - start);
++
++				Unit unit = Unit::NUMBER;
++				for (const UnitName& candidate : unit_names)
++				{
++					const size_t length = std::strlen(candidate.name);
++					if (text.size() - position >= length && StringUtilities::ToLower(text.substr(position, length)) == candidate.name)
++					{
++						// A unit is a whole word: "1em" yes, "1emx" no.
++						const size_t after = position + length;
++						const char next = after < text.size() ? text[after] : ' ';
++						if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z'))
++							continue;
++						unit = candidate.unit;
++						position = after;
++						break;
++					}
++				}
++
++				out = Expression();
++				out.coefficients[SlotOf(unit)] = number;
++				return true;
++			}
++		};
++
++		float Intern(const Expression& expression)
++		{
++			Vector<Expression>& expressions = GetRegistry().expressions;
++			for (size_t i = 0; i < expressions.size(); i++)
++				if (expressions[i] == expression)
++					return float(i);
++			expressions.push_back(expression);
++			return float(expressions.size() - 1);
++		}
++
++	} // namespace
++
++	bool IsCalc(const String& value)
++	{
++		size_t start = 0;
++		while (start < value.size() && StringUtilities::IsWhitespace(value[start]))
++			start++;
++		return value.size() - start >= 5 && StringUtilities::ToLower(value.substr(start, 5)) == "calc(";
++	}
++
++	bool Parse(Property& property, const String& value, Units allowed_units)
++	{
++		Expression expression;
++		Parser parser(value);
++		if (!parser.Parse(expression))
++			return false;
++
++		// A plain number left over is a unitless term added to a length, which has no meaning.
++		int used = 0;
++		int last = -1;
++		for (int i = 0; i < NumTermUnits; i++)
++		{
++			if (expression.coefficients[i] == 0.f)
++				continue;
++			if (!Any(term_units[i] & allowed_units))
++				return false;
++			used++;
++			last = i;
++		}
++
++		if (used <= 1)
++		{
++			// A single unit, or zero: an ordinary value, so it animates and resolves like any other.
++			const Unit unit = last < 0 ? Unit::PX : term_units[last];
++			if (last < 0 && !Any(allowed_units & Unit::PX))
++				return false;
++			property.value = last < 0 ? 0.f : expression.coefficients[last];
++			property.unit = unit;
++			return true;
++		}
++
++		if (expression.coefficients[0] != 0.f)
++			return false;
++
++		property.value = Intern(expression);
++		property.unit = Unit::CALC;
++		return true;
++	}
++
++	Resolved Resolve(float index, float font_size, float document_font_size, float dp_ratio, Vector2f vp_dimensions)
++	{
++		Resolved result;
++		const Vector<Expression>& expressions = GetRegistry().expressions;
++		const size_t i = size_t(index);
++		if (index < 0.f || i >= expressions.size())
++			return result;
++
++		const Expression& expression = expressions[i];
++		for (int slot = 0; slot < NumTermUnits; slot++)
++		{
++			const float coefficient = expression.coefficients[slot];
++			if (coefficient == 0.f)
++				continue;
++			if (term_units[slot] == Unit::PERCENT)
++				result.percent += coefficient;
++			else if (term_units[slot] != Unit::NUMBER)
++				result.pixels += ComputeLength(NumericValue(coefficient, term_units[slot]), font_size, document_font_size, dp_ratio, vp_dimensions);
++		}
++		return result;
++	}
++
++	float InternResolved(Resolved resolved)
++	{
++		Vector<Resolved>& list = GetRegistry().resolved;
++		for (size_t i = 0; i < list.size(); i++)
++			if (list[i].pixels == resolved.pixels && list[i].percent == resolved.percent)
++				return float(i);
++
++		// A value animated through calc would intern every frame's result. The table is small per document, so a
++		// large one means something is churning; it is cleared rather than left to grow without bound.
++		if (list.size() >= 1 << 16)
++		{
++			Log::Message(Log::LT_WARNING, "calc(): over 65536 distinct resolved values, the table was reset");
++			list.clear();
++		}
++		list.push_back(resolved);
++		return float(list.size() - 1);
++	}
++
++	Resolved GetResolved(float index)
++	{
++		const Vector<Resolved>& list = GetRegistry().resolved;
++		const size_t i = size_t(index);
++		return index >= 0.f && i < list.size() ? list[i] : Resolved();
++	}
++
++	String ToString(float index)
++	{
++		const Vector<Expression>& expressions = GetRegistry().expressions;
++		const size_t i = size_t(index);
++		if (index < 0.f || i >= expressions.size())
++			return "calc(0px)";
++
++		String result = "calc(";
++		bool first = true;
++		for (int slot = 1; slot < NumTermUnits; slot++)
++		{
++			const float coefficient = expressions[i].coefficients[slot];
++			if (coefficient == 0.f)
++				continue;
++
++			const char* name = "px";
++			for (const UnitName& candidate : unit_names)
++				if (candidate.unit == term_units[slot])
++					name = candidate.name;
++
++			if (!first)
++				result += coefficient < 0.f ? " - " : " + ";
++			else if (coefficient < 0.f)
++				result += "-";
++			result += CreateString("%g%s", coefficient < 0.f ? -coefficient : coefficient, name);
++			first = false;
++		}
++		return result + ")";
++	}
++
++} // namespace Calc
++} // namespace Rml
+diff --git a/Source/Core/Calc.h b/Source/Core/Calc.h
+new file mode 100644
+index 0000000..6fce4f9
+--- /dev/null
++++ b/Source/Core/Calc.h
+@@ -0,0 +1,41 @@
++#pragma once
++
++#include "../../Include/RmlUi/Core/Types.h"
++#include "../../Include/RmlUi/Core/Unit.h"
++
++namespace Rml {
++
++class Property;
++
++/*
++    calc(): a sum of lengths and a percentage, such as calc(100% - 2 * 12dp).
++
++    Parsed into one coefficient per unit and interned, so a property holds only an index. Units other than the
++    percentage resolve when the element's values are computed; the percentage resolves at layout, against the
++    same base a plain percentage would.
++*/
++namespace Calc {
++
++	// Parses value as calc(...). Accepts only the units in allowed_units. A sum of a single unit comes back as that
++	// unit, so calc(2 * 8dp) is an ordinary 16dp.
++	bool Parse(Property& property, const String& value, Units allowed_units);
++
++	// Whether value starts with calc(, ignoring case and leading space.
++	bool IsCalc(const String& value);
++
++	// The pixels an expression stands for once its non-percentage units are resolved, and its percentage.
++	struct Resolved {
++		float pixels = 0.f;
++		float percent = 0.f;
++	};
++	Resolved Resolve(float index, float font_size, float document_font_size, float dp_ratio, Vector2f vp_dimensions);
++
++	// Interns a resolved percentage and offset for a computed value to carry, and reads one back.
++	float InternResolved(Resolved resolved);
++	Resolved GetResolved(float index);
++
++	// The expression as written back, for debugging and serialization.
++	String ToString(float index);
++
++} // namespace Calc
++} // namespace Rml
+diff --git a/Source/Core/ComputeProperty.cpp b/Source/Core/ComputeProperty.cpp
+index 2dff457..c591e32 100644
+--- a/Source/Core/ComputeProperty.cpp
++++ b/Source/Core/ComputeProperty.cpp
+@@ -1,5 +1,6 @@
+ #include "ComputeProperty.h"
+ #include "../../Include/RmlUi/Core/ComputedValues.h"
++#include "Calc.h"
+ #include "../../Include/RmlUi/Core/Property.h"
+ #include "../../Include/RmlUi/Core/StringUtilities.h"
+ #include "ControlledLifetimeResource.h"
+@@ -54,6 +55,10 @@ float ComputeLength(NumericValue value, float font_size, float document_font_siz
+ 	if (Any(value.unit & Unit::PPI_UNIT))
+ 		return ComputePPILength(value, dp_ratio);
+ 
++	// Where only a length makes sense, the percentage of a calc() has nothing to be a percentage of.
++	if (value.unit == Unit::CALC)
++		return Calc::Resolve(value.number, font_size, document_font_size, dp_ratio, vp_dimensions).pixels;
++
+ 	switch (value.unit)
+ 	{
+ 	case Unit::PX: return value.number;
+@@ -177,6 +182,13 @@ Style::LengthPercentage ComputeLengthPercentage(const Property* property, float
+ 	using namespace Style;
+ 	if (property->unit == Unit::PERCENT)
+ 		return LengthPercentage(LengthPercentage::Percentage, property->Get<float>());
++	if (property->unit == Unit::CALC)
++	{
++		const Calc::Resolved resolved = Calc::Resolve(property->Get<float>(), font_size, document_font_size, dp_ratio, vp_dimensions);
++		if (resolved.percent == 0.f)
++			return LengthPercentage(LengthPercentage::Length, resolved.pixels);
++		return LengthPercentage(LengthPercentage::Calc, Calc::InternResolved(resolved));
++	}
+ 
+ 	return LengthPercentage(LengthPercentage::Length,
+ 		ComputeLength(property->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions));
+@@ -190,6 +202,13 @@ Style::LengthPercentageAuto ComputeLengthPercentageAuto(const Property* property
+ 		return LengthPercentageAuto(LengthPercentageAuto::Percentage, property->Get<float>());
+ 	else if (property->unit == Unit::KEYWORD)
+ 		return LengthPercentageAuto(LengthPercentageAuto::Auto);
++	else if (property->unit == Unit::CALC)
++	{
++		const Calc::Resolved resolved = Calc::Resolve(property->Get<float>(), font_size, document_font_size, dp_ratio, vp_dimensions);
++		if (resolved.percent == 0.f)
++			return LengthPercentageAuto(LengthPercentageAuto::Length, resolved.pixels);
++		return LengthPercentageAuto(LengthPercentageAuto::Calc, Calc::InternResolved(resolved));
++	}
+ 
+ 	return LengthPercentageAuto(LengthPercentageAuto::Length,
+ 		ComputeLength(property->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions));
+@@ -213,8 +232,8 @@ Style::LengthPercentage ComputeOrigin(const Property* property, float font_size,
+ 		}
+ 		return LengthPercentage(LengthPercentage::Percentage, percent);
+ 	}
+-	else if (property->unit == Unit::PERCENT)
+-		return LengthPercentage(LengthPercentage::Percentage, property->Get<float>());
++	else if (property->unit == Unit::PERCENT || property->unit == Unit::CALC)
++		return ComputeLengthPercentage(property, font_size, document_font_size, dp_ratio, vp_dimensions);
+ 
+ 	return LengthPercentage(LengthPercentage::Length,
+ 		ComputeLength(property->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions));
+@@ -227,6 +246,8 @@ Style::LengthPercentage ComputeMaxSize(const Property* property, float font_size
+ 		return LengthPercentage(LengthPercentage::Length, FLT_MAX);
+ 	else if (Any(property->unit & Unit::PERCENT))
+ 		return LengthPercentage(LengthPercentage::Percentage, property->Get<float>());
++	else if (property->unit == Unit::CALC)
++		return ComputeLengthPercentage(property, font_size, document_font_size, dp_ratio, vp_dimensions);
+ 
+ 	const float length = ComputeLength(property->GetNumericValue(), font_size, document_font_size, dp_ratio, vp_dimensions);
+ 	return LengthPercentage(LengthPercentage::Length, length < 0.f ? FLT_MAX : length);
+diff --git a/Source/Core/ComputedValues.cpp b/Source/Core/ComputedValues.cpp
+index eaf2cb6..fa795cf 100644
+--- a/Source/Core/ComputedValues.cpp
++++ b/Source/Core/ComputedValues.cpp
+@@ -1,5 +1,6 @@
+ #include "../../Include/RmlUi/Core/ComputedValues.h"
+ #include "../../Include/RmlUi/Core/Element.h"
++#include "Calc.h"
+ #include "ComputeProperty.h"
+ 
+ namespace Rml {
+@@ -50,12 +51,22 @@ float Style::ComputedValues::letter_spacing() const
+ 	return 0.f;
+ }
+ 
++static float ResolveCalcOr(float index, float base_value, float default_value)
++{
++	if (base_value < 0.f)
++		return default_value;
++	const Calc::Resolved resolved = Calc::GetResolved(index);
++	return resolved.percent * 0.01f * base_value + resolved.pixels;
++}
++
+ float ResolveValueOr(Style::LengthPercentageAuto length, float base_value, float default_value)
+ {
+ 	if (length.type == Style::LengthPercentageAuto::Length)
+ 		return length.value;
+ 	else if (length.type == Style::LengthPercentageAuto::Percentage && base_value >= 0.f)
+ 		return length.value * 0.01f * base_value;
++	else if (length.type == Style::LengthPercentageAuto::Calc)
++		return ResolveCalcOr(length.value, base_value, default_value);
+ 	return default_value;
+ }
+ 
+@@ -65,6 +76,8 @@ float ResolveValueOr(Style::LengthPercentage length, float base_value, float def
+ 		return length.value;
+ 	else if (length.type == Style::LengthPercentage::Percentage && base_value >= 0.f)
+ 		return length.value * 0.01f * base_value;
++	else if (length.type == Style::LengthPercentage::Calc)
++		return ResolveCalcOr(length.value, base_value, default_value);
+ 	return default_value;
+ }
+ 
+diff --git a/Source/Core/Element.cpp b/Source/Core/Element.cpp
+index 779deaf..abec498 100644
+--- a/Source/Core/Element.cpp
++++ b/Source/Core/Element.cpp
+@@ -652,7 +652,7 @@ const PropertyMap& Element::GetLocalStyleProperties()
+ float Element::ResolveLength(NumericValue value)
+ {
+ 	float result = 0.f;
+-	if (Any(value.unit & Unit::LENGTH))
++	if (Any(value.unit & (Unit::LENGTH | Unit::CALC)))
+ 		result = meta->style.ResolveNumericValue(value, 0.f);
+ 	return result;
+ }
+@@ -660,7 +660,7 @@ float Element::ResolveLength(NumericValue value)
+ float Element::ResolveNumericValue(NumericValue value, float base_value)
+ {
+ 	float result = 0.f;
+-	if (Any(value.unit & Unit::NUMERIC))
++	if (Any(value.unit & (Unit::NUMERIC | Unit::CALC)))
+ 		result = meta->style.ResolveNumericValue(value, base_value);
+ 	return result;
+ }
+@@ -1736,6 +1736,8 @@ void Element::OnAttributeChange(const ElementAttributes& changed_attributes)
+ 
+ 				for (const auto& name_value : properties.GetProperties())
+ 					meta->style.SetProperty(name_value.first, name_value.second);
++				for (const auto& name_value : properties.GetCustomProperties())
++					meta->style.SetCustomProperty(name_value.first, name_value.second);
+ 			}
+ 			else if (value.GetType() != Variant::NONE)
+ 				Log::Message(Log::LT_WARNING, "Invalid 'style' attribute, string type required. In element: %s", GetAddress().c_str());
+@@ -2336,7 +2338,7 @@ void Element::BuildLocalStackingContext()
+ 
+ void Element::AddChildrenToStackingContext(Vector<StackingContextChild>& stacking_children)
+ {
+-	bool is_flex_container = (GetDisplay() == Style::Display::Flex);
++	bool is_flex_container = (GetDisplay() == Style::Display::Flex || GetDisplay() == Style::Display::Grid);
+ 	const int num_children = (int)children.size();
+ 	for (int i = 0; i < num_children; ++i)
+ 	{
+@@ -2400,6 +2402,7 @@ void Element::AddToStackingContext(Vector<StackingContextChild>& stacking_childr
+ 		case Display::FlowRoot:
+ 		case Display::Table:
+ 		case Display::Flex:
++		case Display::Grid:
+ 			order = RenderOrder::Block;
+ 			render_as_atomic_unit = (display == Display::Table || is_flex_item);
+ 			break;
+diff --git a/Source/Core/ElementStyle.cpp b/Source/Core/ElementStyle.cpp
+index 20251b3..47dd363 100644
+--- a/Source/Core/ElementStyle.cpp
++++ b/Source/Core/ElementStyle.cpp
+@@ -15,13 +15,17 @@
+ #include "../../Include/RmlUi/Core/StyleSheet.h"
+ #include "../../Include/RmlUi/Core/StyleSheetSpecification.h"
+ #include "../../Include/RmlUi/Core/TransformPrimitive.h"
++#include "Calc.h"
+ #include "ComputeProperty.h"
+ #include "ElementDefinition.h"
+ #include "PropertiesIterator.h"
+ #include <algorithm>
++#include <cctype>
+ 
+ namespace Rml {
+ 
++static bool CustomPropertiesDiffer(const ElementDefinition* a, const ElementDefinition* b);
++
+ inline PseudoClassState operator|(PseudoClassState lhs, PseudoClassState rhs)
+ {
+ 	return PseudoClassState(int(lhs) | int(rhs));
+@@ -53,7 +57,7 @@ const Property* ElementStyle::GetLocalProperty(PropertyId id, const PropertyDict
+ const Property* ElementStyle::GetProperty(PropertyId id, const Element* element, const PropertyDictionary& inline_properties,
+ 	const ElementDefinition* definition)
+ {
+-	const Property* local_property = GetLocalProperty(id, inline_properties, definition);
++	const Property* local_property = element->GetStyle()->ResolveVars(id, GetLocalProperty(id, inline_properties, definition));
+ 	if (local_property)
+ 		return local_property;
+ 
+@@ -178,9 +182,13 @@ void ElementStyle::UpdateDefinition()
+ 			TransitionPropertyChanges(element, changed_properties, inline_properties, definition.get(), new_definition.get());
+ 		}
+ 
++		const bool custom_changed = CustomPropertiesDiffer(definition.get(), new_definition.get());
++
+ 		definition = new_definition;
+ 
+ 		DirtyProperties(changed_properties);
++		if (custom_changed)
++			DirtyVarPropertiesRecursive();
+ 	}
+ }
+ 
+@@ -308,7 +316,143 @@ const Property* ElementStyle::GetProperty(PropertyId id) const
+ 
+ const Property* ElementStyle::GetLocalProperty(PropertyId id) const
+ {
+-	return GetLocalProperty(id, inline_properties, definition.get());
++	return ResolveVars(id, GetLocalProperty(id, inline_properties, definition.get()));
++}
++
++// Where the next var( starts, or npos. A name such as myvar( is not one.
++static size_t FindVar(const String& text, size_t from)
++{
++	for (size_t i = from; i + 4 <= text.size(); i++)
++	{
++		if ((text[i] == 'v' || text[i] == 'V') && (text[i + 1] == 'a' || text[i + 1] == 'A') && (text[i + 2] == 'r' || text[i + 2] == 'R') &&
++			text[i + 3] == '(' && (i == 0 || !(std::isalnum((unsigned char)text[i - 1]) || text[i - 1] == '-')))
++			return i;
++	}
++	return String::npos;
++}
++
++// Replaces every var(--name, fallback) in input. Custom properties may use var() themselves, to a limited depth, so
++// one that refers back to itself fails instead of recursing forever.
++static bool SubstituteVars(const ElementStyle& style, const String& input, String& output, int depth)
++{
++	if (depth > 16)
++		return false;
++
++	output.clear();
++	size_t position = 0;
++	while (position < input.size())
++	{
++		const size_t start = FindVar(input, position);
++		if (start == String::npos)
++		{
++			output.append(input, position, String::npos);
++			break;
++		}
++		output.append(input, position, start - position);
++
++		const size_t open = start + 3;
++		size_t close = String::npos, comma = String::npos;
++		int level = 0;
++		for (size_t i = open; i < input.size(); i++)
++		{
++			const char c = input[i];
++			if (c == '(')
++				level++;
++			else if (c == ')' && --level == 0)
++			{
++				close = i;
++				break;
++			}
++			else if (c == ',' && level == 1 && comma == String::npos)
++				comma = i;
++		}
++		if (close == String::npos)
++			return false;
++
++		const String name = StringUtilities::StripWhitespace(input.substr(open + 1, (comma == String::npos ? close : comma) - open - 1));
++
++		String replacement;
++		const Property* custom = style.GetCustomProperty(name);
++		if (!custom || !SubstituteVars(style, custom->Get<String>(), replacement, depth + 1))
++		{
++			if (comma == String::npos || !SubstituteVars(style, input.substr(comma + 1, close - comma - 1), replacement, depth + 1))
++				return false;
++		}
++
++		output += StringUtilities::StripWhitespace(replacement);
++		position = close + 1;
++	}
++	return true;
++}
++
++const Property* ElementStyle::ResolveVars(PropertyId id, const Property* property) const
++{
++	if (!property || property->unit != Unit::UNRESOLVED)
++		return property;
++
++	auto found = resolved_vars.find(id);
++	if (found != resolved_vars.end())
++		return found->second.unit == Unit::UNKNOWN ? nullptr : &found->second;
++
++	Property& resolved = resolved_vars[id];
++	String substituted;
++	if (!SubstituteVars(*this, property->Get<String>(), substituted, 0) ||
++		!StyleSheetSpecification::GetPropertySpecification().ParseUnresolvedProperty(resolved, id, *property, substituted))
++	{
++		resolved = Property();
++		resolved.unit = Unit::UNKNOWN;
++		return nullptr;
++	}
++	return &resolved;
++}
++
++const Property* ElementStyle::GetCustomProperty(const String& name) const
++{
++	for (const Element* ancestor = element; ancestor; ancestor = ancestor->GetParentNode())
++	{
++		const ElementStyle* style = ancestor->GetStyle();
++		if (const Property* property = style->inline_properties.GetCustomProperty(name))
++			return property;
++		if (style->definition)
++		{
++			if (const Property* property = style->definition->GetProperties().GetCustomProperty(name))
++				return property;
++		}
++	}
++	return nullptr;
++}
++
++void ElementStyle::SetCustomProperty(const String& name, const Property& property)
++{
++	inline_properties.SetCustomProperty(name, property);
++	DirtyVarPropertiesRecursive();
++}
++
++void ElementStyle::DirtyVarPropertiesRecursive()
++{
++	resolved_vars.clear();
++	DirtyPropertiesWithUnits(Unit::UNRESOLVED);
++
++	const int num_children = element->GetNumChildren(true);
++	for (int i = 0; i < num_children; ++i)
++		element->GetChild(i)->GetStyle()->DirtyVarPropertiesRecursive();
++}
++
++// Whether two definitions give different custom properties, which everything below may read through var().
++static bool CustomPropertiesDiffer(const ElementDefinition* a, const ElementDefinition* b)
++{
++	static const UnorderedMap<String, Property> none;
++	const UnorderedMap<String, Property>& left = a ? a->GetProperties().GetCustomProperties() : none;
++	const UnorderedMap<String, Property>& right = b ? b->GetProperties().GetCustomProperties() : none;
++	if (left.size() != right.size())
++		return true;
++	for (const auto& pair : left)
++	{
++		auto other = right.find(pair.first);
++		if (other == right.end() || other->second.Get<String>() != pair.second.Get<String>())
++			return true;
++	}
++	return false;
+ }
+ 
+ const PropertyMap& ElementStyle::GetLocalStyleProperties() const
+@@ -356,6 +500,8 @@ float ElementStyle::ResolveNumericValue(NumericValue value, float base_value) co
+ 		return value.number;
+ 	else if (Any(value.unit & Unit::LENGTH))
+ 		return ComputeLength(value, element);
++	else if (value.unit == Unit::CALC)
++		return ResolveCalc(value.number, base_value);
+ 
+ 	switch (value.unit)
+ 	{
+@@ -371,8 +517,34 @@ float ElementStyle::ResolveNumericValue(NumericValue value, float base_value) co
+ 	return 0.f;
+ }
+ 
++float ElementStyle::ResolveCalc(float index, float base_value) const
++{
++	const Style::ComputedValues& computed = element->GetComputedValues();
++	const ElementDocument* document = element->GetOwnerDocument();
++	const float document_font_size = document ? document->GetComputedValues().font_size() : computed.font_size();
++	const Context* context = element->GetContext();
++	const float dp_ratio = context ? context->GetDensityIndependentPixelRatio() : 1.f;
++	const Vector2f vp_dimensions = context ? Vector2f(context->GetDimensions()) : Vector2f(1.f);
++	const Calc::Resolved resolved = Calc::Resolve(index, computed.font_size(), document_font_size, dp_ratio, vp_dimensions);
++	return resolved.percent * 0.01f * base_value + resolved.pixels;
++}
++
+ float ElementStyle::ResolveRelativeLength(NumericValue value, RelativeTarget relative_target) const
+ {
++	if (value.unit == Unit::CALC)
++	{
++		float base_value = 0.f;
++		switch (relative_target)
++		{
++		case RelativeTarget::ContainingBlockWidth: base_value = element->GetContainingBlock().x; break;
++		case RelativeTarget::ContainingBlockHeight: base_value = element->GetContainingBlock().y; break;
++		case RelativeTarget::FontSize: base_value = element->GetComputedValues().font_size(); break;
++		case RelativeTarget::LineHeight: base_value = element->GetLineHeight(); break;
++		default: break;
++		}
++		return ResolveCalc(value.number, base_value);
++	}
++
+ 	// There is an exception on font-size properties, as 'em' units here refer to parent font size instead
+ 	if (Any(value.unit & Unit::LENGTH) && !(value.unit == Unit::EM && relative_target == RelativeTarget::ParentFontSize))
+ 	{
+@@ -488,6 +660,9 @@ PropertyIdSet ElementStyle::ComputeValues(Style::ComputedValues& values, const S
+ 
+ 	RMLUI_ZoneScopedC(0xFF7F50);
+ 
++	// Custom properties may have changed since these were parsed.
++	resolved_vars.clear();
++
+ 	// Generally, this is how it works:
+ 	//   1. Assign default values (clears any removed properties)
+ 	//   2. Inherit inheritable values from parent
+@@ -568,7 +743,11 @@ PropertyIdSet ElementStyle::ComputeValues(Style::ComputedValues& values, const S
+ 	{
+ 		auto name_property_pair = *it;
+ 		const PropertyId id = name_property_pair.first;
+-		const Property* p = &name_property_pair.second;
++		const Property* p = ResolveVars(id, &name_property_pair.second);
++
++		// A var() with nothing to read leaves the property at its inherited or initial value.
++		if (!p)
++			continue;
+ 
+ 		if (dirty_em_properties && p->unit == Unit::EM)
+ 			dirty_properties.Insert(id);
+diff --git a/Source/Core/ElementStyle.h b/Source/Core/ElementStyle.h
+index 279e149..5463a58 100644
+--- a/Source/Core/ElementStyle.h
++++ b/Source/Core/ElementStyle.h
+@@ -4,6 +4,7 @@
+ #include "../../Include/RmlUi/Core/PropertyDictionary.h"
+ #include "../../Include/RmlUi/Core/PropertyIdSet.h"
+ #include "../../Include/RmlUi/Core/Types.h"
++#include <unordered_map>
+ 
+ namespace Rml {
+ 
+@@ -89,6 +90,16 @@ public:
+ 	/// Numbers and percentages are resolved by scaling the size of the specified target.
+ 	float ResolveRelativeLength(NumericValue value, RelativeTarget relative_target) const;
+ 
++	/// Resolves a calc() index: its lengths against this element, its percentage against base_value.
++	float ResolveCalc(float index, float base_value) const;
++
++	/// A custom property as this element sees it: its own, else the nearest ancestor's. Null when nothing sets it.
++	const Property* GetCustomProperty(const String& name) const;
++	/// Sets a custom property inline, as the style attribute does.
++	void SetCustomProperty(const String& name, const Property& property);
++	/// Dirties every property here and below that uses var(), for when a custom property it may read has changed.
++	void DirtyVarPropertiesRecursive();
++
+ 	/// Mark inherited properties dirty.
+ 	/// Inherited properties will automatically be set when parent inherited properties are changed. However,
+ 	/// some operations may require to dirty these manually, such as when moving an element into another.
+@@ -123,6 +134,10 @@ private:
+ 	static void TransitionPropertyChanges(Element* element, PropertyIdSet& properties, const PropertyDictionary& inline_properties,
+ 		const ElementDefinition* old_definition, const ElementDefinition* new_definition);
+ 
++	// A property using var() parsed against this element's custom properties, or the property itself if it uses none.
++	// Null when a var() has no value and no fallback, which leaves the property unset.
++	const Property* ResolveVars(PropertyId id, const Property* property) const;
++
+ 	// Element these properties belong to
+ 	Element* element;
+ 
+@@ -137,6 +152,10 @@ private:
+ 	SharedPtr<const ElementDefinition> definition;
+ 
+ 	PropertyIdSet dirty_properties;
++
++	// Properties using var(), parsed since the values were last computed. Node-based, so a pointer handed out stays
++	// good while others are added. An UNKNOWN unit records one that would not resolve.
++	mutable std::unordered_map<PropertyId, Property> resolved_vars;
+ };
+ 
+ } // namespace Rml
+diff --git a/Source/Core/Layout/BlockFormattingContext.cpp b/Source/Core/Layout/BlockFormattingContext.cpp
+index 526da4b..cf674ff 100644
+--- a/Source/Core/Layout/BlockFormattingContext.cpp
++++ b/Source/Core/Layout/BlockFormattingContext.cpp
+@@ -66,6 +66,7 @@ static OuterDisplayType GetOuterDisplayType(Style::Display display)
+ 	case Style::Display::Block:
+ 	case Style::Display::FlowRoot:
+ 	case Style::Display::Flex:
++	case Style::Display::Grid:
+ 	case Style::Display::Table: return OuterDisplayType::BlockLevel;
+ 
+ 	case Style::Display::Inline:
+diff --git a/Source/Core/Layout/CMakeLists.txt b/Source/Core/Layout/CMakeLists.txt
+index 42bc958..0c4930c 100644
+--- a/Source/Core/Layout/CMakeLists.txt
++++ b/Source/Core/Layout/CMakeLists.txt
+@@ -10,6 +10,8 @@ target_sources(rmlui_core PRIVATE
+ 	"${CMAKE_CURRENT_SOURCE_DIR}/ContainerBox.h"
+ 	"${CMAKE_CURRENT_SOURCE_DIR}/FlexFormattingContext.cpp"
+ 	"${CMAKE_CURRENT_SOURCE_DIR}/FlexFormattingContext.h"
++	"${CMAKE_CURRENT_SOURCE_DIR}/GridFormattingContext.cpp"
++	"${CMAKE_CURRENT_SOURCE_DIR}/GridFormattingContext.h"
+ 	"${CMAKE_CURRENT_SOURCE_DIR}/FloatedBoxSpace.cpp"
+ 	"${CMAKE_CURRENT_SOURCE_DIR}/FloatedBoxSpace.h"
+ 	"${CMAKE_CURRENT_SOURCE_DIR}/FormattingContext.cpp"
+diff --git a/Source/Core/Layout/ContainerBox.cpp b/Source/Core/Layout/ContainerBox.cpp
+index 8d458d9..bdb5534 100644
+--- a/Source/Core/Layout/ContainerBox.cpp
++++ b/Source/Core/Layout/ContainerBox.cpp
+@@ -4,6 +4,7 @@
+ #include "../../../Include/RmlUi/Core/ElementScroll.h"
+ #include "../../../Include/RmlUi/Core/Profiling.h"
+ #include "FlexFormattingContext.h"
++#include "GridFormattingContext.h"
+ #include "FormattingContext.h"
+ #include "LayoutDetails.h"
+ #include <algorithm>
+@@ -253,6 +254,8 @@ float FlexContainer::GetShrinkToFitWidth() const
+ 		return box.GetSize().x;
+ 
+ 	// Infer shrink-to-fit width from the intrinsic width of the element.
++	if (element->GetDisplay() == Style::Display::Grid)
++		return GridFormattingContext::GetMaxContentSize(element).x;
+ 	return FlexFormattingContext::GetMaxContentSize(element).x;
+ }
+ 
+diff --git a/Source/Core/Layout/FormattingContext.cpp b/Source/Core/Layout/FormattingContext.cpp
+index bc80967..42fcb68 100644
+--- a/Source/Core/Layout/FormattingContext.cpp
++++ b/Source/Core/Layout/FormattingContext.cpp
+@@ -4,6 +4,7 @@
+ #include "../../../Include/RmlUi/Core/Profiling.h"
+ #include "BlockFormattingContext.h"
+ #include "FlexFormattingContext.h"
++#include "GridFormattingContext.h"
+ #include "LayoutBox.h"
+ #include "ReplacedFormattingContext.h"
+ #include "TableFormattingContext.h"
+@@ -31,9 +32,14 @@ UniquePtr<LayoutBox> FormattingContext::FormatIndependent(ContainerBox* parent_c
+ 	{
+ 		type = FormattingContextType::Table;
+ 	}
++	else if (display == Display::Grid)
++	{
++		type = FormattingContextType::Grid;
++	}
+ 	else if (display == Display::InlineBlock || display == Display::FlowRoot || display == Display::TableCell || computed.float_() != Float::None ||
+ 		computed.position() == Position::Absolute || computed.position() == Position::Fixed || computed.overflow_x() != Overflow::Visible ||
+-		computed.overflow_y() != Overflow::Visible || !element->GetParentNode() || element->GetParentNode()->GetDisplay() == Display::Flex)
++		computed.overflow_y() != Overflow::Visible || !element->GetParentNode() || element->GetParentNode()->GetDisplay() == Display::Flex ||
++		element->GetParentNode()->GetDisplay() == Display::Grid)
+ 	{
+ 		type = FormattingContextType::Block;
+ 	}
+@@ -43,6 +49,7 @@ UniquePtr<LayoutBox> FormattingContext::FormatIndependent(ContainerBox* parent_c
+ 	case FormattingContextType::Block: return BlockFormattingContext::Format(parent_container, element, override_initial_box);
+ 	case FormattingContextType::Table: return TableFormattingContext::Format(parent_container, element, override_initial_box);
+ 	case FormattingContextType::Flex: return FlexFormattingContext::Format(parent_container, element, override_initial_box);
++	case FormattingContextType::Grid: return GridFormattingContext::Format(parent_container, element, override_initial_box);
+ 	case FormattingContextType::None: break;
+ 	}
+ 
+diff --git a/Source/Core/Layout/FormattingContext.h b/Source/Core/Layout/FormattingContext.h
+index ea36334..affeb15 100644
+--- a/Source/Core/Layout/FormattingContext.h
++++ b/Source/Core/Layout/FormattingContext.h
+@@ -12,6 +12,7 @@ enum class FormattingContextType {
+ 	Block,
+ 	Table,
+ 	Flex,
++	Grid,
+ 	None,
+ };
+ 
+diff --git a/Source/Core/Layout/GridFormattingContext.cpp b/Source/Core/Layout/GridFormattingContext.cpp
+new file mode 100644
+index 0000000..a7dfa18
+--- /dev/null
++++ b/Source/Core/Layout/GridFormattingContext.cpp
+@@ -0,0 +1,787 @@
++#include "GridFormattingContext.h"
++#include "../../../Include/RmlUi/Core/ComputedValues.h"
++#include "../../../Include/RmlUi/Core/Element.h"
++#include "../../../Include/RmlUi/Core/ElementScroll.h"
++#include "../../../Include/RmlUi/Core/Profiling.h"
++#include "../../../Include/RmlUi/Core/Property.h"
++#include "../../../Include/RmlUi/Core/PropertyParser.h"
++#include "../../../Include/RmlUi/Core/StringUtilities.h"
++#include "../../../Include/RmlUi/Core/StyleSheetSpecification.h"
++#include "ContainerBox.h"
++#include "LayoutDetails.h"
++#include <algorithm>
++#include <float.h>
++#include <stdlib.h>
++
++namespace Rml {
++
++namespace {
++
++	enum class TrackKind : uint8_t { Length, Fr, Auto };
++
++	struct TrackBound {
++		TrackKind kind = TrackKind::Auto;
++		NumericValue length; // Length: any length, percentage or calc()
++		float fr = 0.f;      // Fr
++	};
++
++	// A plain size is its own minimum and maximum. fr has a minimum of zero rather than CSS's content minimum, so
++	// equal fractions stay equal whatever is in them.
++	struct TrackSize {
++		TrackBound min, max;
++	};
++
++	struct Placement {
++		int start = 0; // Line, 1-based; negative counts back from the end of the explicit grid. Zero is auto.
++		int end = 0;
++		int span = 1;
++	};
++
++	struct GridItem {
++		Element* element = nullptr;
++		Box box;
++		Placement placement[2]; // [0] columns, [1] rows
++		int start[2] = {-1, -1};
++		int span[2] = {1, 1};
++		float edges[2] = {0.f, 0.f};    // Margin, border and padding across each axis
++		float margin_a[2] = {0.f, 0.f}; // Left and top margins
++		float contribution[2] = {0.f, 0.f};
++		Style::AlignSelf align = Style::AlignSelf::Stretch;
++		int justify = 0; // JustifySelf without auto: stretch, start, end, center
++	};
++
++	struct Track {
++		TrackSize size;
++		float base = 0.f;
++		float content = 0.f;
++	};
++
++	enum class Justify { Stretch, Start, End, Center };
++
++	// Splits on whitespace and commas outside parentheses.
++	StringList SplitTopLevel(const String& value, bool on_comma)
++	{
++		StringList result;
++		String current;
++		int depth = 0;
++		for (const char c : value)
++		{
++			if (c == '(')
++				depth++;
++			else if (c == ')')
++				depth--;
++
++			const bool separator = depth == 0 && (on_comma ? c == ',' : StringUtilities::IsWhitespace(c));
++			if (separator)
++			{
++				if (!StringUtilities::StripWhitespace(current).empty())
++					result.push_back(StringUtilities::StripWhitespace(current));
++				current.clear();
++			}
++			else
++				current += c;
++		}
++		if (!StringUtilities::StripWhitespace(current).empty())
++			result.push_back(StringUtilities::StripWhitespace(current));
++		return result;
++	}
++
++	bool StartsWith(const String& value, const char* prefix)
++	{
++		const String lower = StringUtilities::ToLower(value.substr(0, strlen(prefix)));
++		return lower == prefix;
++	}
++
++	// The inside of name(...).
++	String Arguments(const String& value)
++	{
++		const size_t open = value.find('(');
++		const size_t close = value.rfind(')');
++		if (open == String::npos || close == String::npos || close <= open)
++			return String();
++		return value.substr(open + 1, close - open - 1);
++	}
++
++	bool ParseBound(const String& token, TrackBound& bound)
++	{
++		const String lower = StringUtilities::ToLower(token);
++		if (lower == "auto" || lower == "min-content" || lower == "max-content")
++		{
++			bound.kind = TrackKind::Auto;
++			return true;
++		}
++		if (lower.size() > 2 && lower.compare(lower.size() - 2, 2, "fr") == 0)
++		{
++			char* end = nullptr;
++			bound.fr = strtof(lower.c_str(), &end);
++			bound.kind = TrackKind::Fr;
++			return end != lower.c_str();
++		}
++
++		static PropertyParser* parser = StyleSheetSpecification::GetParser("length_percent");
++		Property property;
++		if (!parser || !parser->ParseValue(property, token, ParameterMap()))
++			return false;
++		bound.kind = TrackKind::Length;
++		bound.length = property.GetNumericValue();
++		return true;
++	}
++
++	bool ParseTrack(const String& token, TrackSize& track)
++	{
++		if (StartsWith(token, "minmax("))
++		{
++			const StringList bounds = SplitTopLevel(Arguments(token), true);
++			if (bounds.size() != 2 || !ParseBound(bounds[0], track.min) || !ParseBound(bounds[1], track.max))
++				return false;
++			// A fraction is no minimum.
++			if (track.min.kind == TrackKind::Fr)
++				track.min.kind = TrackKind::Auto;
++			return true;
++		}
++
++		TrackBound bound;
++		if (!ParseBound(token, bound))
++			return false;
++		track.max = bound;
++		track.min = (bound.kind == TrackKind::Fr ? TrackBound{TrackKind::Length, NumericValue(0.f, Unit::PX), 0.f} : bound);
++		return true;
++	}
++
++	void ParseTrackList(const String& value, Vector<TrackSize>& tracks, Element* element)
++	{
++		tracks.clear();
++		const String lower = StringUtilities::ToLower(StringUtilities::StripWhitespace(value));
++		if (lower.empty() || lower == "none")
++			return;
++
++		for (const String& token : SplitTopLevel(value, false))
++		{
++			if (StartsWith(token, "repeat("))
++			{
++				const StringList arguments = SplitTopLevel(Arguments(token), true);
++				if (arguments.size() != 2)
++					continue;
++				const int count = Math::Clamp(atoi(arguments[0].c_str()), 0, 1000);
++				Vector<TrackSize> pattern;
++				for (const String& item : SplitTopLevel(arguments[1], false))
++				{
++					TrackSize track;
++					if (ParseTrack(item, track))
++						pattern.push_back(track);
++				}
++				for (int i = 0; i < count; i++)
++					tracks.insert(tracks.end(), pattern.begin(), pattern.end());
++				continue;
++			}
++
++			TrackSize track;
++			if (ParseTrack(token, track))
++				tracks.push_back(track);
++			else
++				Log::Message(Log::LT_WARNING, "Invalid grid track '%s' in %s", token.c_str(), element->GetAddress().c_str());
++		}
++	}
++
++	// One side of grid-column or grid-row: auto, a line, or span n.
++	void ParseLine(const String& value, int& line, int& span)
++	{
++		const StringList words = SplitTopLevel(value, false);
++		line = 0;
++		span = 0;
++		for (size_t i = 0; i < words.size(); i++)
++		{
++			const String word = StringUtilities::ToLower(words[i]);
++			if (word == "span")
++				span = (i + 1 < words.size() ? Math::Max(1, atoi(words[++i].c_str())) : 1);
++			else if (word != "auto")
++				line = atoi(word.c_str());
++		}
++	}
++
++	Placement ParsePlacement(const String& value)
++	{
++		Placement placement;
++		const size_t slash = value.find('/');
++		int start_line = 0, start_span = 0, end_line = 0, end_span = 0;
++		ParseLine(value.substr(0, slash), start_line, start_span);
++		if (slash != String::npos)
++			ParseLine(value.substr(slash + 1), end_line, end_span);
++
++		placement.start = start_line;
++		placement.end = end_line;
++		placement.span = Math::Max(1, start_span > 0 ? start_span : end_span > 0 ? end_span : 1);
++		return placement;
++	}
++
++	String GetStringProperty(Element* element, PropertyId id)
++	{
++		const Property* property = element->GetProperty(id);
++		return property && property->unit == Unit::STRING ? property->Get<String>() : String();
++	}
++
++	float ResolveBound(Element* element, const TrackBound& bound, float base)
++	{
++		if (bound.kind != TrackKind::Length)
++			return 0.f;
++		if (bound.length.unit == Unit::PERCENT && base < 0.f)
++			return 0.f;
++		return Math::Max(0.f, element->ResolveNumericValue(bound.length, Math::Max(base, 0.f)));
++	}
++
++	// Whether a percentage track has nothing to be a percentage of, which makes it auto.
++	bool IsIndefinite(const TrackBound& bound, float available)
++	{
++		return bound.kind == TrackKind::Length && available < 0.f && Any(bound.length.unit & (Unit::PERCENT | Unit::CALC));
++	}
++
++	// Resolves an item's lines against an explicit grid of `explicit_count` tracks to a start track and span.
++	// Returns false when the item has no definite start on this axis.
++	bool ResolveLines(const Placement& placement, int explicit_count, int& start, int& span)
++	{
++		// Line -1 is the last line of the explicit grid, which is line explicit_count + 1.
++		auto ToTrack = [explicit_count](int line) { return line > 0 ? line - 1 : explicit_count + 1 + line; };
++
++		span = placement.span;
++		if (placement.start != 0 && placement.end != 0)
++		{
++			int a = ToTrack(placement.start), b = ToTrack(placement.end);
++			if (b < a)
++				std::swap(a, b);
++			start = a;
++			span = Math::Max(1, b - a);
++		}
++		else if (placement.start != 0)
++			start = ToTrack(placement.start);
++		else if (placement.end != 0)
++			start = ToTrack(placement.end) - span;
++		else
++			return false;
++
++		start = Math::Max(0, start);
++		return true;
++	}
++
++	class Occupancy {
++	public:
++		Occupancy(int minor_count) : minor_count(Math::Max(1, minor_count)) {}
++
++		int MinorCount() const { return minor_count; }
++
++		bool Fits(int major, int minor, int major_span, int minor_span) const
++		{
++			if (minor < 0 || minor + minor_span > minor_count)
++				return false;
++			for (int a = major; a < major + major_span; a++)
++			{
++				if (a >= (int)cells.size())
++					continue;
++				for (int b = minor; b < minor + minor_span; b++)
++					if (cells[a][b])
++						return false;
++			}
++			return true;
++		}
++
++		void Mark(int major, int minor, int major_span, int minor_span)
++		{
++			if ((int)cells.size() < major + major_span)
++				cells.resize(major + major_span, Vector<char>(minor_count, 0));
++			for (int a = major; a < major + major_span; a++)
++				for (int b = minor; b < Math::Min(minor + minor_span, minor_count); b++)
++					cells[a][b] = 1;
++		}
++
++		int MajorCount() const { return (int)cells.size(); }
++
++	private:
++		int minor_count;
++		Vector<Vector<char>> cells;
++	};
++
++	// Places every item, growing the implicit grid. Axis 0 is columns. The flow axis is the one placement advances
++	// along, which for row flow is the rows: items fill across the columns, then move down.
++	void PlaceItems(Vector<GridItem>& items, int explicit_count[2], bool column_flow, int out_count[2])
++	{
++		const int major = column_flow ? 0 : 1;
++		const int minor = 1 - major;
++
++		int minor_count = explicit_count[minor];
++		for (GridItem& item : items)
++		{
++			for (int axis = 0; axis < 2; axis++)
++			{
++				int start = -1, span = 1;
++				if (ResolveLines(item.placement[axis], explicit_count[axis], start, span))
++					item.start[axis] = start;
++				else
++					item.start[axis] = -1;
++				item.span[axis] = span;
++			}
++			minor_count = Math::Max(minor_count, (item.start[minor] >= 0 ? item.start[minor] : 0) + item.span[minor]);
++		}
++
++		Occupancy occupancy(minor_count);
++
++		// Fully placed first, then those fixed on the flow axis, then everything else in order.
++		for (GridItem& item : items)
++			if (item.start[0] >= 0 && item.start[1] >= 0)
++				occupancy.Mark(item.start[major], item.start[minor], item.span[major], item.span[minor]);
++
++		for (GridItem& item : items)
++		{
++			if (item.start[major] < 0 || item.start[minor] >= 0)
++				continue;
++			int b = 0;
++			while (!occupancy.Fits(item.start[major], b, item.span[major], item.span[minor]) && b + item.span[minor] <= occupancy.MinorCount())
++				b++;
++			item.start[minor] = (b + item.span[minor] <= occupancy.MinorCount() ? b : 0);
++			occupancy.Mark(item.start[major], item.start[minor], item.span[major], item.span[minor]);
++		}
++
++		int cursor_major = 0, cursor_minor = 0;
++		for (GridItem& item : items)
++		{
++			if (item.start[major] >= 0)
++				continue;
++
++			if (item.start[minor] >= 0)
++			{
++				// Fixed across: the next free place at or after the cursor in that position.
++				if (item.start[minor] < cursor_minor)
++					cursor_major++;
++				while (!occupancy.Fits(cursor_major, item.start[minor], item.span[major], item.span[minor]))
++					cursor_major++;
++				item.start[major] = cursor_major;
++				cursor_minor = item.start[minor] + item.span[minor];
++			}
++			else
++			{
++				for (;;)
++				{
++					if (cursor_minor + item.span[minor] > occupancy.MinorCount())
++					{
++						cursor_major++;
++						cursor_minor = 0;
++					}
++					if (occupancy.Fits(cursor_major, cursor_minor, item.span[major], item.span[minor]))
++						break;
++					cursor_minor++;
++				}
++				item.start[major] = cursor_major;
++				item.start[minor] = cursor_minor;
++				cursor_minor += item.span[minor];
++			}
++			occupancy.Mark(item.start[major], item.start[minor], item.span[major], item.span[minor]);
++		}
++
++		out_count[minor] = occupancy.MinorCount();
++		out_count[major] = Math::Max(explicit_count[major], occupancy.MajorCount());
++	}
++
++	// Sizes one axis' tracks. available is the content size on this axis, negative when indefinite.
++	void SizeTracks(Vector<Track>& tracks, const Vector<GridItem>& items, int axis, float available, float gap, Element* element)
++	{
++		const int count = (int)tracks.size();
++		for (Track& track : tracks)
++		{
++			track.base = track.content = 0.f;
++			if (!IsIndefinite(track.size.min, available))
++				track.base = ResolveBound(element, track.size.min, available);
++		}
++
++		// Content first from items in one track, then what wider items still need, shared among the auto tracks they cross.
++		for (const GridItem& item : items)
++		{
++			if (item.span[axis] != 1)
++				continue;
++			Track& track = tracks[item.start[axis]];
++			track.content = Math::Max(track.content, item.contribution[axis]);
++		}
++		for (const GridItem& item : items)
++		{
++			if (item.span[axis] == 1)
++				continue;
++			float covered = gap * float(item.span[axis] - 1);
++			int autos = 0;
++			for (int i = item.start[axis]; i < item.start[axis] + item.span[axis]; i++)
++			{
++				covered += Math::Max(tracks[i].base, tracks[i].content);
++				autos += (tracks[i].size.max.kind == TrackKind::Auto ? 1 : 0);
++			}
++			const float extra = item.contribution[axis] - covered;
++			if (extra > 0.f && autos > 0)
++				for (int i = item.start[axis]; i < item.start[axis] + item.span[axis]; i++)
++					if (tracks[i].size.max.kind == TrackKind::Auto)
++						tracks[i].content += extra / float(autos);
++		}
++
++		float total_fr = 0.f;
++		for (Track& track : tracks)
++		{
++			const bool min_auto = track.size.min.kind == TrackKind::Auto || IsIndefinite(track.size.min, available);
++			const bool max_auto = track.size.max.kind == TrackKind::Auto || IsIndefinite(track.size.max, available);
++			if (track.size.max.kind == TrackKind::Fr)
++			{
++				total_fr += track.size.max.fr;
++				// With nothing to divide, a fraction is as large as what is in it.
++				if (available < 0.f)
++					track.base = Math::Max(track.base, track.content);
++			}
++			else if (min_auto || max_auto)
++				track.base = Math::Max(track.base, track.content);
++			else
++				track.base = Math::Max(track.base, ResolveBound(element, track.size.max, available));
++
++			if (track.size.max.kind == TrackKind::Length && !max_auto)
++				track.base = Math::Min(Math::Max(track.base, ResolveBound(element, track.size.min, available)),
++					Math::Max(ResolveBound(element, track.size.max, available), ResolveBound(element, track.size.min, available)));
++		}
++
++		const float gaps = gap * float(Math::Max(0, count - 1));
++
++		if (total_fr > 0.f)
++		{
++			if (available >= 0.f)
++			{
++				float fixed = gaps;
++				for (const Track& track : tracks)
++					if (track.size.max.kind != TrackKind::Fr)
++						fixed += track.base;
++				// Fractions summing to less than one leave the rest of the space empty, as CSS does.
++				const float unit = Math::Max(0.f, available - fixed) / Math::Max(total_fr, 1.f);
++				for (Track& track : tracks)
++					if (track.size.max.kind == TrackKind::Fr)
++						track.base = Math::Max(track.base, track.size.max.fr * unit);
++			}
++			else
++			{
++				// Indefinite: the largest content-per-fraction decides the unit, so the fractions keep their ratio.
++				float unit = 0.f;
++				for (const Track& track : tracks)
++					if (track.size.max.kind == TrackKind::Fr && track.size.max.fr > 0.f)
++						unit = Math::Max(unit, track.base / track.size.max.fr);
++				for (Track& track : tracks)
++					if (track.size.max.kind == TrackKind::Fr)
++						track.base = track.size.max.fr * unit;
++			}
++			return;
++		}
++
++		// No fractions: what is left stretches the auto tracks, as CSS does under the default content alignment.
++		if (available >= 0.f)
++		{
++			float used = gaps;
++			int autos = 0;
++			for (const Track& track : tracks)
++			{
++				used += track.base;
++				autos += (track.size.max.kind == TrackKind::Auto ? 1 : 0);
++			}
++			const float free = available - used;
++			if (free > 0.f && autos > 0)
++				for (Track& track : tracks)
++					if (track.size.max.kind == TrackKind::Auto)
++						track.base += free / float(autos);
++		}
++	}
++
++	float SpanSize(const Vector<float>& offsets, const Vector<Track>& tracks, int start, int span)
++	{
++		const int last = Math::Min(start + span, (int)tracks.size()) - 1;
++		return offsets[last] + tracks[last].base - offsets[start];
++	}
++
++} // namespace
++
++UniquePtr<LayoutBox> GridFormattingContext::Format(ContainerBox* parent_container, Element* element, const Box* override_initial_box)
++{
++	RMLUI_ZoneScopedC(0x4FAFAF);
++	auto container_box = MakeUnique<FlexContainer>(element, parent_container);
++
++	ElementScroll* element_scroll = element->GetElementScroll();
++
++	const Vector2f containing_block = LayoutDetails::GetContainingBlock(parent_container, element->GetPosition()).size;
++	RMLUI_ASSERT(containing_block.x >= 0.f);
++
++	Box& box = container_box->GetBox();
++	if (override_initial_box)
++		box = *override_initial_box;
++	else
++		LayoutDetails::BuildBox(box, containing_block, element, BuildBoxMode::Block);
++
++	container_box->ResetScrollbars(box);
++
++	GridFormattingContext context;
++	context.container_box = container_box.get();
++	context.element_grid = element;
++
++	const Vector2f box_content_size = box.GetSize();
++	const bool auto_height = (box_content_size.y < 0.0f);
++
++	context.content_offset = box.GetPosition();
++
++	for (int layout_iteration = 0; layout_iteration < 3; layout_iteration++)
++	{
++		const Vector2f scrollbar_size = {
++			element_scroll->GetScrollbarSize(ElementScroll::VERTICAL),
++			element_scroll->GetScrollbarSize(ElementScroll::HORIZONTAL),
++		};
++
++		context.available_content_size = Math::Max(box_content_size - scrollbar_size, Vector2f(0.f));
++		context.content_containing_block = context.available_content_size;
++
++		if (auto_height)
++		{
++			context.available_content_size.y = -1.f;
++			context.content_containing_block.y = containing_block.y;
++		}
++
++		Vector2f resulting_content_size, content_overflow_size;
++		float baseline = 0.f;
++		context.Format(resulting_content_size, content_overflow_size, baseline);
++
++		Vector2f formatted_content_size = box_content_size;
++		if (auto_height)
++			formatted_content_size.y = resulting_content_size.y + scrollbar_size.y;
++
++		Box sized_box = box;
++		sized_box.SetContent(formatted_content_size);
++
++		const float element_baseline =
++			sized_box.GetSizeAcross(BoxDirection::Vertical, BoxArea::Border) + sized_box.GetEdge(BoxArea::Margin, BoxEdge::Bottom) - baseline;
++
++		if (container_box->Close(content_overflow_size, sized_box, element_baseline))
++			break;
++	}
++
++	return container_box;
++}
++
++Vector2f GridFormattingContext::GetMaxContentSize(Element* element)
++{
++	const Vector2f infinity(10000.0f, 10000.0f);
++	RootBox root(infinity);
++	auto container_box = MakeUnique<FlexContainer>(element, &root);
++
++	GridFormattingContext context;
++	context.container_box = container_box.get();
++	context.element_grid = element;
++	context.available_content_size = Vector2f(-1, -1);
++	context.content_containing_block = infinity;
++
++	Vector2f resulting_content_size, content_overflow_size;
++	float baseline = 0.f;
++	context.Format(resulting_content_size, content_overflow_size, baseline);
++	return resulting_content_size;
++}
++
++void GridFormattingContext::Format(Vector2f& resulting_content_size, Vector2f& content_overflow_size, float& baseline) const
++{
++	RMLUI_ZoneScopedC(0x4FAFAF);
++
++	const ComputedValues& computed_grid = element_grid->GetComputedValues();
++	const float base_width = Math::Max(available_content_size.x, 0.f);
++	const float base_height = Math::Max(available_content_size.y, 0.f);
++	const float gap[2] = {
++		ResolveValue(computed_grid.column_gap(), base_width),
++		ResolveValue(computed_grid.row_gap(), base_height),
++	};
++
++	Vector<TrackSize> templates[2], autos[2];
++	ParseTrackList(GetStringProperty(element_grid, PropertyId::GridTemplateColumns), templates[0], element_grid);
++	ParseTrackList(GetStringProperty(element_grid, PropertyId::GridTemplateRows), templates[1], element_grid);
++	ParseTrackList(GetStringProperty(element_grid, PropertyId::GridAutoColumns), autos[0], element_grid);
++	ParseTrackList(GetStringProperty(element_grid, PropertyId::GridAutoRows), autos[1], element_grid);
++
++	const Property* flow = element_grid->GetProperty(PropertyId::GridAutoFlow);
++	const bool column_flow = flow && flow->unit == Unit::KEYWORD && flow->Get<int>() == 1;
++
++	const Property* justify_items_property = element_grid->GetProperty(PropertyId::JustifyItems);
++	const int justify_items = justify_items_property && justify_items_property->unit == Unit::KEYWORD ? justify_items_property->Get<int>() : 0;
++
++	// -- Items --
++	Vector<GridItem> items;
++	const int num_children = element_grid->GetNumChildren();
++	items.reserve(num_children);
++
++	for (int i = 0; i < num_children; i++)
++	{
++		Element* element = element_grid->GetChild(i);
++		const ComputedValues& computed = element->GetComputedValues();
++
++		if (computed.display() == Style::Display::None)
++			continue;
++		if (computed.position() == Style::Position::Absolute || computed.position() == Style::Position::Fixed)
++		{
++			ContainerBox* absolute_containing_block = LayoutDetails::GetContainingBlock(container_box, computed.position()).container;
++			absolute_containing_block->AddAbsoluteElement(element, {}, element_grid);
++			continue;
++		}
++		if (computed.position() == Style::Position::Relative)
++			container_box->AddRelativeElement(element);
++
++		GridItem item;
++		item.element = element;
++		item.placement[0] = ParsePlacement(GetStringProperty(element, PropertyId::GridColumn));
++		item.placement[1] = ParsePlacement(GetStringProperty(element, PropertyId::GridRow));
++
++		item.align = computed.align_self();
++		if (item.align == Style::AlignSelf::Auto)
++			item.align = static_cast<Style::AlignSelf>(static_cast<int>(computed_grid.align_items()) + 1);
++
++		const Property* justify_self = element->GetProperty(PropertyId::JustifySelf);
++		const int justify_self_value = justify_self && justify_self->unit == Unit::KEYWORD ? justify_self->Get<int>() : 0;
++		item.justify = (justify_self_value == 0 ? justify_items : justify_self_value - 1);
++
++		items.push_back(std::move(item));
++	}
++
++	int explicit_count[2] = {(int)templates[0].size(), (int)templates[1].size()};
++	int track_count[2] = {0, 0};
++	PlaceItems(items, explicit_count, column_flow, track_count);
++
++	Vector<Track> tracks[2];
++	for (int axis = 0; axis < 2; axis++)
++	{
++		tracks[axis].resize(track_count[axis]);
++		for (int i = 0; i < track_count[axis]; i++)
++		{
++			if (i < explicit_count[axis])
++				tracks[axis][i].size = templates[axis][i];
++			else if (!autos[axis].empty())
++				tracks[axis][i].size = autos[axis][(i - explicit_count[axis]) % autos[axis].size()];
++			// Otherwise auto, which a value-initialised TrackSize already is.
++		}
++	}
++
++	// Boxes are built against the grid's content area. The cell is not known yet, and what a percentage size on an
++	// item means is left as it would be in a block.
++	for (GridItem& item : items)
++	{
++		LayoutDetails::BuildBox(item.box, content_containing_block, item.element, BuildBoxMode::UnalignedBlock);
++		const Box& b = item.box;
++		item.edges[0] = b.GetEdge(BoxArea::Margin, BoxEdge::Left) + b.GetEdge(BoxArea::Margin, BoxEdge::Right) +
++			b.GetEdge(BoxArea::Border, BoxEdge::Left) + b.GetEdge(BoxArea::Border, BoxEdge::Right) + b.GetEdge(BoxArea::Padding, BoxEdge::Left) +
++			b.GetEdge(BoxArea::Padding, BoxEdge::Right);
++		item.edges[1] = b.GetEdge(BoxArea::Margin, BoxEdge::Top) + b.GetEdge(BoxArea::Margin, BoxEdge::Bottom) +
++			b.GetEdge(BoxArea::Border, BoxEdge::Top) + b.GetEdge(BoxArea::Border, BoxEdge::Bottom) + b.GetEdge(BoxArea::Padding, BoxEdge::Top) +
++			b.GetEdge(BoxArea::Padding, BoxEdge::Bottom);
++		item.margin_a[0] = b.GetEdge(BoxArea::Margin, BoxEdge::Left);
++		item.margin_a[1] = b.GetEdge(BoxArea::Margin, BoxEdge::Top);
++
++		const float width = b.GetSize().x;
++		item.contribution[0] = (width >= 0.f ? width : LayoutDetails::GetShrinkToFitWidth(item.element, content_containing_block)) + item.edges[0];
++	}
++
++	// -- Columns, then rows from heights formatted at the column widths --
++	SizeTracks(tracks[0], items, 0, available_content_size.x, gap[0], element_grid);
++
++	Vector<float> offsets[2];
++	auto BuildOffsets = [&](int axis) {
++		offsets[axis].resize(tracks[axis].size());
++		float cursor = 0.f;
++		for (size_t i = 0; i < tracks[axis].size(); i++)
++		{
++			offsets[axis][i] = cursor;
++			cursor += tracks[axis][i].base + gap[axis];
++		}
++	};
++	BuildOffsets(0);
++
++	auto InnerWidthIn = [&](GridItem& item, float cell_width) {
++		const float own = item.box.GetSize().x;
++		if (own >= 0.f)
++			return own;
++		if (item.justify == int(Justify::Stretch))
++			return Math::Max(0.f, cell_width - item.edges[0]);
++		return Math::Max(0.f, Math::Min(item.contribution[0], cell_width) - item.edges[0]);
++	};
++
++	for (GridItem& item : items)
++	{
++		const float cell_width = SpanSize(offsets[0], tracks[0], item.start[0], item.span[0]);
++		const float own_height = item.box.GetSize().y;
++		if (own_height >= 0.f)
++		{
++			item.contribution[1] = own_height + item.edges[1];
++			continue;
++		}
++
++		Box format_box = item.box;
++		format_box.SetContent(Vector2f(InnerWidthIn(item, cell_width), -1.f));
++		FormattingContext::FormatIndependent(container_box, item.element, &format_box, FormattingContextType::Block);
++		item.contribution[1] = item.element->GetBox().GetSize().y + item.edges[1];
++	}
++
++	SizeTracks(tracks[1], items, 1, available_content_size.y, gap[1], element_grid);
++	BuildOffsets(1);
++
++	// -- Format items in their cells --
++	bool baseline_set = false;
++	for (GridItem& item : items)
++	{
++		const float cell_width = SpanSize(offsets[0], tracks[0], item.start[0], item.span[0]);
++		const float cell_height = SpanSize(offsets[1], tracks[1], item.start[1], item.span[1]);
++
++		float min_width, max_width, min_height, max_height;
++		const ComputedValues& computed = item.element->GetComputedValues();
++		LayoutDetails::GetMinMaxWidth(min_width, max_width, computed, item.box, content_containing_block.x);
++		LayoutDetails::GetMinMaxHeight(min_height, max_height, computed, item.box, content_containing_block.y);
++
++		const float inner_width = Math::Clamp(InnerWidthIn(item, cell_width), min_width, max_width);
++
++		float inner_height = item.box.GetSize().y;
++		if (inner_height < 0.f)
++		{
++			inner_height = (item.align == Style::AlignSelf::Stretch ? Math::Max(0.f, cell_height - item.edges[1])
++																	: Math::Max(0.f, item.contribution[1] - item.edges[1]));
++		}
++		inner_height = Math::Clamp(inner_height, min_height, max_height);
++
++		const float free_x = cell_width - (inner_width + item.edges[0]);
++		const float free_y = cell_height - (inner_height + item.edges[1]);
++
++		float x = offsets[0][item.start[0]] + item.margin_a[0];
++		switch (Justify(item.justify))
++		{
++		case Justify::End: x += free_x; break;
++		case Justify::Center: x += 0.5f * free_x; break;
++		default: break;
++		}
++
++		float y = offsets[1][item.start[1]] + item.margin_a[1];
++		switch (item.align)
++		{
++		case Style::AlignSelf::FlexEnd: y += free_y; break;
++		case Style::AlignSelf::Center: y += 0.5f * free_y; break;
++		default: break;
++		}
++
++		item.box.SetContent(Vector2f(inner_width, inner_height));
++		UniquePtr<LayoutBox> layout_box = FormattingContext::FormatIndependent(container_box, item.element, &item.box, FormattingContextType::Block);
++
++		const Vector2f item_offset(x, y);
++		item.element->SetOffset(content_offset + item_offset, element_grid);
++
++		if (!baseline_set && layout_box && layout_box->GetBaselineOfLastLine(baseline))
++		{
++			baseline += content_offset.y + item_offset.y;
++			baseline_set = true;
++		}
++
++		if (layout_box)
++			content_overflow_size = Math::Max(content_overflow_size, item_offset + layout_box->GetVisibleOverflowSize());
++	}
++
++	auto Extent = [&](int axis) {
++		if (tracks[axis].empty())
++			return 0.f;
++		return offsets[axis].back() + tracks[axis].back().base;
++	};
++
++	resulting_content_size.x = available_content_size.x >= 0.f ? available_content_size.x : Extent(0);
++	resulting_content_size.y = Extent(1);
++}
++
++} // namespace Rml
+diff --git a/Source/Core/Layout/GridFormattingContext.h b/Source/Core/Layout/GridFormattingContext.h
+new file mode 100644
+index 0000000..d6cbb62
+--- /dev/null
++++ b/Source/Core/Layout/GridFormattingContext.h
+@@ -0,0 +1,39 @@
++#pragma once
++
++#include "../../../Include/RmlUi/Core/Types.h"
++#include "FormattingContext.h"
++
++namespace Rml {
++
++class LayoutBox;
++class ContainerBox;
++class FlexContainer;
++
++/*
++    Formats a grid container and its items.
++
++    Explicit tracks come from grid-template-columns and grid-template-rows, implicit ones from grid-auto-columns and
++    grid-auto-rows. Items are placed by grid-column and grid-row, and the rest flow into the next free cells along
++    grid-auto-flow. A subset of CSS grid: no named lines or areas, no dense packing, no subgrid.
++*/
++class GridFormattingContext final : public FormattingContext {
++public:
++	static UniquePtr<LayoutBox> Format(ContainerBox* parent_container, Element* element, const Box* override_initial_box);
++
++	static Vector2f GetMaxContentSize(Element* element);
++
++private:
++	GridFormattingContext() = default;
++
++	void Format(Vector2f& resulting_content_size, Vector2f& content_overflow_size, float& baseline) const;
++
++	// Negative means indefinite.
++	Vector2f available_content_size;
++	Vector2f content_containing_block;
++	Vector2f content_offset;
++
++	Element* element_grid = nullptr;
++	FlexContainer* container_box = nullptr;
++};
++
++} // namespace Rml
+diff --git a/Source/Core/Property.cpp b/Source/Core/Property.cpp
+index c49e239..80a9407 100644
+--- a/Source/Core/Property.cpp
++++ b/Source/Core/Property.cpp
+@@ -22,7 +22,7 @@ String Property::ToString() const
+ NumericValue Property::GetNumericValue() const
+ {
+ 	NumericValue result;
+-	if (Any(unit & Unit::NUMERIC))
++	if (Any(unit & (Unit::NUMERIC | Unit::CALC)))
+ 	{
+ 		if (value.GetInto(result.number))
+ 			result.unit = unit;
+diff --git a/Source/Core/PropertyDefinition.cpp b/Source/Core/PropertyDefinition.cpp
+index cce6d3b..978e1db 100644
+--- a/Source/Core/PropertyDefinition.cpp
++++ b/Source/Core/PropertyDefinition.cpp
+@@ -1,6 +1,7 @@
+ #include "../../Include/RmlUi/Core/PropertyDefinition.h"
+ #include "../../Include/RmlUi/Core/Log.h"
+ #include "../../Include/RmlUi/Core/StyleSheetSpecification.h"
++#include "Calc.h"
+ 
+ namespace Rml {
+ 
+@@ -94,6 +95,7 @@ bool PropertyDefinition::GetValue(String& value, const Property& property) const
+ 
+ 	switch (property.unit)
+ 	{
++	case Unit::CALC: value = Calc::ToString(property.value.Get<float>()); return true;
+ 	case Unit::KEYWORD:
+ 	{
+ 		int parser_index = property.parser_index;
+diff --git a/Source/Core/PropertyDictionary.cpp b/Source/Core/PropertyDictionary.cpp
+index ca55e5e..9fd43b4 100644
+--- a/Source/Core/PropertyDictionary.cpp
++++ b/Source/Core/PropertyDictionary.cpp
+@@ -44,6 +44,8 @@ void PropertyDictionary::Import(const PropertyDictionary& other, int property_sp
+ 		const Property& property = pair.second;
+ 		SetProperty(id, property, property_specificity > 0 ? property_specificity : property.specificity);
+ 	}
++	for (const auto& pair : other.custom_properties)
++		SetCustomProperty(pair.first, pair.second, property_specificity > 0 ? property_specificity : pair.second.specificity);
+ }
+ 
+ void PropertyDictionary::Merge(const PropertyDictionary& other, int specificity_offset)
+@@ -54,12 +56,37 @@ void PropertyDictionary::Merge(const PropertyDictionary& other, int specificity_
+ 		const Property& property = pair.second;
+ 		SetProperty(id, property, property.specificity + specificity_offset);
+ 	}
++	for (const auto& pair : other.custom_properties)
++		SetCustomProperty(pair.first, pair.second, pair.second.specificity + specificity_offset);
+ }
+ 
+ void PropertyDictionary::SetSourceOfAllProperties(const SharedPtr<const PropertySource>& property_source)
+ {
+ 	for (auto& p : properties)
+ 		p.second.source = property_source;
++	for (auto& p : custom_properties)
++		p.second.source = property_source;
++}
++
++void PropertyDictionary::SetCustomProperty(const String& name, const Property& property)
++{
++	custom_properties[name] = property;
++}
++
++const Property* PropertyDictionary::GetCustomProperty(const String& name) const
++{
++	auto it = custom_properties.find(name);
++	return it == custom_properties.end() ? nullptr : &it->second;
++}
++
++void PropertyDictionary::SetCustomProperty(const String& name, const Property& property, int specificity)
++{
++	auto it = custom_properties.find(name);
++	if (it != custom_properties.end() && it->second.specificity > specificity)
++		return;
++
++	Property& new_property = (custom_properties[name] = property);
++	new_property.specificity = specificity;
+ }
+ 
+ void PropertyDictionary::SetProperty(PropertyId id, const Property& property, int specificity)
+diff --git a/Source/Core/PropertyParserNumber.cpp b/Source/Core/PropertyParserNumber.cpp
+index 1983d79..020075b 100644
+--- a/Source/Core/PropertyParserNumber.cpp
++++ b/Source/Core/PropertyParserNumber.cpp
+@@ -1,4 +1,5 @@
+ #include "PropertyParserNumber.h"
++#include "Calc.h"
+ #include <stdlib.h>
+ 
+ namespace Rml {
+@@ -42,6 +43,9 @@ PropertyParserNumber::~PropertyParserNumber() {}
+ 
+ bool PropertyParserNumber::ParseValue(Property& property, const String& value, const ParameterMap& /*parameters*/) const
+ {
++	if (Any(units & (Unit::LENGTH | Unit::PERCENT)) && Calc::IsCalc(value))
++		return Calc::Parse(property, value, units);
++
+ 	// Find the beginning of the unit string in 'value'.
+ 	size_t unit_pos = 0;
+ 	for (size_t i = value.size(); i--;)
+diff --git a/Source/Core/PropertySpecification.cpp b/Source/Core/PropertySpecification.cpp
+index 851f101..1157340 100644
+--- a/Source/Core/PropertySpecification.cpp
++++ b/Source/Core/PropertySpecification.cpp
+@@ -4,9 +4,11 @@
+ #include "../../Include/RmlUi/Core/Profiling.h"
+ #include "../../Include/RmlUi/Core/PropertyDefinition.h"
+ #include "../../Include/RmlUi/Core/PropertyDictionary.h"
++#include "../../Include/RmlUi/Core/StringUtilities.h"
+ #include "IdNameMap.h"
+ #include "PropertyShorthandDefinition.h"
+ #include <algorithm>
++#include <cctype>
+ #include <limits.h>
+ #include <stdint.h>
+ 
+@@ -195,6 +197,29 @@ const ShorthandDefinition* PropertySpecification::GetShorthand(const String& sho
+ 	return GetShorthand(shorthand_map->GetId(shorthand_name));
+ }
+ 
++bool PropertySpecification::UsesVar(const String& value)
++{
++	for (size_t i = 0; i + 4 <= value.size(); i++)
++	{
++		if ((value[i] == 'v' || value[i] == 'V') && (value[i + 1] == 'a' || value[i + 1] == 'A') && (value[i + 2] == 'r' || value[i + 2] == 'R') &&
++			value[i + 3] == '(' && (i == 0 || !(std::isalnum((unsigned char)value[i - 1]) || value[i - 1] == '-')))
++			return true;
++	}
++	return false;
++}
++
++// The properties a shorthand finally sets, through any shorthands inside it.
++static void CollectShorthandLeaves(const ShorthandDefinition& definition, Vector<PropertyId>& leaves)
++{
++	for (const ShorthandItem& item : definition.items)
++	{
++		if (item.type == ShorthandItemType::Property)
++			leaves.push_back(item.property_id);
++		else if (item.type == ShorthandItemType::Shorthand && item.shorthand_definition)
++			CollectShorthandLeaves(*item.shorthand_definition, leaves);
++	}
++}
++
+ bool PropertySpecification::ParsePropertyDeclaration(PropertyDictionary& dictionary, const String& property_name, const String& property_value) const
+ {
+ 	RMLUI_ZoneScoped;
+@@ -209,6 +234,13 @@ bool PropertySpecification::ParsePropertyDeclaration(PropertyDictionary& diction
+ 	if (shorthand_id != ShorthandId::Invalid)
+ 		return ParseShorthandDeclaration(dictionary, shorthand_id, property_value);
+ 
++	// A custom property, `--name`. Kept as written: what it means depends on where var() reads it.
++	if (property_name.size() > 2 && property_name[0] == '-' && property_name[1] == '-')
++	{
++		dictionary.SetCustomProperty(property_name, Property(StringUtilities::StripWhitespace(property_value), Unit::STRING));
++		return true;
++	}
++
+ 	return false;
+ }
+ 
+@@ -219,6 +251,15 @@ bool PropertySpecification::ParsePropertyDeclaration(PropertyDictionary& diction
+ 	if (!property_definition)
+ 		return false;
+ 
++	// Held as written. parser_index records whether it came from a shorthand: -1 here, the shorthand's id below.
++	if (UsesVar(property_value))
++	{
++		Property unresolved(StringUtilities::StripWhitespace(property_value), Unit::UNRESOLVED);
++		unresolved.parser_index = -1;
++		dictionary.SetProperty(property_id, unresolved);
++		return true;
++	}
++
+ 	StringList property_values;
+ 	ParsePropertyValues(property_values, property_value, SplitOption::None);
+ 	if (property_values.empty())
+@@ -272,6 +313,19 @@ bool PropertySpecification::ParseShorthandDeclaration(PropertyDictionary& dictio
+ 	if (!shorthand_definition)
+ 		return false;
+ 
++	// Which value lands in which property cannot be told until var() has been replaced, so every property the
++	// shorthand sets holds the whole shorthand until then.
++	if (UsesVar(property_value))
++	{
++		Vector<PropertyId> leaves;
++		CollectShorthandLeaves(*shorthand_definition, leaves);
++		Property unresolved(StringUtilities::StripWhitespace(property_value), Unit::UNRESOLVED);
++		unresolved.parser_index = (int)shorthand_id;
++		for (PropertyId id : leaves)
++			dictionary.SetProperty(id, unresolved);
++		return !leaves.empty();
++	}
++
+ 	const SplitOption split_option =
+ 		(shorthand_definition->type == ShorthandType::RecursiveCommaSeparated ? SplitOption::Comma : SplitOption::Whitespace);
+ 
+@@ -454,6 +508,38 @@ bool PropertySpecification::ParseShorthandDeclaration(PropertyDictionary& dictio
+ 	return true;
+ }
+ 
++bool PropertySpecification::ParseUnresolvedProperty(Property& result, PropertyId property_id, const Property& unresolved,
++	const String& substituted) const
++{
++	if (UsesVar(substituted))
++		return false;
++
++	PropertyDictionary parsed;
++	if (unresolved.parser_index >= 0)
++	{
++		if (!ParseShorthandDeclaration(parsed, (ShorthandId)unresolved.parser_index, substituted))
++			return false;
++	}
++	else if (!ParsePropertyDeclaration(parsed, property_id, substituted))
++		return false;
++
++	const Property* property = parsed.GetProperty(property_id);
++	if (!property)
++	{
++		// A shorthand may leave out a property it covers, which then takes its initial value.
++		const PropertyDefinition* definition = GetProperty(property_id);
++		if (!definition)
++			return false;
++		result = *definition->GetDefaultValue();
++	}
++	else
++		result = *property;
++
++	result.specificity = unresolved.specificity;
++	result.source = unresolved.source;
++	return true;
++}
++
+ void PropertySpecification::SetPropertyDefaults(PropertyDictionary& dictionary) const
+ {
+ 	for (const auto& property : properties)
+diff --git a/Source/Core/StyleSheetNode.cpp b/Source/Core/StyleSheetNode.cpp
+index 498608c..f0b1339 100644
+--- a/Source/Core/StyleSheetNode.cpp
++++ b/Source/Core/StyleSheetNode.cpp
+@@ -98,8 +98,9 @@ UniquePtr<StyleSheetNode> StyleSheetNode::DeepCopy(StyleSheetNode* in_parent) co
+ 
+ void StyleSheetNode::BuildIndex(StyleSheetIndex& styled_node_index) const
+ {
+-	// If this has properties defined, then we insert it into the styled node index.
+-	if (properties.GetNumProperties() > 0)
++	// If this has properties defined, then we insert it into the styled node index. Custom properties count: a rule may
++	// set nothing but the custom properties its descendants read.
++	if (properties.GetNumProperties() > 0 || !properties.GetCustomProperties().empty())
+ 	{
+ 		auto IndexInsertNode = [](StyleSheetIndex::NodeIndex& node_index, const String& key, const StyleSheetNode* node) {
+ 			StyleSheetIndex::NodeList& nodes = node_index[Hash<String>()(key)];
+diff --git a/Source/Core/StyleSheetSpecification.cpp b/Source/Core/StyleSheetSpecification.cpp
+index 01d9f84..7da7a07 100644
+--- a/Source/Core/StyleSheetSpecification.cpp
++++ b/Source/Core/StyleSheetSpecification.cpp
+@@ -316,7 +316,7 @@ void StyleSheetSpecification::RegisterDefaultProperties()
+ 		ShorthandType::BorderRadius);
+ 
+ 	RegisterProperty(PropertyId::Display, "display", "inline", false, true)
+-		.AddParser("keyword", "none, block, inline, inline-block, flow-root, flex, inline-flex, table, inline-table, table-row, table-row-group, table-column, table-column-group, table-cell");
++		.AddParser("keyword", "none, block, inline, inline-block, flow-root, flex, inline-flex, table, inline-table, table-row, table-row-group, table-column, table-column-group, table-cell, grid");
+ 	RegisterProperty(PropertyId::Position, "position", "static", false, true).AddParser("keyword", "static, relative, absolute, fixed");
+ 	RegisterProperty(PropertyId::Top, "top", "auto", false, false).AddParser("keyword", "auto").AddParser("length_percent").SetRelativeTarget(RelativeTarget::ContainingBlockHeight);
+ 	RegisterProperty(PropertyId::Right, "right", "auto", false, false).AddParser("keyword", "auto").AddParser("length_percent").SetRelativeTarget(RelativeTarget::ContainingBlockWidth);
+@@ -426,8 +426,8 @@ void StyleSheetSpecification::RegisterDefaultProperties()
+ 
+ 	// Flexbox
+ 	RegisterProperty(PropertyId::AlignContent, "align-content", "stretch", false, true).AddParser("keyword", "flex-start, flex-end, center, space-between, space-around, space-evenly, stretch");
+-	RegisterProperty(PropertyId::AlignItems, "align-items", "stretch", false, true).AddParser("keyword", "flex-start, flex-end, center, baseline, stretch");
+-	RegisterProperty(PropertyId::AlignSelf, "align-self", "auto", false, true).AddParser("keyword", "auto, flex-start, flex-end, center, baseline, stretch");
++	RegisterProperty(PropertyId::AlignItems, "align-items", "stretch", false, true).AddParser("keyword", "flex-start, flex-end, center, baseline, stretch, start=0, end=1");
++	RegisterProperty(PropertyId::AlignSelf, "align-self", "auto", false, true).AddParser("keyword", "auto, flex-start, flex-end, center, baseline, stretch, start=1, end=2");
+ 
+ 	RegisterProperty(PropertyId::FlexBasis, "flex-basis", "auto", false, true).AddParser("keyword", "auto").AddParser("length_percent");
+ 	RegisterProperty(PropertyId::FlexDirection, "flex-direction", "row", false, true).AddParser("keyword", "row, row-reverse, column, column-reverse");
+@@ -440,6 +440,17 @@ void StyleSheetSpecification::RegisterDefaultProperties()
+ 	RegisterShorthand(ShorthandId::Flex, "flex", "flex-grow, flex-shrink, flex-basis", ShorthandType::Flex);
+ 	RegisterShorthand(ShorthandId::FlexFlow, "flex-flow", "flex-direction, flex-wrap", ShorthandType::FallThrough);
+ 
++	// Grid. Track lists and placements are read by the grid formatting context when it lays out, so they are held as written.
++	RegisterProperty(PropertyId::GridTemplateColumns, "grid-template-columns", "none", false, true).AddParser("string");
++	RegisterProperty(PropertyId::GridTemplateRows, "grid-template-rows", "none", false, true).AddParser("string");
++	RegisterProperty(PropertyId::GridAutoColumns, "grid-auto-columns", "auto", false, true).AddParser("string");
++	RegisterProperty(PropertyId::GridAutoRows, "grid-auto-rows", "auto", false, true).AddParser("string");
++	RegisterProperty(PropertyId::GridAutoFlow, "grid-auto-flow", "row", false, true).AddParser("keyword", "row, column");
++	RegisterProperty(PropertyId::GridColumn, "grid-column", "auto", false, true).AddParser("string");
++	RegisterProperty(PropertyId::GridRow, "grid-row", "auto", false, true).AddParser("string");
++	RegisterProperty(PropertyId::JustifyItems, "justify-items", "stretch", false, true).AddParser("keyword", "stretch, start, end, center");
++	RegisterProperty(PropertyId::JustifySelf, "justify-self", "auto", false, true).AddParser("keyword", "auto, stretch, start, end, center");
++
+ 	// Internationalization properties (internal)
+ 	RegisterProperty(PropertyId::RmlUi_Language, "--rmlui-language", "", true, true).AddParser("string");
+ 	RegisterProperty(PropertyId::RmlUi_Direction, "--rmlui-direction", "auto", true, true).AddParser("keyword", "auto, ltr, rtl");

@@ -1,0 +1,47 @@
+<rml>
+<head>
+	<title>var</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			Custom properties and var(). Every swatch must be the colour its label names:
+			declared on body, inherited, overridden by a class, a fallback, a shorthand, a var inside calc(),
+			and one custom property defined from another.
+		*/
+		body
+		{
+			--accent: #4fa3ff;
+			--gap: 8dp;
+			--panel: #2a2a36;
+			--edge: 2dp #9be7ff;
+			--wide: calc(100% - 2 * var(--gap));
+
+			font-family: Inter;
+			font-size: 16dp;
+			color: #e8e8f0;
+			background-color: #16161c;
+			padding: 20dp;
+		}
+
+		.warm { --accent: #ff7a1a; }
+		.derived { --tint: var(--accent); }
+
+		.swatch { height: 20dp; margin-bottom: var(--gap); width: 200dp; }
+		.a { background-color: var(--accent); }                        /* blue */
+		.b { background-color: var(--missing, #3fd17a); }               /* green, from the fallback */
+		.c { background-color: var(--panel); border: var(--edge); }    /* grey, cyan border */
+		.d { width: var(--wide); background-color: #ffffff; }          /* full width less 16dp */
+		.e { background-color: var(--tint); }                           /* follows the class it sits in */
+	</style>
+</head>
+<body>
+	<div class="swatch a"/>
+	<div class="warm"><div class="swatch a"/></div>
+	<div class="swatch b"/>
+	<div class="swatch c"/>
+	<div style="width: 300dp;"><div class="swatch d"/></div>
+	<div class="derived"><div class="swatch e"/></div>
+	<div class="warm derived"><div class="swatch e"/></div>
+	<div class="swatch a" style="--accent: #e040fb;"/>
+</body>
+</rml>

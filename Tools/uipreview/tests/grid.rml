@@ -1,0 +1,45 @@
+<rml>
+<head>
+	<title>grid</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			display: grid. Each grid is 400dp wide.
+			  1. repeat(4, 1fr) with 8dp gaps: four 94dp columns; the second item spans two, the last starts a row.
+			  2. 80dp 1fr 2fr: fixed then a 1:2 split of what is left (104dp, 208dp with 8dp gaps).
+			  3. Explicit lines: a sidebar down two rows on the right, content flowing round it.
+			  4. auto columns stretch, items centred in 60dp rows.
+		*/
+		body { font-family: Inter; font-size: 14dp; color: #e8e8f0; background-color: #16161c; padding: 16dp; }
+		.grid { display: grid; width: 400dp; gap: 8dp; margin-bottom: 16dp; background-color: #22222c; }
+		.cell { background-color: #4fa3ff; height: 24dp; }
+
+		.one { grid-template-columns: repeat(4, 1fr); }
+		.span2 { grid-column: span 2; background-color: #ff7a1a; }
+
+		.two { grid-template-columns: 80dp 1fr 2fr; }
+
+		.three { grid-template-columns: 1fr 1fr 120dp; grid-auto-rows: 30dp; }
+		.side { grid-column: 3; grid-row: 1 / span 2; height: auto; background-color: #3fd17a; }
+
+		.four { grid-template-columns: auto auto; grid-auto-rows: 60dp; align-items: center; justify-items: center; }
+		.small { width: 40dp; height: 20dp; background-color: #e040fb; }
+	</style>
+</head>
+<body>
+	<div class="grid one">
+		<div class="cell"/><div class="cell span2"/><div class="cell"/>
+		<div class="cell"/>
+	</div>
+	<div class="grid two">
+		<div class="cell"/><div class="cell"/><div class="cell"/>
+	</div>
+	<div class="grid three">
+		<div class="cell side"/>
+		<div class="cell"/><div class="cell"/><div class="cell"/><div class="cell"/>
+	</div>
+	<div class="grid four">
+		<div class="small"/><div class="small"/><div class="small"/>
+	</div>
+</body>
+</rml>

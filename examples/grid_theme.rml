@@ -1,0 +1,70 @@
+<rml>
+<head>
+	<title>Grid, calc and var</title>
+	<meta name="folio-size" content="960x420"/>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		body
+		{
+			--gap: 8dp;
+			--accent: #4fa3ff;
+			--slot: #1e2430;
+
+			font-family: Inter;
+			font-size: 14dp;
+			color: #e8e8f0;
+			background-color: #121218;
+			width: 100%;
+			height: 100%;
+			padding: 32dp;
+			box-sizing: border-box;
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			column-gap: 32dp;
+		}
+
+		/* One class retints everything inside it. */
+		.red { --accent: #ff5a4a; --slot: #2a1c1e; }
+
+		.panel { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 64dp; gap: var(--gap); }
+		.head
+		{
+			grid-column: 1 / -1;
+			height: 32dp;
+			line-height: 32dp;
+			font-size: 18dp;
+			font-weight: bold;
+			color: var(--accent);
+			border-bottom: 2dp var(--accent);
+		}
+		.slot { background-color: var(--slot); border: 1dp #ffffff14; border-radius: 6dp; }
+		.slot.full { border: 2dp var(--accent); }
+		.big { grid-column: span 2; grid-row: span 2; background-color: var(--accent); border-radius: 6dp; }
+		.bar
+		{
+			grid-column: 1 / -1;
+			height: 10dp;
+			align-self: center;
+			width: calc(100% - 4 * var(--gap));
+			background-color: var(--accent);
+			border-radius: 5dp;
+		}
+	</style>
+</head>
+<body>
+	<div class="panel">
+		<div class="head" data-noloc>Inventory</div>
+		<div class="big"/><div class="slot full"/><div class="slot"/>
+		<div class="slot full"/><div class="slot"/>
+		<div class="slot"/><div class="slot full"/><div class="slot"/><div class="slot"/>
+		<div class="bar"/>
+	</div>
+	<div class="panel red">
+		<div class="head" data-noloc>Inventory</div>
+		<div class="big"/><div class="slot full"/><div class="slot"/>
+		<div class="slot full"/><div class="slot"/>
+		<div class="slot"/><div class="slot full"/><div class="slot"/><div class="slot"/>
+		<div class="bar"/>
+	</div>
+</body>
+</rml>

@@ -1,0 +1,27 @@
+<rml>
+<head>
+	<title>calc</title>
+	<link type="text/rcss" href="/folio/folio.rcss"/>
+	<style>
+		/*
+			calc() mixes a percentage with lengths. Each bar's right edge must land exactly where its label says,
+			against the 400dp track: the percentage resolves at layout, the dp and em when values are computed.
+		*/
+		body { font-family: Inter; font-size: 16dp; color: #e8e8f0; background-color: #16161c; padding: 20dp; }
+		.track { width: 400dp; background-color: #2a2a36; margin-bottom: 8dp; }
+		.bar { height: 20dp; background-color: #4fa3ff; }
+		.a { width: calc(100% - 100dp); }        /* 300dp */
+		.b { width: calc(50% + 2 * 25dp); }      /* 250dp */
+		.c { width: calc((100% - 40dp) / 2); }   /* 180dp */
+		.d { width: calc(10em + 40dp); }         /* 200dp at 16dp */
+		.e { margin-left: calc(25% - 10dp); width: calc(2 * 8dp); }   /* left at 90dp, 16dp wide */
+	</style>
+</head>
+<body>
+	<div class="track"><div class="bar a"/></div>
+	<div class="track"><div class="bar b"/></div>
+	<div class="track"><div class="bar c"/></div>
+	<div class="track"><div class="bar d"/></div>
+	<div class="track"><div class="bar e"/></div>
+</body>
+</rml>

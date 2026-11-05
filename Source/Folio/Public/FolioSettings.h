@@ -31,6 +31,13 @@ public:
 	EFolioWorldDrawMode DefaultWorldDrawMode = EFolioWorldDrawMode::AfterTonemap;
 
 	/**
+	 * Where the marker layer sits among the game viewport's widgets. Widgets added with a higher order draw over every
+	 * marker; ones with a lower order draw under them.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Markers")
+	int32 MarkerLayerZOrder = 0;
+
+	/**
 	 * Directories the document picker does not offer, relative to the project.
 	 *
 	 * A game accumulates markup that is not a screen anyone opens - fragments, templates, a scratch

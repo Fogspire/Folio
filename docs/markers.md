@@ -93,6 +93,8 @@ Put a `UFolioWidget` in a canvas panel and drive its slot with that. The compone
 
 ## If it looks wrong
 
+**A HUD widget draws over the markers.** The marker layer goes into the viewport at **Marker Layer Z Order**, 0 by default, under any widget with a higher order. Raise it above that widget's order in **Project Settings > Plugins > Folio**.
+
 **A nameplate behind a wall still draws.** Markers do not occlude and cannot be occluded. Call `SetVisibility` to hide one.
 
 **The lift above the head is right up close and wrong far away.** `Screen Offset` is in dp, so it is the same at every distance. Move the component to the head socket instead.

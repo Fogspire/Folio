@@ -4,6 +4,7 @@
 #include "FolioMarkerDocument.h"
 #include "FolioModule.h"
 #include "FolioRenderInterface.h"
+#include "FolioSettings.h"
 
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -114,9 +115,7 @@ void FFolioMarkerLayer::EnsureAttached(const UWorld* World)
 	Layer->SetWorld(const_cast<UWorld*>(World));
 	AttachedTo = const_cast<UWorld*>(World);
 
-	// Order zero, so anything the game adds to the viewport later sits above it. A marker belongs
-	// under the HUD, not over the pause menu.
-	Viewport->AddViewportWidgetContent(Layer.ToSharedRef(), 0);
+	Viewport->AddViewportWidgetContent(Layer.ToSharedRef(), GetDefault<UFolioSettings>()->MarkerLayerZOrder);
 }
 
 void FFolioMarkerLayer::Detach()

@@ -6,8 +6,10 @@
 
 #include <msdfgen.h>
 
+#if FOLIO_WITH_FREETYPE
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#endif
 
 #if FOLIO_WITH_HARFBUZZ
 #include <hb.h>
@@ -51,6 +53,9 @@ namespace Folio
 
 		std::string GetFreeTypeVersion()
 		{
+#if !FOLIO_WITH_FREETYPE
+			return "none";
+#else
 			FT_Library Library = nullptr;
 			if (FT_Init_FreeType(&Library) != 0)
 			{
@@ -62,6 +67,7 @@ namespace Folio
 			FT_Done_FreeType(Library);
 
 			return std::to_string(Major) + "." + std::to_string(Minor) + "." + std::to_string(Patch);
+#endif
 		}
 
 		std::string GetHarfBuzzVersion()

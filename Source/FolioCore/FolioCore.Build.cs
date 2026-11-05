@@ -33,11 +33,20 @@ public class FolioCore : ModuleRules
 			"MsdfgenLibrary",
 		});
 
+		// Servers draw nothing, and FreeType2.Build.cs refuses a Linux server outright, so like
+		// SlateCore this leaves FreeType out of every server. Such a build gets the null font engine
+		// in FolioFontEngineNull.cpp and FFolioModule never starts RmlUi.
+		bool bFreeType = Target.bCompileFreeType && Target.Type != TargetType.Server;
+		PublicDefinitions.Add("FOLIO_WITH_FREETYPE=" + (bFreeType ? "1" : "0"));
+
 		// msdfgen's extension library decomposes FT_Outline directly, and the font engine drives
 		// FT_Set_Var_Design_Coordinates for variable axes. This is the engine's FreeType, which
 		// must be a build with TT_CONFIG_OPTION_GX_VAR_SUPPORT; FolioFontFace probes
 		// FT_Get_MM_Var rather than trusting the version number.
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2", "zlib", "UElibPNG");
+		if (bFreeType)
+		{
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2", "zlib", "UElibPNG");
+		}
 
 		// The engine's own HarfBuzz rather than a second copy, because it is a C library with no
 		// namespace: two builds of it in one monolithic executable is a duplicate symbol for every
@@ -45,8 +54,7 @@ public class FolioCore : ModuleRules
 		// usable library on these platforms and only when FreeType and ICU are both compiled in.
 		// ICU comes with it: HarfBuzz gets its Unicode character properties from ICU, so the
 		// library does not link without it.
-		bool bHarfBuzz = Target.bCompileFreeType && Target.bCompileICU
-			&& Target.Type != TargetType.Server
+		bool bHarfBuzz = bFreeType && Target.bCompileICU
 			&& (Target.Platform == UnrealTargetPlatform.IOS
 				|| Target.Platform == UnrealTargetPlatform.Mac
 				|| Target.IsInPlatformGroup(UnrealPlatformGroup.Windows)

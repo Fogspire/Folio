@@ -142,7 +142,7 @@ target_include_directories(folio_core PUBLIC
 	"${FOLIO_ROOT}/Source/FolioCore/Private"
 )
 target_link_libraries(folio_core PUBLIC RmlUi::Core Freetype::Freetype msdfgen::msdfgen harfbuzz)
-target_compile_definitions(folio_core PRIVATE FOLIO_WITH_HARFBUZZ=1)
+target_compile_definitions(folio_core PRIVATE FOLIO_WITH_FREETYPE=1 FOLIO_WITH_HARFBUZZ=1)
 target_compile_features(folio_core PUBLIC cxx_std_20)
 
 add_subdirectory(Tools/uipreview)

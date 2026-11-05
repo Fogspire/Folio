@@ -78,6 +78,8 @@ Every known limit, each with what to do instead. What *does* work is in **[UI_CO
 
 **macOS and Linux are beta, and `uipreview` is Windows only.** The plugin is enabled and builds on both but is not tested there by the author. Report rough edges; use [Folio Studio](studio.md), which runs on all three.
 
+**A dedicated server builds Folio with nothing to draw.** Server targets leave FreeType out, as Slate does, and RmlUi is never started, so every document stays empty. Game code that uses Folio builds for the server unchanged; nothing needs moving into a client-only module.
+
 **Stereo has not been run on a headset.** World documents draw correctly in both views under plain and instanced stereo with `-emulatestereo`. Check on your headset before relying on it.
 
 **Mock data does not hot reload in the engine.** A change to `UI/mock/<model>.json` is not picked up by a running game. Reopen the document; Studio and `uipreview` do reload it.

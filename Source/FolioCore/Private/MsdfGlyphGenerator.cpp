@@ -1,3 +1,6 @@
+// FreeType-only; a target without it compiles FolioFontEngineNull.cpp instead.
+#if FOLIO_WITH_FREETYPE
+
 #include "MsdfGlyphGenerator.h"
 
 #include "FolioCore/FolioTrace.h"
@@ -180,3 +183,5 @@ namespace Folio
 		return true;
 	}
 }
+
+#endif

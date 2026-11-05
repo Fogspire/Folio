@@ -136,14 +136,7 @@ public class RmlUiLibrary : ModuleRules
 		// inside RmlUi at runtime.
 		PublicDefinitions.Add("RMLUI_CUSTOM_RTTI");
 
-		// RmlUi's font engine is FreeType, and it is deliberately the engine's copy rather
-		// than one of our own: two FreeType builds in one link is a duplicate-symbol failure
-		// at best, and silent version-skewed aliasing at worst, since Slate already links it.
-		//
-		// zlib and libPNG come along because the engine's FreeType is built with embedded
-		// bitmap and compressed table support, so freetype.lib references them whether or not
-		// RmlUi ever loads such a font. FreeType2.Build.cs declares them privately, which does
-		// not reach the module that actually links, so they are named again here.
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2", "zlib", "UElibPNG");
+		// No FreeType here: the libraries are built with RMLUI_FONT_ENGINE=none, and the font
+		// engine that needs it is FolioCore's, which links it only for targets that draw.
 	}
 }

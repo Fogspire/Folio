@@ -1,3 +1,6 @@
+// FreeType-only; a target without it compiles FolioFontEngineNull.cpp instead.
+#if FOLIO_WITH_FREETYPE
+
 #include "FolioShaper.h"
 
 #include "FolioFontFace.h"
@@ -92,3 +95,5 @@ namespace Folio
 		Runs.clear();
 	}
 }
+
+#endif

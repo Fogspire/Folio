@@ -46,8 +46,15 @@ public class MsdfgenLibrary : ModuleRules
 
 		PublicSystemIncludePaths.Add(IncludePath);
 
+		// The extensions library reads FreeType outlines, so a target without FreeType (every
+		// server, see FolioCore.Build.cs) links the core alone.
+		bool bFreeType = Target.bCompileFreeType && Target.Type != TargetType.Server;
+
 		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, StaticLibrary("msdfgen-core")));
-		PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, StaticLibrary("msdfgen-ext")));
+		if (bFreeType)
+		{
+			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, StaticLibrary("msdfgen-ext")));
+		}
 
 		// Skia's path operations, vendored as a single-file amalgam under
 		// Source/ThirdParty/SkiaSimplify. msdfgen's resolveShapeGeometry lives in the extensions
@@ -73,6 +80,9 @@ public class MsdfgenLibrary : ModuleRules
 		// msdfgen::*. Nothing collides in a monolithic link. Re-check this on an engine upgrade:
 		// if Slate ever drops that define, both copies land in one namespace and the packaged
 		// build fails with LNK2005 while editor builds keep working.
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2", "zlib", "UElibPNG");
+		if (bFreeType)
+		{
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2", "zlib", "UElibPNG");
+		}
 	}
 }

@@ -1,3 +1,6 @@
+// FreeType-only; a target without it compiles FolioFontEngineNull.cpp instead.
+#if FOLIO_WITH_FREETYPE
+
 #include "FolioFontFace.h"
 
 #include "FolioCore/FolioHost.h"
@@ -337,3 +340,5 @@ namespace Folio
 		return Atlas.GetEffectTexture(RenderManager, Page, Effect);
 	}
 }
+
+#endif

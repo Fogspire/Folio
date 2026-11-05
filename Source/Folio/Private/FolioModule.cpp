@@ -39,6 +39,7 @@ FFolioModule::~FFolioModule() = default;
 
 void FFolioModule::StartupModule()
 {
+#if FOLIO_WITH_FREETYPE
 	// Before any face is loaded, so the core's generation scopes are captured from the start.
 	FolioInsights::Install();
 
@@ -155,10 +156,15 @@ void FFolioModule::StartupModule()
 	});
 
 	UE_LOG(LogFolio, Log, TEXT("Folio ready. Content root: %s, plugin root: %s"), *ContentRoot, *PluginRoot);
+#else
+	// A server build. Every document, widget and world document checks IsRmlInitialised and stays empty.
+	UE_LOG(LogFolio, Log, TEXT("Folio is built without FreeType for this target, so RmlUi is not started"));
+#endif
 }
 
 void FFolioModule::ShutdownModule()
 {
+#if FOLIO_WITH_FREETYPE
 	// Dropped before RmlUi goes, since the pass reads recordings that belong to documents.
 	WorldPass.Reset();
 
@@ -205,6 +211,7 @@ void FFolioModule::ShutdownModule()
 	FontCache.Reset();
 	FileInterface.Reset();
 	SystemInterface.Reset();
+#endif
 }
 
 FString FFolioModule::GetUiRoot() const

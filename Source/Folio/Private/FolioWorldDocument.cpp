@@ -174,6 +174,11 @@ void UFolioWorldDocument::OnRegister()
 	// gives no way to attach a model afterwards.
 	ApplyBindings();
 
+	for (const FPendingFragment& Fragment : PendingFragments)
+	{
+		Host->AddFragment(Fragment.Handle, Fragment.SlotId, Fragment.Path, Fragment.ViewModel.Get(), Fragment.bPollEveryFrame);
+	}
+
 	if (!DocumentPath.IsEmpty())
 	{
 		Host->LoadDocument(DocumentPath);
@@ -1049,6 +1054,61 @@ bool UFolioWorldDocument::BindViewModel(const FString& ModelName, UObject* Sourc
 			*ModelName, *DocumentPath);
 
 		Host->ReloadDocument();
+	}
+
+	return true;
+}
+
+int32 UFolioWorldDocument::AddFragment(const FString& SlotId, const FString& FragmentPath, UObject* ViewModel,
+	const bool bPollEveryFrame)
+{
+	if (SlotId.IsEmpty() || FragmentPath.IsEmpty())
+	{
+		return 0;
+	}
+
+	FPendingFragment& Fragment = PendingFragments.AddDefaulted_GetRef();
+	Fragment.Handle = NextFragmentHandle++;
+	Fragment.SlotId = SlotId;
+	Fragment.Path = FragmentPath;
+	Fragment.ViewModel = ViewModel;
+	Fragment.bPollEveryFrame = bPollEveryFrame;
+
+	if (ViewModel)
+	{
+		BoundSources.AddUnique(ViewModel);
+	}
+
+	if (Host.IsValid())
+	{
+		Host->AddFragment(Fragment.Handle, SlotId, FragmentPath, ViewModel, bPollEveryFrame);
+	}
+
+	return Fragment.Handle;
+}
+
+bool UFolioWorldDocument::RemoveFragment(const int32 Handle)
+{
+	const int32 Index = PendingFragments.IndexOfByPredicate([Handle](const FPendingFragment& Fragment) { return Fragment.Handle == Handle; });
+	if (Index == INDEX_NONE)
+	{
+		return false;
+	}
+
+	UObject* ViewModel = PendingFragments[Index].ViewModel.Get();
+	PendingFragments.RemoveAt(Index);
+
+	const bool bStillUsed = !ViewModel
+		|| Bindings.ContainsByPredicate([ViewModel](const FPendingBinding& Binding) { return Binding.Source.Get() == ViewModel; })
+		|| PendingFragments.ContainsByPredicate([ViewModel](const FPendingFragment& Fragment) { return Fragment.ViewModel.Get() == ViewModel; });
+	if (!bStillUsed)
+	{
+		BoundSources.Remove(ViewModel);
+	}
+
+	if (Host.IsValid())
+	{
+		Host->RemoveFragment(Handle);
 	}
 
 	return true;

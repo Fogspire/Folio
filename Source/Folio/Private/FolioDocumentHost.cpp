@@ -2,6 +2,7 @@
 
 #include "FolioDataModel.h"
 #include "FolioDocumentPath.h"
+#include "FolioFragments.h"
 #include "FolioInsights.h"
 #include "FolioInvalidation.h"
 #include "FolioLocalization.h"
@@ -12,7 +13,9 @@
 #include "FolioRenderInterface.h"
 #include "FolioRmlUi.h"
 
+#include "FolioCore/FolioFragment.h"
 #include "Misc/FileHelper.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 #include <RmlUi/Core/ComputedValues.h>
 #include <RmlUi/Core/Context.h>
@@ -34,7 +37,10 @@ namespace
 	TSet<FName> ActiveThemes;
 }
 
-FFolioDocumentHost::FFolioDocumentHost() = default;
+FFolioDocumentHost::FFolioDocumentHost()
+	: Fragments(MakeUnique<FFolioFragments>())
+{
+}
 
 FFolioDocumentHost::~FFolioDocumentHost()
 {
@@ -181,6 +187,7 @@ void FFolioDocumentHost::Destroy()
 		// Safe with RmlUi already down: the document is observed, so this drops a null rather than
 		// unregistering from a freed element.
 		Behaviours.Detach();
+		Fragments->Release();
 
 		InputModel.Release();
 		ObjectModels.Empty();
@@ -195,6 +202,7 @@ void FFolioDocumentHost::Destroy()
 	}
 
 	Behaviours.Detach();
+	Fragments->Release();
 
 	// Closing a document is deferred until the next Update, so the context has to outlive the close.
 	// Removing the context destroys everything in it outright, which is what we want.
@@ -256,6 +264,7 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 		}
 
 		Behaviours.Detach();
+		Fragments->Release();
 		Document->Close();
 		// Close is deferred to the next update; without this the old document is still alive when the
 		// new one loads and both would render.
@@ -304,6 +313,7 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 	// views already exist by now - they are built as the markup is parsed - which is what lets the pass
 	// recognise a bound element and leave it alone.
 	Folio::Loc::ApplyToDocument(Document, RelativePath);
+	Fragments->Insert(Document);
 
 	Document->Show();
 	InputModel.SetDocument(Document);
@@ -350,6 +360,7 @@ void FFolioDocumentHost::ReloadDocument()
 void FFolioDocumentHost::ReloadStyleSheets()
 {
 	Folio::Reload::ReloadStyleSheets(Context);
+	Fragments->ReloadStyles(Document);
 	MarkDirty(TEXT("stylesheets reloaded"));
 }
 
@@ -384,6 +395,92 @@ bool FFolioDocumentHost::BindObjectModel(const FString& ModelName, UObject* Sour
 
 	ObjectModels.Add(MoveTemp(Model));
 	MarkDirty(TEXT("model bound"));
+	return true;
+}
+
+void FFolioDocumentHost::UnbindObjectModel(const FString& ModelName)
+{
+	const int32 Index = ObjectModels.IndexOfByPredicate(
+		[&ModelName](const TUniquePtr<FFolioObjectModel>& Model) { return Model.IsValid() && Model->GetModelName() == ModelName; });
+	if (Index == INDEX_NONE)
+	{
+		return;
+	}
+
+	ObjectModels.RemoveAt(Index);
+	if (Context)
+	{
+		Context->RemoveDataModel(Folio::ToRmlString(ModelName));
+	}
+}
+
+void FFolioDocumentHost::AddFragment(const int32 Handle, const FString& SlotId, const FString& Path, UObject* Source,
+	const bool bPollEveryFrame)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FolioDocumentHost::AddFragment);
+
+	if (!Context)
+	{
+		return;
+	}
+
+	FFolioFragments::FFragment Fragment;
+	Fragment.Handle = Handle;
+	Fragment.SlotId = SlotId;
+	Fragment.Path = Path;
+
+	// The model has to exist before the fragment's markup is parsed, or its bindings attach to nothing.
+	Rml::String Markup;
+	if (Folio::Fragment::Read(Folio::ToRmlString(Path), Markup))
+	{
+		const FString ModelName = Folio::ToFString(Folio::Fragment::GetModelName(Folio::Fragment::Parse(Markup)));
+		if (ModelName.IsEmpty())
+		{
+			if (Source)
+			{
+				UE_LOG(LogFolio, Warning,
+					TEXT("fragment '%s' was given a view model, but its body names no data-model, so the view model is unused"),
+					*Path);
+			}
+		}
+		else if (!Source)
+		{
+			MountDataModel(Path);
+		}
+		else if (HasObjectModel(ModelName))
+		{
+			UE_LOG(LogFolio, Warning,
+				TEXT("fragment '%s' names data-model \"%s\", which is already bound, so it shows that model rather than the ")
+				TEXT("view model it was given. Each fragment on screen at once needs a model name of its own."),
+				*Path, *ModelName);
+		}
+		else if (BindObjectModel(ModelName, Source, bPollEveryFrame))
+		{
+			Fragment.OwnModel = ModelName;
+		}
+	}
+
+	Fragments->Add(MoveTemp(Fragment), Document);
+	MarkDirty(TEXT("fragment added"));
+}
+
+bool FFolioDocumentHost::RemoveFragment(const int32 Handle)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FolioDocumentHost::RemoveFragment);
+
+	FString OwnModel;
+	if (!Fragments->Remove(Handle, Document, OwnModel))
+	{
+		return false;
+	}
+
+	// After the elements are gone, so no view is left pointing into the model.
+	if (!OwnModel.IsEmpty())
+	{
+		UnbindObjectModel(OwnModel);
+	}
+
+	MarkDirty(TEXT("fragment removed"));
 	return true;
 }
 

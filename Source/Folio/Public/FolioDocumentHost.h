@@ -75,6 +75,18 @@ public:
 	bool HasObjectModel(const FString& ModelName) const;
 
 	/**
+	 * Places a fragment's body into the element whose id is `SlotId`, and adds its stylesheets to the
+	 * document's. Kept across reloads; before the document loads it waits for it.
+	 *
+	 * `Source` binds the model the fragment's `<body data-model>` names, and is released with it. A
+	 * fragment that names none reads whatever model is in scope at its slot.
+	 */
+	void AddFragment(int32 Handle, const FString& SlotId, const FString& Path, UObject* Source, bool bPollEveryFrame);
+
+	/** Takes a fragment out of the document. False if none has that handle. */
+	bool RemoveFragment(int32 Handle);
+
+	/**
 	 * Turns a theme on or off across every context, and remembers it for contexts made later.
 	 *
 	 * A theme in RmlUi is per-context and matched by `@media (theme: name)`, which is the only way a
@@ -148,6 +160,8 @@ private:
 	/** Writes the accessibility text scale onto the document root, where every `rem` resolves against it. */
 	void ApplyTextScale(float DpRatio);
 
+	void UnbindObjectModel(const FString& ModelName);
+
 	Rml::Context* Context = nullptr;
 	Rml::ElementDocument* Document = nullptr;
 	FString DocumentPath;
@@ -164,6 +178,8 @@ private:
 
 	/** Bound UObject sources. Held here because a data model belongs to its context. */
 	TArray<TUniquePtr<class FFolioObjectModel>> ObjectModels;
+
+	TUniquePtr<class FFolioFragments> Fragments;
 
 	/**
 	 * Seconds until RmlUi says it must be updated again, from `Context::GetNextUpdateDelay()`.

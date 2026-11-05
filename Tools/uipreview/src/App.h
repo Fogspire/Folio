@@ -109,6 +109,10 @@ private:
 	/** Puts the folio-device-*, folio-input-* and folio-confirm-* classes on the document body. */
 	void ApplyInputClasses();
 	void RebuildDocument();
+	/** Places every --fragment into its slot and adds its stylesheets, after each load and rebuild. */
+	void InsertFragments();
+	/** The --fragment paths, without their slots. */
+	std::vector<std::string> FragmentPaths() const;
 
 	int RunInteractive();
 	int RunOneShot();

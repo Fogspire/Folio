@@ -54,6 +54,7 @@ Two habits cover it:
 | **[Drag, drop and resize](drag_and_resize.md)** | Moving, dropping and resizing with no code, and where the game takes over. |
 | **[UI sounds](ui_sounds.md)** | Four moments reported, nothing played. |
 | **[Data binding](data_binding.md)** | Driving a document from gameplay, and whether you want MVVM. |
+| **[Fragments](fragments.md)** | UI that objects add to a HUD's slot and take out again, each in its own file with its own view model. |
 | **[Generating a view model](view_models.md)** | The codegen path, when reflection is not enough. |
 | **[Calling into game code](hosting.md)** | Hosting a document in an existing widget tree, events, and the CommonUI focus trap. |
 

@@ -53,6 +53,12 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 	}
 
 	ApplyBindings();
+
+	for (const FFolioFragmentRequest& Fragment : Fragments)
+	{
+		Canvas->GetHost().AddFragment(Fragment.Handle, Fragment.SlotId, Fragment.Path, Fragment.ViewModel, Fragment.bPollEveryFrame);
+	}
+
 	Canvas->LoadDocument(DocumentPath);
 
 	return Canvas.ToSharedRef();
@@ -169,6 +175,44 @@ bool UFolioWidget::BindViewModel(const FString& ModelName, UObject* Source, cons
 			*ModelName, *DocumentPath);
 
 		Canvas->ReloadDocument();
+	}
+
+	return true;
+}
+
+int32 UFolioWidget::AddFragment(const FString& SlotId, const FString& FragmentPath, UObject* ViewModel,
+	const bool bPollEveryFrame)
+{
+	if (SlotId.IsEmpty() || FragmentPath.IsEmpty())
+	{
+		return 0;
+	}
+
+	FFolioFragmentRequest& Fragment = Fragments.AddDefaulted_GetRef();
+	Fragment.Handle = NextFragmentHandle++;
+	Fragment.SlotId = SlotId;
+	Fragment.Path = FragmentPath;
+	Fragment.ViewModel = ViewModel;
+	Fragment.bPollEveryFrame = bPollEveryFrame;
+
+	if (Canvas.IsValid())
+	{
+		Canvas->GetHost().AddFragment(Fragment.Handle, SlotId, FragmentPath, ViewModel, bPollEveryFrame);
+	}
+
+	return Fragment.Handle;
+}
+
+bool UFolioWidget::RemoveFragment(const int32 Handle)
+{
+	if (Fragments.RemoveAll([Handle](const FFolioFragmentRequest& Fragment) { return Fragment.Handle == Handle; }) == 0)
+	{
+		return false;
+	}
+
+	if (Canvas.IsValid())
+	{
+		Canvas->GetHost().RemoveFragment(Handle);
 	}
 
 	return true;

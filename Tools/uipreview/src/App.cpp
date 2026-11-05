@@ -29,6 +29,7 @@
 #include "FolioCore/FolioFilters.h"
 #include "FolioCore/FolioFontEffects.h"
 #include "FolioCore/FolioFontEngine.h"
+#include "FolioCore/FolioFragment.h"
 #include "FolioCore/FolioInputState.h"
 #include "FolioCore/FolioTerms.h"
 #include "FolioCore/FolioTextElement.h"
@@ -352,7 +353,15 @@ std::vector<std::string> App::DiscoverDataModelNames() const
 	if (!file)
 		return names;
 
-	const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+	// A fragment's own model has to exist before it is inserted, just as the document's does.
+	for (const std::string& path : FragmentPaths())
+	{
+		std::ifstream fragment(file_interface->Resolve(path));
+		text.append((std::istreambuf_iterator<char>(fragment)), std::istreambuf_iterator<char>());
+	}
+
 	static const std::regex pattern(R"RX(data-model\s*=\s*"([^"]+)")RX");
 
 	for (std::sregex_iterator it(text.begin(), text.end(), pattern), end; it != end; ++it)
@@ -653,6 +662,7 @@ bool App::LoadDocumentFromDisk()
 	}
 	document->Show();
 	behaviours.Attach(document);
+	InsertFragments();
 	ApplyInputClasses();
 	context->Update();
 	localizer.ApplyToDocument(document, options.strict);
@@ -660,6 +670,54 @@ bool App::LoadDocumentFromDisk()
 	ApplyTextScale();
 	CollectSpritesFromDiagnostics();
 	return true;
+}
+
+std::vector<std::string> App::FragmentPaths() const
+{
+	std::vector<std::string> paths;
+	for (const std::string& fragment : options.fragments)
+		paths.push_back(fragment.substr(fragment.find('=') + 1));
+	return paths;
+}
+
+void App::InsertFragments()
+{
+	if (!document || options.fragments.empty())
+		return;
+
+	const Rml::SharedPtr<Rml::StyleSheetContainer> own_styles = Folio::Fragment::CaptureDocumentStyles(document);
+	std::vector<Rml::SharedPtr<Rml::StyleSheetContainer>> fragment_styles;
+
+	for (const std::string& fragment : options.fragments)
+	{
+		const std::string slot_id = fragment.substr(0, fragment.find('='));
+		const std::string path = fragment.substr(fragment.find('=') + 1);
+
+		Rml::String markup;
+		if (!Folio::Fragment::Read(path, markup))
+		{
+			diagnostics.Report(Severity::Error, "E-FRAGMENT-LOAD", "could not read fragment '" + path + "'");
+			continue;
+		}
+
+		Rml::Element* slot = document->GetElementById(slot_id);
+		if (!slot)
+		{
+			diagnostics.Report(Severity::Error, "E-FRAGMENT-SLOT",
+				"fragment '" + path + "' names slot '" + slot_id + "', and nothing in the document has that id");
+			continue;
+		}
+
+		const Folio::Fragment::FParsed parsed = Folio::Fragment::Parse(markup);
+		fragment_styles.push_back(Folio::Fragment::LoadStyles(parsed, path));
+		Folio::Fragment::Insert(slot, parsed);
+	}
+
+	std::vector<const Rml::StyleSheetContainer*> styles;
+	for (const Rml::SharedPtr<Rml::StyleSheetContainer>& sheet : fragment_styles)
+		styles.push_back(sheet.get());
+
+	Folio::Fragment::ApplyStyles(document, *own_styles, styles);
 }
 
 void App::ApplyTextScale()
@@ -1265,6 +1323,7 @@ void App::RebuildDocument()
 
 	document->Show();
 	behaviours.Attach(document);
+	InsertFragments();
 	ApplyInputClasses();
 	// Layout has to exist before focus and scroll can be put back.
 	context->Update();

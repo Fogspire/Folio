@@ -122,6 +122,8 @@ A document naming that template has its own body substituted into `content`.
 
 ## Fragments in their own files
 
+To add and remove panels from game code while the HUD is running, without the HUD naming them, use [fragments](fragments.md). This section is the markup-only form, where the HUD names each one.
+
 A panel that belongs to one thing in the game (a held weapon, a possessed vehicle) can live in its own file and be placed into the HUD where it goes. Write it as a template, styles and all:
 
 ```html

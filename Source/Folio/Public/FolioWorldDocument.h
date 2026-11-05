@@ -241,6 +241,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	bool BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
 
+	/** Places a fragment into the element whose id is `SlotId`. Same contract as the screen-space widget's. */
+	UFUNCTION(BlueprintCallable, Category = "Folio", meta = (AdvancedDisplay = "bPollEveryFrame"))
+	int32 AddFragment(const FString& SlotId, const FString& FragmentPath, UObject* ViewModel = nullptr,
+		bool bPollEveryFrame = true);
+
+	/** Takes a fragment out again, with its stylesheets and its view model. False for an unknown handle. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	bool RemoveFragment(int32 Handle);
+
 	/** Says the document changed, for game code that reaches into it directly. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	void MarkDirty();
@@ -470,6 +479,19 @@ private:
 	};
 
 	void ApplyBindings();
+
+	/** One requested fragment, kept so it survives a re-register. */
+	struct FPendingFragment
+	{
+		int32 Handle = 0;
+		FString SlotId;
+		FString Path;
+		TWeakObjectPtr<UObject> ViewModel;
+		bool bPollEveryFrame = true;
+	};
+
+	TArray<FPendingFragment> PendingFragments;
+	int32 NextFragmentHandle = 1;
 
 	/**
 	 * Drops the recordings, waiting first if a frame is still reading one.

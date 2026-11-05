@@ -34,6 +34,29 @@ struct FFolioViewModelBinding
 	bool bPollEveryFrame = true;
 };
 
+/** One requested fragment, kept so a rebuilt widget puts it back. */
+USTRUCT()
+struct FFolioFragmentRequest
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 Handle = 0;
+
+	UPROPERTY()
+	FString SlotId;
+
+	UPROPERTY()
+	FString Path;
+
+	/** Strong, as a binding's source is. */
+	UPROPERTY()
+	TObjectPtr<UObject> ViewModel;
+
+	UPROPERTY()
+	bool bPollEveryFrame = true;
+};
+
 /**
  * A document as a UMG widget, so it can sit in a game's existing widget tree.
  *
@@ -161,6 +184,24 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API bool BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
+
+	/**
+	 * Places a fragment into the element whose id is `SlotId`, and returns the handle that removes it.
+	 *
+	 * A fragment is an .rml file: its body is appended to the slot inside one `div` that carries the
+	 * body's attributes, and its head's stylesheets join the document's. It stays across reloads and
+	 * rebuilds, and can be added before the document loads.
+	 *
+	 * `ViewModel` binds the model the fragment's `<body data-model>` names, and is released with the
+	 * fragment. Without one, the fragment reads whatever model is in scope at its slot.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Folio", meta = (AdvancedDisplay = "bPollEveryFrame"))
+	FOLIO_API int32 AddFragment(const FString& SlotId, const FString& FragmentPath, UObject* ViewModel = nullptr,
+		bool bPollEveryFrame = true);
+
+	/** Takes a fragment out again, with its stylesheets and its view model. False for an unknown handle. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API bool RemoveFragment(int32 Handle);
 
 	/**
 	 * Writes one inline property on an element, by id, and marks the document dirty.
@@ -346,6 +387,11 @@ private:
 
 	UPROPERTY()
 	TArray<FFolioViewModelBinding> Bindings;
+
+	UPROPERTY()
+	TArray<FFolioFragmentRequest> Fragments;
+
+	int32 NextFragmentHandle = 1;
 
 	/** Names this widget put in the registry, so they can be taken back out. */
 	TSet<FName> OwnedTextures;

@@ -4,6 +4,7 @@
 
 namespace Rml
 {
+	class Element;
 	class ElementDocument;
 }
 
@@ -36,6 +37,9 @@ namespace Folio::Loc
 
 	/** Replaces the text of every [data-loc] element with its translation, where there is one. */
 	void ApplyToDocument(Rml::ElementDocument* Document, const FString& RelativePath);
+
+	/** The same for one subtree, translated in the namespace of the file it came from: how a fragment is. */
+	void ApplyToElement(Rml::Element* Root, const FString& RelativePath);
 
 	/**
 	 * Logs every keyed string in a document with what it resolved to.

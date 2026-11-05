@@ -35,6 +35,10 @@ struct Options {
 	    game window rather than a fixed-size canvas. */
 	int dp_reference = 1080;
 
+	/** `id=path` per fragment to place into the element with that id after the document loads. The
+	    path is an RmlUi path, as the game's AddFragment takes. Repeatable, applied in order. */
+	std::vector<std::string> fragments;
+
 	std::string data_path;
 	std::string data_model;
 	std::string culture;

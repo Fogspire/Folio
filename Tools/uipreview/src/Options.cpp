@@ -82,6 +82,8 @@ void PrintUsage(std::FILE* stream)
 		"Content\n"
 		"  --data <FILE>         Mount a JSON file as the document's data model\n"
 		"  --data-model <NAME>   Override the data model name\n"
+		"  --fragment <ID>=<PATH>  Place a fragment's body into the element with that id once the\n"
+		"                        document loads, as AddFragment does in game. Repeatable\n"
 		"  --culture <CODE>      Load UI/loc/<CODE>.json, or 'pseudo' for pseudo-localization\n"
 		"  --input-device <D>    What the document is told the player holds: keyboard, mouse or\n"
 		"                        gamepad (default keyboard). Sets the folio-device-* body classes\n"
@@ -266,6 +268,17 @@ ParseResult ParseCommandLine(int argc, char** argv, Options& o, std::string& err
 		{
 			if (!TakeValue(argc, argv, i, "--data", o.data_path, error))
 				return ParseResult::Error;
+		}
+		else if (arg == "--fragment")
+		{
+			if (!TakeValue(argc, argv, i, "--fragment", value, error))
+				return ParseResult::Error;
+			if (value.find('=') == std::string::npos)
+			{
+				error = "--fragment expects <id>=<path>, got '" + value + "'";
+				return ParseResult::Error;
+			}
+			o.fragments.push_back(value);
 		}
 		else if (arg == "--data-model")
 		{

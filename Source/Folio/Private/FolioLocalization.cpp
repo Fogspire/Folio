@@ -113,7 +113,12 @@ namespace Folio::Loc
 
 	void ApplyToDocument(Rml::ElementDocument* Document, const FString& RelativePath)
 	{
-		if (!Document)
+		ApplyToElement(Document, RelativePath);
+	}
+
+	void ApplyToElement(Rml::Element* Root, const FString& RelativePath)
+	{
+		if (!Root)
 		{
 			return;
 		}
@@ -121,7 +126,7 @@ namespace Folio::Loc
 		const FString Namespace = NamespaceForDocument(RelativePath);
 
 		Rml::ElementList Tagged;
-		Document->QuerySelectorAll(Tagged, "[data-loc]");
+		Root->QuerySelectorAll(Tagged, "[data-loc]");
 
 		for (Rml::Element* Element : Tagged)
 		{

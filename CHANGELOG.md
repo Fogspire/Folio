@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.11.1
+* Dedicated servers build Folio without FreeType, as Slate does, so a Linux server target no longer fails at `FreeType2.Build.cs`. RmlUi is not started on a server; game code using Folio links unchanged
+* **Set CommonUI Settings** (formerly Set CommonUI Console Variables) also writes `CommonButtonAcceptKeyHandling=TriggerClick` to `DefaultGame.ini`, so CommonButtons take the pad's confirm with the virtual accept click off. See [docs/input_and_navigation.md](docs/input_and_navigation.md#if-the-gamepad-confirms-the-wrong-control)
+
 ## 1.11.0
 * `filter: shader("name args")` and `backdrop-filter: shader(...)` run a GPU pass the game registers with `Folio::RegisterShaderFilter`; the preview and Studio run `UI/filters/<name>.frag` in its place. See [docs/shader_filters.md](docs/shader_filters.md)
 * `filter: glow(<colour> <radius> <strength>)`: a halo of any size, where a font effect stops at 0.1em

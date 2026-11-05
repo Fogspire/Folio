@@ -84,6 +84,8 @@ void UFolioMarkerDocument::OnRegister()
 		return;
 	}
 
+	Host->SetSizeToContent(bSizeToContent);
+
 	LiveMarkers.AddUnique(this);
 	FFolioMarkerLayer::EnsureAttached(World);
 
@@ -121,6 +123,7 @@ void UFolioMarkerDocument::TickComponent(const float DeltaTime, const ELevelTick
 	// loaded and never changes again - and never marks itself dirty, which leaves the invalidation path
 	// skipping the update entirely and every animation frozen with it.
 	Host->TickDataModels();
+	Host->SetSizeToContent(bSizeToContent);
 
 	float Opacity = 1.0f;
 	bOnScreen = IsVisible() && Project(Opacity);
@@ -133,15 +136,18 @@ void UFolioMarkerDocument::TickComponent(const float DeltaTime, const ELevelTick
 		return;
 	}
 
-	const FIntPoint Document(
-		FMath::Max(1, FMath::RoundToInt(Size.X)),
-		FMath::Max(1, FMath::RoundToInt(Size.Y)));
+	// While sizing to content the context is only room to measure in; what is drawn is the content.
+	const FVector2D Room = bSizeToContent
+		? FVector2D(MaxContentWidth > 0.0f ? MaxContentWidth : 8192.0f, 8192.0f)
+		: Size;
 
-	Host->SetSize(Document);
+	Host->SetSize(FIntPoint(
+		FMath::Max(1, FMath::RoundToInt(Room.X)),
+		FMath::Max(1, FMath::RoundToInt(Room.Y))));
 	Host->Update(DeltaTime, 1.0f, 1.0f);
 
 	Placement.Host = Host.Get();
-	Placement.Size = Size;
+	Placement.Size = GetLaidOutSize();
 	Placement.Opacity = Opacity;
 	Placement.SortOrder = SortOrder;
 	Placement.PlayerIndex = PlayerIndex;
@@ -305,10 +311,36 @@ bool UFolioMarkerDocument::Project(float& OutOpacity)
 
 	// The anchor is a fraction of the *scaled* document, so a shrinking nameplate keeps its bottom
 	// centre on the same point rather than drifting off it.
-	Placement.Position = Anchored - Size * Anchor * double(Scale);
+	const FVector2D LaidOut = GetLaidOutSize();
+	Placement.Position = Anchored - LaidOut * Anchor * double(Scale);
 	Placement.Scale = Scale;
 
+	ScreenTopLeft = Placement.Position * SafeDpi;
+	ScreenSize = LaidOut * double(Scale) * SafeDpi;
+
 	return true;
+}
+
+bool UFolioMarkerDocument::GetScreenRect(FVector2D& TopLeft, FVector2D& RectSize) const
+{
+	TopLeft = bOnScreen ? ScreenTopLeft : FVector2D::ZeroVector;
+	RectSize = bOnScreen ? ScreenSize : FVector2D::ZeroVector;
+	return bOnScreen;
+}
+
+FVector2D UFolioMarkerDocument::GetLaidOutSize() const
+{
+	if (bSizeToContent && Host.IsValid())
+	{
+		const FVector2f Content = Host->GetContentSize();
+		if (Content.X > 0.0f || Content.Y > 0.0f)
+		{
+			// Rounded up, so the body never wraps for want of a fraction of a dp.
+			return FVector2D(FMath::CeilToDouble(Content.X), FMath::CeilToDouble(Content.Y));
+		}
+	}
+
+	return Size;
 }
 
 void UFolioMarkerDocument::LoadDocument(const FString& InDocumentPath)

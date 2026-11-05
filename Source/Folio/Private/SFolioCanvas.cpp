@@ -103,6 +103,8 @@ void SFolioCanvas::Construct(const FArguments& InArgs)
 		return;
 	}
 
+	SetSizeToContent(InArgs._SizeToContent, InArgs._MaxContentWidth);
+
 	// Sounds are the canvas's rather than the host's: a world-space document has no UI audio of its own
 	// and would not want the same events. The listener holds the document, so it lets go while the
 	// document is still alive and attaches to the new one afterwards.
@@ -338,12 +340,93 @@ float SFolioCanvas::ScaleFor(const FGeometry& AllottedGeometry) const
 	return Folio::ScaleRatio(AllottedGeometry.Scale, ScaleFollow, Scale, MinScale, MaxScale);
 }
 
+namespace
+{
+	/** Room to measure in when nothing limits the width. Large enough for any real line of UI text. */
+	constexpr int32 MeasureExtent = 8192;
+}
+
+void SFolioCanvas::SetSizeToContent(const bool bInSizeToContent, const float InMaxContentWidth)
+{
+	MaxContentWidth = FMath::Max(0.0f, InMaxContentWidth);
+
+	if (bInSizeToContent != bSizeToContent)
+	{
+		bSizeToContent = bInSizeToContent;
+		ContentDesiredSize.Reset();
+		Invalidate(EInvalidateWidgetReason::Layout);
+	}
+
+	Host.SetSizeToContent(bSizeToContent);
+}
+
+void SFolioCanvas::SetDesiredSize(const FVector2D InDesiredSize)
+{
+	if (InDesiredSize != DesiredSize)
+	{
+		DesiredSize = InDesiredSize;
+		Invalidate(EInvalidateWidgetReason::Layout);
+	}
+}
+
+bool SFolioCanvas::GetElementAbsoluteRect(const FString& ElementId, FVector2D& OutTopLeft, FVector2D& OutSize) const
+{
+	Rml::ElementDocument* Document = Host.GetDocument();
+	Rml::Element* Element = Document ? Document->GetElementById(Folio::ToRmlString(ElementId)) : nullptr;
+	if (!Element || !Host.IsLaidOut())
+	{
+		return false;
+	}
+
+	const FGeometry& Geometry = GetTickSpaceGeometry();
+	const float ToLocal = ContextToLocal(Geometry);
+	const Rml::Vector2f Offset = Element->GetAbsoluteOffset(Rml::BoxArea::Border);
+	const Rml::Vector2f Size = Element->GetBox().GetSize(Rml::BoxArea::Border);
+
+	OutTopLeft = Geometry.LocalToAbsolute(FVector2D(Offset.x * ToLocal, Offset.y * ToLocal));
+	OutSize = Geometry.LocalToAbsolute(FVector2D((Offset.x + Size.x) * ToLocal, (Offset.y + Size.y) * ToLocal)) - OutTopLeft;
+	return true;
+}
+
+void SFolioCanvas::UpdateContentSize(const FGeometry& AllottedGeometry)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FolioCanvas::UpdateContentSize);
+
+	const FVector2f Content = Host.GetContentSize();
+	if (Content.X <= 0.0f && Content.Y <= 0.0f)
+	{
+		return;
+	}
+
+	// Rounded up, so the body never wraps for want of a fraction of a pixel.
+	const FIntPoint Pixels(FMath::Max(1, FMath::CeilToInt(Content.X)), FMath::Max(1, FMath::CeilToInt(Content.Y)));
+	ContextSize = Pixels;
+
+	const FVector2D Local = FVector2D(Pixels) * ContextToLocal(AllottedGeometry);
+	if (!ContentDesiredSize.IsSet() || !ContentDesiredSize->Equals(Local, 0.01))
+	{
+		ContentDesiredSize = Local;
+		Invalidate(EInvalidateWidgetReason::Layout);
+	}
+}
+
 void SFolioCanvas::UpdateContextSize(const FGeometry& AllottedGeometry)
 {
 	// Pixels, because that is what a context unit is. The dp ratio is carried separately and RmlUi
 	// applies it to dp lengths itself. Screen pixels whatever the sample count: what supersampling
 	// makes bigger is the target, not the document.
 	const FVector2f Pixels = AllottedGeometry.GetLocalSize() * AllottedGeometry.Scale;
+
+	// Measured in a context wider than the content, so the body's shrink-to-fit width is what it wants
+	// rather than what the slot gives. What is drawn and hit tested is the content, set after the update.
+	if (bSizeToContent)
+	{
+		const int32 Width = MaxContentWidth > 0.0f
+			? FMath::Max(1, FMath::CeilToInt(MaxContentWidth * ScaleFor(AllottedGeometry)))
+			: MeasureExtent;
+		Host.SetSize(FIntPoint(Width, MeasureExtent));
+		return;
+	}
 
 	ContextSize = FIntPoint(FMath::Max(1, FMath::RoundToInt(Pixels.X)),
 		FMath::Max(1, FMath::RoundToInt(Pixels.Y)));
@@ -394,6 +477,11 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 	const bool bUpdated = Host.Update(InDeltaTime, ScaleFor(AllottedGeometry),
 		RenderScale * ContextToLocal(AllottedGeometry));
 
+	if (bSizeToContent)
+	{
+		UpdateContentSize(AllottedGeometry);
+	}
+
 	// After the update, and again every frame. A document focused before it has been laid out once has
 	// nothing to give focus to: what is navigable is a computed value, so until then RmlUi finds no tab
 	// element at all and the first press of a direction is spent arriving.
@@ -419,7 +507,7 @@ void SFolioCanvas::Tick(const FGeometry& AllottedGeometry, const double InCurren
 
 FVector2D SFolioCanvas::ComputeDesiredSize(float) const
 {
-	return DesiredSize;
+	return bSizeToContent && ContentDesiredSize.IsSet() ? ContentDesiredSize.GetValue() : DesiredSize;
 }
 
 //

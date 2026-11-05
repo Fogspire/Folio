@@ -74,6 +74,33 @@ An idle document is nearly free, and markers are usually idle. A nameplate whose
 
 Markers you cannot see cost nothing to draw and still cost their update.
 
+## Fitting the content
+
+Turn on **Size To Content** for a plate that fits its name rather than a fixed **Size**. **Max Content Width** (dp) is where the name wraps; zero keeps it on one line. **Anchor** applies to the measured size, so `0.5, 1` keeps the bottom centre on the point however long the name is.
+
+The body's width and height are set to `auto` inline, so size the content inside it instead.
+
+## Keeping markers apart
+
+`Get Screen Rect` gives a marker's box last frame in viewport pixels, after **Anchor**, **Screen Offset**, distance scaling and fading. Compare two of them and move one by changing its **Screen Offset**:
+
+```cpp
+FVector2D PlateTopLeft, PlateSize, WaypointTopLeft, WaypointSize;
+if (Nameplate->GetScreenRect(PlateTopLeft, PlateSize) && Waypoint->GetScreenRect(WaypointTopLeft, WaypointSize))
+{
+    const FBox2D PlateBox(PlateTopLeft, PlateTopLeft + PlateSize);
+    const FBox2D WaypointBox(WaypointTopLeft, WaypointTopLeft + WaypointSize);
+    if (PlateBox.Intersect(WaypointBox))
+    {
+        // Screen Offset is in dp; the rect is in viewport pixels.
+        const float Dpi = UWidgetLayoutLibrary::GetViewportScale(World);
+        Waypoint->ScreenOffset.Y -= (WaypointBox.Max.Y - PlateBox.Min.Y) / Dpi;
+    }
+}
+```
+
+It returns false for a marker that did not draw. `Get Laid Out Size` is the size in dp before scaling: **Size**, or the measured content.
+
 ## Doing it yourself
 
 To control placement yourself:

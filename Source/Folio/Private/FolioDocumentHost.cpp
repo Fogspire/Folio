@@ -294,6 +294,7 @@ void FFolioDocumentHost::LoadDocument(const FString& RelativePath)
 	}
 
 	Document = Context->LoadDocument(Folio::ToRmlString(RelativePath));
+	SizedDocument = nullptr;
 	if (!Document)
 	{
 		UE_LOG(LogFolio, Error, TEXT("could not load document '%s': it exists but did not parse"), *RelativePath);
@@ -503,6 +504,45 @@ void FFolioDocumentHost::TickDataModels()
 	}
 }
 
+void FFolioDocumentHost::SetSizeToContent(const bool bInSizeToContent)
+{
+	if (bInSizeToContent == bSizeToContent)
+	{
+		return;
+	}
+
+	bSizeToContent = bInSizeToContent;
+	if (!bSizeToContent)
+	{
+		ContentSize = FVector2f::ZeroVector;
+	}
+
+	MarkDirty(TEXT("size to content"));
+}
+
+void FFolioDocumentHost::ApplySizeToContentStyle()
+{
+	if (!Document)
+	{
+		return;
+	}
+
+	if (bSizeToContent && SizedDocument != Document)
+	{
+		Document->SetProperty("position", "absolute");
+		Document->SetProperty("width", "auto");
+		Document->SetProperty("height", "auto");
+		SizedDocument = Document;
+	}
+	else if (!bSizeToContent && SizedDocument == Document)
+	{
+		Document->RemoveProperty("position");
+		Document->RemoveProperty("width");
+		Document->RemoveProperty("height");
+		SizedDocument = nullptr;
+	}
+}
+
 bool FFolioDocumentHost::Update(const float DeltaSeconds, const float DpRatio, const float RenderScale)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_Update);
@@ -551,8 +591,17 @@ bool FFolioDocumentHost::Update(const float DeltaSeconds, const float DpRatio, c
 
 	const TCHAR* const Reason = bDirty ? DirtyReason : TEXT("RmlUi asked");
 
+	ApplySizeToContentStyle();
+
 	Context->Update();
 	Behaviours.UpdateScrollState();
+
+	if (bSizeToContent && Document)
+	{
+		const Rml::Vector2f Extent = Document->GetAbsoluteOffset(Rml::BoxArea::Margin)
+			+ Document->GetBox().GetSize(Rml::BoxArea::Margin);
+		ContentSize = FVector2f(Extent.x, Extent.y);
+	}
 
 	bLaidOut = true;
 

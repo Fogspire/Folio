@@ -51,6 +51,17 @@ public:
 
 	/** Resizes the context. Marks dirty only when the size actually moved. */
 	void SetSize(FIntPoint Size);
+
+	/**
+	 * Lays the body out at the size of its content: shrink-to-fit width, up to the context's, and auto
+	 * height. Done with inline `position: absolute; width: auto; height: auto` on the body, so the
+	 * context only has to be large enough to measure in. Read the result with GetContentSize.
+	 */
+	void SetSizeToContent(bool bInSizeToContent);
+	bool IsSizingToContent() const { return bSizeToContent; }
+
+	/** The body's margin box from the last update, in context units. Zero until sizing to content has laid out. */
+	FVector2f GetContentSize() const { return ContentSize; }
 	FIntPoint GetSize() const { return Size; }
 
 	/**
@@ -193,4 +204,12 @@ private:
 	/** The dp ratio the last update laid out with, so a scale change alone still forces a layout. */
 	float AppliedDpRatio = 0.0f;
 	const TCHAR* DirtyReason = TEXT("first frame");
+
+	bool bSizeToContent = false;
+	FVector2f ContentSize = FVector2f::ZeroVector;
+
+	/** The document carrying the size-to-content style, so a newly loaded one gets it too. */
+	Rml::ElementDocument* SizedDocument = nullptr;
+
+	void ApplySizeToContentStyle();
 };

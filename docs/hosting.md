@@ -8,9 +8,33 @@ A game keeps its HUD layout, its CommonUI stack and its menu flow, and puts a do
 
 In the UMG designer the palette has **Folio Document** under Folio. Drop it in, set **Document Path** to the same kind of path `folio.Show` takes: `UI/screens/pause.rml`, relative to the project directory, or `/folio/...` to reach inside the plugin.
 
-**Desired Size** is what the widget reports to Slate layout, not a limit on the document. In a fill slot it never comes up; it matters in a canvas panel or an auto-sized box.
+**Desired Size** is what the widget reports to Slate layout, not a limit on the document. In a fill slot it never comes up; it matters in a canvas panel or an auto-sized box. `Set Desired Size` changes it at runtime.
 
 From C++ or Blueprint, `Load Document` swaps what is up without rebuilding the widget.
+
+## Sizing to the content
+
+To have the widget take the size of what is in it, as UMG text does, turn on **Size To Content**. A canvas panel slot with **Size To Content**, or an auto-sized box, then fits the document.
+
+**Max Content Width** (dp) is where text wraps. Zero lets each line run its full length.
+
+The body is laid out shrink-to-fit with `width: auto` and `height: auto`, set inline, so a width or height in the stylesheet's `body` rule is ignored. Size the content inside it instead. Until the first layout the widget reports **Desired Size**, so set that to something small rather than the 1920x1080 default.
+
+`Set Size To Content` changes both at runtime.
+
+## Where an element is on screen
+
+`Get Element Rect (Element Id)` gives an element's top-left and size in viewport pixels, the same space as `ProjectWorldToScreen` and a marker's [`Get Screen Rect`](markers.md#keeping-markers-apart):
+
+```cpp
+FVector2D TopLeft, ElementSize;
+if (Document->GetElementRect(TEXT("objective"), TopLeft, ElementSize))
+{
+    const FBox2D Box(TopLeft, TopLeft + ElementSize);
+}
+```
+
+It is the layout box from the last frame. A `transform` on the element or an ancestor is not applied, so a scaled or rotated element reports where it would be without one. It returns false until the document has laid out once.
 
 ## Showing game values
 

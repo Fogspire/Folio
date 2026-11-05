@@ -10,6 +10,7 @@
 #include <RmlUi/Core/Element.h>
 #include <RmlUi/Core/ElementDocument.h>
 
+#include "Blueprint/SlateBlueprintLibrary.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SNullWidget.h"
 
@@ -35,7 +36,9 @@ TSharedRef<SWidget> UFolioWidget::RebuildWidget()
 		.Scale(Scale)
 		.MinScale(MinScale)
 		.MaxScale(MaxScale)
-		.Supersample(Supersample);
+		.Supersample(Supersample)
+		.SizeToContent(bSizeToContent)
+		.MaxContentWidth(MaxContentWidth);
 
 	// Once a canvas exists there is something to filter against. Dropped in ReleaseSlateResources,
 	// which is also where the canvas goes.
@@ -329,6 +332,50 @@ void UFolioWidget::ReleaseKey(const FKey Key)
 	{
 		Canvas->ReleaseKey(Key);
 	}
+}
+
+void UFolioWidget::SetDesiredSize(const FVector2D InDesiredSize)
+{
+	DesiredSize = InDesiredSize;
+
+	if (Canvas.IsValid())
+	{
+		Canvas->SetDesiredSize(DesiredSize);
+	}
+}
+
+void UFolioWidget::SetSizeToContent(const bool bInSizeToContent, const float InMaxContentWidth)
+{
+	bSizeToContent = bInSizeToContent;
+	MaxContentWidth = FMath::Max(0.0f, InMaxContentWidth);
+
+	if (Canvas.IsValid())
+	{
+		Canvas->SetSizeToContent(bSizeToContent, MaxContentWidth);
+	}
+}
+
+bool UFolioWidget::GetElementRect(const FString& ElementId, FVector2D& TopLeft, FVector2D& RectSize) const
+{
+	TopLeft = FVector2D::ZeroVector;
+	RectSize = FVector2D::ZeroVector;
+
+	FVector2D AbsoluteTopLeft;
+	FVector2D AbsoluteSize;
+	if (!Canvas.IsValid() || !Canvas->GetElementAbsoluteRect(ElementId, AbsoluteTopLeft, AbsoluteSize))
+	{
+		return false;
+	}
+
+	FVector2D ViewportTopLeft;
+	FVector2D ViewportBottomRight;
+	FVector2D Unused;
+	USlateBlueprintLibrary::AbsoluteToViewport(this, AbsoluteTopLeft, ViewportTopLeft, Unused);
+	USlateBlueprintLibrary::AbsoluteToViewport(this, AbsoluteTopLeft + AbsoluteSize, ViewportBottomRight, Unused);
+
+	TopLeft = ViewportTopLeft;
+	RectSize = ViewportBottomRight - ViewportTopLeft;
+	return true;
 }
 
 bool UFolioWidget::ScrollElement(const FString& ElementId, const float Fraction)

@@ -41,6 +41,7 @@ namespace FolioDocSamples
 	inline UFolioWidget* Widget = nullptr;
 	inline UFolioWorldDocument* Terminal = nullptr;
 	inline UFolioMarkerDocument* Nameplate = nullptr;
+	inline UFolioMarkerDocument* Waypoint = nullptr;
 	inline UFolioHudMotion* Motion = nullptr;
 	inline SFolioCanvas* Canvas = nullptr;
 
@@ -105,24 +106,34 @@ namespace FolioDocSamples
 	// docs/hosting.md#0
 	inline void Sample_docs_hosting_md_0()
 	{
-		Document->BindViewModel(TEXT("player"), PlayerViewModel);
+		FVector2D TopLeft, ElementSize;
+		if (Document->GetElementRect(TEXT("objective"), TopLeft, ElementSize))
+		{
+		    const FBox2D Box(TopLeft, TopLeft + ElementSize);
+		}
 	}
 
 	// docs/hosting.md#1
 	inline void Sample_docs_hosting_md_1()
 	{
+		Document->BindViewModel(TEXT("player"), PlayerViewModel);
+	}
+
+	// docs/hosting.md#2
+	inline void Sample_docs_hosting_md_2()
+	{
 		Document->bInteractive = false;   // or SetInteractive(false) on one already up
 	}
 
-	// docs/hosting.md#3
-	inline void Sample_docs_hosting_md_3()
+	// docs/hosting.md#4
+	inline void Sample_docs_hosting_md_4()
 	{
 		Widget->ScaleFollow = 1.0f;
 		Widget->Scale = 1.0f;   // a multiplier on top, which a HUD scale slider writes
 	}
 
-	// docs/hosting.md#4
-	inline void Sample_docs_hosting_md_4()
+	// docs/hosting.md#5
+	inline void Sample_docs_hosting_md_5()
 	{
 		Widget->Supersample = 2;
 	}
@@ -190,6 +201,23 @@ namespace FolioDocSamples
 
 	// docs/markers.md#1
 	inline void Sample_docs_markers_md_1()
+	{
+		FVector2D PlateTopLeft, PlateSize, WaypointTopLeft, WaypointSize;
+		if (Nameplate->GetScreenRect(PlateTopLeft, PlateSize) && Waypoint->GetScreenRect(WaypointTopLeft, WaypointSize))
+		{
+		    const FBox2D PlateBox(PlateTopLeft, PlateTopLeft + PlateSize);
+		    const FBox2D WaypointBox(WaypointTopLeft, WaypointTopLeft + WaypointSize);
+		    if (PlateBox.Intersect(WaypointBox))
+		    {
+		        // Screen Offset is in dp; the rect is in viewport pixels.
+		        const float Dpi = UWidgetLayoutLibrary::GetViewportScale(World);
+		        Waypoint->ScreenOffset.Y -= (WaypointBox.Max.Y - PlateBox.Min.Y) / Dpi;
+		    }
+		}
+	}
+
+	// docs/markers.md#2
+	inline void Sample_docs_markers_md_2()
 	{
 		FVector2D Screen;
 		if (UGameplayStatics::ProjectWorldToScreen(Controller, WorldLocation, Screen))

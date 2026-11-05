@@ -43,6 +43,8 @@ public:
 		, _MinScale(0.0f)
 		, _MaxScale(0.0f)
 		, _Supersample(1)
+		, _SizeToContent(false)
+		, _MaxContentWidth(0.0f)
 	{}
 		/** Document to load, relative to the project directory. */
 		SLATE_ARGUMENT(FString, DocumentPath)
@@ -68,6 +70,12 @@ public:
 
 		/** How many samples per pixel each way. One draws straight to the screen. See Supersample. */
 		SLATE_ARGUMENT(int32, Supersample)
+
+		/** Report the laid-out body as the desired size. See SetSizeToContent. */
+		SLATE_ARGUMENT(bool, SizeToContent)
+
+		/** In dp. The width text wraps at while sizing to content; zero for no limit. */
+		SLATE_ARGUMENT(float, MaxContentWidth)
 	SLATE_END_ARGS()
 
 	SFolioCanvas();
@@ -105,6 +113,23 @@ public:
 	 * the resample.
 	 */
 	void SetSupersample(int32 InSamples);
+
+	/**
+	 * Reports the document's content as the desired size, the way UMG's text and auto-sized boxes do.
+	 *
+	 * The body is laid out shrink-to-fit, wrapping at MaxContentWidth dp when that is above zero. Until
+	 * the first layout the widget reports DesiredSize.
+	 */
+	void SetSizeToContent(bool bInSizeToContent, float InMaxContentWidth);
+
+	/** Changes the size reported while not sizing to content. */
+	void SetDesiredSize(FVector2D InDesiredSize);
+
+	/**
+	 * An element's border box in Slate's absolute (desktop) space, from the last layout. Its layout box:
+	 * a `transform` on it or an ancestor is not applied. False if nothing carries that id.
+	 */
+	bool GetElementAbsoluteRect(const FString& ElementId, FVector2D& OutTopLeft, FVector2D& OutSize) const;
 
 	/**
 	 * Says the document has changed and must be updated and repainted.
@@ -415,6 +440,9 @@ private:
 	/** RmlUi sizes in whole pixels, so a fractional widget size has to be resolved somewhere. */
 	void UpdateContextSize(const FGeometry& AllottedGeometry);
 
+	/** Reads the host's content size after an update and invalidates layout when it moved. */
+	void UpdateContentSize(const FGeometry& AllottedGeometry);
+
 	/** The dp ratio this canvas lays out against, after the mode and the bounds. */
 	float ScaleFor(const FGeometry& AllottedGeometry) const;
 
@@ -475,6 +503,12 @@ private:
 	bool SupersamplingNow() const;
 
 	FVector2D DesiredSize = FVector2D(1920.0, 1080.0);
+
+	bool bSizeToContent = false;
+	float MaxContentWidth = 0.0f;
+
+	/** The content in Slate units, once it has been laid out. */
+	TOptional<FVector2D> ContentDesiredSize;
 
 	/** Mutable: Slate's paint is const, and RmlUi's render pass is not. */
 	mutable FIntPoint ContextSize = FIntPoint::ZeroValue;

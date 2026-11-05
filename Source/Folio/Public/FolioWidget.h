@@ -72,8 +72,22 @@ public:
 	FFolioDocumentPath DocumentPath;
 
 	/** Reported to Slate layout. A document is laid out to whatever size it ends up with. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio", meta = (EditCondition = "!bSizeToContent"))
 	FVector2D DesiredSize = FVector2D(1920.0, 1080.0);
+
+	/**
+	 * Report the document's content as the desired size, as UMG text does, instead of DesiredSize.
+	 *
+	 * The body is laid out shrink-to-fit, so a percentage width or height on it has nothing to resolve
+	 * against. Desired Size is reported until the first layout.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	bool bSizeToContent = false;
+
+	/** In dp. While sizing to content, text wraps at this width; zero lets lines run as long as they are. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (EditCondition = "bSizeToContent", ClampMin = "0.0"))
+	float MaxContentWidth = 0.0f;
 
 	/**
 	 * Whether the document takes input at all.
@@ -233,6 +247,24 @@ public:
 	/** Drops a name this widget registered. Called for all of them when the widget goes away. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
 	FOLIO_API void UnregisterTexture(FName Name);
+
+	/** Changes DesiredSize on a widget that is already built. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void SetDesiredSize(FVector2D InDesiredSize);
+
+	/** Changes bSizeToContent and MaxContentWidth on a widget that is already built. */
+	UFUNCTION(BlueprintCallable, Category = "Folio")
+	FOLIO_API void SetSizeToContent(bool bInSizeToContent, float InMaxContentWidth = 0.0f);
+
+	/**
+	 * Where an element is on screen, in viewport pixels: the same space as the Folio Marker Document's
+	 * GetScreenRect and UGameplayStatics::ProjectWorldToScreen.
+	 *
+	 * The element's layout box from the last frame. A `transform` on it or an ancestor is not applied.
+	 * False if no document is up, nothing carries that id, or the widget has not been laid out.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	FOLIO_API bool GetElementRect(const FString& ElementId, FVector2D& TopLeft, FVector2D& RectSize) const;
 
 	/** Turns input on or off on a document that is already up. See bInteractive. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")

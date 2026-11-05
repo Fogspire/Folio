@@ -28,8 +28,8 @@ import sys
 # Blocks that are a member of a class the reader owns. Listed by document and index, so nothing about
 # the scaffolding leaks into the prose a reader sees.
 MEMBER_OF_READERS_CLASS = {
-    "docs/hosting.md#2",
-    "docs/hosting.md#5",
+    "docs/hosting.md#3",
+    "docs/hosting.md#6",
     "docs/input_and_navigation.md#2",
     "docs/input_and_navigation.md#3",
     "docs/input_prompts.md#0",
@@ -75,6 +75,14 @@ MEMBER_OF_READERS_CLASS = {
     "docs/tutorials/stamina_wheel.md#2",
     # Its `Document` is the RmlUi document the reader holds, not the UFolioWidget the prelude declares.
     "docs/form_controls.md#0",
+    # The reader's shader filter class and its registration.
+    "docs/shader_filters.md#0",
+    "docs/shader_filters.md#1",
+    # Members of the HUD view model and subsystem the tutorial has the reader write.
+    "docs/tutorials/sprite_hud.md#1",
+    "docs/tutorials/sprite_hud.md#2",
+    "docs/tutorials/sprite_hud.md#3",
+    "docs/tutorials/sprite_hud.md#4",
 }
 
 REFLECTED = re.compile(r"\b(UCLASS|USTRUCT|UPROPERTY|UFUNCTION|GENERATED_BODY)\b")
@@ -126,6 +134,7 @@ namespace FolioDocSamples
 	inline UFolioWidget* Widget = nullptr;
 	inline UFolioWorldDocument* Terminal = nullptr;
 	inline UFolioMarkerDocument* Nameplate = nullptr;
+	inline UFolioMarkerDocument* Waypoint = nullptr;
 	inline UFolioHudMotion* Motion = nullptr;
 	inline SFolioCanvas* Canvas = nullptr;
 

@@ -89,8 +89,22 @@ public:
 	FFolioDocumentPath DocumentPath;
 
 	/** The document's size in dp. It is laid out at this size wherever it ends up on screen. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio", meta = (EditCondition = "!bSizeToContent"))
 	FVector2D Size = FVector2D(256.0, 64.0);
+
+	/**
+	 * Size the marker to its content instead of Size, so a plate fits its name.
+	 *
+	 * The body is laid out shrink-to-fit, so a percentage width or height on it has nothing to resolve
+	 * against. Anchor applies to the measured size, and a change in content moves the anchor a frame later.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio")
+	bool bSizeToContent = false;
+
+	/** In dp. While sizing to content, text wraps at this width; zero lets lines run as long as they are. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Folio",
+		meta = (EditCondition = "bSizeToContent", ClampMin = "0.0"))
+	float MaxContentWidth = 0.0f;
 
 	/**
 	 * Which point of the document sits on the projected location, as a fraction of its size.
@@ -239,6 +253,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Folio")
 	FVector2D GetScreenPosition() const { return ScreenPosition; }
 
+	/**
+	 * The marker's box last frame, in viewport pixels, after anchor, offset and every scale. The same
+	 * space as GetScreenPosition, for overlap tests between markers. False while it is not on screen.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	bool GetScreenRect(FVector2D& TopLeft, FVector2D& RectSize) const;
+
+	/** The size the document is laid out at in dp: Size, or the measured content while sizing to content. */
+	UFUNCTION(BlueprintPure, Category = "Folio")
+	FVector2D GetLaidOutSize() const;
+
 	/** Whether it drew last frame: on screen, in front of the camera, and not faded out. */
 	UFUNCTION(BlueprintPure, Category = "Folio")
 	bool IsOnScreen() const { return bOnScreen; }
@@ -302,6 +327,8 @@ private:
 
 	FPlacement Placement;
 	FVector2D ScreenPosition = FVector2D::ZeroVector;
+	FVector2D ScreenTopLeft = FVector2D::ZeroVector;
+	FVector2D ScreenSize = FVector2D::ZeroVector;
 	bool bOnScreen = false;
 
 	static TArray<UFolioMarkerDocument*> LiveMarkers;

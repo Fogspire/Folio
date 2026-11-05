@@ -120,6 +120,42 @@ Templates also carry markup, so a shared chrome (a screen frame, a header bar) i
 
 A document naming that template has its own body substituted into `content`.
 
+## Fragments in their own files
+
+A panel that belongs to one thing in the game (a held weapon, a possessed vehicle) can live in its own file and be placed into the HUD where it goes. Write it as a template, styles and all:
+
+```html
+<!-- UI/held/rifle.rml -->
+<template name="rifle">
+<head>
+	<link type="text/rcss" href="rifle.rcss"/>
+</head>
+<body>
+	<div class="ammo">{{ rifle.ammo }}</div>
+</body>
+</template>
+```
+
+Link it in the HUD's head, then put `<template src>` where its markup goes. Wrap it in a `data-if` so it shows only while it applies:
+
+```html
+<head>
+	<link type="text/template" href="held/rifle.rml"/>
+</head>
+<body data-model="hud">
+	<div class="held" data-if="held == 'rifle'"><template src="rifle"/></div>
+</body>
+```
+
+The fragment's body is parsed in place: it reads the HUD's data model, and `data-for` and `data-if` work inside it. Its head merges into the HUD's, so its stylesheet applies to the whole document.
+
+In the game, the object sets `held` on the HUD's view model when it is picked up or possessed, and clears it when released. Don't bind a model per object from the object: `BindViewModel` on a document that is already up rebuilds it.
+
+If the fragment does not appear:
+
+- **`Failed to find template 'rifle'`** in the log: the head has no `<link type="text/template">` for it, or the `name` in the fragment differs from the `src`.
+- **The wrong fragment appears**: two templates share a name. Names are global across every document, and the last one loaded wins without a warning. Name each after its file.
+
 Never write an angle-bracketed `head`, `body` or `template` tag inside a comment in a template file. The loader finds those three by raw text search before XML parsing, so a mention inside a comment truncates the file at the wrong place.
 
 ## Where to go next

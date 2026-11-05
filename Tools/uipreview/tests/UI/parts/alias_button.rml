@@ -1,0 +1,11 @@
+<template name="alias_button">
+<head>
+	<style>
+		.alias-button { display: block; padding: 8dp 16dp; margin-bottom: 8dp; background-color: #2a2a36; }
+		.alias-button.danger { background-color: #6a2a2a; }
+	</style>
+</head>
+<body>
+	<button class="alias-button" data-class-danger="kind == 'danger'">{{ label }}</button>
+</body>
+</template>

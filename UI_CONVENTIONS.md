@@ -506,7 +506,7 @@ From C++, `FFolioModule::Get().GetInputDevice()` and `OnInputDeviceChanged()`.
 | `data-style-<property>` | Sets a style property. Avoid: it writes an inline style, which a stylesheet-only reload does not touch |
 | `data-if` / `data-visible` | `data-if` adds and removes the element; `data-visible` only toggles `visibility`, so it keeps its box |
 | `data-for` | Repeats an element over an array |
-| `data-alias-<name>` | Renames a binding inside a `data-for` |
+| `data-alias-<name>` | Gives `<name>` a value for everything inside the element: a variable, or a constant in quotes. How a template takes a different label per instance; see [docs/components_and_themes.md](docs/components_and_themes.md#one-template-many-instances) |
 | `data-rml` | Substitutes markup rather than text. Do not use it on anything a player can influence |
 | `data-value`, `data-checked` | Two-way binding for form controls |
 | `data-event-<name>` | Runs a data expression on an event |

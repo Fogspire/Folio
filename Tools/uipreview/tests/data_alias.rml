@@ -1,0 +1,20 @@
+<rml>
+<head>
+	<title>data-alias</title>
+	<link type="text/template" href="UI/parts/alias_button.rml"/>
+	<style>
+		/*
+			One template, four instances. Each reads label and kind from its wrapper's data-alias: a quoted
+			value is a constant, an unquoted one a model variable. Expected, top to bottom:
+			Play, Options, Ninja HUD, Quit (red).
+		*/
+		body { font-family: Roboto; font-size: 18dp; color: #fff; background-color: #202028; padding: 24dp; }
+	</style>
+</head>
+<body data-model="hud">
+	<div id="play" data-alias-label="'Play'" data-alias-kind="'normal'"><template src="alias_button"/></div>
+	<div id="options" data-alias-label="&quot;Options&quot;" data-alias-kind="'normal'"><template src="alias_button"/></div>
+	<div id="bound" data-alias-label="title" data-alias-kind="'normal'"><template src="alias_button"/></div>
+	<div id="quit" data-alias-label="'Quit'" data-alias-kind="'danger'"><template src="alias_button"/></div>
+</body>
+</rml>

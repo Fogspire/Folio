@@ -134,6 +134,7 @@ def main() -> int:
     hud_json = str(tests_dir / "hud.json")
     setup: dict[str, dict] = {
         "data_model": {"args": ["--data", hud_json]},
+        "data_alias": {"args": ["--data", hud_json]},
         "hud": {"args": ["--data", hud_json]},
         "menu": {"args": ["--data", hud_json]},
         "missing_assets": {"expect": 5},

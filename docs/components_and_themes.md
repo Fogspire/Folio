@@ -158,6 +158,38 @@ If the fragment does not appear:
 
 Never write an angle-bracketed `head`, `body` or `template` tag inside a comment in a template file. The loader finds those three by raw text search before XML parsing, so a mention inside a comment truncates the file at the wrong place.
 
+## One template, many instances
+
+To place one template several times with different text, give each instance its values with `data-alias-<name>` on a wrapper. The template reads `<name>` as if it were a variable:
+
+```html
+<!-- UI/parts/menu_button.rml -->
+<template name="menu_button">
+<head>
+	<link type="text/rcss" href="menu_button.rcss"/>
+</head>
+<body>
+	<button class="btn focusable">{{ label }}</button>
+</body>
+</template>
+```
+
+```html
+<head>
+	<link type="text/template" href="parts/menu_button.rml"/>
+</head>
+<body data-model="menu">
+	<div data-alias-label="'Play'"><template src="menu_button"/></div>
+	<div data-alias-label="'Options'"><template src="menu_button"/></div>
+	<div data-alias-label="PlayerName"><template src="menu_button"/></div>
+	<div data-alias-label="'Quit'"><template src="menu_button"/></div>
+</body>
+```
+
+A value in single or double quotes is a constant. Anything else names a model variable, and that instance updates with it. Aliases work only inside a `data-model`, even when every value is a constant.
+
+A constant is not translated. A label that a player reads in their own language comes from the model as an `FText`.
+
 ## Where to go next
 
 - **[Layout and panels](layout.md)**: what the components are solving for you.

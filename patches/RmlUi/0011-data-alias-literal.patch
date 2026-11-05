@@ -1,0 +1,122 @@
+From: Folio
+Subject: [PATCH] Quoted literals in data-alias
+
+    data-alias only names a variable, so a template reused with different text per instance needs every
+    label in a data model. A value in single or double quotes is now a constant string, held once per model
+    and read through a literal address, like the existing literal int behind data-for's index.
+
+    Not upstream. Removable if RmlUi gains constant aliases or template parameters.
+diff --git a/Source/Core/DataModel.cpp b/Source/Core/DataModel.cpp
+index 66c31fc9..19237ac5 100644
+--- a/Source/Core/DataModel.cpp
++++ b/Source/Core/DataModel.cpp
+@@ -6,6 +6,17 @@
+ 
+ namespace Rml {
+ 
++class LiteralStringDefinition final : public VariableDefinition {
++public:
++	LiteralStringDefinition() : VariableDefinition(DataVariableType::Scalar) {}
++
++	bool Get(void* ptr, Variant& variant) override
++	{
++		variant = *static_cast<const String*>(ptr);
++		return true;
++	}
++};
++
+ static DataAddress ParseAddress(const String& address_str)
+ {
+ 	StringList list;
+@@ -221,6 +232,24 @@ void DataModel::CopyAliases(Element* from_element, Element* to_element)
+ 	}
+ }
+ 
++DataAddress DataModel::InsertLiteral(const String& value)
++{
++	// Deduplicated, so a template rebuilt by data-for does not grow the store.
++	auto it = literal_string_indices.find(value);
++	int index = 0;
++	if (it != literal_string_indices.end())
++	{
++		index = it->second;
++	}
++	else
++	{
++		index = (int)literal_strings.size();
++		literal_strings.push_back(value);
++		literal_string_indices.emplace(value, index);
++	}
++	return DataAddress{{"literal"}, {"string"}, {index}};
++}
++
+ DataAddress DataModel::ResolveAddress(const String& address_str, Element* element) const
+ {
+ 	DataAddress address = ParseAddress(address_str);
+@@ -292,6 +321,13 @@ DataVariable DataModel::GetVariable(const DataAddress& address) const
+ 	{
+ 		if (address.size() > 2 && address[1].name == "int")
+ 			return MakeLiteralIntVariable(address[2].index);
++
++		const int index = address.size() > 2 ? address[2].index : -1;
++		if (address.size() > 2 && address[1].name == "string" && index >= 0 && index < (int)literal_strings.size())
++		{
++			static LiteralStringDefinition literal_string_definition;
++			return DataVariable(&literal_string_definition, const_cast<String*>(&literal_strings[index]));
++		}
+ 	}
+ 
+ 	return DataVariable();
+diff --git a/Source/Core/DataModel.h b/Source/Core/DataModel.h
+index 123a9ff1..fb97384c 100644
+--- a/Source/Core/DataModel.h
++++ b/Source/Core/DataModel.h
+@@ -31,6 +31,9 @@ public:
+ 	bool EraseAliases(Element* element);
+ 	void CopyAliases(Element* source_element, Element* target_element);
+ 
++	// Stores a constant string and returns an address that reads it, so an alias can name a value rather than a variable.
++	DataAddress InsertLiteral(const String& value);
++
+ 	DataAddress ResolveAddress(const String& address_str, Element* element) const;
+ 	const DataEventFunc* GetEventCallback(const String& name);
+ 
+@@ -67,6 +70,9 @@ private:
+ 	using ScopedAliases = UnorderedMap<Element*, SmallUnorderedMap<String, DataAddress>>;
+ 	ScopedAliases aliases;
+ 
++	Vector<String> literal_strings;
++	UnorderedMap<String, int> literal_string_indices;
++
+ 	DataTypeRegister* data_type_register;
+ 
+ 	SmallUnorderedSet<Element*> attached_elements;
+diff --git a/Source/Core/DataViewDefault.cpp b/Source/Core/DataViewDefault.cpp
+index e54fb41a..3e179865 100644
+--- a/Source/Core/DataViewDefault.cpp
++++ b/Source/Core/DataViewDefault.cpp
+@@ -583,9 +583,23 @@ bool DataViewAlias::Update(DataModel&)
+ 	return false;
+ }
+ 
++// A value in matching single or double quotes is a constant string rather than a variable address.
++static bool ParseQuotedLiteral(const String& expression, String& out_value)
++{
++	const String trimmed = StringUtilities::StripWhitespace(expression);
++	if (trimmed.size() < 2)
++		return false;
++	const char quote = trimmed.front();
++	if ((quote != '\'' && quote != '"') || trimmed.back() != quote)
++		return false;
++	out_value = trimmed.substr(1, trimmed.size() - 2);
++	return true;
++}
++
+ bool DataViewAlias::Initialize(DataModel& model, Element* element, const String& expression, const String& modifier)
+ {
+-	auto address = model.ResolveAddress(expression, element);
++	String literal;
++	auto address = ParseQuotedLiteral(expression, literal) ? model.InsertLiteral(literal) : model.ResolveAddress(expression, element);
+ 	if (address.empty())
+ 		return false;
+ 

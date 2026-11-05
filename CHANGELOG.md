@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.14.0
+* The **Model Name** pin on **Bind View Model** is a dropdown of every `data-model` your documents declare. See [docs/data_binding.md](docs/data_binding.md#4-bind-the-real-thing)
+* Studio completes `data-model` with names declared in any document under `UI/`
+* The warning for a declared model with nothing bound lists the names that were bound
+
 ## 1.13.0
 * `data-alias-<name>` takes a quoted constant as well as a variable, so a template placed several times can take a different label per instance. RmlUi patch `0011-data-alias-literal.patch`; run `scripts/build_ue_libs.sh` for each platform you ship. See [docs/components_and_themes.md](docs/components_and_themes.md#one-template-many-instances)
 * **Size To Content** and **Max Content Width** on the Folio Document widget and the Folio Marker Document component: the document reports the size of its content, as UMG text does. See [docs/hosting.md](docs/hosting.md#sizing-to-the-content) and [docs/markers.md](docs/markers.md#fitting-the-content)

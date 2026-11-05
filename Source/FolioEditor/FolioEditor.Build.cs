@@ -27,7 +27,7 @@ public class FolioEditor : ModuleRules
 			"MessageLog",
 			// The staging list, read at startup to warn about a UI tree that will not be packaged.
 			"DeveloperToolSettings",
-			// Checking DefaultEngine.ini out before writing the CommonUI variables to it.
+			// Checking the project's ini files out before writing the CommonUI settings to them.
 			"SourceControl",
 			// The toolbar entry, which is a ToolMenus extension rather than a Slate widget.
 			"ToolMenus",

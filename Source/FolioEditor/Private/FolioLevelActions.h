@@ -49,13 +49,15 @@ namespace FolioLevelActions
 	 *
 	 * CommonUI's virtual pointer defaults on, and every part of it aims input at a software cursor
 	 * rather than at what is focused. Under a document that reads as the pad pressing the wrong control
-	 * and as the device flickering between pad and mouse, and neither looks like a setting. Written to
-	 * the file rather than set live, because these are read once on the way up.
+	 * and as the device flickering between pad and mouse, and neither looks like a setting. With the
+	 * virtual accept click off, a CommonButton only takes the pad's confirm under TriggerClick, so that
+	 * goes to DefaultGame.ini alongside the variables in DefaultEngine.ini. Written to the files rather
+	 * than set live, because these are read once on the way up.
 	 *
-	 * Anything already in the section is left exactly as it is, whatever it is set to: a project that
+	 * Anything already in a section is left exactly as it is, whatever it is set to: a project that
 	 * has taken a deliberate position on one of them said so there.
 	 */
-	void SetCommonUiConsoleVariables();
+	void SetCommonUiSettings();
 
 	/** @return Whether this project has CommonUI, which is the only thing the variables above matter to. */
 	bool HasCommonUI();

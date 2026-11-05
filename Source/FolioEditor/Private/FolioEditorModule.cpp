@@ -125,13 +125,14 @@ public:
 			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::SetUpPackaging)));
 
 		Menu.AddMenuEntry(
-			LOCTEXT("SetCommonUiCvars", "Set CommonUI Console Variables"),
+			LOCTEXT("SetCommonUiCvars", "Set CommonUI Settings"),
 			LOCTEXT("SetCommonUiCvarsTip",
 				"Turns off CommonUI's virtual pointer, which aims the pad at a software cursor rather than "
-				"at what is focused. Writes the three lines to DefaultEngine.ini, leaving anything already "
-				"there alone, and needs an editor restart. Greyed out in a project without CommonUI."),
+				"at what is focused, and lets CommonButtons take the pad's confirm without it. Writes three "
+				"lines to DefaultEngine.ini and one to DefaultGame.ini, leaving anything already there "
+				"alone, and needs an editor restart. Greyed out in a project without CommonUI."),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::SetCommonUiConsoleVariables),
+			FUIAction(FExecuteAction::CreateStatic(&FolioLevelActions::SetCommonUiSettings),
 				FCanExecuteAction::CreateStatic(&FolioLevelActions::HasCommonUI)));
 
 		Menu.AddMenuEntry(

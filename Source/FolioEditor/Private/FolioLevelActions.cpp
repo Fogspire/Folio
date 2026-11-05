@@ -431,15 +431,15 @@ void FolioLevelActions::CheckStagedDirectories()
 
 namespace
 {
-	/** One console variable, and the two lines that say why a document needs it off. */
-	struct FCommonUiOverride
+	/** One setting, and the lines that say why a document needs it. */
+	struct FIniLine
 	{
 		const TCHAR* Key;
 		const TCHAR* Value;
 		const TCHAR* Comment;
 	};
 
-	const FCommonUiOverride CommonUiOverrides[] =
+	const FIniLine ConsoleVariableLines[] =
 	{
 		{
 			TEXT("CommonUI.ShouldVirtualAcceptSimulateMouseButton"), TEXT("0"),
@@ -457,7 +457,14 @@ namespace
 		},
 	};
 
-	const TCHAR* ConsoleVariablesSection = TEXT("[ConsoleVariables]");
+	const FIniLine CommonUiSettingsLines[] =
+	{
+		{
+			TEXT("CommonButtonAcceptKeyHandling"), TEXT("TriggerClick"),
+			TEXT("; Folio: with the accept click above turned off, a focused CommonButton ignores the pad's confirm\n"
+				"; unless it has a triggering input action. This lets the button take the confirm itself.")
+		},
+	};
 
 	/** Whether this line is that key being set, whatever it is set to and however it is spaced. */
 	bool LineSets(const FString& Line, const TCHAR* Key)
@@ -487,6 +494,104 @@ namespace
 
 		return Platform.SetReadOnly(*File, false);
 	}
+
+	/**
+	 * Appends whichever of Lines the section does not already set to a file in the project's Config
+	 * directory, adding the section if it is missing. Anything already there is left exactly as it is,
+	 * whatever it is set to: a project that has taken a deliberate position on one said so there.
+	 *
+	 * @return False, having told the user, when the file could not be read or written.
+	 */
+	bool AddMissingIniLines(const TCHAR* FileName, const TCHAR* Section, TConstArrayView<FIniLine> IniLines,
+		TArray<FString>& OutAdded)
+	{
+		const FString Ini = FPaths::ConvertRelativePathToFull(FPaths::ProjectConfigDir() / FileName);
+
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *Ini))
+		{
+			Notify(FText::Format(LOCTEXT("NoProjectIni", "Could not read '{0}'."),
+				FText::FromString(Ini)), /*bFailed*/ true);
+			return false;
+		}
+
+		TArray<FString> Lines;
+		Text.ParseIntoArrayLines(Lines, /*bCullEmpty*/ false);
+
+		// The section as it stands, so the only question this answers is where a missing line goes.
+		int32 SectionStart = INDEX_NONE;
+		int32 SectionEnd = Lines.Num();
+		for (int32 Index = 0; Index < Lines.Num(); ++Index)
+		{
+			const FString Trimmed = Lines[Index].TrimStartAndEnd();
+			if (SectionStart == INDEX_NONE)
+			{
+				if (Trimmed.Equals(Section, ESearchCase::IgnoreCase))
+				{
+					SectionStart = Index + 1;
+				}
+			}
+			else if (Trimmed.StartsWith(TEXT("[")))
+			{
+				SectionEnd = Index;
+				break;
+			}
+		}
+
+		TArray<FString> Block;
+		for (const FIniLine& IniLine : IniLines)
+		{
+			bool bPresent = false;
+			for (int32 Index = SectionStart; Index != INDEX_NONE && Index < SectionEnd && !bPresent; ++Index)
+			{
+				bPresent = LineSets(Lines[Index], IniLine.Key);
+			}
+
+			if (bPresent)
+			{
+				continue;
+			}
+
+			TArray<FString> CommentLines;
+			FString(IniLine.Comment).ParseIntoArrayLines(CommentLines, /*bCullEmpty*/ false);
+
+			Block.Add(FString());
+			Block.Append(CommentLines);
+			Block.Add(FString::Printf(TEXT("%s=%s"), IniLine.Key, IniLine.Value));
+
+			OutAdded.Add(FString::Printf(TEXT("%s=%s to %s in %s"), IniLine.Key, IniLine.Value, Section, FileName));
+		}
+
+		if (Block.IsEmpty())
+		{
+			return true;
+		}
+
+		if (SectionStart == INDEX_NONE)
+		{
+			Lines.Add(FString());
+			Lines.Add(Section);
+			SectionEnd = Lines.Num();
+		}
+
+		Lines.Insert(Block, SectionEnd);
+
+		// The file's own line ending, so a project keeping these files with Unix endings gets the new
+		// lines in its diff rather than every line in the file.
+		const TCHAR* Terminator = Text.Contains(TEXT("\r\n")) ? TEXT("\r\n") : TEXT("\n");
+
+		if (!MakeWritable(Ini)
+			|| !FFileHelper::SaveStringToFile(FString::Join(Lines, Terminator) + Terminator, *Ini,
+				FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+		{
+			Notify(FText::Format(LOCTEXT("ProjectIniReadOnly",
+				"Could not write '{0}'. It is read-only, and source control did not check it out."),
+				FText::FromString(Ini)), /*bFailed*/ true);
+			return false;
+		}
+
+		return true;
+	}
 }
 
 bool FolioLevelActions::HasCommonUI()
@@ -494,113 +599,37 @@ bool FolioLevelActions::HasCommonUI()
 	return FModuleManager::Get().IsModuleLoaded(TEXT("CommonUI"));
 }
 
-void FolioLevelActions::SetCommonUiConsoleVariables()
+void FolioLevelActions::SetCommonUiSettings()
 {
-	const FString Ini = FPaths::ConvertRelativePathToFull(
-		FPaths::ProjectConfigDir() / TEXT("DefaultEngine.ini"));
-
-	FString Text;
-	if (!FFileHelper::LoadFileToString(Text, *Ini))
-	{
-		Notify(FText::Format(LOCTEXT("NoDefaultEngineIni", "Could not read '{0}'."),
-			FText::FromString(Ini)), /*bFailed*/ true);
-		return;
-	}
-
-	TArray<FString> Lines;
-	Text.ParseIntoArrayLines(Lines, /*bCullEmpty*/ false);
-
-	// The section as it stands. Everything already in it is left alone, so the only question this
-	// answers is where a line that is missing goes.
-	int32 SectionStart = INDEX_NONE;
-	int32 SectionEnd = Lines.Num();
-	for (int32 Index = 0; Index < Lines.Num(); ++Index)
-	{
-		const FString Trimmed = Lines[Index].TrimStartAndEnd();
-		if (SectionStart == INDEX_NONE)
-		{
-			if (Trimmed.Equals(ConsoleVariablesSection, ESearchCase::IgnoreCase))
-			{
-				SectionStart = Index + 1;
-			}
-		}
-		else if (Trimmed.StartsWith(TEXT("[")))
-		{
-			SectionEnd = Index;
-			break;
-		}
-	}
-
 	TArray<FString> Added;
-	TArray<FString> Block;
-	for (const FCommonUiOverride& Override : CommonUiOverrides)
+	if (!AddMissingIniLines(TEXT("DefaultEngine.ini"), TEXT("[ConsoleVariables]"), ConsoleVariableLines, Added)
+		|| !AddMissingIniLines(TEXT("DefaultGame.ini"), TEXT("[/Script/CommonUI.CommonUISettings]"),
+			CommonUiSettingsLines, Added))
 	{
-		bool bPresent = false;
-		for (int32 Index = SectionStart; Index != INDEX_NONE && Index < SectionEnd && !bPresent; ++Index)
-		{
-			bPresent = LineSets(Lines[Index], Override.Key);
-		}
-
-		if (bPresent)
-		{
-			continue;
-		}
-
-		TArray<FString> CommentLines;
-		FString(Override.Comment).ParseIntoArrayLines(CommentLines, /*bCullEmpty*/ false);
-
-		Block.Add(FString());
-		Block.Append(CommentLines);
-		Block.Add(FString::Printf(TEXT("%s=%s"), Override.Key, Override.Value));
-
-		Added.Add(Override.Key);
+		return;
 	}
 
 	if (Added.IsEmpty())
 	{
 		Notify(LOCTEXT("CommonUiAlreadySet",
-			"Nothing to add: DefaultEngine.ini already has every CommonUI variable a document needs."),
+			"Nothing to add: the project already has every CommonUI setting a document needs."),
 			/*bFailed*/ false);
-		return;
-	}
-
-	if (SectionStart == INDEX_NONE)
-	{
-		Lines.Add(FString());
-		Lines.Add(ConsoleVariablesSection);
-		SectionEnd = Lines.Num();
-	}
-
-	Lines.Insert(Block, SectionEnd);
-
-	// The file's own line ending, so a project keeping these files with Unix endings gets three new
-	// lines in its diff rather than every line in the file.
-	const TCHAR* Terminator = Text.Contains(TEXT("\r\n")) ? TEXT("\r\n") : TEXT("\n");
-
-	if (!MakeWritable(Ini)
-		|| !FFileHelper::SaveStringToFile(FString::Join(Lines, Terminator) + Terminator, *Ini,
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
-	{
-		Notify(FText::Format(LOCTEXT("CommonUiIniReadOnly",
-			"Could not write '{0}'. It is read-only, and source control did not check it out."),
-			FText::FromString(Ini)), /*bFailed*/ true);
 		return;
 	}
 
 	FMessageLog Log(FolioMessageLogName);
 	Log.NewPage(LOCTEXT("CommonUiPage", "CommonUI"));
-	for (const FString& Key : Added)
+	for (const FString& Line : Added)
 	{
 		Log.Info()->AddToken(FTextToken::Create(FText::Format(
-			LOCTEXT("CommonUiSet", "Added {0}=0 to [ConsoleVariables] in DefaultEngine.ini."),
-			FText::FromString(Key))));
+			LOCTEXT("CommonUiSet", "Added {0}."), FText::FromString(Line))));
 	}
 
 	Log.Open(EMessageSeverity::Info, /*bForce*/ true);
 
 	Notify(FText::Format(
 		LOCTEXT("CommonUiWritten",
-			"Set {0} CommonUI {0}|plural(one=variable,other=variables) in DefaultEngine.ini. "
+			"Set {0} CommonUI {0}|plural(one=setting,other=settings). "
 			"Restart the editor: these are read once, on the way up."),
 		FText::AsNumber(Added.Num())), /*bFailed*/ false);
 }

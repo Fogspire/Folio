@@ -208,6 +208,15 @@ The second turns off the software cursor itself. Leave it on and the stick drive
 
 The third moves the cursor to the centre of the focused widget every time the player picks up the pad. The focused widget is the canvas, so that is the centre of the screen, and Slate synthesises a mouse move to get there, far enough that Folio reads it as the player taking the mouse back. With the first line off there is no fake click left to aim.
 
+With the first line off, a focused CommonButton ignores the pad's confirm unless it has a triggering input action. Let the button take it, in `DefaultGame.ini`:
+
+```ini
+[/Script/CommonUI.CommonUISettings]
+CommonButtonAcceptKeyHandling=TriggerClick
+```
+
+While a CommonButton has focus, input actions bound to the accept keys then do not fire. **Set CommonUI Settings**, under the **Folio** button in the level editor toolbar, writes all four lines and leaves any already set alone.
+
 ## Binding a key while a screen is up
 
 Slate routes input to a focused document, so a player controller's own bindings do not fire while one is open. A menu button that should close the menu is the usual casualty.

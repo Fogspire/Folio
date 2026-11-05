@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13.0
+* `data-alias-<name>` takes a quoted constant as well as a variable, so a template placed several times can take a different label per instance. RmlUi patch `0011-data-alias-literal.patch`; run `scripts/build_ue_libs.sh` for each platform you ship. See [docs/components_and_themes.md](docs/components_and_themes.md#one-template-many-instances)
+* **Size To Content** and **Max Content Width** on the Folio Document widget and the Folio Marker Document component: the document reports the size of its content, as UMG text does. See [docs/hosting.md](docs/hosting.md#sizing-to-the-content) and [docs/markers.md](docs/markers.md#fitting-the-content)
+* `GetElementRect` on the widget and `GetScreenRect` on a marker give boxes in viewport pixels, for overlap tests. See [docs/hosting.md](docs/hosting.md#where-an-element-is-on-screen) and [docs/markers.md](docs/markers.md#keeping-markers-apart)
+* `SetDesiredSize` changes a built widget's desired size
+
 ## 1.12.0
 * **Marker Layer Z Order** in Project Settings > Plugins > Folio: where the marker layer sits among the viewport's widgets, so a HUD can draw under markers. See [docs/markers.md](docs/markers.md#if-it-looks-wrong)
 

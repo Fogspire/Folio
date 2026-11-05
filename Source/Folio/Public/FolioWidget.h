@@ -174,7 +174,9 @@ public:
 	 * already up, replacing any mock of the same name.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
-	FOLIO_API bool BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
+	FOLIO_API bool BindViewModel(
+		UPARAM(meta = (GetOptions = "Folio.FolioDocumentPathLibrary.GetModelOptions")) const FString& ModelName,
+		UObject* Source, bool bPollEveryFrame = true);
 
 	/**
 	 * Writes one inline property on an element, by id, and marks the document dirty.

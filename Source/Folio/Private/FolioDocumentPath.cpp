@@ -1,5 +1,7 @@
 #include "FolioDocumentPath.h"
 
+#include "FolioCore/FolioInputState.h"
+#include "FolioDataModel.h"
 #include "FolioFileInterface.h"
 #include "FolioModule.h"
 #include "FolioSettings.h"
@@ -172,6 +174,45 @@ TArray<FString> UFolioDocumentPathLibrary::GetDocumentOptions()
 
 	Options.Sort();
 	return Options;
+}
+
+TArray<FString> UFolioDocumentPathLibrary::GetModelOptions()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(Folio_GetModelOptions);
+
+	TArray<FString> Models;
+
+	if (!FFolioModule::IsAvailable())
+	{
+		return Models;
+	}
+
+	const FString Reserved = UTF8_TO_TCHAR(Folio::InputModel::Name());
+
+	for (const FString& Option : GetDocumentOptions())
+	{
+		if (Option.StartsWith(TEXT("/folio/")))
+		{
+			continue;
+		}
+
+		FString Markup;
+		if (!FFileHelper::LoadFileToString(Markup, *ResolveDocumentPath(Option)))
+		{
+			continue;
+		}
+
+		for (const FString& Name : FFolioDataModel::DiscoverModelNames(Markup))
+		{
+			if (Name != Reserved)
+			{
+				Models.AddUnique(Name);
+			}
+		}
+	}
+
+	Models.Sort();
+	return Models;
 }
 
 FString UFolioDocumentPathLibrary::ResolveDocumentPath(const FString& DocumentPath)

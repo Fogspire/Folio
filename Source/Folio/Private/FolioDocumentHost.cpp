@@ -431,6 +431,18 @@ void FFolioDocumentHost::MountDataModel(const FString& RelativePath)
 				TEXT("'%s' declares data-model=\"%s\" and nothing is bound, so its bindings render as literal ")
 				TEXT("{{ }}. Provide the model from game code, or put mock values in UI/mock/%s.json."),
 				*RelativePath, *ModelName, *ModelName);
+
+			// A misspelt bind is the usual cause, so put what was bound beside what was declared.
+			if (!ObjectModels.IsEmpty())
+			{
+				TArray<FString> Bound;
+				for (const TUniquePtr<FFolioObjectModel>& Bind : ObjectModels)
+				{
+					Bound.Add(Bind->GetModelName());
+				}
+				UE_LOG(LogFolio, Warning, TEXT("    bound to this document instead: %s"),
+					*FString::Join(Bound, TEXT(", ")));
+			}
 			continue;
 		}
 

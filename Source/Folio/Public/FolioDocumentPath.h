@@ -106,6 +106,16 @@ public:
 	static TArray<FString> GetDocumentOptions();
 
 	/**
+	 * Every model name a game document declares with `data-model="..."`, sorted and unique.
+	 *
+	 * Named by `GetOptions` on each BindViewModel's ModelName pin. The documents are the only place a
+	 * model name is defined, so the list is read from them rather than kept anywhere else. Folio's own
+	 * examples and the reserved input model are left out.
+	 */
+	UFUNCTION()
+	static TArray<FString> GetModelOptions();
+
+	/**
 	 * The path Folio will actually open, or empty if it resolves to nothing.
 	 *
 	 * The same resolution the file interface does, exposed so the editor can answer "is this right"

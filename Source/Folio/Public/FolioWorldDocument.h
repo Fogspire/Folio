@@ -239,7 +239,9 @@ public:
 	 * document's bindings resolve against whatever is bound when it loads.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
-	bool BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
+	bool BindViewModel(
+		UPARAM(meta = (GetOptions = "Folio.FolioDocumentPathLibrary.GetModelOptions")) const FString& ModelName,
+		UObject* Source, bool bPollEveryFrame = true);
 
 	/** Says the document changed, for game code that reaches into it directly. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")

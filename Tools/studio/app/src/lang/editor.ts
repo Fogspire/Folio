@@ -121,13 +121,22 @@ async function loadSchema(model: string): Promise<{ schema: Schema; path: string
 	return null;
 }
 
-function modelNames(): string[] {
+/** Every model the project knows of: its schema and mock files, the loaded ones, and every document's data-model. */
+async function modelNames(): Promise<string[]> {
 	const names = new Set<string>();
 	for (const path of store.get().projectFiles) {
 		const match = /\/UI\/(?:schema|mock)\/([^/]+)\.json$/i.exec(path);
 		if (match) names.add(match[1]);
 	}
 	for (const model of dataStore.get().models) names.add(model.name);
+	for (const path of store.get().projectFiles) {
+		if (extension(path) !== '.rml') continue;
+		const text = await readText(path);
+		if (text === null) continue;
+		for (const match of text.matchAll(/data-model\s*=\s*["']([^"']+)["']/g)) names.add(match[1]);
+	}
+	// The reserved input model is mounted by Folio itself, never declared by a game.
+	names.delete('folio');
 	return [...names].sort();
 }
 
@@ -153,7 +162,7 @@ async function gather(text: string, language: Language): Promise<Gathered> {
 	}
 	const sheets = language === 'rml' ? await linkedSheets(text) : [];
 	return {
-		sources: { schema: (name) => schemas.get(name) ?? null, models: modelNames(), stylesheets: sheets },
+		sources: { schema: (name) => schemas.get(name) ?? null, models: await modelNames(), stylesheets: sheets },
 		sheets,
 		schemaPaths,
 	};

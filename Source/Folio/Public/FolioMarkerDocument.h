@@ -243,7 +243,9 @@ public:
 	 * call this and then LoadDocument.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Folio")
-	void BindViewModel(const FString& ModelName, UObject* Source, bool bPollEveryFrame = true);
+	void BindViewModel(
+		UPARAM(meta = (GetOptions = "Folio.FolioDocumentPathLibrary.GetModelOptions")) const FString& ModelName,
+		UObject* Source, bool bPollEveryFrame = true);
 
 	/** Says the document has changed and must be updated and repainted. */
 	UFUNCTION(BlueprintCallable, Category = "Folio")

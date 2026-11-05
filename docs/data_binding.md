@@ -97,6 +97,8 @@ Document->BindViewModel(TEXT("player"), MyCharacter);
 
 `Health` and `MaxHealth` are found by reflection, and the mock file steps aside once something is bound.
 
+In Blueprint, the **Bind View Model** node's **Model Name** pin is a dropdown of every `data-model` your documents declare.
+
 Bind before the document loads if you can, so the first frame does not show literal braces.
 
 ## Choosing how the data updates

@@ -2,6 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "FolioCore/FolioInputState.h"
 #include "FolioDocumentPath.h"
 #include "FolioModule.h"
 #include "FolioWorldDocument.h"
@@ -178,6 +179,31 @@ bool FFolioDocumentOptionsTest::RunTest(const FString&)
 			AddError(FString::Printf(TEXT("'%s' should only appear under /folio/"), *Option));
 		}
 	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFolioModelOptionsTest, "Folio.Document.ModelOptions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FFolioModelOptionsTest::RunTest(const FString&)
+{
+	const FScopedDocument Declares(TEXT("folio_test_models.rml"),
+		TEXT("<rml><head></head><body data-model=\"folio_test_model\">")
+		TEXT("<div data-model=\"folio_test_model\"/><div data-model=\"folio_test_other\"/></body></rml>\n"));
+
+	const TArray<FString> Models = UFolioDocumentPathLibrary::GetModelOptions();
+
+	TestTrue(TEXT("a declared model is offered"), Models.Contains(TEXT("folio_test_model")));
+	TestTrue(TEXT("every model in a document is offered"), Models.Contains(TEXT("folio_test_other")));
+	TestEqual(TEXT("each name once"),
+		Models.FilterByPredicate([](const FString& Name) { return Name == TEXT("folio_test_model"); }).Num(), 1);
+	TestFalse(TEXT("the reserved input model is not a game model"),
+		Models.Contains(UTF8_TO_TCHAR(Folio::InputModel::Name())));
+
+	// The pin picker resolves its GetOptions string this way, and finds nothing on a typo.
+	TestNotNull(TEXT("the GetOptions path names the function"), FindObject<UFunction>(nullptr,
+		TEXT("Folio.FolioDocumentPathLibrary.GetModelOptions"), EFindObjectFlags::ExactClass));
 
 	return true;
 }

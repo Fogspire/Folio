@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.12.0
+* **Marker Layer Z Order** in Project Settings > Plugins > Folio: where the marker layer sits among the viewport's widgets, so a HUD can draw under markers. See [docs/markers.md](docs/markers.md#if-it-looks-wrong)
+
 ## 1.11.1
 * Dedicated servers build Folio without FreeType, as Slate does, so a Linux server target no longer fails at `FreeType2.Build.cs`. RmlUi is not started on a server; game code using Folio links unchanged
 * **Set CommonUI Settings** (formerly Set CommonUI Console Variables) also writes `CommonButtonAcceptKeyHandling=TriggerClick` to `DefaultGame.ini`, so CommonButtons take the pad's confirm with the virtual accept click off. See [docs/input_and_navigation.md](docs/input_and_navigation.md#if-the-gamepad-confirms-the-wrong-control)

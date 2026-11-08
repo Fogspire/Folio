@@ -1,12 +1,16 @@
+#include "AccessibilityReport.h"
 #include "App.h"
 #include "Bake.h"
+#include "ColourVision.h"
 #include "Diagnostics.h"
 #include "Options.h"
 #include "ElementPath.h"
+#include "PerformanceReport.h"
 #include "ProvenanceReport.h"
 #include "backend/UipreviewBackendGLFW.h"
 
 #include "FolioCore/FolioCoreVersion.h"
+#include "FolioCore/FolioSemantics.h"
 
 #include <RmlUi/Core/Animation.h>
 #include <RmlUi/Core/ComputedValues.h>
@@ -372,11 +376,71 @@ const char* SeverityName(uipreview::Severity severity)
 	}
 }
 
+json RecordJson(const uipreview::Record& record)
+{
+	return {
+		{"severity", SeverityName(record.severity)},
+		{"code", record.code},
+		{"file", record.file},
+		{"line", record.line},
+		{"message", record.message},
+	};
+}
+
+json RecordsJson(const uipreview::Diagnostics& diagnostics)
+{
+	json out = json::array();
+	for (const uipreview::Record& record : diagnostics.Records())
+		out.push_back(RecordJson(record));
+	return out;
+}
+
+/** One node of what a screen reader reads, named by the same structural id the rest of the page uses. */
+json SemanticJson(const Folio::FSemanticNode& node, Rml::ElementDocument* document)
+{
+	json out;
+	out["role"] = Folio::RoleName(node.Role);
+	out["id"] = node.Element && node.Element != document ? StructuralId(node.Element, document) : std::string();
+	out["name"] = node.Name;
+	if (!node.Description.empty())
+		out["description"] = node.Description;
+	if (!node.Value.empty())
+		out["value"] = node.Value;
+	if (node.SetSize > 1)
+	{
+		out["position"] = node.Position;
+		out["setSize"] = node.SetSize;
+	}
+	if (!node.Column.empty())
+		out["column"] = node.Column;
+	if (node.Interactive)
+		out["interactive"] = true;
+	if (node.Disabled)
+		out["disabled"] = true;
+	if (node.Checkable)
+		out["checked"] = node.Checked;
+
+	json children = json::array();
+	for (const Folio::FSemanticNode& child : node.Children)
+		children.push_back(SemanticJson(child, document));
+	out["children"] = std::move(children);
+	return out;
+}
+
+Folio::EInputDevice ParseDevice(const std::string& name)
+{
+	if (name == "gamepad")
+		return Folio::EInputDevice::Gamepad;
+	return name == "mouse" ? Folio::EInputDevice::Mouse : Folio::EInputDevice::Keyboard;
+}
+
 /** One document open on one canvas, driven a frame at a time by the page. */
 class Engine {
 public:
 	/** Opens a document. Settings are JSON: root, document, width, height, and the optional dpRatio,
-	    themes, culture, textScale, reducedMotion, data and time, the clock's reading as it loads. */
+	    themes, culture, textScale, reducedMotion, data, time (the clock's reading as it loads) and the
+	    player's settings: inputDevice, confirmButton, simulate, textSpeed, instantText,
+	    noScreenEffects and contrast. */
 	bool Open(const std::string& settings_text)
 	{
 		Close();
@@ -398,6 +462,17 @@ public:
 		options.text_scale = settings.value("textScale", 1.0f);
 		options.reduced_motion = settings.value("reducedMotion", false);
 		options.start_time = settings.value("time", 0.0);
+		// The markup lint checks, which the command line only runs under --strict.
+		options.strict = true;
+		options.input_device = ParseDevice(settings.value("inputDevice", std::string("keyboard")));
+		options.confirm_button = settings.value("confirmButton", std::string("south")) == "east"
+			? Folio::EConfirmButton::East : Folio::EConfirmButton::South;
+		if (!uipreview::ParseColourVision(settings.value("simulate", std::string("none")), options.simulate))
+			options.simulate = uipreview::ColourVision::Normal;
+		options.text_speed = settings.value("textSpeed", 1.0f);
+		options.instant_text = settings.value("instantText", false);
+		options.no_screen_effects = settings.value("noScreenEffects", false);
+		options.a11y_contrast = settings.value("contrast", 4.5f);
 		if (settings.contains("dpRatio") && settings["dpRatio"].is_number())
 		{
 			options.dp_ratio = settings["dpRatio"].get<float>();
@@ -543,20 +618,55 @@ public:
 		return out.dump();
 	}
 
-	std::string Diagnostics() const
+	std::string Diagnostics() const { return RecordsJson(diagnostics).dump(); }
+
+	/**
+	 * The accessibility and performance checks `uipreview --a11y` runs, against the document as it
+	 * stands. Kept apart from Diagnostics, which accumulate while the document is open, so running
+	 * them again after an edit replaces the last findings rather than adding to them.
+	 */
+	std::string Checks()
 	{
-		json out = json::array();
-		for (const uipreview::Record& record : diagnostics.Records())
+		uipreview::Diagnostics found;
+		found.SetRoot(options.root);
+		if (app && app->GetDocument())
 		{
-			out.push_back({
-				{"severity", SeverityName(record.severity)},
-				{"code", record.code},
-				{"file", record.file},
-				{"line", record.line},
-				{"message", record.message},
-			});
+			uipreview::CheckAccessibility(options, *app, found);
+			uipreview::CheckPerformance(options, *app, found);
 		}
-		return out.dump();
+		return RecordsJson(found).dump();
+	}
+
+	/** What a screen reader reads out, in the order it reads it. */
+	std::string AccessibilityTree() const
+	{
+		if (!app || !app->GetDocument())
+			return "null";
+		Rml::ElementDocument* document = app->GetDocument();
+		return SemanticJson(Folio::BuildSemanticTree(document), document).dump();
+	}
+
+	/**
+	 * Renders `frames` frames from where the clock stands and reports flashing over the WCAG limit, as
+	 * `uipreview --flash-check` does. Moves the clock on, so the page reopens the document after.
+	 */
+	std::string CheckFlashing(int frames)
+	{
+		if (!app)
+			return "null";
+
+		options.filmstrip_frames = std::max(2, frames);
+		const size_t before = diagnostics.Records().size();
+		app->CheckFlashing();
+
+		json result = nullptr;
+		const std::vector<uipreview::Record>& records = diagnostics.Records();
+		for (size_t i = before; i < records.size(); ++i)
+		{
+			if (records[i].code.find("A11Y-FLASH") != std::string::npos)
+				result = RecordJson(records[i]);
+		}
+		return result.dump();
 	}
 
 	/**
@@ -670,6 +780,9 @@ EMSCRIPTEN_BINDINGS(folio_engine)
 		.function("tree", &Engine::Tree)
 		.function("inspect", &Engine::Inspect)
 		.function("diagnostics", &Engine::Diagnostics)
+		.function("checks", &Engine::Checks)
+		.function("accessibilityTree", &Engine::AccessibilityTree)
+		.function("checkFlashing", &Engine::CheckFlashing)
 		.function("activity", &Engine::Activity)
 		.function("setInlineProperty", &Engine::SetInlineProperty)
 		.function("removeInlineProperty", &Engine::RemoveInlineProperty)

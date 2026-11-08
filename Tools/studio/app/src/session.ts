@@ -23,6 +23,40 @@ export interface Timeline {
 	playing: boolean;
 }
 
+export type InputDevice = 'keyboard' | 'mouse' | 'gamepad';
+export type ColourVision = 'none' | 'protanopia' | 'deuteranopia' | 'tritanopia' | 'achromatopsia';
+
+/** What a player can change in the game's own settings, which the canvas draws the document under. */
+export interface PlayerSettings {
+	themes: string[];
+	textScale: number;
+	reducedMotion: boolean;
+	instantText: boolean;
+	textSpeed: number;
+	screenEffects: boolean;
+	inputDevice: InputDevice;
+	confirmButton: 'south' | 'east';
+	vision: ColourVision;
+}
+
+export const DEFAULT_PLAYER: PlayerSettings = {
+	themes: [],
+	textScale: 1,
+	reducedMotion: false,
+	instantText: false,
+	textSpeed: 1,
+	screenEffects: true,
+	inputDevice: 'keyboard',
+	confirmButton: 'south',
+	vision: 'none',
+};
+
+/** How many of the player's settings differ from the game's defaults. */
+export function changedPlayerSettings(player: PlayerSettings): number {
+	return (Object.keys(DEFAULT_PLAYER) as (keyof PlayerSettings)[]).filter((name) =>
+		JSON.stringify(player[name]) !== JSON.stringify(DEFAULT_PLAYER[name])).length;
+}
+
 export interface State {
 	hostState: HostState | null;
 	project: ProjectInfo | null;
@@ -42,6 +76,12 @@ export interface State {
 	/** Where new properties on the selected element are written, once the person has said. */
 	writeTarget: Target | null;
 	diagnostics: Diagnostic[];
+	/** The accessibility and performance checks against the document as it stands. */
+	checks: Diagnostic[];
+	/** The last flashing check, and the document it was run on. */
+	flash: { document: string; result: Diagnostic } | null;
+	/** The contrast ratio the checks hold normal text to: 4.5, or 7 for a high-contrast theme. */
+	contrast: number;
 	width: number;
 	height: number;
 	/** Null derives the ratio from the height against 1080, as the game does. */
@@ -50,7 +90,7 @@ export interface State {
 	/** How far the document has been dragged past where scrolling can take it, in screen pixels. */
 	pan: { x: number; y: number };
 	mode: 'edit' | 'play';
-	themes: string[];
+	player: PlayerSettings;
 	culture: string;
 	update: UpdateStatus | null;
 	/** Which of the Folio checkout's own builds are behind its sources, and why. */
@@ -93,13 +133,16 @@ export const store = createStore<State>({
 	inspection: null,
 	writeTarget: null,
 	diagnostics: [],
+	checks: [],
+	flash: null,
+	contrast: 4.5,
 	width: 1920,
 	height: 1080,
 	dpRatio: null,
 	zoom: 'fit',
 	pan: { x: 0, y: 0 },
 	mode: 'edit',
-	themes: [],
+	player: DEFAULT_PLAYER,
 	culture: '',
 	update: null,
 	builds: { libraries: null, preview: null },
@@ -472,8 +515,17 @@ export function reopen() {
 		width: state.width,
 		height: state.height,
 		dpRatio: state.dpRatio ?? undefined,
-		themes: state.themes,
+		themes: state.player.themes,
 		culture: state.culture || undefined,
+		textScale: state.player.textScale,
+		reducedMotion: state.player.reducedMotion,
+		instantText: state.player.instantText,
+		textSpeed: state.player.textSpeed,
+		noScreenEffects: !state.player.screenEffects,
+		inputDevice: state.player.inputDevice,
+		confirmButton: state.player.confirmButton,
+		simulate: state.player.vision,
+		contrast: state.contrast,
 		// Loaded a moment before its first frame: an animation updated with no time passed shows its last keyframe.
 		time: engineTime() - 0.001,
 	});
@@ -486,17 +538,19 @@ export function refresh() {
 	const state = store.get();
 	const diagnostics = engine.diagnostics();
 	if (!engine.isOpen) {
-		store.set({ tree: null, inspection: null, diagnostics, revision: state.revision + 1 });
+		store.set({ tree: null, inspection: null, diagnostics, checks: [], revision: state.revision + 1 });
 		return;
 	}
 
 	// One frame first: layout is what the boxes are read from, and a reload leaves it stale until drawn.
 	engine.frame(engineTime());
 	const tree = engine.tree();
+	const checks = engine.checks();
 	const inspection = state.selection !== null ? engine.inspect(state.selection, INSPECTED_PROPERTIES) : null;
 	store.set({
 		tree,
 		diagnostics,
+		checks,
 		inspection,
 		selection: inspection ? state.selection : null,
 		revision: state.revision + 1,
@@ -801,9 +855,46 @@ export function setMode(mode: 'edit' | 'play') {
 	pushMenuState();
 }
 
-export function setThemes(themes: string[]) {
-	store.set({ themes });
+export function setPlayer(changes: Partial<PlayerSettings>) {
+	store.set({ player: { ...store.get().player, ...changes } });
 	reopen();
+}
+
+export function setContrast(contrast: number) {
+	store.set({ contrast });
+	reopen();
+}
+
+/** Seconds of the document drawn from its first frame when checking for flashing. */
+const FLASH_SECONDS = 3;
+
+/** Plays the document from its first frame and reports flashing over the WCAG limit of three a second. */
+export function checkFlashing() {
+	const { document } = store.get();
+	if (!document || !engine.isOpen) return;
+	reopen();
+	const result = engine.checkFlashing(Math.round(FLASH_SECONDS * 60));
+	reopen();
+	if (!result) return setStatus('The flashing check could not run. Problems has the reason.');
+	store.set({ flash: { document, result } });
+	setStatus(result.severity === 'warning' ? result.message : `No flashing over the limit in the first ${FLASH_SECONDS} seconds`);
+}
+
+/** Every theme a stylesheet the project or Folio ships declares with @media (theme: name). */
+export async function discoverThemes(): Promise<string[]> {
+	const { project, projectFiles, libraryFiles } = store.get();
+	if (!project) return [];
+	const shipped = (await host.listTree(join(project.folioRoot, 'rcss', 'themes'))).map((file: TreeFile) => join(project.folioRoot, 'rcss', 'themes', file.path));
+	const themes = new Set<string>();
+	for (const file of [...projectFiles, ...libraryFiles, ...shipped]) {
+		if (extension(file) !== '.rcss') continue;
+		const data = await host.readFile(file);
+		if (!data) continue;
+		for (const match of new TextDecoder().decode(data).matchAll(/@media\s*\(\s*theme\s*:\s*([\w-]+)\s*\)/g)) themes.add(match[1]);
+	}
+	// Reduced motion has its own switch, which is what turns this theme on.
+	themes.delete('reduced-motion');
+	return [...themes].sort();
 }
 
 export function setCulture(culture: string) {

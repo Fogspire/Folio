@@ -15,6 +15,7 @@ import { InspectorPanel } from './panels/Inspector';
 import { LibraryPanel } from './panels/Library';
 import { OutlinePanel } from './panels/Outline';
 import { ProblemsPanel } from './panels/Problems';
+import { ScreenReaderPanel } from './panels/ScreenReader';
 import { SpritesPanel } from './panels/Sprites';
 import { TerminalPanel } from './panels/Terminal';
 import { basename } from './paths';
@@ -31,6 +32,7 @@ const components = {
 	library: LibraryPanel,
 	outline: OutlinePanel,
 	problems: ProblemsPanel,
+	reader: ScreenReaderPanel,
 	sprites: SpritesPanel,
 	terminal: TerminalPanel,
 };

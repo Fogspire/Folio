@@ -73,6 +73,9 @@ public:
 	/** Prints the element tree with the attributes that drive focus and navigation. */
 	void DumpTree() const;
 
+	/** Renders options.filmstrip_frames frames and reports how often the whole screen changes brightness. */
+	bool CheckFlashing();
+
 private:
 	bool ResolveRoot();
 	bool LoadFonts();
@@ -115,8 +118,6 @@ private:
 	/** Captures every frame from the document's first, leaving the last one unswapped so a
 	    --screenshot after it is the frame the filmstrip ends on. */
 	bool CaptureFilmstrip();
-	/** Renders the same frames and measures how often the whole screen changes brightness. */
-	bool CheckFlashing();
 
 	const Options& options;
 	Diagnostics& diagnostics;

@@ -8,7 +8,7 @@ import { commandForKey, commandInfo, comboOf, keysFor, toAccelerator } from './k
 import { formatActiveFile } from './lang/editor';
 import { monaco } from './monaco';
 import {
-	answerDialog, askBake, canvasScale, checkForUpdatesNow, findNode, openFile, openProject, pickProject, revertAll, saveAll, select, setEditing, setMode, setZoom, store, toggleTimeline, toggleUpdateCheck,
+	answerDialog, askBake, canvasScale, checkFlashing, checkForUpdatesNow, findNode, openFile, openProject, pickProject, revertAll, saveAll, select, setEditing, setMode, setZoom, store, toggleTimeline, toggleUpdateCheck,
 } from './session';
 
 export const REPO_URL = 'https://github.com/Fogspire/Folio';
@@ -168,6 +168,7 @@ export function runCommand(command: string, argument?: string) {
 		case 'assign-key': return void (argument && store.set({ dialog: { kind: 'assign', command: argument } }));
 		case 'bake': return void (selection !== null && askBake(selection));
 		case 'format-document': return formatActiveFile();
+		case 'check-flashing': return checkFlashing();
 		case 'revert-all': return void revertAll();
 		case 'toggle-timeline': return toggleTimeline();
 		case 'create-shortcuts':

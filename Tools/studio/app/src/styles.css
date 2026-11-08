@@ -489,6 +489,144 @@ select {
 	border-color: var(--accent);
 }
 
+/* Player settings */
+
+.vision-filters {
+	position: absolute;
+	width: 0;
+	height: 0;
+}
+
+.player-picker {
+	position: relative;
+}
+
+.player-popover {
+	position: absolute;
+	top: calc(100% + 6px);
+	left: 0;
+	z-index: 20;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	width: 320px;
+	padding: 12px;
+	background: var(--bg-panel);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	box-shadow: 0 8px 24px #0009;
+}
+
+.player-popover section {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.player-popover h4 {
+	margin: 0 0 2px;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--text-dim);
+}
+
+.player-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 24px;
+}
+
+.player-row.top {
+	align-items: flex-start;
+}
+
+.player-row > span:first-child {
+	color: var(--text-dim);
+	white-space: nowrap;
+}
+
+.player-themes {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 4px;
+}
+
+.player-themes label,
+.player-check {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.player-popover input[type='checkbox'] {
+	height: auto;
+	margin: 0;
+}
+
+.player-popover .segmented button:disabled {
+	color: var(--text-faint);
+	cursor: default;
+}
+
+.player-popover > .button {
+	align-self: flex-end;
+}
+
+/* Screen reader */
+
+.reader {
+	overflow: auto;
+	padding-bottom: 4px;
+}
+
+.reader-summary {
+	padding: 8px 12px;
+	color: var(--text-dim);
+	border-bottom: 1px solid var(--line);
+}
+
+.reader-summary.warning {
+	color: var(--warning);
+}
+
+.reader-row {
+	display: flex;
+	gap: 8px;
+	padding-top: 2px;
+	padding-bottom: 2px;
+	padding-right: 12px;
+	align-items: baseline;
+	cursor: default;
+}
+
+.reader-row:hover {
+	background: var(--bg-hover);
+}
+
+.reader-row .name {
+	color: var(--text-dim);
+}
+
+.reader-row.interactive .name {
+	color: var(--text);
+}
+
+.reader-row.unnamed .name {
+	color: var(--warning);
+}
+
+.reader-row .role {
+	color: var(--text-faint);
+	font-size: 11px;
+}
+
+.reader-row .after {
+	color: var(--text-dim);
+}
+
 .timeline .timeline-scrub {
 	flex: 1;
 	min-width: 80px;
@@ -1215,6 +1353,18 @@ select {
 
 /* Problems */
 
+.problems-panel {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.problems-panel > .problems,
+.problems-panel > .empty {
+	flex: 1;
+	overflow: auto;
+}
+
 .problems {
 	padding: 4px 0;
 	user-select: text;
@@ -1246,6 +1396,14 @@ select {
 
 .problem.warning .severity {
 	color: var(--warning);
+}
+
+.problem.info {
+	color: var(--text-dim);
+}
+
+.problem.info .severity {
+	color: var(--text-faint);
 }
 
 .problem .message {

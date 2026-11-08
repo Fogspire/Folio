@@ -63,6 +63,23 @@ export interface ActivityElement {
 	coverage: number;
 }
 
+/** One thing a screen reader reads, in the order it reads them. */
+export interface ReaderNode {
+	role: string;
+	/** The element's structural id, or empty for the document. */
+	id: string;
+	name: string;
+	description?: string;
+	value?: string;
+	position?: number;
+	setSize?: number;
+	column?: string;
+	interactive?: boolean;
+	disabled?: boolean;
+	checked?: boolean;
+	children: ReaderNode[];
+}
+
 export interface Activity {
 	/** Seconds until RmlUi next wants an update: 0 for every frame, null for not until something changes. */
 	next: number | null;
@@ -81,6 +98,15 @@ export interface OpenSettings {
 	reducedMotion?: boolean;
 	/** The clock's reading as the document loads, which is when its animations start. */
 	time?: number;
+	inputDevice?: 'keyboard' | 'mouse' | 'gamepad';
+	confirmButton?: 'south' | 'east';
+	/** Colour vision the contrast checks judge by: none, protanopia, deuteranopia, tritanopia or achromatopsia. */
+	simulate?: string;
+	textSpeed?: number;
+	instantText?: boolean;
+	noScreenEffects?: boolean;
+	/** The contrast ratio normal text is held to. */
+	contrast?: number;
 }
 
 interface NativeEngine {
@@ -94,6 +120,9 @@ interface NativeEngine {
 	tree(): string;
 	inspect(id: string, names: string): string;
 	diagnostics(): string;
+	checks(): string;
+	accessibilityTree(): string;
+	checkFlashing(frames: number): string;
 	activity(): string;
 	setInlineProperty(id: string, name: string, value: string): boolean;
 	removeInlineProperty(id: string, name: string): void;
@@ -316,6 +345,20 @@ export class EngineClient {
 
 	diagnostics(): Diagnostic[] {
 		return JSON.parse(this.native!.diagnostics());
+	}
+
+	/** The accessibility and performance checks, run against the document as it stands. */
+	checks(): Diagnostic[] {
+		return JSON.parse(this.native!.checks());
+	}
+
+	accessibilityTree(): ReaderNode | null {
+		return JSON.parse(this.native!.accessibilityTree());
+	}
+
+	/** Draws `frames` frames from where the clock stands and reports flashing over the limit. Moves the clock on. */
+	checkFlashing(frames: number): Diagnostic | null {
+		return JSON.parse(this.native!.checkFlashing(frames));
 	}
 
 	/** When the document would next update in the game, and what about each element can make it. */

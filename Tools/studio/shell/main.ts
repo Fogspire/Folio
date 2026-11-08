@@ -270,6 +270,8 @@ function buildMenu() {
 		},
 	});
 	const separator: MenuItemConstructorOptions = { type: 'separator' };
+	/** Panels whose id is not their label in lower case. */
+	const PANEL_IDS: Record<string, string> = { Properties: 'inspector', 'Screen Reader': 'reader' };
 	const recent = readRecent();
 	const layouts = savedLayouts();
 
@@ -327,8 +329,8 @@ function buildMenu() {
 		{
 			label: 'View',
 			submenu: [
-				...['Canvas', 'Code', 'Files', 'Library', 'Sprites', 'Outline', 'Properties', 'Data', 'Problems', 'Activity', 'Docs', 'Terminal']
-					.map((label) => item(label, 'panel:' + (label === 'Properties' ? 'inspector' : label.toLowerCase()))),
+				...['Canvas', 'Code', 'Files', 'Library', 'Sprites', 'Outline', 'Properties', 'Data', 'Problems', 'Activity', 'Screen Reader', 'Docs', 'Terminal']
+					.map((label) => item(label, 'panel:' + (PANEL_IDS[label] ?? label.toLowerCase()))),
 				separator,
 				item('Messages', 'show-messages'),
 				separator,
@@ -350,6 +352,7 @@ function buildMenu() {
 				item('Actual Size', 'zoom-100'),
 				separator,
 				item('Timeline', 'toggle-timeline'),
+				item('Check for Flashing', 'check-flashing'),
 				separator,
 				{ ...item('Edit Mode', 'mode-edit'), type: 'radio', checked: menuState.mode === 'edit' },
 				{ ...item('Play Mode', 'mode-play'), type: 'radio', checked: menuState.mode === 'play' },

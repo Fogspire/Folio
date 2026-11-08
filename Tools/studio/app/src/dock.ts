@@ -19,6 +19,7 @@ const PANELS: PanelPlace[] = [
 	{ id: 'code', title: 'Code', beside: 'canvas', direction: 'below' },
 	{ id: 'problems', title: 'Problems', beside: 'code', direction: 'within', inactive: true },
 	{ id: 'activity', title: 'Activity', beside: 'code', direction: 'within', inactive: true },
+	{ id: 'reader', title: 'Screen Reader', beside: 'code', direction: 'within', inactive: true },
 	{ id: 'terminal', title: 'Terminal', beside: 'code', direction: 'within', inactive: true },
 	{ id: 'files', title: 'Files', direction: 'left' },
 	{ id: 'library', title: 'Library', beside: 'files', direction: 'within', inactive: true },

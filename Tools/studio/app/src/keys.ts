@@ -57,6 +57,7 @@ export const COMMANDS: CommandInfo[] = [
 	command('View', 'panel:data', 'Show Data', 'app'),
 	command('View', 'panel:problems', 'Show Problems', 'app'),
 	command('View', 'panel:activity', 'Show Activity', 'app'),
+	command('View', 'panel:reader', 'Show Screen Reader', 'app'),
 	command('View', 'panel:docs', 'Show Docs', 'app', 'F1'),
 	command('View', 'panel:terminal', 'Show Terminal', 'app'),
 	command('View', 'show-messages', 'Messages', 'app'),
@@ -68,6 +69,7 @@ export const COMMANDS: CommandInfo[] = [
 	command('View', 'zoom-fit', 'Zoom to Fit', 'app', 'Ctrl+0'),
 	command('View', 'zoom-100', 'Actual Size', 'app', 'Ctrl+1'),
 	command('View', 'toggle-timeline', 'Timeline', 'app', 'Ctrl+Shift+T'),
+	command('View', 'check-flashing', 'Check for Flashing', 'app'),
 	command('View', 'mode-edit', 'Edit Mode', 'app'),
 	command('View', 'mode-play', 'Play Mode', 'app'),
 

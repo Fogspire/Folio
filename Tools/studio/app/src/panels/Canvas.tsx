@@ -11,8 +11,9 @@ import { Inspection, Rect, TreeNode } from '../engine';
 import { basename, extension, stem } from '../paths';
 import { BACKGROUNDS } from '../settings';
 import {
-	advanceTimeline, canvasScale, copyLibraryDocument, documentRootPath, engine, findNode, isLibraryDocument, MIN_ZOOM, seekTimeline, select, setCulture,
-	setEditing, setHover, setRenderScale, setTimelinePlaying, setViewport, setZoom, store, toggleTimeline, updateSettings,
+	advanceTimeline, canvasScale, changedPlayerSettings, ColourVision, copyLibraryDocument, DEFAULT_PLAYER, discoverThemes, documentRootPath, engine, findNode,
+	isLibraryDocument, MIN_ZOOM, seekTimeline, select, setCulture, setEditing, setHover, setPlayer, setRenderScale, setTimelinePlaying, setViewport, setZoom, store,
+	toggleTimeline, updateSettings,
 } from '../session';
 
 const SIZES: [string, number, number][] = [
@@ -264,6 +265,7 @@ function Toolbar({ scale }: { scale: number }) {
 				</select>
 			</label>
 			<LanguagePicker />
+			<PlayerPicker />
 			<span className="spacer" />
 			<button className={'button' + (timelineOpen ? ' active' : '')} title="Hold the document's clock, and play or scrub it from the first frame (Ctrl+Shift+T)" onClick={toggleTimeline}>
 				Timeline
@@ -310,6 +312,156 @@ function LanguagePicker() {
 				{cultures.map((name) => <option key={name} value={name}>{name}</option>)}
 			</select>
 		</label>
+	);
+}
+
+const TEXT_SCALES = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+const TEXT_SPEEDS = [0.5, 1, 2, 4];
+const VISIONS: [ColourVision, string][] = [
+	['none', 'Typical'],
+	['protanopia', 'Protanopia (no red)'],
+	['deuteranopia', 'Deuteranopia (no green)'],
+	['tritanopia', 'Tritanopia (no blue)'],
+	['achromatopsia', 'Achromatopsia (no colour)'],
+];
+
+/** Machado, Oliveira and Fernandes 2009 at full severity, in linear RGB: the matrices the contrast checks use. */
+const VISION_MATRICES: Record<Exclude<ColourVision, 'none'>, number[]> = {
+	protanopia: [0.152286, 1.052583, -0.204868, 0.114503, 0.786281, 0.099216, -0.003882, -0.048116, 1.051998],
+	deuteranopia: [0.367322, 0.860646, -0.227968, 0.280085, 0.672501, 0.047413, -0.01182, 0.04294, 0.968881],
+	tritanopia: [1.255528, -0.076749, -0.178779, -0.078411, 0.930809, 0.147602, 0.004733, 0.691367, 0.3039],
+	achromatopsia: [0.2126, 0.7152, 0.0722, 0.2126, 0.7152, 0.0722, 0.2126, 0.7152, 0.0722],
+};
+
+/** SVG filters the canvas is drawn through to show it as each kind of colour vision sees it. */
+function VisionFilters() {
+	return (
+		<svg className="vision-filters" aria-hidden>
+			{Object.entries(VISION_MATRICES).map(([name, m]) => (
+				<filter key={name} id={'vision-' + name} colorInterpolationFilters="linearRGB">
+					<feColorMatrix type="matrix" values={`${m[0]} ${m[1]} ${m[2]} 0 0 ${m[3]} ${m[4]} ${m[5]} 0 0 ${m[6]} ${m[7]} ${m[8]} 0 0 0 0 0 1 0`} />
+				</filter>
+			))}
+		</svg>
+	);
+}
+
+/** The game's own player settings, which the document is drawn under: what someone changes in its options menu. */
+function PlayerPicker() {
+	const player = store.use((state) => state.player);
+	const [open, setOpen] = useState(false);
+	const [themes, setThemes] = useState<string[]>([]);
+	const root = useRef<HTMLDivElement>(null);
+	const changed = changedPlayerSettings(player);
+
+	useEffect(() => {
+		if (!open) return;
+		discoverThemes().then(setThemes);
+		const close = (event: MouseEvent | KeyboardEvent) => {
+			if (event instanceof KeyboardEvent ? event.key === 'Escape' : !root.current?.contains(event.target as Node)) setOpen(false);
+		};
+		window.addEventListener('mousedown', close);
+		window.addEventListener('keydown', close);
+		return () => {
+			window.removeEventListener('mousedown', close);
+			window.removeEventListener('keydown', close);
+		};
+	}, [open]);
+
+	const toggleTheme = (name: string) =>
+		setPlayer({ themes: player.themes.includes(name) ? player.themes.filter((theme) => theme !== name) : [...player.themes, name] });
+
+	return (
+		<div className="player-picker" ref={root}>
+			<button
+				className={'button' + (changed ? ' active' : '')}
+				title="The player's settings the document is drawn under: theme, text size, colour vision, controller, motion"
+				onClick={() => setOpen(!open)}
+			>
+				Player{changed ? ` · ${changed}` : ''}
+			</button>
+			{open && (
+				<div className="player-popover">
+					<section>
+						<h4>Controls</h4>
+						<div className="player-row">
+							<span>Device</span>
+							<div className="segmented">
+								{(['keyboard', 'mouse', 'gamepad'] as const).map((device) => (
+									<button key={device} className={player.inputDevice === device ? 'active' : ''} onClick={() => setPlayer({ inputDevice: device })}>
+										{device[0].toUpperCase() + device.slice(1)}
+									</button>
+								))}
+							</div>
+						</div>
+						<div className="player-row" title="Which face button confirms. Nintendo and Japanese PlayStation conventions put it on the right.">
+							<span>Confirm</span>
+							<div className="segmented">
+								{(['south', 'east'] as const).map((button) => (
+									<button
+										key={button}
+										className={player.confirmButton === button ? 'active' : ''}
+										disabled={player.inputDevice !== 'gamepad'}
+										onClick={() => setPlayer({ confirmButton: button })}
+									>
+										{button === 'south' ? 'Bottom' : 'Right'}
+									</button>
+								))}
+							</div>
+						</div>
+					</section>
+					<section>
+						<h4>Display</h4>
+						<div className="player-row">
+							<span>Text size</span>
+							<select value={player.textScale} onChange={(event) => setPlayer({ textScale: Number(event.target.value) })}>
+								{TEXT_SCALES.map((value) => <option key={value} value={value}>{value * 100}%</option>)}
+							</select>
+						</div>
+						<div className="player-row" title="Draws the canvas as each kind of colour vision sees it, and judges contrast the same way">
+							<span>Colour vision</span>
+							<select value={player.vision} onChange={(event) => setPlayer({ vision: event.target.value as ColourVision })}>
+								{VISIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+							</select>
+						</div>
+						<div className="player-row top">
+							<span>Themes</span>
+							<div className="player-themes">
+								{themes.length === 0 && <span className="dim">No stylesheet declares a theme</span>}
+								{themes.map((name) => (
+									<label key={name}>
+										<input type="checkbox" checked={player.themes.includes(name)} onChange={() => toggleTheme(name)} />
+										{name}
+									</label>
+								))}
+							</div>
+						</div>
+						<label className="player-check" title="Shows the layers marked folio-screen-effect: vignettes, tints and flashes over the whole view">
+							<input type="checkbox" checked={player.screenEffects} onChange={(event) => setPlayer({ screenEffects: event.target.checked })} />
+							Screen effects
+						</label>
+					</section>
+					<section>
+						<h4>Motion and text</h4>
+						<label className="player-check" title="Turns every transition and animation off">
+							<input type="checkbox" checked={player.reducedMotion} onChange={(event) => setPlayer({ reducedMotion: event.target.checked })} />
+							Reduced motion
+						</label>
+						<label className="player-check" title="Every <text> arrives whole instead of typing out">
+							<input type="checkbox" checked={player.instantText} onChange={(event) => setPlayer({ instantText: event.target.checked })} />
+							Instant text
+						</label>
+						<div className="player-row">
+							<span>Text speed</span>
+							<select value={player.textSpeed} disabled={player.instantText} onChange={(event) => setPlayer({ textSpeed: Number(event.target.value) })}>
+								{TEXT_SPEEDS.map((value) => <option key={value} value={value}>{value}×</option>)}
+							</select>
+						</div>
+					</section>
+					<button className="button" disabled={!changed} onClick={() => setPlayer(DEFAULT_PLAYER)}>Reset to Defaults</button>
+				</div>
+			)}
+		</div>
 	);
 }
 
@@ -698,6 +850,7 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 	const engineReady = store.use((state) => state.engineReady);
 	const renderScale = store.use((state) => state.renderScale);
 	const openFiles = store.use((state) => state.openFiles);
+	const vision = store.use((state) => state.player.vision);
 	const documents = openFiles.filter((file) => extension(file) === '.rml');
 	const viewport = useRef<HTMLDivElement>(null);
 	const surface = useRef<HTMLDivElement>(null);
@@ -815,6 +968,7 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 	return (
 		<div className="panel canvas-panel" style={{ display: visible ? undefined : 'none' }}>
 			{documents.length > 0 && <FileTabs files={documents} active={documentPath} />}
+			<VisionFilters />
 			<Toolbar scale={scale} />
 			<TimelineBar />
 			{documentPath && isLibraryDocument(documentPath) && <LibraryBanner path={documentPath} />}
@@ -823,7 +977,12 @@ export function CanvasPanel(props: IDockviewPanelProps) {
 					<div
 						className={'canvas-surface' + (mode === 'play' ? ' playing' : '')}
 						ref={surface}
-						style={{ width: renderWidth, height: renderHeight, transform: `scale(${(width * scale) / renderWidth}, ${(height * scale) / renderHeight})` }}
+						style={{
+							width: renderWidth,
+							height: renderHeight,
+							transform: `scale(${(width * scale) / renderWidth}, ${(height * scale) / renderHeight})`,
+							filter: vision === 'none' ? undefined : `url(#vision-${vision})`,
+						}}
 						onMouseDown={() => engine.canvas.focus()}
 					/>
 					<Overlay scale={scale} />

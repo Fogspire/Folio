@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.15.0
+* Skill tree recipe, `rcss/recipes/skill_tree.rml`, with a tutorial for the game side. See [docs/tutorials/skill_tree.md](docs/tutorials/skill_tree.md)
+* Studio's **Player** button draws the document under the player's settings: input device, confirm button, text size, colour vision, themes, screen effects, reduced motion and text speed. See [docs/studio_reference.md](docs/studio_reference.md#canvas)
+* Studio's **Problems** runs the accessibility and performance checks, and has a **With Notes** filter, a **Contrast** target and **Check Flashing**
+* Studio's **Screen Reader** panel lists what a screen reader reads out, in order
+* Tutorials preview and check documents in Studio rather than with `uipreview`
+
 ## 1.14.0
 * The **Model Name** pin on **Bind View Model** is a dropdown of every `data-model` your documents declare. See [docs/data_binding.md](docs/data_binding.md#4-bind-the-real-thing)
 * Studio completes `data-model` with names declared in any document under `UI/`

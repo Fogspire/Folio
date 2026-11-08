@@ -6,7 +6,7 @@ Items that take up several cells, dragged and placed on a grid: a rifle is five 
 
 Assumes **[an inventory screen](inventory.md)**, whose one-cell-per-item flexbox grid stops working as soon as an item spans cells.
 
-The finished document is `examples/grid_inventory.rml`, with mock data in `UI/mock/grid_inventory.json`, which the preview mounts.
+The finished document is `examples/grid_inventory.rml`, with mock data in `UI/mock/grid_inventory.json`, which Studio mounts.
 
 ---
 
@@ -446,14 +446,11 @@ A cross from two diagonal gradients, no art. `Fits` already refuses a locked cel
 
 ## 9. Check it
 
-```bash
-./bin/win64/uipreview.exe examples/grid_inventory.rml --strict --a11y
-./bin/win64/uipreview.exe examples/grid_inventory.rml --keys "tab,right,right,down,down,left" --shot-each out/
-```
+Open `examples/grid_inventory.rml` in Studio from **Library > Examples**. **Problems** lists nothing.
 
-The mock has the pistol held and a ghost placed, so one screenshot shows every state. Set `bGhostFits` to `false` in `UI/mock/grid_inventory.json` to see the red one.
+The mock has the pistol held and a ghost placed, so the canvas shows every state at once. Set `bGhostFits` to `false` in `UI/mock/grid_inventory.json` to see the red one.
 
-The preview binds the commands as no-ops and says so (`I-DATA-EVENTSTUB`), so nothing moves there. It proves the layout and the navigation: the `--keys` report lists each focused cell's rect, and a column that drifts shows up as an `x` that changes on a `down`.
+Switch the canvas to **Play** and walk the grid with the arrow keys: **down** stays in its column. The commands do nothing until the game binds the model, so nothing moves.
 
 ---
 

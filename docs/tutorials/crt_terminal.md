@@ -8,11 +8,7 @@ https://github.com/user-attachments/assets/5beac4d8-5f56-40ff-abe2-ccfbd6184fdd
 
 One document and one component. No Blueprint graph, no widget tree; the only C++ points an input action at the component.
 
-The finished thing is `examples/crt_terminal.rml`. Open it beside this page.
-
-```bash
-./bin/win64/uipreview.exe examples/crt_terminal.rml --root . --size 1200x900
-```
+The finished thing is `examples/crt_terminal.rml`. Open it in Studio beside this page, from **Library > Examples**, with the canvas **Size** at 1200x900.
 
 ---
 
@@ -285,17 +281,13 @@ The button is named rather than assumed, so a right click can mean something dif
 
 ## 10. Check it
 
-```bash
-./bin/win64/uipreview.exe examples/crt_terminal.rml --root . --strict --a11y
-```
-
-Both clean on the shipped document. Then in the editor:
+Open it in Studio: **Problems** lists nothing on the shipped document. Then in the editor:
 
 | | |
 |---|---|
 | `folio.Reload` | rebuild from disk without leaving PIE |
 | `folio.World.Verify` | confirm the world path is drawing what it should |
-| `folio.Surface.Shot` | write the surface render to a PNG, comparable with the preview's |
+| `folio.Surface.Shot` | write the surface render to a PNG, comparable with Studio's |
 
 ---
 

@@ -109,41 +109,9 @@ folio.Show UI/hello.rml
 
 **[Folio Studio](studio.md)** draws the document with Folio's own renderer and edits it visually or as text, on any desktop with no Unreal running. Run `./scripts/studio.sh` from the plugin.
 
-The same renderer is a command-line tool, `uipreview`, which checks a document and takes screenshots of it in a build or for an agent. Build it once:
-
-```bash
-./scripts/build.sh
-```
-
-Then:
-
-```bash
-./bin/win64/uipreview.exe <YourProject>/UI/hello.rml --root <YourProject>
-```
-
-`--root` is the path to the project directory, not its name; every asset the document references resolves beneath it. From inside the plugin:
-
-```bash
-./bin/win64/uipreview.exe ../../UI/hello.rml --root ../..
-```
-
-A root that does not exist reports the document as unopenable, so check it first when a file you can see does not load.
-
-It watches the file and reloads on save: no compiling and no editor restart.
+It reloads when the file changes on disk, so an edit made anywhere shows at once. **Problems** lists what the renderer rejected, with file and line; check it before you commit a document.
 
 If you write markup in VSCode, **[its extension](vscode.md)** adds highlighting for `.rml` and `.rcss`.
-
-Two flags to know on day one:
-
-```bash
-# Treat warnings as errors and run the markup lint checks.
-uipreview.exe ui\hello.rml --root . --strict
-
-# Render once to a PNG and exit, opening no window.
-uipreview.exe ui\hello.rml --root . --screenshot hello.png
-```
-
-Run with `--strict` before you commit a document. It catches unreachable focus, missing sprites and properties that parse but do nothing.
 
 ## 7. Make it survive packaging
 

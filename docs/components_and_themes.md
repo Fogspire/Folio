@@ -47,9 +47,9 @@ The recipes are written in the token classes from `themes/default.rcss` (`.focus
 
 ## Recipes
 
-`/folio/rcss/recipes/` holds complete, working screens: a main menu, a pause menu, a confirmation dialog, a controls screen, dialogue, input prompts, a nameplate, a stamina wheel, subtitles, and round shapes (`circle.rml`). **Copy them into your own `UI/`; don't link them.** A linked recipe is a dependency you cannot change. Nothing in a recipe names Folio's directory except the library link.
+`/folio/rcss/recipes/` holds complete, working screens: a main menu, a pause menu, a confirmation dialog, a controls screen, dialogue, input prompts, a nameplate, a skill tree, a stamina wheel, subtitles, and round shapes (`circle.rml`). **Copy them into your own `UI/`; don't link them.** A linked recipe is a dependency you cannot change. Nothing in a recipe names Folio's directory except the library link.
 
-**A recipe that binds a model needs a mock beside it.** `nameplate.rml` reads `Name` and `Health`, and previews against `UI/mock/nameplate.json` in the plugin. Copy it into your own `UI/mock/` along with the document, or the preview reports the binding as a missing variable.
+**A recipe that binds a model comes with a mock.** In Studio, **Library > Recipes**, then **Use**, copies the recipe to `UI/screens/` and its mock to `UI/mock/`, so `nameplate.rml` shows a name and health straight away.
 
 Every recipe passes `--strict` and `--a11y` with no findings, and `./scripts/check_recipes.sh` keeps it that way.
 
@@ -65,7 +65,7 @@ A theme is `@media (theme: name)` in a stylesheet:
 }
 ```
 
-Turn it on with `folio.Theme <name>`, **Set Theme** from Blueprint, or `uipreview --theme <name>`.
+Turn it on with `folio.Theme <name>` or **Set Theme** from Blueprint. In Studio, tick it under the canvas's **Player** button.
 
 **Several themes can be on at once.** They are independent switches, so `colour-blind` and `large-text` compose without either knowing about the other.
 

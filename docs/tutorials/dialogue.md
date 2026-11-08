@@ -4,11 +4,7 @@ A speaker, a line that types itself out, and replies. The line is game data and 
 
 ![A line of dialogue typing itself out, with emphasis and a highlighted place name](images/dialogue.gif)
 
-Working version: [`rcss/recipes/dialogue.rml`](../../rcss/recipes/dialogue.rml).
-
-```bash
-./bin/win64/uipreview.exe rcss/recipes/dialogue.rml --root . --size 1280x720
-```
+Working version: [`rcss/recipes/dialogue.rml`](../../rcss/recipes/dialogue.rml). Open it in Studio from **Library > Recipes**.
 
 ---
 
@@ -26,7 +22,7 @@ Getting it backwards is the one mistake to avoid: `{{ Line }}` in a binding prin
 ## 2. The document
 
 ```html
-<text id="line" class="line" data-noloc>Placeholder, for the preview.</text>
+<text id="line" class="line" data-noloc>Placeholder, for Studio.</text>
 ```
 
 ```css

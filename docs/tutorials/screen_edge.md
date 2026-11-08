@@ -15,9 +15,7 @@ Standing in fire and the corners of the screen glow orange. Something bites you 
 }
 ```
 
-```bash
-./bin/win64/uipreview.exe examples/screen_edge_baker.rml --root . --screenshot out/edge.png
-```
+Open `examples/screen_edge_baker.rml` in Studio from **Library > Examples**.
 
 Two documents ship (section 8 says why): `screen_edge_baker.rml` is the effect written out as `box-shadow`, and `screen_edge.rml` is the same picture drawn from textures baked out of it. Author in the first; ship the second.
 
@@ -83,7 +81,7 @@ body { position: relative; width: 100%; height: 100%; }
 
 An absolutely positioned element resolves against its nearest **positioned** ancestor, and a body left at `position: static` is not one, so the layer sizes itself against the initial containing block instead. In engine that block is not always the same box as the laid-out body, and when it is larger the effect is anchored top left and runs off the bottom right by exactly the difference.
 
-`uipreview` does not show it; the two boxes agree there.
+Studio does not show it; the two boxes agree there.
 
 ## 5. States cross-fade, events animate
 
@@ -184,14 +182,14 @@ Keep a permanent dark `#base` at low alpha even in a game with no status effects
 
 **`box-shadow` is a layer effect: every visible one is an offscreen pass at the size of its element.** These elements are the whole screen, so each is a full-screen render target, allocated, cleared, drawn and composited. A document with a running animation never idles, so that happens every frame. `stat Folio` reports it under **Resolve layers**; the layer memory shows up as **Layer targets**.
 
-It is the most expensive thing a document can do and looks the same as the cheap version, so `uipreview` warns:
+It is the most expensive thing a document can do and looks the same as the cheap version, so **Problems** reports it under **With Notes**:
 
 ```
 screen_edge.rml:0:0: info: [I-PERF-FULLSCREENLAYER] #burning: box-shadow on an element covering 100% of the
 viewport costs a full-screen render target, and it is animating, so that is one every frame.
 ```
 
-Anything covering at least 75% of the viewport with `box-shadow`, `filter`, `backdrop-filter` or `mask-image` gets one. It is information, not a warning, so `--strict` passes.
+Anything covering at least 75% of the viewport with `box-shadow`, `filter`, `backdrop-filter` or `mask-image` gets one. It is information, not a warning.
 
 ### Bake it, in the engine
 
@@ -204,7 +202,7 @@ folio.Bake /folio/examples/screen_edge_baker.rml #frozen examples/art/edge_froze
 folio.Bake /folio/examples/screen_edge_baker.rml #hit examples/art/edge_hit.png 1920 1080
 ```
 
-**The engine, not `uipreview`.** The two renderers do not draw `box-shadow` the same: this shadow peaks at alpha 16 in the preview and 70 in the engine - so a texture baked there is faint and the wrong shape in the game. `uipreview --bake` refuses a layer effect and prints the line above instead.
+**The engine, not Studio.** The two renderers do not draw `box-shadow` the same: this shadow peaks at alpha 16 in Studio and 70 in the engine, so a texture baked there is faint and the wrong shape in the game. Studio's **Bake to PNG** refuses a layer effect.
 
 The element is baked at full opacity whatever the document rests at, so the `opacity: 0` section 5 put on every state layer does not bake an empty texture. A *running animation* is the exception: it drives the property itself and cancelling one is not reliable, so the baker carries no state classes on its `body`. Dress it in `hit-a` and the hit layer bakes as nothing at all.
 

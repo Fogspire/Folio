@@ -227,11 +227,11 @@ Beyond a page or two of cells, bake the item shots offline into an atlas and use
 
 ---
 
-## 7. What the preview draws
+## 7. What Studio draws
 
-`uipreview` has no engine, so `folio://` cannot resolve. Put a PNG at `UI/art/preview/<name>.png` (`UI/art/preview/profile/doll.png` for the name above) and the preview draws that. Leave it out and you get the usual named placeholder.
+Studio has no engine, so `folio://` cannot resolve. Put a PNG at `UI/art/preview/<name>.png` (`UI/art/preview/profile/doll.png` for the name above) and Studio draws that. Leave it out and you get the usual named placeholder.
 
-It is reported as `I-ASSET-GAMETEXTURE`, info rather than a warning, so the screen still passes `--strict`.
+**Problems** lists it under **With Notes** as `I-ASSET-GAMETEXTURE`, a note rather than a warning.
 
 **Give the stand-in the target's aspect ratio.** The fallback placeholder is square, and an element sized by width alone takes its height from whatever texture it resolved, so a 2:3 doll previews as a square and the panel below it sits 150dp too high. Screenshot the real doll once and save it at the target's dimensions, so the panel can be built, navigated and localised with the engine closed.
 
@@ -239,9 +239,7 @@ It is reported as `I-ASSET-GAMETEXTURE`, info rather than a warning, so the scre
 
 ## 8. Check it
 
-```bash
-./bin/win64/uipreview.exe UI/screens/profile.rml --root . --strict --a11y
-```
+Open `UI/screens/profile.rml` in Studio: **Problems** lists no warnings.
 
 In the engine:
 

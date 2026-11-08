@@ -6,11 +6,7 @@ https://github.com/user-attachments/assets/6a28104d-f75e-4d6d-82de-1aaeb25269ce
 
 > The video was made prior to Folio supporting real 3D transforms
 
-You need Folio running in a project ([hello world](../hello_world.md)) and `uipreview` built. You write `UI/screens/visor.rml` and check each step with:
-
-```bash
-./bin/win64/uipreview.exe UI/screens/visor.rml --root . --size 1920x1080 --strict
-```
+You need Folio running in a project ([hello world](../hello_world.md)) and [Folio Studio](../studio.md). You write `UI/screens/visor.rml` and check each step in Studio with the canvas **Size** at 1920x1080 and nothing in **Problems**.
 
 ## 1. Make the document see-through
 
@@ -73,7 +69,7 @@ Add a keyline and glow as a second copy of the same box, placed after the readou
 
 `box-sizing: border-box` goes on the keyline only, so it sits on the opening edge while the ring grows outward.
 
-Run the preview: a dark helmet frame surrounds a rounded opening with a blue keyline and a soft glow on its edge.
+Look in Studio: a dark helmet frame surrounds a rounded opening with a blue keyline and a soft glow on its edge.
 
 ## 3. Anchor each readout to its edge
 
@@ -124,7 +120,7 @@ Repeat the rules for the left half with the rotation negated, since its tangent 
 #visors { transform: rotate(5deg); }
 ```
 
-`scale(1, 0.78)` squashes the whole radar, contents included. Run the preview: the ribbon bows down at both ends and the corner clusters lean in, as if on a dome.
+`scale(1, 0.78)` squashes the whole radar, contents included. Look in Studio: the ribbon bows down at both ends and the corner clusters lean in, as if on a dome.
 
 ## 5. Build the radar from gradients
 
@@ -160,7 +156,7 @@ The player arrowhead is half of a rotated square, clipped by its parent:
 
 Keep the inner square in flow: `overflow: hidden` does not clip an absolutely positioned child. For an arc, set two of a circle's four `border-color` edges to transparent and rotate it.
 
-Run the preview: a squashed disc with ticks round its rim, a soft wedge of sweep, and an arrowhead at its centre.
+Look in Studio: a squashed disc with ticks round its rim, a soft wedge of sweep, and an arrowhead at its centre.
 
 ## 6. Put it in the game
 
@@ -238,7 +234,7 @@ Walk in PIE: the HUD sways with each stride. Jump and land: it dips and settles.
 
 ## 9. Bake the glow
 
-`uipreview` reports the keyline's glow, because a layer effect on an element this large costs a full-screen render target every frame:
+**Problems** reports the keyline's glow under **With Notes**, because a layer effect on an element this large costs a full-screen render target every frame:
 
 ```
 UI/screens/visor.rml:0:0: info: [I-PERF-FULLSCREENLAYER] #aperture-key: box-shadow on an element covering 77% of the viewport costs a full-screen render target, every frame the document draws. ...
@@ -259,7 +255,7 @@ Nothing about the glow changes at runtime, so make it a texture. Create a baker 
 folio.Bake UI/screens/visor_baker.rml #aperture-key UI/art/visor_aperture.png 1920 1080
 ```
 
-Use the engine rather than `uipreview --bake`, which refuses `box-shadow`, `filter`, `backdrop-filter` and `mask-image` because the two renderers draw them differently.
+Use the engine rather than Studio's **Bake to PNG**, which refuses `box-shadow`, `filter`, `backdrop-filter` and `mask-image` because the two renderers draw them differently.
 
 In `visor.rml`, replace the keyline's border, radius and shadow with the texture:
 
@@ -271,17 +267,11 @@ In `visor.rml`, replace the keyline's border, radius and shadow with the texture
 }
 ```
 
-Run the preview: the `I-PERF-FULLSCREENLAYER` line is gone and the visor looks the same, sway and sweep included. Keep the baker; it is what you edit and re-bake when the blue is too strong. [Performance and profiling](../performance_profiling.md#bake-it-in-the-engine) covers baking in full, including what cannot be baked.
+In Studio, the `I-PERF-FULLSCREENLAYER` line is gone from **Problems** and the visor looks the same, sway and sweep included. Keep the baker; it is what you edit and re-bake when the blue is too strong. [Performance and profiling](../performance_profiling.md#bake-it-in-the-engine) covers baking in full, including what cannot be baked.
 
 ## 10. Check three aspect ratios
 
-```bash
-uipreview.exe UI/screens/visor.rml --root . --size 1920x1080 --strict --a11y
-uipreview.exe UI/screens/visor.rml --root . --size 2560x1080 --strict
-uipreview.exe UI/screens/visor.rml --root . --size 1600x1200 --strict
-```
-
-All three show the readouts in their corners and the energy readout centred; anchoring mistakes are invisible at the ratio you authored against. Then look at it in engine, over a live scene, where transparency, blending and draw order can differ from the preview.
+Set the canvas **Size** to 1920x1080, then 2560x1080, then 1600x1200, with **Problems** empty at each. All three show the readouts in their corners and the energy readout centred; anchoring mistakes are invisible at the ratio you authored against. Then look at it in engine, over a live scene, where transparency, blending and draw order can differ from Studio.
 
 ## Next
 

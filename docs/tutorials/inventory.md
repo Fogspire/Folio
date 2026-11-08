@@ -41,7 +41,7 @@ Document->BindViewModel(TEXT("inventory"), Model);
 Document->LoadDocument(TEXT("UI/screens/inventory.rml"));
 ```
 
-For previewing, put the same shape in `UI/mock/inventory.json` and the preview picks it up, so the screen can be built before the C++ exists.
+For previewing, put the same shape in `UI/mock/inventory.json` and Studio picks it up, so the screen can be built before the C++ exists.
 
 See **[data binding](../data_binding.md)**.
 
@@ -215,15 +215,13 @@ Item names come from the model and were already `FText` in C++, so they need nei
 
 ## 8. Check it
 
-```bash
-./bin/win64/uipreview.exe UI/screens/inventory.rml --root . --strict --a11y
-./bin/win64/uipreview.exe UI/screens/inventory.rml --root . --culture pseudo --strict
-./bin/win64/uipreview.exe UI/screens/inventory.rml --root . --keys "right,right,down,enter" --shot-each out/
-```
+Open `UI/screens/inventory.rml` in Studio. **Problems** lists nothing.
 
-The pseudo run catches an inventory laid out for English. Translated strings run about 40% longer, and a slot count or an item name that fits at 72dp does not at 100.
+Set **Player > Text size** to 150%: **Problems** names text the setting cannot move and text that stops fitting.
 
-The `--keys` run proves the grid navigates without a controller; a grid that navigates *almost* right is hard to spot by looking.
+Set the canvas **Language** to **Pseudo**. It catches an inventory laid out for English. Translated strings run about 40% longer, and a slot count or an item name that fits at 72dp does not at 100.
+
+Switch the canvas to **Play** and move round the grid with the arrow keys. A grid that navigates *almost* right is hard to spot by looking.
 
 ---
 

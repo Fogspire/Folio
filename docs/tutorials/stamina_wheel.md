@@ -4,11 +4,7 @@ Stamina represented on a wheel, with partial, extra and temporary wheels. It app
 
 ![The stamina wheel partly spent, with the spent arc trailing red](https://github.com/user-attachments/assets/211b6d16-67a7-4949-bbad-c6820a86d3eb)
 
-The markup is the `stamina_wheel.rml` recipe. Your game supplies numbers: where the wheel is, and for each ring how much is filled.
-
-```bash
-./bin/win64/uipreview.exe rcss/recipes/stamina_wheel.rml --root . --size 1080x1080 --strict
-```
+The markup is the `stamina_wheel.rml` recipe. Your game supplies numbers: where the wheel is, and for each ring how much is filled. Open it in Studio from **Library > Recipes**.
 
 ---
 

@@ -4,11 +4,7 @@ A weapon card with a damage-over-range curve drawn by `<line-graph>`, fed from a
 
 ![A battle rifle card: damage holds flat, falls off, then levels at a floor line, filled beneath](images/weapon_falloff.png)
 
-The finished document is `examples/weapon_falloff.rml`, with mock data in `UI/mock/weapon_falloff.json`:
-
-```bash
-./bin/win64/uipreview.exe examples/weapon_falloff.rml --root . --strict
-```
+The finished document is `examples/weapon_falloff.rml`, with mock data in `UI/mock/weapon_falloff.json`. Open it in Studio from **Library > Examples**.
 
 ---
 
@@ -61,7 +57,7 @@ line-graph
 
 The graph has no size of its own, so give it a height. The borders are the axes. With no `tones`, the line draws in `graph-mid-color`. `graph-dot-size: 0` removes the dot on the newest value, which suits a fixed curve rather than a live reading.
 
-Edit a number in the mock and save: the preview redraws.
+Edit a number in the mock and save: the canvas redraws.
 
 ## 4. Heat, points and patterns
 

@@ -199,9 +199,7 @@ The second is the one people miss. A hundred-row list that rebuilds ten times a 
 
 ## Proving it
 
-```bash
-./bin/win64/uipreview.exe UI/screens/questlog.rml --root . --data UI/mock/questlog.json --strict
-```
+Open `UI/screens/questlog.rml` in Studio. It draws from `UI/mock/questlog.json`, and **Problems** lists nothing.
 
 In the engine, watch elements created per frame in `stat Folio`. With a window it is zero after the first frame: scrolling changes values, and values do not allocate.
 

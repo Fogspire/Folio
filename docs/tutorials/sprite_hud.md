@@ -4,7 +4,7 @@ A pixel-art character on a HUD panel, angled toward the crosshair, that walks wh
 
 https://github.com/user-attachments/assets/faf97aa0-4169-426c-a537-802e8cb1ad27
 
-You need Folio running in a project ([hello world](../hello_world.md)), `uipreview` built, a player pawn that is an `ACharacter`, and your frames as loose PNGs.
+You need Folio running in a project ([hello world](../hello_world.md)), [Folio Studio](../studio.md), a player pawn that is an `ACharacter`, and your frames as loose PNGs.
 
 ## 1. Pack the frames into one sheet
 
@@ -75,15 +75,13 @@ Both scale the art up 8 times with nearest-neighbour filtering. Folio filters te
 
 `sprites="mario_walk_"` plays `mario_walk_0`, `_1` and `_2` in a loop, and binding it lets the game swap the clip.
 
-Give the preview something to bind in `UI/mock/mario.json`:
+Give Studio something to bind in `UI/mock/mario.json`:
 
 ```json
 { "Clip": "mario_walk_", "Fps": 10.0, "bFaceRight": false }
 ```
 
-```bash
-./bin/win64/uipreview.exe UI/screens/mario_hud.rml --root . --size 1920x1080 --strict
-```
+Open `UI/screens/mario_hud.rml` in Studio with the canvas **Size** at 1920x1080.
 
 Mario walks in a panel right of centre. Change `Clip` to `mario_run_` and save: he runs.
 

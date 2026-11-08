@@ -4,11 +4,7 @@ A window frame that blurs whatever is behind it, while its title, buttons and co
 
 ![Two overlapping windows on a blue backdrop: each frame is a blurred, tinted view of what lies under it, and the white client areas are crisp](images/glass_window.png)
 
-The finished document is `examples/glass_window.rml`:
-
-```bash
-./bin/win64/uipreview.exe examples/glass_window.rml --root . --size 1000x620 --dp-ratio 1 --strict
-```
+The finished document is `examples/glass_window.rml`. Open it in Studio from **Library > Examples**.
 
 ---
 
@@ -58,4 +54,4 @@ Give the content area its own opaque background, and pad the window so a band of
 ## Going further
 
 - **A blurred backdrop behind a modal**: `backdrop-filter: outside-blur(6dp)` blurs everything except the element.
-- **Cost**: each element with `backdrop-filter` or `box-shadow` is its own offscreen pass. `--strict` reports the count. Never animate its `width` or `height`; animate `transform` instead.
+- **Cost**: each element with `backdrop-filter` or `box-shadow` is its own offscreen pass. Studio's **Activity** names every element drawing one. Never animate its `width` or `height`; animate `transform` instead.

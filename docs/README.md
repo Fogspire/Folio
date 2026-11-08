@@ -98,6 +98,7 @@ Two habits cover it:
 | **[The coloured screen edge](tutorials/screen_edge.md)** | Standing in fire, taking a hit, running on low health: an inset box-shadow is the whole effect, states cross-fade while events animate, then bake the lot to textures, because a full-screen layer costs a render target every frame. |
 | **[A weapon falloff graph](tutorials/weapon_falloff.md)** | A `<line-graph>` fed from a mock JSON file, then from game code. |
 | **[A stamina wheel](tutorials/stamina_wheel.md)** | Stamina represented on a wheel, with partial, extra and temporary wheels. |
+| **[A skill tree](tutorials/skill_tree.md)** | Skills joined by lines that light as they are learned, a pane for the focused skill, and the rules that unlock the next tier. |
 | **[A sprite that copies the player](tutorials/sprite_hud.md)** | A pixel-art character on an angled HUD panel that walks, runs, jumps, ducks and skids with the player: packing frames, a bound `<flipbook>`, and picking the clip from character movement. |
 
 ## Reference

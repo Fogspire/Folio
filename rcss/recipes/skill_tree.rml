@@ -1,0 +1,124 @@
+<rml>
+<head>
+	<title>Skills</title>
+
+	<!--
+		A skill tree: nodes on a grid joined by lines, a points total, and a pane describing the focused
+		skill. Confirm learns it.
+
+		The "skill_tree" model this expects:
+
+		  SkillPoints    int     points left to spend
+		  Skills         array   one row per skill:
+		    Name         string  read aloud, and shown in the pane
+		    X, Y         int     grid cell, column and row
+		    Rank         int     ranks learned; above 0 draws the node as owned
+		    MaxRank      int
+		    bLocked      bool    requirements not met
+		  SkillLinks     array   one row per line between two nodes:
+		    X1, Y1       int     one end's cell
+		    X2, Y2       int     the other end's cell
+		    bLit         bool    the line leads out of an owned node
+		  SelectedName   string  the pane's contents, for whichever node SelectSkill last named
+		  SelectedText   string
+		  SelectedNeeds  string  why it is locked; empty hides the line
+		  SelectedCost   int     0 hides the line
+		  SelectSkill(i) command a node was focused or hovered
+		  LearnSkill(i)  command a node was clicked or confirmed
+
+		The game owns the rules: what a node needs, what it costs, which lines light. The markup only
+		draws what the model says.
+
+		Cells are 96dp apart and a node is 64dp, so a node's centre is X * 96 + 32. Change the pitch
+		in .node, .tree and the link expression together. The gap between nodes is what lets
+		spatial navigation pick the node straight below rather than a diagonal neighbour.
+	-->
+	<link type="text/template" href="/folio/lib/lib.rml"/>
+
+	<style>
+		body { justify-content: center; align-items: center; }
+
+		.skills { display: flex; flex-direction: row; align-items: flex-start; }
+
+		/* Three columns and three rows of cells. Add 96dp per extra column or row. */
+		.tree
+		{
+			position: relative;
+			width: 256dp;
+			height: 256dp;
+			margin-right: 48dp;
+		}
+
+		.link
+		{
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+			path-width: 3dp;
+		}
+
+		.node
+		{
+			position: absolute;
+			width: 64dp;
+			height: 64dp;
+			box-sizing: border-box;
+			border-width: 2dp;
+			border-radius: 10dp;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			nav: auto;
+		}
+
+		/* The theme's focus ring matches an owned node's fill, so focus also scales the node up. */
+		.node:focus-visible { transform: scale(1.12); }
+
+		.details { width: 300dp; }
+		.points  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16dp; }
+		.details-line { margin-top: 8dp; }
+	</style>
+</head>
+
+<body class="screen s-pad-xl" data-model="skill_tree">
+	<div class="skills">
+		<div class="tree">
+			<path class="link c-dim" data-for="l : SkillLinks"
+				data-class-c-accent="l.bLit"
+				data-attr-d="'M ' + (l.X1 * 96 + 32) + ' ' + (l.Y1 * 96 + 32) + ' L ' + (l.X2 * 96 + 32) + ' ' + (l.Y2 * 96 + 32)"></path>
+
+			<div class="node focusable c-text" data-for="n : Skills" autofocus
+				data-attr-folio-label="n.Name"
+				data-class-c-raised="!n.bLocked"
+				data-class-c-sunken="n.bLocked"
+				data-class-c-dim="n.bLocked"
+				data-class-c-fill-accent="n.Rank &gt; 0"
+				data-class-c-on-accent="n.Rank &gt; 0"
+				data-style-left="n.X * 96 + 'dp'"
+				data-style-top="n.Y * 96 + 'dp'"
+				data-event-focus="SelectSkill(it_index)"
+				data-event-mouseover="SelectSkill(it_index)"
+				data-event-click="LearnSkill(it_index)">
+				<span class="t-numeric">{{ n.Rank }}/{{ n.MaxRank }}</span>
+			</div>
+		</div>
+
+		<div class="details panel">
+			<div class="panel-body">
+				<div class="points">
+					<span class="t-caption c-dim" data-loc="skills_points">Points</span>
+					<span class="t-title t-numeric c-text">{{ SkillPoints }}</span>
+				</div>
+				<div class="t-heading c-text">{{ SelectedName }}</div>
+				<div class="details-line t-body c-muted">{{ SelectedText }}</div>
+				<div class="details-line t-label c-danger" data-if="SelectedNeeds != ''">{{ SelectedNeeds }}</div>
+				<div class="details-line t-label c-accent" data-if="SelectedCost &gt; 0">
+					<span data-loc="skills_cost">Cost</span> <span class="t-numeric">{{ SelectedCost }}</span>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</rml>

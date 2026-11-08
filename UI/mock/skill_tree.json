@@ -1,0 +1,24 @@
+{
+	"SkillPoints": 2,
+	"Skills": [
+		{ "Name": "Toughness", "X": 1, "Y": 0, "Rank": 3, "MaxRank": 3, "bLocked": false },
+		{ "Name": "Sprint", "X": 0, "Y": 1, "Rank": 1, "MaxRank": 2, "bLocked": false },
+		{ "Name": "Second Wind", "X": 1, "Y": 1, "Rank": 0, "MaxRank": 1, "bLocked": false },
+		{ "Name": "Iron Skin", "X": 2, "Y": 1, "Rank": 2, "MaxRank": 3, "bLocked": false },
+		{ "Name": "Vault", "X": 0, "Y": 2, "Rank": 0, "MaxRank": 1, "bLocked": true },
+		{ "Name": "Last Stand", "X": 1, "Y": 2, "Rank": 0, "MaxRank": 1, "bLocked": true },
+		{ "Name": "Bulwark", "X": 2, "Y": 2, "Rank": 0, "MaxRank": 2, "bLocked": false }
+	],
+	"SkillLinks": [
+		{ "X1": 1, "Y1": 0, "X2": 0, "Y2": 1, "bLit": true },
+		{ "X1": 1, "Y1": 0, "X2": 1, "Y2": 1, "bLit": true },
+		{ "X1": 1, "Y1": 0, "X2": 2, "Y2": 1, "bLit": true },
+		{ "X1": 0, "Y1": 1, "X2": 0, "Y2": 2, "bLit": true },
+		{ "X1": 1, "Y1": 1, "X2": 1, "Y2": 2, "bLit": false },
+		{ "X1": 2, "Y1": 1, "X2": 2, "Y2": 2, "bLit": true }
+	],
+	"SelectedName": "Toughness",
+	"SelectedText": "Take less damage from every hit.",
+	"SelectedNeeds": "",
+	"SelectedCost": 0
+}

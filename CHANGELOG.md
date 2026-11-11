@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.0
+* Studio has its own colour picker in **Properties** and for the canvas and bake backgrounds: a saturation square and hue strip, HSV, RGB or HSL sliders with alpha, hex with copy and paste, an eyedropper, and swatches of recent picks, the document's colours and shades. The canvas updates while you drag; the document is written once when the picker closes, so one undo takes back a whole pick
+* **Ctrl+Q** (**File > Exit**) closes Studio, and asks to save first when there are unsaved changes
+* `build-studio.cmd` in the plugin root builds Studio on Windows. Double-clicked, it stays open on a failed build so the error can be read
+
 ## 1.15.0
 * Skill tree recipe, `rcss/recipes/skill_tree.rml`, with a tutorial for the game side. See [docs/tutorials/skill_tree.md](docs/tutorials/skill_tree.md)
 * Studio's **Player** button draws the document under the player's settings: input device, confirm button, text size, colour vision, themes, screen effects, reduced motion and text speed. See [docs/studio_reference.md](docs/studio_reference.md#canvas)

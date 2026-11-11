@@ -1137,6 +1137,21 @@ export async function saveAll() {
 	for (const path of Object.keys(store.get().dirty)) await save(path);
 }
 
+/** Closes Studio, asking first when there are unsaved changes. */
+export async function quit() {
+	const unsaved = Object.keys(store.get().dirty);
+	if (unsaved.length) {
+		const names = unsaved.length === 1 ? basename(unsaved[0]) : unsaved.length + ' files';
+		const answer = await ask('Save changes to ' + names + '?', 'They are lost if you exit without saving.', ['Cancel', "Don't Save", 'Save'], 'Save');
+		if (answer === 'Save') {
+			await saveAll();
+			if (Object.keys(store.get().dirty).length) return;
+		}
+		else if (answer !== "Don't Save") return;
+	}
+	host.quit(0);
+}
+
 /** Opens a file the renderer named, at a line, such as the rule a property came from. */
 export function revealSource(reported: string, line: number) {
 	const path = resolveSourcePath(reported);

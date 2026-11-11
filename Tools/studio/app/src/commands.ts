@@ -8,7 +8,7 @@ import { commandForKey, commandInfo, comboOf, keysFor, toAccelerator } from './k
 import { formatActiveFile } from './lang/editor';
 import { monaco } from './monaco';
 import {
-	answerDialog, askBake, canvasScale, checkFlashing, checkForUpdatesNow, findNode, openFile, openProject, pickProject, revertAll, saveAll, select, setEditing, setMode, setZoom, store, toggleTimeline, toggleUpdateCheck,
+	answerDialog, askBake, canvasScale, checkFlashing, checkForUpdatesNow, findNode, openFile, openProject, pickProject, quit, revertAll, saveAll, select, setEditing, setMode, setZoom, store, toggleTimeline, toggleUpdateCheck,
 } from './session';
 
 export const REPO_URL = 'https://github.com/Fogspire/Folio';
@@ -124,6 +124,7 @@ export function runCommand(command: string, argument?: string) {
 			store.set({ status: 'Pick a recipe in Library, then Use it' });
 			return;
 		case 'save-all': return void saveAll();
+		case 'quit': return void quit();
 		case 'undo':
 			if (editor) editor.trigger('menu', 'undo', null);
 			else if (field && touched.has(field)) host.native('undo');

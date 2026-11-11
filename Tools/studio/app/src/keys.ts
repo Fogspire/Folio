@@ -26,6 +26,7 @@ export const COMMANDS: CommandInfo[] = [
 	command('File', 'save-all', 'Save All', 'app', 'Ctrl+S'),
 	command('File', 'revert-all', 'Revert Unsaved Changes', 'app'),
 	command('File', 'create-shortcuts', 'Create Shortcuts', 'app'),
+	command('File', 'quit', 'Exit', 'app', 'Ctrl+Q'),
 
 	command('Edit', 'undo', 'Undo', 'edit', 'Ctrl+Z'),
 	command('Edit', 'redo', 'Redo', 'edit', 'Ctrl+Shift+Z', 'Ctrl+Y'),

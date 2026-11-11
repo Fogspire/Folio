@@ -295,7 +295,7 @@ function buildMenu() {
 				separator,
 				item('Create Shortcuts', 'create-shortcuts'),
 				separator,
-				process.platform === 'darwin' ? { role: 'close' } : { role: 'quit' },
+				process.platform === 'darwin' ? { role: 'close' } : item('Exit', 'quit'),
 			],
 		},
 		{

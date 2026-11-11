@@ -289,11 +289,18 @@ export async function initialise() {
 }
 
 /** Tells the menu bar what to mark and which key to show beside each command. */
+let sentMenuState = '';
+
 function pushMenuState() {
 	const { settings, mode } = store.get();
 	const keys: Record<string, string | undefined> = {};
 	for (const entry of COMMANDS) keys[entry.id] = toAccelerator(keysFor(entry.id, settings.keys)[0]);
-	host.setMenuState({ updateCheck: settings.updateCheck, mode, keys });
+	const state = { updateCheck: settings.updateCheck, mode, keys };
+	// The shell rebuilds the whole native menu bar on each one, and most settings changes leave it as it was.
+	const serialised = JSON.stringify(state);
+	if (serialised === sentMenuState) return;
+	sentMenuState = serialised;
+	host.setMenuState(state);
 }
 
 export function updateSettings(changes: Partial<Settings>) {

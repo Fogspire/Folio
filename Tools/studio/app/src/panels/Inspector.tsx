@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { dataStore, knownBindings } from '../data/models';
 import { showPanel } from '../dock';
 import {
-	candidateTargets, defaultTarget, describeTarget, elementText, isEditable, isProjectFile, renameElementAttribute, setElementAttribute,
-	setElementText, setStyle, setStyles, Target,
+	candidateTargets, clearPreview, defaultTarget, describeTarget, elementText, isEditable, isProjectFile, previewStyle, renameElementAttribute,
+	setElementAttribute, setElementText, setStyle, setStyles, Target,
 } from '../edit/commands';
 import { Inspection, RuleProperty } from '../engine';
 import { basename } from '../paths';
@@ -162,6 +162,50 @@ function alphaOf(value: string): string {
 	return match ? match[1].slice(6) : '';
 }
 
+/**
+ * A colour well that shows each pick on the canvas as the picker moves and writes the document once,
+ * when the picker settles. Writing on every move reparses and redraws the document per mouse event.
+ */
+function ColourWell({ id, name, value, disabled, onCommit }: { id: string; name: string; value: string; disabled: boolean; onCommit: (value: string) => void }) {
+	const well = useRef<HTMLInputElement>(null);
+	const [draft, setDraft] = useState<string | null>(null);
+	const latest = useRef({ id, name, value, onCommit });
+	latest.current = { id, name, value, onCommit };
+	const shown = toWell(value);
+
+	useEffect(() => {
+		const input = well.current;
+		if (!input) return;
+		// The native change event, which fires once when the picker settles, unlike React's onChange.
+		const settle = () => {
+			const { id, name, value, onCommit } = latest.current;
+			clearPreview(id, [name]);
+			setDraft(null);
+			if (input.value !== toWell(value)) onCommit(input.value + alphaOf(value));
+		};
+		input.addEventListener('change', settle);
+		return () => input.removeEventListener('change', settle);
+	}, []);
+
+	useEffect(() => () => clearPreview(latest.current.id, [latest.current.name]), [id, name]);
+
+	return (
+		<input
+			ref={well}
+			type="color"
+			className="well"
+			disabled={disabled}
+			value={draft ?? shown}
+			onChange={(event) => {
+				const picked = event.target.value;
+				setDraft(picked);
+				if (picked === shown) clearPreview(id, [name]);
+				else previewStyle(id, [[name, picked + alphaOf(value)]]);
+			}}
+		/>
+	);
+}
+
 /** A text field that commits on Enter or on losing focus, and reverts on Escape. */
 function CommitInput({ value, placeholder, list, onCommit, className }: { value: string; placeholder?: string; list?: string; onCommit: (value: string) => void; className?: string }) {
 	const [draft, setDraft] = useState(value);
@@ -215,13 +259,7 @@ function PropertyRow({ inspection, field, editable }: { inspection: Inspection; 
 			<label title={field.name}>{field.label ?? field.name}</label>
 			<div className="prop-value">
 				{field.colour && (
-					<input
-						type="color"
-						className="well"
-						disabled={!editable}
-						value={toWell(resolved.value || resolved.computed)}
-						onChange={(event) => commit(event.target.value + alphaOf(resolved.value || resolved.computed))}
-					/>
+					<ColourWell id={inspection.id} name={field.name} value={resolved.value || resolved.computed} disabled={!editable} onCommit={commit} />
 				)}
 				<CommitInput value={resolved.value} placeholder={resolved.computed} list={listId} onCommit={commit} />
 				{listId && <datalist id={listId}>{field.options!.map((option) => <option key={option} value={option} />)}</datalist>}

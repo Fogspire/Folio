@@ -6,6 +6,7 @@ import { assignKey, COMMANDS, commandInfo, comboOf, displayKey, keysFor, resetKe
 import { extension, isUnder, relativeTo } from './paths';
 import { answerDialog, bakeElement, bakeFolder, openDocument, openFile, store, updateSettings } from './session';
 import { BACKGROUNDS, DEFAULT_SETTINGS } from './settings';
+import { ColourPicker } from './ColourPicker';
 
 export type Dialog =
 	| { kind: 'preferences' }
@@ -304,10 +305,16 @@ function Bake({ id, name, folder }: { id: string; name: string; folder?: string 
 						{BACKGROUNDS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
 					</select>
 					{isCustom && (
-						<input
-							type="color"
+						<ColourPicker
 							value={background}
-							onChange={(event) => updateSettings({ bakeBackground: event.target.value, bakeCustomColour: event.target.value })}
+							alpha={false}
+							title="Pick the background colour"
+							onPreview={(value) => {
+								// A preset would switch the menu off Custom and close the picker under the pointer.
+								if (!BACKGROUNDS.some(([preset]) => preset === value)) updateSettings({ bakeBackground: value });
+							}}
+							onCancel={(original) => updateSettings({ bakeBackground: original })}
+							onCommit={(value) => updateSettings({ bakeBackground: value, bakeCustomColour: value })}
 						/>
 					)}
 				</label>

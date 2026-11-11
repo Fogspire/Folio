@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { coloursIn } from '../colour';
+import { ColourPicker } from '../ColourPicker';
 import { dataStore, knownBindings } from '../data/models';
 import { showPanel } from '../dock';
 import {
-	candidateTargets, clearPreview, defaultTarget, describeTarget, elementText, isEditable, isProjectFile, previewStyle, renameElementAttribute,
+	candidateTargets, clearPreview, currentSource, defaultTarget, describeTarget, elementText, isEditable, isProjectFile, previewStyle, renameElementAttribute,
 	setElementAttribute, setElementText, setStyle, setStyles, Target,
 } from '../edit/commands';
 import { Inspection, RuleProperty } from '../engine';
+import { linkedSheets } from '../lang/editor';
 import { basename } from '../paths';
 import { revealSource, setWriteTarget, store } from '../session';
 
@@ -148,62 +151,12 @@ function resolve(inspection: Inspection, field: Field): Resolved {
 	return { value: format(field, names.map((name, index) => sources[index]?.value ?? inspection.computed[name] ?? '')), computed, origin: first };
 }
 
-/** `#rrggbb` out of an RCSS colour, for the colour well, which knows nothing of alpha. */
-function toWell(value: string): string {
-	const match = /^#([0-9a-f]{3,8})$/i.exec(value.trim());
-	if (!match) return '#000000';
-	const hex = match[1];
-	if (hex.length === 3 || hex.length === 4) return '#' + hex.slice(0, 3).split('').map((digit) => digit + digit).join('');
-	return '#' + hex.slice(0, 6);
-}
-
-function alphaOf(value: string): string {
-	const match = /^#([0-9a-f]{8})$/i.exec(value.trim());
-	return match ? match[1].slice(6) : '';
-}
-
-/**
- * A colour well that shows each pick on the canvas as the picker moves and writes the document once,
- * when the picker settles. Writing on every move reparses and redraws the document per mouse event.
- */
-function ColourWell({ id, name, value, disabled, onCommit }: { id: string; name: string; value: string; disabled: boolean; onCommit: (value: string) => void }) {
-	const well = useRef<HTMLInputElement>(null);
-	const [draft, setDraft] = useState<string | null>(null);
-	const latest = useRef({ id, name, value, onCommit });
-	latest.current = { id, name, value, onCommit };
-	const shown = toWell(value);
-
-	useEffect(() => {
-		const input = well.current;
-		if (!input) return;
-		// The native change event, which fires once when the picker settles, unlike React's onChange.
-		const settle = () => {
-			const { id, name, value, onCommit } = latest.current;
-			clearPreview(id, [name]);
-			setDraft(null);
-			if (input.value !== toWell(value)) onCommit(input.value + alphaOf(value));
-		};
-		input.addEventListener('change', settle);
-		return () => input.removeEventListener('change', settle);
-	}, []);
-
-	useEffect(() => () => clearPreview(latest.current.id, [latest.current.name]), [id, name]);
-
-	return (
-		<input
-			ref={well}
-			type="color"
-			className="well"
-			disabled={disabled}
-			value={draft ?? shown}
-			onChange={(event) => {
-				const picked = event.target.value;
-				setDraft(picked);
-				if (picked === shown) clearPreview(id, [name]);
-				else previewStyle(id, [[name, picked + alphaOf(value)]]);
-			}}
-		/>
-	);
+/** The colours the open document and the stylesheets it links already use, most used first. */
+async function usedColours(): Promise<string[]> {
+	const source = currentSource();
+	if (!source) return [];
+	const sheets = await linkedSheets(source.text);
+	return coloursIn([source.text, ...sheets.map((sheet) => sheet.text)]);
 }
 
 /** A text field that commits on Enter or on losing focus, and reverts on Escape. */
@@ -259,7 +212,18 @@ function PropertyRow({ inspection, field, editable }: { inspection: Inspection; 
 			<label title={field.name}>{field.label ?? field.name}</label>
 			<div className="prop-value">
 				{field.colour && (
-					<ColourWell id={inspection.id} name={field.name} value={resolved.value || resolved.computed} disabled={!editable} onCommit={commit} />
+					<ColourPicker
+						value={resolved.value || resolved.computed}
+						disabled={!editable}
+						title={`Pick ${field.label ?? field.name}`}
+						onPreview={(value) => previewStyle(inspection.id, [[field.name, value]])}
+						onCancel={() => clearPreview(inspection.id, [field.name])}
+						onCommit={(value) => {
+							clearPreview(inspection.id, [field.name]);
+							commit(value);
+						}}
+						documentColours={usedColours}
+					/>
 				)}
 				<CommitInput value={resolved.value} placeholder={resolved.computed} list={listId} onCommit={commit} />
 				{listId && <datalist id={listId}>{field.options!.map((option) => <option key={option} value={option} />)}</datalist>}

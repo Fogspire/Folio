@@ -10,6 +10,7 @@ import {
 import { Inspection, Rect, TreeNode } from '../engine';
 import { basename, extension, stem } from '../paths';
 import { BACKGROUNDS } from '../settings';
+import { ColourPicker } from '../ColourPicker';
 import {
 	advanceTimeline, canvasScale, changedPlayerSettings, ColourVision, copyLibraryDocument, DEFAULT_PLAYER, discoverThemes, documentRootPath, engine, findNode,
 	isLibraryDocument, MIN_ZOOM, seekTimeline, select, setCulture, setEditing, setHover, setPlayer, setRenderScale, setTimelinePlaying, setViewport, setZoom, store,
@@ -480,10 +481,16 @@ function BackgroundPicker() {
 				{BACKGROUNDS.map(([value, label]) => <option key={value} value={value}>{value === 'none' ? 'None' : label}</option>)}
 			</select>
 			{isCustom && (
-				<input
-					type="color"
+				<ColourPicker
 					value={background}
-					onChange={(event) => updateSettings({ canvasBackground: event.target.value, canvasCustomColour: event.target.value })}
+					alpha={false}
+					title="Pick the background colour"
+					onPreview={(value) => {
+						// A preset would switch the menu off Custom and close the picker under the pointer.
+						if (!BACKGROUNDS.some(([preset]) => preset === value)) updateSettings({ canvasBackground: value });
+					}}
+					onCancel={(original) => updateSettings({ canvasBackground: original })}
+					onCommit={(value) => updateSettings({ canvasBackground: value, canvasCustomColour: value })}
 				/>
 			)}
 		</label>

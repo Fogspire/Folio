@@ -69,7 +69,7 @@ interface Sheet {
 }
 
 /** Every stylesheet a document links, through the templates it links, a few levels deep. */
-async function linkedSheets(text: string, depth = 0, seen = new Set<string>()): Promise<Sheet[]> {
+export async function linkedSheets(text: string, depth = 0, seen = new Set<string>()): Promise<Sheet[]> {
 	if (depth > 3) return [];
 	const sheets: Sheet[] = [];
 	for (const element of flatten(parseRml(text).roots)) {

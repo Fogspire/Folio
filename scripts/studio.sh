@@ -175,13 +175,14 @@ run_tests() {
 	local scratch
 	scratch="$(mktemp -d)"
 	mkdir -p "$scratch/edit/UI/screens" "$scratch/shell/UI/screens" "$scratch/data" "$scratch/activity/UI/screens" "$scratch/sprites/UI/screens"
-	mkdir -p "$scratch/player/UI/screens" "$scratch/player/UI/mock"
+	mkdir -p "$scratch/player/UI/screens" "$scratch/player/UI/mock" "$scratch/colour/UI/screens"
 	cp "$repo_root/rcss/recipes/skill_tree.rml" "$scratch/player/UI/screens/skill_tree.rml"
 	cp "$repo_root/UI/mock/skill_tree.json" "$scratch/player/UI/mock/skill_tree.json"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/edit/UI/screens/test.rml"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/shell/UI/screens/test.rml"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/activity/UI/screens/test.rml"
 	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/sprites/UI/screens/test.rml"
+	cp "$repo_root/rcss/recipes/main_menu.rml" "$scratch/colour/UI/screens/test.rml"
 	cp -r "$studio/test/fixtures/data/UI" "$scratch/data/UI"
 	mkdir -p "$scratch/intellisense"
 	cp -r "$studio/test/fixtures/data/UI" "$scratch/intellisense/UI"
@@ -206,6 +207,8 @@ run_tests() {
 	run_scripted sprites "$scratch/sprites" UI/screens/test.rml
 	echo "Player settings and accessibility"
 	run_scripted player "$scratch/player" UI/screens/skill_tree.rml
+	echo "Colour picker"
+	run_scripted colour "$scratch/colour" UI/screens/test.rml
 
 	rm -rf "$scratch"
 	[[ $failed -eq 0 ]] || folio_die "scripted tests failed."
